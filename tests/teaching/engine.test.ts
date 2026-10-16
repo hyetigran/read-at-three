@@ -61,7 +61,7 @@ export async function fixture() {
 test("parent acceptance follows exact nodes and partial frontier never completes", async () => {
   const content = await fixture();
   const first = initialState(content);
-  const modelId = content.body.startNodeId;
+  const modelId = parseId({ kind: "node", value: "model" });
   const childId = parseId({ kind: "node", value: "child" });
   assert.equal(project(content, first).kind, "teaching");
   assert.throws(() => evaluate(content, first, childId), /current/);
@@ -119,6 +119,18 @@ test("command preparation captures immutable profile scope exactly once", async 
       profileRevision: "9007199254740993",
       packageHash: content.packageHash,
       title: content.body.title,
+      catalog: [],
+      actions: [
+        {
+          label: copy,
+          intent: {
+            kind: "start",
+            taskId: "synthetic-task",
+            packageHash: content.packageHash,
+            sessionId: null,
+          },
+        },
+      ],
     }),
     ids: () => "command",
     hash,

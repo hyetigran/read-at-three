@@ -12,6 +12,7 @@ import type {
   DevelopmentBodyInput,
   TeachingNodeInput,
 } from "@readatthree/teaching";
+import { prepareGraphContent } from "./graph.ts";
 
 const hash = async (text: string) =>
   createHash("sha256").update(text).digest("hex");
@@ -39,7 +40,9 @@ async function save(body: DevelopmentBodyInput, path: string) {
   );
 }
 
-if (fixture) {
+if (process.argv.includes("--graph")) {
+  await prepareGraphContent({ fixture });
+} else if (fixture) {
   const nodes: TeachingNodeInput[] = [
     {
       id: "fixture.model",

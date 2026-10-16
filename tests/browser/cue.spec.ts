@@ -1,4 +1,8 @@
 import { test, expect } from "@playwright/test";
+import { useLegacyContent } from "./legacy-content.ts";
+test.beforeEach(async ({ context }) => {
+  await useLegacyContent(context);
+});
 
 const motionModes: ("no-preference" | "reduce")[] = ["no-preference", "reduce"];
 

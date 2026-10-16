@@ -1,4 +1,4 @@
-import { StrictMode, useRef, useState } from "react";
+import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import {
@@ -8,7 +8,11 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import type { Projection, TeachingCommand } from "@readatthree/teaching";
+import type {
+  AvailableAction,
+  Projection,
+  TeachingCommand,
+} from "@readatthree/teaching";
 import { TeachingScreen } from "./features/teaching/TeachingScreen.tsx";
 import { AddedText } from "./features/teaching/CopyText.tsx";
 import { createBrowserTeachingClient } from "./platform/teaching-client.ts";
@@ -35,19 +39,21 @@ function keyFor(view: Projection): readonly string[] {
     view.kind === "entry" ? "entry" : view.sessionId,
   ];
 }
-function sameOwner(view: Projection, command: TeachingCommand): boolean {
+type PreparedAction = Readonly<{
+  command: TeachingCommand;
+  origin: Projection;
+}>;
+function owns(view: Projection, command: TeachingCommand): boolean {
   return (
     view.kind !== "recovery" &&
     view.owner.profileId === command.owner.profileId &&
-    view.owner.generation === command.owner.generation &&
-    view.packageHash === command.payload.packageHash
+    view.owner.generation === command.owner.generation
   );
 }
 type SaveState =
-  | { kind: "idle" }
-  | { kind: "preparing" }
-  | { kind: "pending"; command: TeachingCommand }
-  | { kind: "failed"; command: TeachingCommand; message: string }
+  | { kind: "idle" | "preparing" }
+  | { kind: "pending"; prepared: PreparedAction }
+  | { kind: "failed"; prepared: PreparedAction; message: string }
   | { kind: "rejected"; message: string };
 
 function ReadyApplication({
@@ -61,6 +67,26 @@ function ReadyApplication({
   const [queryKey, setQueryKey] = useState(() => keyFor(initial));
   const [save, setSave] = useState<SaveState>({ kind: "idle" });
   const active = useRef(initial);
+  const live = useRef(true);
+  const operation = useRef<SaveState["kind"]>("idle");
+  useEffect(() => {
+    live.current = true;
+    return () => {
+      live.current = false;
+    };
+  }, []);
+  function saveState(next: SaveState) {
+    operation.current = next.kind;
+    setSave(next);
+  }
+  function isCurrent(prepared: PreparedAction) {
+    return (
+      live.current &&
+      active.current === prepared.origin &&
+      owns(active.current, prepared.command)
+    );
+  }
+
   const query = useQuery({
     queryKey,
     queryFn: () => client.read(),
@@ -74,16 +100,17 @@ function ReadyApplication({
   function publish(next: Projection) {
     const nextKey = keyFor(next);
     cache.setQueryData(nextKey, next);
+    active.current = next;
     setQueryKey(nextKey);
   }
   const mutation = useMutation({
-    mutationFn: (command: TeachingCommand) => client.dispatch(command),
+    mutationFn: (prepared: PreparedAction) => client.dispatch(prepared.command),
     networkMode: "always",
     retry: false,
-    async onSuccess(result, command) {
-      if (!sameOwner(active.current, command)) return;
+    async onSuccess(result, prepared) {
+      if (!isCurrent(prepared)) return;
       if (result.kind === "rejected") {
-        setSave({
+        saveState({
           kind: "rejected",
           message:
             "The reading place changed before this action could be accepted. Retry to reload the saved place without advancing.",
@@ -91,66 +118,87 @@ function ReadyApplication({
         return;
       }
       const next = await client.read();
+      if (!isCurrent(prepared)) return;
       if (
-        sameOwner(active.current, command) &&
-        (next.kind === "recovery" || sameOwner(next, command))
-      )
-        publish(next);
-      setSave({ kind: "idle" });
+        next.kind !== "recovery" &&
+        (!owns(next, prepared.command) ||
+          next.kind === "entry" ||
+          next.sessionId !== result.sessionId ||
+          next.runId !== result.runId ||
+          next.packageHash !== result.packageHash)
+      ) {
+        saveState({
+          kind: "rejected",
+          message:
+            "The saved reading place changed. Reload it before continuing.",
+        });
+        return;
+      }
+      publish(next);
+      saveState({ kind: "idle" });
     },
-    onError(_error, command) {
-      if (sameOwner(active.current, command))
-        setSave({
+    onError(_error, prepared) {
+      if (isCurrent(prepared))
+        saveState({
           kind: "failed",
-          command,
+          prepared,
           message:
             "This save could not be confirmed. Keep this reading window open and retry the same action.",
         });
     },
   });
-  async function advance() {
+  async function act(action: AvailableAction) {
     if (
-      save.kind !== "idle" ||
-      mutation.isPending ||
+      operation.current !== "idle" ||
       !isTeachingViewport() ||
       document.visibilityState !== "visible"
     )
       return;
     const captured = view;
-    setSave({ kind: "preparing" });
+    saveState({ kind: "preparing" });
     try {
-      const command = await client.prepare(captured);
-      if (
-        !sameOwner(active.current, command) ||
-        keyFor(active.current).join("/") !== keyFor(captured).join("/")
-      ) {
-        setSave({ kind: "idle" });
+      const command = await client.prepare(captured, action);
+      const prepared = { command, origin: captured };
+      if (!isCurrent(prepared)) {
+        saveState({ kind: "idle" });
         return;
       }
-      setSave({ kind: "pending", command });
-      mutation.mutate(command);
+      saveState({ kind: "pending", prepared });
+      mutation.mutate(prepared);
     } catch {
-      setSave({
-        kind: "rejected",
-        message:
-          "This action is unavailable. Retry to reload your saved place without advancing.",
-      });
+      if (live.current)
+        saveState({
+          kind: "rejected",
+          message:
+            "This action is unavailable. Retry to reload your saved place without advancing.",
+        });
     }
   }
   async function retry() {
+    if (
+      operation.current === "pending" ||
+      operation.current === "preparing" ||
+      !isTeachingViewport() ||
+      document.visibilityState !== "visible"
+    )
+      return;
     if (save.kind === "failed") {
-      setSave({ kind: "pending", command: save.command });
-      mutation.mutate(save.command);
+      saveState({ kind: "pending", prepared: save.prepared });
+      mutation.mutate(save.prepared);
     } else if (save.kind === "rejected") {
+      saveState({ kind: "preparing" });
       try {
-        publish(await client.read());
-        setSave({ kind: "idle" });
+        const next = await client.read();
+        if (!live.current) return;
+        publish(next);
+        saveState({ kind: "idle" });
       } catch {
-        setSave({
-          kind: "rejected",
-          message:
-            "The saved place is still unavailable. Keep your data and retry.",
-        });
+        if (live.current)
+          saveState({
+            kind: "rejected",
+            message:
+              "The saved place is still unavailable. Keep your data and retry.",
+          });
       }
     }
   }
@@ -171,8 +219,8 @@ function ReadyApplication({
       saveError={
         save.kind === "failed" || save.kind === "rejected" ? save.message : null
       }
-      onAdvance={() => {
-        void advance();
+      onAction={(action) => {
+        void act(action);
       }}
       onRetry={() => {
         void retry();

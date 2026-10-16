@@ -10,8 +10,20 @@ export {
   increment,
   parseTeachingState,
   parseReceipt,
+  graphTask,
+  compileTask,
 } from "./content.ts";
-export { evaluate, initialState, project, validatePosition } from "./engine.ts";
+export {
+  evaluate,
+  evaluateGraph,
+  initialState,
+  project,
+  validatePosition,
+  currentCheckpoint,
+  completionProof,
+  validateAcceptanceTransition,
+  validateAcceptanceState,
+} from "./engine.ts";
 export { createCoordinator, prepareCommand } from "./coordinator.ts";
 export { parseProjection, parseDispatchResult } from "./content.ts";
 export type {

@@ -3,12 +3,17 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
+import { useLegacyContent } from "./legacy-content.ts";
+test.beforeEach(async ({ context }) => {
+  await useLegacyContent(context);
+});
 
 const base =
   process.env.READING_BROWSER_BUILD === "1"
     ? "http://127.0.0.1:5175"
     : "http://127.0.0.1:5174";
 async function start(page: Page) {
+  await useLegacyContent(page);
   await page.goto(base);
   await page.getByRole("button", { name: "Start", exact: true }).click();
   await expect(page.getByText("Fixture model.", { exact: true })).toBeVisible();
@@ -49,14 +54,18 @@ test("parent acceptance, cue cancellation, stable anchors and partial resume use
   ).toBeVisible();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(
-    page.getByText("This task is still in progress.", { exact: false }),
+    page.getByText("This earlier activity is still in progress.", {
+      exact: false,
+    }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Continue", exact: true }),
   ).toHaveCount(0);
   await page.reload();
   await expect(
-    page.getByText("This task is still in progress.", { exact: false }),
+    page.getByText("This earlier activity is still in progress.", {
+      exact: false,
+    }),
   ).toBeVisible();
 });
 
@@ -79,6 +88,7 @@ test("a full browser process restart restores the exact child-response turn", as
       viewport: { width: 1024, height: 768 },
     });
     const restored = await context.newPage();
+    await useLegacyContent(restored);
     await restored.goto(base);
     await expect(
       restored.getByText("Fixture child response.", { exact: true }),
@@ -311,7 +321,9 @@ test("lost reply after real COMMIT keeps the old screen and retries the identica
     page.getByText("Fixture child response.", { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByText("This task is still in progress.", { exact: false }),
+    page.getByText("This earlier activity is still in progress.", {
+      exact: false,
+    }),
   ).toHaveCount(0);
   await page.reload();
   await expect(

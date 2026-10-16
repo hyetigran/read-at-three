@@ -3,6 +3,10 @@ import { test } from "node:test";
 import { parseHash, parseId } from "../../packages/teaching/src/index.ts";
 import type {
   AdvanceId,
+  CreditId,
+  OccurrenceId,
+  CheckpointId,
+  CorrectionId,
   CommandId,
   Counter,
   CourseId,
@@ -25,6 +29,10 @@ import type { WorkerRequestId } from "../../apps/web/src/platform/protocol.ts";
 
 type DomainPrimitives = {
   counter: Counter;
+  credit: CreditId;
+  occurrence: OccurrenceId;
+  checkpoint: CheckpointId;
+  correction: CorrectionId;
   profile: ProfileId;
   session: SessionId;
   run: RunId;

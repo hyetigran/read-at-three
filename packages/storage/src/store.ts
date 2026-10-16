@@ -1,9 +1,9 @@
-import { and, eq, asc, ne } from "drizzle-orm";
+import { and, eq, asc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/sqlite-proxy";
 import {
   canonical,
+  completionProof,
   createCoordinator,
-  evaluate,
   initialState,
   increment,
   parseCounter,
@@ -11,25 +11,67 @@ import {
   parseDevelopmentPackage,
   parseReceipt,
   parseTeachingState,
+  validatePosition,
+  validateAcceptanceState,
+  validateAcceptanceTransition,
 } from "../../teaching/src/index.ts";
 import type {
-  CommittedProjection,
   AdvanceId,
+  CommitReceipt,
+  CommittedProjection,
+  CompletionProof,
   DevelopmentPackage,
   HashFunction,
   IdFactory,
   Owner,
+  PackageHash,
   StoredContext,
+  StoredSession,
   TeachingApplication,
   TeachingCommand,
+  TeachingState,
   TeachingStore,
   TeachingTransaction,
 } from "../../teaching/src/index.ts";
 import { sqlValues } from "./executor.ts";
 import type { SqlExecutor } from "./executor.ts";
-import { initializeDatabase, transaction } from "./migration.ts";
+import {
+  DATABASE_VERSION,
+  initializeDatabase,
+  transaction,
+} from "./migration.ts";
 import * as schema from "./schema.ts";
-import { utf8, equalBytes } from "./utf8.ts";
+import { utf8, equalBytes, decodeUtf8 } from "./utf8.ts";
+
+type AdvanceRow = typeof schema.taskAdvance.$inferSelect;
+type RunRow = typeof schema.taskRun.$inferSelect;
+function durableReceipt({
+  run,
+  advance,
+  proof,
+}: {
+  run: RunRow;
+  advance: AdvanceRow;
+  proof: CompletionProof;
+}) {
+  return {
+    version: 1,
+    commandId: advance.commandId,
+    terminalAdvanceId: advance.advanceId,
+    runId: run.runId,
+    runRevision: advance.acceptedRunRevision,
+    outcome: "completed",
+    packageHash: run.packageHash,
+    taskId: run.taskId,
+    requiredOccurrenceIds: proof.requiredOccurrenceIds,
+    sourceRefs: proof.sourceRefs,
+  };
+}
+function acceptedId(state: TeachingState) {
+  return state.kind === "graph"
+    ? state.acceptedOccurrenceIds.at(-1)
+    : state.acceptedNodeIds.at(-1);
+}
 export function createTeachingApplication({
   executor,
   content,
@@ -52,20 +94,66 @@ export function createTeachingApplication({
     tail = next.catch(() => undefined);
     return next;
   }
+  const verified = new Map<PackageHash, DevelopmentPackage>();
+  async function warmPackages() {
+    verified.clear();
+    const rows = await db.select().from(schema.installedPackage).all();
+    for (const row of rows) {
+      if (row.state !== "ready") continue;
+      const value = await parseDevelopmentPackage(
+        JSON.parse(decodeUtf8(row.verifiedManifest)),
+        hash,
+      );
+      if (
+        value.packageHash !== row.packageHash ||
+        value.body.courseId !== row.courseId ||
+        value.body.releaseId !== row.releaseId ||
+        row.storageKey !== row.packageHash ||
+        canonical([value.body.coverage]) !== row.capabilities
+      )
+        throw new Error(
+          "Installed package metadata does not match verified bytes",
+        );
+      verified.set(row.packageHash, value);
+    }
+  }
+  function pinned(packageHash: PackageHash) {
+    const value = verified.get(packageHash);
+    if (!value) throw new Error("Exact pinned package is unavailable");
+    return value;
+  }
+  async function ensurePackage(value: DevelopmentPackage) {
+    const rows = await db
+      .select()
+      .from(schema.installedPackage)
+      .where(eq(schema.installedPackage.packageHash, value.packageHash))
+      .all();
+    const row = rows[0];
+    if (
+      !row ||
+      row.state !== "ready" ||
+      row.courseId !== value.body.courseId ||
+      row.releaseId !== value.body.releaseId ||
+      row.storageKey !== value.packageHash ||
+      !equalBytes(row.verifiedManifest, utf8(canonical(value)))
+    )
+      throw new Error("Pinned package identity changed");
+  }
   let initialization: Promise<TeachingApplication> | undefined;
-  function ensureInitialized(): Promise<TeachingApplication> {
+  function ensureInitialized() {
     initialization ??= (async () => {
       content = await parseDevelopmentPackage(content, hash);
       await initializeDatabase(executor, hash);
+      await warmPackages();
       await transaction(executor, async () => {
         const installations = await db.select().from(schema.installation).all();
-        if (installations.length === 0) {
+        if (!installations.length) {
           await db
             .insert(schema.installation)
             .values({
               id: parseId({ kind: "installation", value: ids() }),
               revision: parseCounter("0"),
-              databaseVersion: 1,
+              databaseVersion: DATABASE_VERSION,
               singleton: 1,
             })
             .run();
@@ -82,8 +170,7 @@ export function createTeachingApplication({
             .run();
         } else if (
           installations.length !== 1 ||
-          (installations[0]?.databaseVersion !== 1 &&
-            BigInt(installations[0]?.databaseVersion ?? 0) !== 1n)
+          Number(installations[0]?.databaseVersion) !== DATABASE_VERSION
         )
           throw new Error("Installation metadata is incompatible");
         const packages = await db
@@ -91,7 +178,7 @@ export function createTeachingApplication({
           .from(schema.installedPackage)
           .where(eq(schema.installedPackage.packageHash, content.packageHash))
           .all();
-        if (packages.length === 0)
+        if (!packages.length)
           await db
             .insert(schema.installedPackage)
             .values({
@@ -99,31 +186,21 @@ export function createTeachingApplication({
               courseId: content.body.courseId,
               releaseId: content.body.releaseId,
               contentSchemaVersion: 1,
-              capabilities: canonical(["partial-first-m"]),
+              capabilities: canonical([content.body.coverage]),
               manifestVersion: 1,
               verifiedManifest: utf8(canonical(content)),
               state: "ready",
               storageKey: content.packageHash,
             })
             .run();
-        else {
-          const installed = packages[0];
-          if (
-            !installed ||
-            installed.courseId !== content.body.courseId ||
-            installed.releaseId !== content.body.releaseId ||
-            !equalBytes(installed.verifiedManifest, utf8(canonical(content)))
-          )
-            throw new Error(
-              "Installed package identity does not match verified content",
-            );
-        }
+        else await ensurePackage(content);
         const activations = await db
           .select()
           .from(schema.courseActivation)
           .where(eq(schema.courseActivation.courseId, content.body.courseId))
           .all();
-        if (activations.length === 0)
+        const active = activations[0];
+        if (!active)
           await db
             .insert(schema.courseActivation)
             .values({
@@ -133,13 +210,181 @@ export function createTeachingApplication({
               revision: parseCounter("0"),
             })
             .run();
+        else if (active.activePackageHash !== content.packageHash) {
+          const previous = pinned(active.activePackageHash);
+          await ensurePackage(previous);
+          if (
+            previous.body.coverage === "partial-first-m" &&
+            content.body.coverage === "lesson1-sounds-complete" &&
+            previous.body.lessonId === content.body.lessonId &&
+            content.body.tasks.some(
+              (task) =>
+                task.id ===
+                (previous.body.coverage === "partial-first-m"
+                  ? previous.body.taskId
+                  : null),
+            )
+          )
+            await db
+              .update(schema.courseActivation)
+              .set({
+                activePackageHash: content.packageHash,
+                fallbackPackageHash: previous.packageHash,
+                revision: increment(active.revision),
+              })
+              .where(
+                and(
+                  eq(schema.courseActivation.courseId, content.body.courseId),
+                  eq(
+                    schema.courseActivation.activePackageHash,
+                    previous.packageHash,
+                  ),
+                  eq(schema.courseActivation.revision, active.revision),
+                ),
+              )
+              .run();
+        }
       });
-      return createCoordinator({ store, content, ids, hash });
+      await warmPackages();
+      return createCoordinator({ store, ids, hash });
     })();
     return initialization;
   }
+  async function loadSession(
+    row: typeof schema.session.$inferSelect,
+    owner: Owner,
+  ): Promise<StoredSession | null> {
+    const rows = await db
+      .select()
+      .from(schema.taskRun)
+      .where(eq(schema.taskRun.runId, row.currentRunId))
+      .all();
+    const run = rows[0];
+    if (
+      !run ||
+      run.sessionId !== row.sessionId ||
+      run.profileId !== owner.profileId ||
+      run.generation !== owner.generation ||
+      run.courseId !== row.courseId ||
+      run.packageHash !== row.packageHash ||
+      run.lessonId !== row.lessonId ||
+      run.taskId !== row.taskId
+    )
+      throw new Error("Saved run ownership is invalid");
+    if (run.status === "abandoned" && row.status === "closed") return null;
+    if (run.status !== "inProgress" && run.status !== "completed")
+      throw new Error("Saved run status is unsupported");
+    if ((run.status === "completed") !== (row.status === "closed"))
+      throw new Error("Saved session terminal status is invalid");
+    const value = pinned(run.packageHash);
+    if (
+      value.body.courseId !== run.courseId ||
+      value.body.lessonId !== run.lessonId
+    )
+      throw new Error("Saved package ownership is invalid");
+    const state = parseTeachingState(JSON.parse(run.state));
+    validatePosition(value, state, run.taskId);
+    let baseline = initialState(value, run.taskId);
+    let previous: AdvanceId | null = null;
+    let nextSeq = parseCounter("1");
+    let acceptedRevision = parseCounter("0");
+    let terminal: AdvanceRow | undefined;
+    const advances = await db
+      .select()
+      .from(schema.taskAdvance)
+      .where(eq(schema.taskAdvance.runId, run.runId))
+      .orderBy(asc(schema.taskAdvance.seq))
+      .all();
+    for (const advance of advances) {
+      if (
+        terminal ||
+        advance.status !== "accepted" ||
+        advance.profileId !== owner.profileId ||
+        advance.generation !== owner.generation ||
+        advance.previousAdvanceId !== previous ||
+        advance.seq !== nextSeq ||
+        BigInt(advance.acceptedRunRevision) <= BigInt(acceptedRevision) ||
+        BigInt(advance.acceptedRunRevision) > BigInt(run.revision) ||
+        advance.beforeRunStatus !== "inProgress"
+      )
+        throw new Error("Saved acceptance chain is invalid");
+      const before = parseTeachingState(JSON.parse(advance.beforeState));
+      const after = parseTeachingState(JSON.parse(advance.afterState));
+      validateAcceptanceState({
+        content: value,
+        taskId: run.taskId,
+        baseline,
+        state: before,
+      });
+      const occurrenceId = acceptedId(after);
+      if (!occurrenceId) throw new Error("Accepted occurrence is missing");
+      validateAcceptanceTransition({
+        content: value,
+        taskId: run.taskId,
+        before,
+        after,
+        occurrenceId,
+      });
+      const proof = completionProof(value, after);
+      if (advance.afterRunStatus !== (proof ? "completed" : "inProgress"))
+        throw new Error("Saved acceptance outcome is invalid");
+      if (proof) terminal = advance;
+      baseline = after;
+      previous = advance.advanceId;
+      nextSeq = increment(nextSeq);
+      acceptedRevision = advance.acceptedRunRevision;
+    }
+    validateAcceptanceState({
+      content: value,
+      taskId: run.taskId,
+      baseline,
+      state,
+    });
+    if (
+      previous !== run.activeAdvanceId ||
+      nextSeq !== run.nextAdvanceSeq ||
+      Boolean(terminal) !== (run.status === "completed") ||
+      Boolean(completionProof(value, state)) !== (run.status === "completed")
+    )
+      throw new Error("Saved acceptance head is invalid");
+    const credits = await db
+      .select()
+      .from(schema.taskCredit)
+      .where(eq(schema.taskCredit.runId, run.runId))
+      .all();
+    if (terminal) {
+      const proof = completionProof(value, baseline);
+      const credit = credits[0];
+      if (
+        !proof ||
+        credits.length !== 1 ||
+        !credit ||
+        credit.status !== "valid" ||
+        credit.outcome !== "completed" ||
+        credit.terminalAdvanceId !== terminal.advanceId ||
+        Number(credit.receiptVersion) !== 1 ||
+        canonical(JSON.parse(credit.receipt)) !==
+          canonical(durableReceipt({ run, advance: terminal, proof }))
+      )
+        throw new Error("Durable task completion receipt is invalid");
+    } else if (credits.length)
+      throw new Error("Unfinished run has completion credit");
+    return {
+      sessionId: row.sessionId,
+      runId: run.runId,
+      revision: row.revision,
+      runRevision: run.revision,
+      packageHash: run.packageHash,
+      lessonId: run.lessonId,
+      taskId: run.taskId,
+      status: row.status,
+      runStatus: run.status,
+      state,
+      activeAdvanceId: run.activeAdvanceId,
+      nextAdvanceSeq: run.nextAdvanceSeq,
+    };
+  }
   async function context(owner: Owner): Promise<StoredContext | null> {
-    parseCounter(owner.generation);
     const profiles = await db
       .select()
       .from(schema.profile)
@@ -152,6 +397,14 @@ export function createTeachingApplication({
       .all();
     const profile = profiles[0];
     if (!profile) return null;
+    const activations = await db
+      .select()
+      .from(schema.courseActivation)
+      .where(eq(schema.courseActivation.courseId, content.body.courseId))
+      .all();
+    const active = activations[0];
+    if (!active) throw new Error("Course activation is missing");
+    pinned(active.activePackageHash);
     const cursors = await db
       .select()
       .from(schema.courseCursor)
@@ -164,136 +417,92 @@ export function createTeachingApplication({
       )
       .all();
     const cursor = cursors[0];
-    if (!cursor?.resumeSessionId) {
-      const orphaned = await db
-        .select({ id: schema.session.sessionId })
-        .from(schema.session)
-        .where(
-          and(
-            eq(schema.session.profileId, owner.profileId),
-            eq(schema.session.generation, owner.generation),
-            eq(schema.session.courseId, content.body.courseId),
-            ne(schema.session.status, "closed"),
-          ),
-        )
-        .all();
-      if (orphaned.length > 0)
-        throw new Error("Saved teaching is missing its resume cursor");
-      return { owner, profileRevision: profile.revision, session: null };
-    }
-    const sessions = await db
+    const rows = await db
       .select()
       .from(schema.session)
       .where(
         and(
-          eq(schema.session.sessionId, cursor.resumeSessionId),
           eq(schema.session.profileId, owner.profileId),
           eq(schema.session.generation, owner.generation),
           eq(schema.session.courseId, content.body.courseId),
         ),
       )
       .all();
-    const session = sessions[0];
-    if (!session || session.status === "closed")
-      throw new Error("Saved session ownership or status is invalid");
-    const runs = await db
-      .select()
-      .from(schema.taskRun)
-      .where(eq(schema.taskRun.runId, session.currentRunId))
-      .all();
-    const run = runs[0];
-    if (
-      !run ||
-      run.sessionId !== session.sessionId ||
-      run.profileId !== owner.profileId ||
-      run.generation !== owner.generation ||
-      run.courseId !== session.courseId ||
-      run.packageHash !== session.packageHash ||
-      run.lessonId !== session.lessonId ||
-      run.taskId !== session.taskId ||
-      run.status !== "inProgress"
-    )
-      throw new Error("Saved run ownership or status is invalid");
-    if (
-      run.packageHash === content.packageHash &&
-      (run.lessonId !== content.body.lessonId ||
-        run.taskId !== content.body.taskId)
-    )
-      throw new Error("Saved task is not in its pinned package");
-    const state = parseTeachingState(JSON.parse(run.state));
-    if (run.activeAdvanceId === null) {
-      if (
-        state.acceptedNodeIds.length !== 0 ||
-        run.nextAdvanceSeq !== "1" ||
-        run.revision !== "0"
-      )
-        throw new Error("Saved run has no matching acceptance chain");
-    } else {
-      const advances = await db
-        .select()
-        .from(schema.taskAdvance)
-        .where(eq(schema.taskAdvance.runId, run.runId))
-        .orderBy(asc(schema.taskAdvance.seq))
-        .all();
-      let previous: AdvanceId | null = null;
-      let previousAfter: string | null = null;
-      let nextSeq = "1";
-      for (const advance of advances) {
-        if (
-          advance.status !== "accepted" ||
-          advance.profileId !== owner.profileId ||
-          advance.generation !== owner.generation ||
-          advance.previousAdvanceId !== previous ||
-          advance.seq !== nextSeq ||
-          advance.acceptedRunRevision !== advance.seq ||
-          advance.beforeRunStatus !== "inProgress" ||
-          advance.afterRunStatus !== "inProgress"
-        )
-          throw new Error("Saved acceptance chain is invalid");
-        if (previousAfter !== null && previousAfter !== advance.beforeState)
-          throw new Error("Saved acceptance snapshots do not connect");
-        const before = parseTeachingState(JSON.parse(advance.beforeState));
-        const after = parseTeachingState(JSON.parse(advance.afterState));
-        if (run.packageHash === content.packageHash) {
-          if (
-            previous === null &&
-            canonical(before) !== canonical(initialState(content))
-          )
-            throw new Error(
-              "Saved acceptance chain does not start at task entry",
-            );
-          if (
-            before.kind !== "teaching" ||
-            canonical(evaluate(content, before, before.nodeId)) !==
-              canonical(after)
-          )
-            throw new Error("Saved acceptance snapshots do not match content");
-        }
-        previous = advance.advanceId;
-        previousAfter = advance.afterState;
-        nextSeq = increment(nextSeq);
-      }
-      if (
-        previous !== run.activeAdvanceId ||
-        previousAfter !== run.state ||
-        nextSeq !== run.nextAdvanceSeq ||
-        run.revision !== String(advances.length)
-      )
-        throw new Error("Saved acceptance head is invalid");
+    const sessions: StoredSession[] = [];
+    for (const row of rows) {
+      const session = await loadSession(row, owner);
+      if (session) sessions.push(session);
     }
+    const selected = cursor?.resumeSessionId
+      ? sessions.find((session) => session.sessionId === cursor.resumeSessionId)
+      : null;
+    if (
+      (cursor?.resumeSessionId && !selected) ||
+      (!cursor?.resumeSessionId &&
+        sessions.some((session) => session.status !== "closed"))
+    )
+      throw new Error("Saved teaching is missing its resume cursor");
+    if (
+      sessions.some(
+        (session) =>
+          session.status === "active" &&
+          session.sessionId !== selected?.sessionId,
+      )
+    )
+      throw new Error("Active session is not selected");
+    const results = await db
+      .select()
+      .from(schema.taskResult)
+      .where(
+        and(
+          eq(schema.taskResult.profileId, owner.profileId),
+          eq(schema.taskResult.generation, owner.generation),
+          eq(schema.taskResult.courseId, content.body.courseId),
+        ),
+      )
+      .all();
+    const credits = await db
+      .select()
+      .from(schema.taskCredit)
+      .where(
+        and(
+          eq(schema.taskCredit.profileId, owner.profileId),
+          eq(schema.taskCredit.generation, owner.generation),
+          eq(schema.taskCredit.courseId, content.body.courseId),
+          eq(schema.taskCredit.status, "valid"),
+        ),
+      )
+      .all();
+    for (const credit of credits)
+      if (
+        !sessions.some(
+          (session) =>
+            session.runId === credit.runId && session.runStatus === "completed",
+        ) ||
+        !results.some((result) => result.taskId === credit.taskId)
+      )
+        throw new Error("Completion credit has no verified run/result");
+    for (const result of results)
+      if (
+        !credits.some(
+          (credit) =>
+            credit.creditId === result.acceptedCreditId &&
+            credit.taskId === result.taskId &&
+            credit.outcome === result.outcome,
+        )
+      )
+        throw new Error("Effective task result has no valid credit");
     return {
       owner,
       profileRevision: profile.revision,
-      session: {
-        sessionId: session.sessionId,
-        runId: run.runId,
-        revision: session.revision,
-        runRevision: run.revision,
-        packageHash: session.packageHash,
-        state,
-        activeAdvanceId: run.activeAdvanceId,
-        nextAdvanceSeq: run.nextAdvanceSeq,
-      },
+      undoRunId: profile.undoRunId,
+      activePackageHash: active.activePackageHash,
+      selectionCounter: cursor?.selectionCounter ?? parseCounter("0"),
+      session: selected ?? null,
+      sessions,
+      completedTaskIds: results
+        .filter((result) => result.outcome === "completed")
+        .map((result) => result.taskId),
     };
   }
   async function receipt(command: TeachingCommand) {
@@ -327,10 +536,7 @@ export function createTeachingApplication({
       throw new Error("Saved receipt result does not match its identity");
     return { payloadHash: row.payloadHash, result };
   }
-  async function saveReceipt(
-    command: TeachingCommand,
-    result: import("../../teaching/src/index.ts").CommitReceipt,
-  ) {
+  async function saveReceipt(command: TeachingCommand, result: CommitReceipt) {
     await db
       .insert(schema.commandReceipt)
       .values({
@@ -359,187 +565,296 @@ export function createTeachingApplication({
       ],
     );
   }
+  async function updateCursor(
+    owner: Owner,
+    sessionId: StoredSession["sessionId"],
+    selectionCounter: StoredContext["selectionCounter"],
+  ) {
+    const where = and(
+      eq(schema.courseCursor.profileId, owner.profileId),
+      eq(schema.courseCursor.generation, owner.generation),
+      eq(schema.courseCursor.courseId, content.body.courseId),
+    );
+    const existing = (
+      await db.select().from(schema.courseCursor).where(where).all()
+    )[0];
+    await db
+      .insert(schema.courseCursor)
+      .values({
+        profileId: owner.profileId,
+        generation: owner.generation,
+        courseId: content.body.courseId,
+        resumeSessionId: sessionId,
+        selectionCounter,
+        revision: existing ? increment(existing.revision) : parseCounter("1"),
+      })
+      .onConflictDoUpdate({
+        target: [
+          schema.courseCursor.profileId,
+          schema.courseCursor.generation,
+          schema.courseCursor.courseId,
+        ],
+        set: {
+          resumeSessionId: sessionId,
+          selectionCounter,
+          revision: existing ? increment(existing.revision) : parseCounter("1"),
+        },
+      })
+      .run();
+  }
   const repositories: TeachingTransaction = {
     context,
     receipt,
-    async start(input) {
-      const {
-        command,
-        content,
-        state,
-        sessionId,
-        runId,
-        receipt: result,
-      } = input;
-      const owner = command.owner;
-      const packages = await db
-        .select()
-        .from(schema.installedPackage)
-        .where(eq(schema.installedPackage.packageHash, content.packageHash))
-        .all();
-      if (packages[0]?.state !== "ready")
-        throw new Error("Pinned package is not ready");
-      const activations = await db
-        .select()
-        .from(schema.courseActivation)
-        .where(eq(schema.courseActivation.courseId, content.body.courseId))
-        .all();
-      if (activations[0]?.activePackageHash !== content.packageHash)
-        throw new Error("Package is not active for this course");
-      await db
-        .insert(schema.session)
-        .values({
-          sessionId,
-          profileId: owner.profileId,
-          generation: owner.generation,
-          courseId: content.body.courseId,
-          packageHash: content.packageHash,
-          lessonId: content.body.lessonId,
-          taskId: content.body.taskId,
-          currentRunId: runId,
-          scopeKind: "progression",
-          scopeTargetId: content.body.lessonId,
-          status: "active",
-          lastSelectedSeq: parseCounter("1"),
-          returnSessionId: null,
-          revision: parseCounter("0"),
-        })
-        .run();
-      await db
-        .insert(schema.taskRun)
-        .values({
-          runId,
-          sessionId,
-          profileId: owner.profileId,
-          generation: owner.generation,
-          courseId: content.body.courseId,
-          packageHash: content.packageHash,
-          lessonId: content.body.lessonId,
-          taskId: content.body.taskId,
-          ordinal: parseCounter("0"),
-          status: "inProgress",
-          stateVersion: 1,
-          state: canonical(state),
-          activeAdvanceId: null,
-          nextAdvanceSeq: parseCounter("1"),
-          revision: parseCounter("0"),
-        })
-        .run();
-      await db
-        .update(schema.profile)
-        .set({ revision: result.revision, undoRunId: runId })
-        .where(
-          and(
-            eq(schema.profile.id, owner.profileId),
-            eq(schema.profile.generation, owner.generation),
-          ),
-        )
-        .run();
-      await db
-        .insert(schema.courseCursor)
-        .values({
-          profileId: owner.profileId,
-          generation: owner.generation,
-          courseId: content.body.courseId,
-          resumeSessionId: sessionId,
-          selectionCounter: parseCounter("1"),
-          revision: parseCounter("1"),
-        })
-        .onConflictDoUpdate({
-          target: [
-            schema.courseCursor.profileId,
-            schema.courseCursor.generation,
-            schema.courseCursor.courseId,
-          ],
-          set: {
-            resumeSessionId: sessionId,
-            selectionCounter: parseCounter("1"),
-            revision: parseCounter("1"),
-          },
-        })
-        .run();
-      await saveReceipt(command, result);
-    },
-    async advance({
+    ensurePackage,
+    async select({
       command,
       context: current,
-      before,
-      after,
-      advanceId,
+      content: value,
+      selection,
       receipt: result,
     }) {
+      const owner = command.owner;
+      const nextSelection = increment(current.selectionCounter);
+      for (const other of current.sessions)
+        if (other.status === "active")
+          await db
+            .update(schema.session)
+            .set({ status: "paused", revision: increment(other.revision) })
+            .where(eq(schema.session.sessionId, other.sessionId))
+            .run();
+      if (selection.kind === "new") {
+        if (value.packageHash !== current.activePackageHash)
+          throw new Error("New teaching requires the active package");
+        if (selection.replaceSessionId) {
+          const previous = current.sessions.find(
+            (session) => session.sessionId === selection.replaceSessionId,
+          );
+          if (!previous) throw new Error("Replaced session is missing");
+          await db
+            .update(schema.session)
+            .set({ status: "closed", revision: increment(previous.revision) })
+            .where(eq(schema.session.sessionId, previous.sessionId))
+            .run();
+          if (previous.runStatus === "inProgress")
+            await db
+              .update(schema.taskRun)
+              .set({
+                status: "abandoned",
+                revision: increment(previous.runRevision),
+              })
+              .where(eq(schema.taskRun.runId, previous.runId))
+              .run();
+        }
+        await db
+          .insert(schema.session)
+          .values({
+            sessionId: selection.sessionId,
+            profileId: owner.profileId,
+            generation: owner.generation,
+            courseId: value.body.courseId,
+            packageHash: value.packageHash,
+            lessonId: value.body.lessonId,
+            taskId: selection.taskId,
+            currentRunId: selection.runId,
+            scopeKind: "taskReplay",
+            scopeTargetId: selection.taskId,
+            status: "active",
+            lastSelectedSeq: nextSelection,
+            returnSessionId: null,
+            revision: parseCounter("0"),
+          })
+          .run();
+        await db
+          .insert(schema.taskRun)
+          .values({
+            runId: selection.runId,
+            sessionId: selection.sessionId,
+            profileId: owner.profileId,
+            generation: owner.generation,
+            courseId: value.body.courseId,
+            packageHash: value.packageHash,
+            lessonId: value.body.lessonId,
+            taskId: selection.taskId,
+            ordinal: parseCounter("0"),
+            status: "inProgress",
+            stateVersion: 1,
+            state: canonical(selection.state),
+            activeAdvanceId: null,
+            nextAdvanceSeq: parseCounter("1"),
+            revision: parseCounter("0"),
+          })
+          .run();
+        await db
+          .update(schema.profile)
+          .set({ revision: result.revision, undoRunId: selection.runId })
+          .where(
+            and(
+              eq(schema.profile.id, owner.profileId),
+              eq(schema.profile.generation, owner.generation),
+              eq(schema.profile.revision, current.profileRevision),
+            ),
+          )
+          .run();
+      } else {
+        const saved = selection.session;
+        await db
+          .update(schema.session)
+          .set({
+            status: saved.runStatus === "completed" ? "closed" : "active",
+            revision: increment(saved.revision),
+            lastSelectedSeq: nextSelection,
+          })
+          .where(eq(schema.session.sessionId, saved.sessionId))
+          .run();
+        await db
+          .update(schema.profile)
+          .set({ revision: result.revision })
+          .where(
+            and(
+              eq(schema.profile.id, owner.profileId),
+              eq(schema.profile.generation, owner.generation),
+              eq(schema.profile.revision, current.profileRevision),
+            ),
+          )
+          .run();
+      }
+      await updateCursor(owner, result.sessionId, nextSelection);
+      await saveReceipt(command, result);
+    },
+    async apply({
+      command,
+      context: current,
+      content: value,
+      plan,
+      advanceId,
+      receipt: result,
+      before,
+    }) {
       const saved = current.session;
-      const nextRevision = increment(saved.runRevision);
-      await db
-        .insert(schema.taskAdvance)
-        .values({
-          advanceId,
-          runId: saved.runId,
-          profileId: current.owner.profileId,
-          generation: current.owner.generation,
-          seq: saved.nextAdvanceSeq,
-          previousAdvanceId: saved.activeAdvanceId,
-          status: "accepted",
-          commandId: command.commandId,
-          payloadHash: command.payloadHash,
-          stateVersion: 1,
-          beforeState: canonical(before),
-          afterState: canonical(after),
-          beforeRunStatus: "inProgress",
-          afterRunStatus: "inProgress",
-          acceptedRunRevision: nextRevision,
-        })
-        .run();
+      const revision = increment(saved.runRevision);
+      if (Boolean(plan.acceptance) !== Boolean(advanceId))
+        throw new Error("Acceptance identity is missing");
+      if (advanceId) {
+        await db
+          .insert(schema.taskAdvance)
+          .values({
+            advanceId,
+            runId: saved.runId,
+            profileId: current.owner.profileId,
+            generation: current.owner.generation,
+            seq: saved.nextAdvanceSeq,
+            previousAdvanceId: saved.activeAdvanceId,
+            status: "accepted",
+            commandId: command.commandId,
+            payloadHash: command.payloadHash,
+            stateVersion: 1,
+            beforeState: canonical(before),
+            afterState: canonical(plan.after),
+            beforeRunStatus: "inProgress",
+            afterRunStatus: plan.completion ? "completed" : "inProgress",
+            acceptedRunRevision: revision,
+          })
+          .run();
+      }
       await db
         .update(schema.taskRun)
         .set({
-          state: canonical(after),
-          activeAdvanceId: advanceId,
-          nextAdvanceSeq: increment(saved.nextAdvanceSeq),
-          revision: nextRevision,
+          state: canonical(plan.after),
+          status: plan.completion ? "completed" : saved.runStatus,
+          activeAdvanceId: advanceId ?? saved.activeAdvanceId,
+          nextAdvanceSeq: advanceId
+            ? increment(saved.nextAdvanceSeq)
+            : saved.nextAdvanceSeq,
+          revision,
         })
         .where(eq(schema.taskRun.runId, saved.runId))
         .run();
       await db
         .update(schema.session)
-        .set({ revision: result.revision })
+        .set({
+          revision: result.revision,
+          status:
+            plan.completion || saved.runStatus === "completed"
+              ? "closed"
+              : plan.pause
+                ? "paused"
+                : "active",
+        })
         .where(eq(schema.session.sessionId, saved.sessionId))
         .run();
-      const cursors = await db
-        .select()
-        .from(schema.courseCursor)
-        .where(
-          and(
-            eq(schema.courseCursor.profileId, current.owner.profileId),
-            eq(schema.courseCursor.generation, current.owner.generation),
-            eq(schema.courseCursor.courseId, content.body.courseId),
-          ),
-        )
-        .all();
-      const cursor = cursors[0];
-      if (!cursor) throw new Error("Saved course cursor is missing");
-      await db
-        .update(schema.courseCursor)
-        .set({ revision: increment(cursor.revision) })
-        .where(
-          and(
-            eq(schema.courseCursor.profileId, current.owner.profileId),
-            eq(schema.courseCursor.generation, current.owner.generation),
-            eq(schema.courseCursor.courseId, content.body.courseId),
-          ),
-        )
-        .run();
+      if (plan.completion) {
+        if (!advanceId)
+          throw new Error("Completion requires a terminal advance");
+        const run = (
+          await db
+            .select()
+            .from(schema.taskRun)
+            .where(eq(schema.taskRun.runId, saved.runId))
+            .all()
+        )[0];
+        const advance = (
+          await db
+            .select()
+            .from(schema.taskAdvance)
+            .where(eq(schema.taskAdvance.advanceId, advanceId))
+            .all()
+        )[0];
+        if (!run || !advance)
+          throw new Error("Terminal acceptance was not written");
+        const creditId = parseId({ kind: "credit", value: ids() });
+        await db
+          .insert(schema.taskCredit)
+          .values({
+            creditId,
+            profileId: current.owner.profileId,
+            generation: current.owner.generation,
+            courseId: value.body.courseId,
+            lessonId: value.body.lessonId,
+            taskId: saved.taskId,
+            sessionId: saved.sessionId,
+            runId: saved.runId,
+            terminalAdvanceId: advanceId,
+            packageHash: value.packageHash,
+            outcome: "completed",
+            status: "valid",
+            receiptVersion: 1,
+            receipt: canonical(
+              durableReceipt({ run, advance, proof: plan.completion }),
+            ),
+          })
+          .run();
+        await db
+          .insert(schema.taskResult)
+          .values({
+            profileId: current.owner.profileId,
+            generation: current.owner.generation,
+            courseId: value.body.courseId,
+            lessonId: value.body.lessonId,
+            taskId: saved.taskId,
+            outcome: "completed",
+            acceptedCreditId: creditId,
+          })
+          .onConflictDoNothing()
+          .run();
+      }
+      await updateCursor(
+        current.owner,
+        saved.sessionId,
+        current.selectionCounter,
+      );
       await saveReceipt(command, result);
     },
   };
   const store: TeachingStore = {
     async current() {
-      const profiles = await db
-        .select()
-        .from(schema.profile)
-        .orderBy(asc(schema.profile.id))
-        .all();
-      const profile = profiles[0];
+      await warmPackages();
+      const profile = (
+        await db
+          .select()
+          .from(schema.profile)
+          .orderBy(asc(schema.profile.id))
+          .all()
+      )[0];
       if (!profile) throw new Error("Installation has no local profile");
       const result = await context({
         profileId: profile.id,
@@ -548,12 +863,18 @@ export function createTeachingApplication({
       if (!result) throw new Error("Local profile disappeared");
       return result;
     },
-    transaction: (work) => transaction(executor, () => work(repositories)),
+    async resolvePackage(packageHash) {
+      await warmPackages();
+      return pinned(packageHash);
+    },
+    async transaction(work) {
+      await warmPackages();
+      return transaction(executor, () => work(repositories));
+    },
   };
   async function read(): Promise<CommittedProjection> {
     try {
-      const coordinator = await ensureInitialized();
-      return await coordinator.read();
+      return await (await ensureInitialized()).read();
     } catch {
       return {
         kind: "recovery",

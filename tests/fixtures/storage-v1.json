@@ -1,0 +1,179 @@
+{
+  "origin": "Captured from merged issue-02 implementation 536e326 using public synthetic fixture and real SQLite; no book content.",
+  "userVersion": 1,
+  "packageHash": "5f3c43eb337017ba49eca80980baff32e16ea22e37e19d906ba08e11ea3b7120",
+  "tables": [
+    {
+      "name": "command_receipt",
+      "rows": [
+        {
+          "scope_kind": "profile",
+          "scope_id": "v1-fixture-2",
+          "scope_generation": 0,
+          "command_id": "v1-fixture-3",
+          "owner_profile_id": "v1-fixture-2",
+          "owner_generation": 0,
+          "expected_revision": 0,
+          "resulting_revision": 1,
+          "payload_hash": "1a198a59dd05a7b2dded26309ca573d7bd2281ba1c642c1be927230da9136419",
+          "result_version": 1,
+          "result": "{\"commandId\":\"v1-fixture-3\",\"kind\":\"committed\",\"owner\":{\"generation\":\"0\",\"profileId\":\"v1-fixture-2\"},\"packageHash\":\"5f3c43eb337017ba49eca80980baff32e16ea22e37e19d906ba08e11ea3b7120\",\"revision\":\"1\",\"runId\":\"v1-fixture-5\",\"sessionId\":\"v1-fixture-4\"}"
+        },
+        {
+          "scope_kind": "session",
+          "scope_id": "v1-fixture-4",
+          "scope_generation": 0,
+          "command_id": "v1-fixture-6",
+          "owner_profile_id": "v1-fixture-2",
+          "owner_generation": 0,
+          "expected_revision": 0,
+          "resulting_revision": 1,
+          "payload_hash": "1288c957da8a5726b7be449165c349d302c75d51d719ab306527245f256947c5",
+          "result_version": 1,
+          "result": "{\"commandId\":\"v1-fixture-6\",\"kind\":\"committed\",\"owner\":{\"generation\":\"0\",\"profileId\":\"v1-fixture-2\"},\"packageHash\":\"5f3c43eb337017ba49eca80980baff32e16ea22e37e19d906ba08e11ea3b7120\",\"revision\":\"1\",\"runId\":\"v1-fixture-5\",\"sessionId\":\"v1-fixture-4\"}"
+        }
+      ]
+    },
+    {
+      "name": "course_activation",
+      "rows": [
+        {
+          "course_id": "fixture.course",
+          "active_package_hash": "5f3c43eb337017ba49eca80980baff32e16ea22e37e19d906ba08e11ea3b7120",
+          "fallback_package_hash": null,
+          "revision": 0
+        }
+      ]
+    },
+    {
+      "name": "course_cursor",
+      "rows": [
+        {
+          "profile_id": "v1-fixture-2",
+          "generation": 0,
+          "course_id": "fixture.course",
+          "resume_session_id": "v1-fixture-4",
+          "selection_counter": 1,
+          "revision": 2
+        }
+      ]
+    },
+    {
+      "name": "installation",
+      "rows": [
+        {
+          "installation_id": "v1-fixture-1",
+          "revision": 0,
+          "database_version": 1,
+          "singleton": 1
+        }
+      ]
+    },
+    {
+      "name": "installed_package",
+      "rows": [
+        {
+          "package_hash": "5f3c43eb337017ba49eca80980baff32e16ea22e37e19d906ba08e11ea3b7120",
+          "course_id": "fixture.course",
+          "release_id": "fixture.release.1",
+          "content_schema_version": 1,
+          "capabilities": "[\"partial-first-m\"]",
+          "manifest_version": 1,
+          "verified_manifest": {
+            "$bytes": "eyJib2R5Ijp7ImNvdXJzZUlkIjoiZml4dHVyZS5jb3Vyc2UiLCJjb3ZlcmFnZSI6InBhcnRpYWwtZmlyc3QtbSIsImxlc3NvbklkIjoiZml4dHVyZS5sZXNzb24iLCJub2RlcyI6W3siY3VlIjp7ImR1cmF0aW9uTXMiOjMwMDAsImtpbmQiOiJzdXN0YWluIn0sImV4cGVjdGVkIjp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJGaXh0dXJlIGV4cGVjdGVkIHNvdW5kLiJ9LCJnbHlwaCI6Im0iLCJpZCI6ImZpeHR1cmUubW9kZWwiLCJuZXh0Ijp7ImtpbmQiOiJub2RlIiwibm9kZUlkIjoiZml4dHVyZS5yZXNwb25zZSJ9LCJwYXJlbnRBY3Rpb24iOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IkZpeHR1cmUgcGFyZW50IGFjdGlvbi4ifSwicGFyZW50Um9sZSI6Im1vZGVsIiwic3Bva2VuIjp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJGaXh0dXJlIG1vZGVsLiJ9fSx7ImN1ZSI6eyJkdXJhdGlvbk1zIjozMDAwLCJraW5kIjoic3VzdGFpbiJ9LCJleHBlY3RlZCI6eyJraW5kIjoiYWRkZWQiLCJ0ZXh0IjoiRml4dHVyZSBleHBlY3RlZCByZXNwb25zZS4ifSwiZ2x5cGgiOiJtIiwiaWQiOiJmaXh0dXJlLnJlc3BvbnNlIiwibmV4dCI6eyJraW5kIjoiZnJvbnRpZXIiLCJ1bm1ldE9ibGlnYXRpb25zIjpbImZpeHR1cmUucmVtYWluaW5nLXJlcXVpcmVkLXRlYWNoaW5nIl19LCJwYXJlbnRBY3Rpb24iOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IkZpeHR1cmUgcmVzcG9uc2UgYWN0aW9uLiJ9LCJwYXJlbnRSb2xlIjoibGlzdGVuIiwic3Bva2VuIjp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJGaXh0dXJlIGNoaWxkIHJlc3BvbnNlLiJ9fV0sInJlbGVhc2VJZCI6ImZpeHR1cmUucmVsZWFzZS4xIiwic3RhcnROb2RlSWQiOiJmaXh0dXJlLm1vZGVsIiwidGFza0lkIjoiZml4dHVyZS50YXNrIiwidGl0bGUiOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IlN5bnRoZXRpYyB0ZXN0IGFjdGl2aXR5In19LCJmb3JtYXRWZXJzaW9uIjoxLCJwYWNrYWdlSGFzaCI6IjVmM2M0M2ViMzM3MDE3YmE0OWVjYTgwOTgwYmFmZjMyZTE2ZWEyMmUzN2UxOWQ5MDZiYTA4ZTExZWEzYjcxMjAifQ=="
+          },
+          "state": "ready",
+          "storage_key": "5f3c43eb337017ba49eca80980baff32e16ea22e37e19d906ba08e11ea3b7120"
+        }
+      ]
+    },
+    {
+      "name": "profile",
+      "rows": [
+        {
+          "profile_id": "v1-fixture-2",
+          "generation": 0,
+          "revision": 1,
+          "undo_run_id": "v1-fixture-5",
+          "preferences_version": 1,
+          "preferences": "{\"version\":1}"
+        }
+      ]
+    },
+    {
+      "name": "schema_migration",
+      "rows": [
+        {
+          "version": 1,
+          "migration_id": "issue-02-initial",
+          "checksum": "b720e50ce599b3abffbc4b3fc89b09c2a8f06ba2811a14b17e0c86af275292bc"
+        }
+      ]
+    },
+    {
+      "name": "session",
+      "rows": [
+        {
+          "session_id": "v1-fixture-4",
+          "profile_id": "v1-fixture-2",
+          "generation": 0,
+          "course_id": "fixture.course",
+          "package_hash": "5f3c43eb337017ba49eca80980baff32e16ea22e37e19d906ba08e11ea3b7120",
+          "lesson_id": "fixture.lesson",
+          "task_id": "fixture.task",
+          "current_run_id": "v1-fixture-5",
+          "scope_kind": "progression",
+          "scope_target_id": "fixture.lesson",
+          "status": "active",
+          "last_selected_seq": 1,
+          "return_session_id": null,
+          "revision": 1
+        }
+      ]
+    },
+    {
+      "name": "task_advance",
+      "rows": [
+        {
+          "advance_id": "v1-fixture-7",
+          "run_id": "v1-fixture-5",
+          "profile_id": "v1-fixture-2",
+          "generation": 0,
+          "seq": 1,
+          "previous_advance_id": null,
+          "status": "accepted",
+          "command_id": "v1-fixture-6",
+          "payload_hash": "1288c957da8a5726b7be449165c349d302c75d51d719ab306527245f256947c5",
+          "state_version": 1,
+          "before_state": "{\"acceptedNodeIds\":[],\"kind\":\"teaching\",\"nodeId\":\"fixture.model\",\"version\":1}",
+          "after_state": "{\"acceptedNodeIds\":[\"fixture.model\"],\"kind\":\"teaching\",\"nodeId\":\"fixture.response\",\"version\":1}",
+          "before_run_status": "inProgress",
+          "after_run_status": "inProgress",
+          "accepted_run_revision": 1
+        }
+      ]
+    },
+    {
+      "name": "task_run",
+      "rows": [
+        {
+          "run_id": "v1-fixture-5",
+          "session_id": "v1-fixture-4",
+          "profile_id": "v1-fixture-2",
+          "generation": 0,
+          "course_id": "fixture.course",
+          "package_hash": "5f3c43eb337017ba49eca80980baff32e16ea22e37e19d906ba08e11ea3b7120",
+          "lesson_id": "fixture.lesson",
+          "task_id": "fixture.task",
+          "ordinal": 0,
+          "status": "inProgress",
+          "state_version": 1,
+          "state": "{\"acceptedNodeIds\":[\"fixture.model\"],\"kind\":\"teaching\",\"nodeId\":\"fixture.response\",\"version\":1}",
+          "active_advance_id": "v1-fixture-7",
+          "next_advance_seq": 2,
+          "revision": 1
+        }
+      ]
+    }
+  ]
+}

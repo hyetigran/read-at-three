@@ -60,7 +60,8 @@ const sql = await readFile(
   resolve(root, "packages/storage/migrations/0000_initial.sql"),
   "utf8",
 );
-const generatedSnapshot = await generateSQLiteDrizzleJson(schema);
+const { taskCredit, taskResult, ...initialSchema } = schema;
+const generatedSnapshot = await generateSQLiteDrizzleJson(initialSchema);
 const generatedStatements = await generateSQLiteMigration(
   await generateSQLiteDrizzleJson({}),
   generatedSnapshot,
@@ -224,8 +225,38 @@ for (const name of indexOrder) {
 }
 if (tables.size || indexes.size)
   throw new Error("Generated schema contains unreviewed objects");
+const creditSql = await readFile(
+  resolve(root, "packages/storage/migrations/0001_sound_task_credits.sql"),
+  "utf8",
+);
+const creditStatements = creditSql
+  .split("--> statement-breakpoint")
+  .map((part) => part.trim())
+  .filter(Boolean);
+const currentSnapshot = await generateSQLiteDrizzleJson(schema);
+const generatedCredits = await generateSQLiteMigration(
+  generatedSnapshot,
+  currentSnapshot,
+);
+if (
+  canonical(generatedCredits.map((statement) => statement.trim())) !==
+  canonical(creditStatements)
+)
+  throw new Error("Drizzle credit migration is stale relative to schema.ts");
+const storedCurrentSnapshot: unknown = JSON.parse(
+  await readFile(
+    resolve(root, "packages/storage/migrations/meta/0001_snapshot.json"),
+    "utf8",
+  ),
+);
+if (snapshotContent(storedCurrentSnapshot) !== snapshotContent(currentSnapshot))
+  throw new Error("Drizzle credit snapshot is stale relative to schema.ts");
+const upgrades = [
+  ...creditStatements,
+  "UPDATE installation SET database_version=2",
+];
 const output = await format(
-  `// Generated from migrations/0000_initial.sql plus reviewed deferred constraints.\n// Reproduce: npx drizzle-kit generate --config drizzle.config.ts --name initial\n// Then: node --import tsx tools/migrations/prepare.ts\nexport const migrationStatements = ${JSON.stringify(statements)} as const;\n`,
+  `// Generated from ordered Kit migrations plus reviewed deferred constraints.\n// Reproduce: node --import tsx tools/migrations/prepare.ts\nexport const migrationStatements = ${JSON.stringify(statements)} as const;\nexport const migrations = [{version:1, id:"issue-02-initial", statements:migrationStatements}, {version:2, id:"issue-03-sound-task-credits", statements:${JSON.stringify(upgrades)}}] as const;\n`,
   { parser: "typescript" },
 );
 const path = resolve(root, "packages/storage/src/generated-migration.ts");
@@ -236,5 +267,5 @@ if (arguments_.includes("--check")) {
     );
 } else await writeFile(path, output);
 process.stdout.write(
-  "Generated SQLite baseline and reviewed deferred constraints packaged.\n",
+  "Ordered SQLite migrations and reviewed deferred constraints packaged.\n",
 );
