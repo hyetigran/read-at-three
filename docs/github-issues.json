@@ -1,0 +1,315 @@
+{
+  "repository": "hyetigran/read-at-three",
+  "label": "ready-for-agent",
+  "status": "verified",
+  "issues": [
+    {
+      "planId": "01",
+      "number": 1,
+      "databaseId": 5890885196,
+      "url": "https://github.com/hyetigran/read-at-three/issues/1",
+      "title": "Reconcile the accepted product and persistence contracts",
+      "blockedBy": [],
+      "bodySha256": "c06f4579f51562aa6b1482e8a0f81f9fcec75262b930df893a8700c9a29a24bf"
+    },
+    {
+      "planId": "02",
+      "number": 2,
+      "databaseId": 5890885697,
+      "url": "https://github.com/hyetigran/read-at-three/issues/2",
+      "title": "Open and resume the first printed-sound teaching turn",
+      "blockedBy": [1],
+      "bodySha256": "99182481e0d560b6df4de8dbb0def4a7aefcd6c82e9870e197dcec435ae720eb"
+    },
+    {
+      "planId": "03",
+      "number": 3,
+      "databaseId": 5890886649,
+      "url": "https://github.com/hyetigran/read-at-three/issues/3",
+      "title": "Deliver complete printed introduction and review tasks",
+      "blockedBy": [2],
+      "bodySha256": "be5af1591b60ee0bf0331360ce68f95cbeefe604ab8d5598cf0b2627aa2f28ee"
+    },
+    {
+      "planId": "04",
+      "number": 4,
+      "databaseId": 5890887610,
+      "url": "https://github.com/hyetigran/read-at-three/issues/4",
+      "title": "Deliver oral say-it-fast and selective review",
+      "blockedBy": [3],
+      "bodySha256": "4a79809e6cd8ca82318868a076a02b747a7eb1be638946097aaffacc6c15c4a2"
+    },
+    {
+      "planId": "05",
+      "number": 5,
+      "databaseId": 5890888545,
+      "url": "https://github.com/hyetigran/read-at-three/issues/5",
+      "title": "Deliver continuous oral sound practice",
+      "blockedBy": [3],
+      "bodySha256": "69988b565e461c7de1a3adf259035128667b0f6a365fa7664107bc6c3783f015"
+    },
+    {
+      "planId": "06",
+      "number": 6,
+      "databaseId": 5890889492,
+      "url": "https://github.com/hyetigran/read-at-three/issues/6",
+      "title": "Complete the first digital sound-writing task",
+      "blockedBy": [3],
+      "bodySha256": "dddb00779c6fdf2e94c2ece6d1484624d4366659828da3f0474d2fafef7c0df0"
+    },
+    {
+      "planId": "07",
+      "number": 7,
+      "databaseId": 5890890503,
+      "url": "https://github.com/hyetigran/read-at-three/issues/7",
+      "title": "Edit and recover saved handwriting",
+      "blockedBy": [6],
+      "bodySha256": "376870e6d22dac0590bd3e073f8d585314d2f571d6e19e52a0c2f4887f05bdd8"
+    },
+    {
+      "planId": "08",
+      "number": 8,
+      "databaseId": 5890891374,
+      "url": "https://github.com/hyetigran/read-at-three/issues/8",
+      "title": "Navigate the Lesson 1 map with truthful progress",
+      "blockedBy": [4, 5, 6],
+      "bodySha256": "aafd333dde1e47108e8a9b1ca4dda9ec7d033a8dc57bce5251f0d1cd45fe159b"
+    },
+    {
+      "planId": "09",
+      "number": 9,
+      "databaseId": 5890892991,
+      "url": "https://github.com/hyetigran/read-at-three/issues/9",
+      "title": "Undo accidental parent advances across restart",
+      "blockedBy": [8],
+      "bodySha256": "75b7bb8e4fabc58c44df39a26d215b41458a0a4191bcfeb739f305dbd2dde499"
+    },
+    {
+      "planId": "10",
+      "number": 10,
+      "databaseId": 5890893924,
+      "url": "https://github.com/hyetigran/read-at-three/issues/10",
+      "title": "Create child profiles with animal avatar onboarding",
+      "blockedBy": [8],
+      "bodySha256": "71ee128972c7d6faced168382c092c77f55e4b1d96170e601020aa2d8deeddfc"
+    },
+    {
+      "planId": "11",
+      "number": 11,
+      "databaseId": 5890894918,
+      "url": "https://github.com/hyetigran/read-at-three/issues/11",
+      "title": "Reset or delete a child's local data safely",
+      "blockedBy": [10],
+      "bodySha256": "8c4fe46defff1525e32ac3a18b5d8abf3155d7a4123c1523a0c78d6577498e20"
+    },
+    {
+      "planId": "12",
+      "number": 12,
+      "databaseId": 5890895828,
+      "url": "https://github.com/hyetigran/read-at-three/issues/12",
+      "title": "Complete every Lesson 2 task",
+      "blockedBy": [8],
+      "bodySha256": "bb1f0e813db0c89df4d455a45a647a91c0e62a782f300bf6b08ece1c1442dee3"
+    },
+    {
+      "planId": "13",
+      "number": 13,
+      "databaseId": 5890896709,
+      "url": "https://github.com/hyetigran/read-at-three/issues/13",
+      "title": "Introduce short a and printed slow/fast sound practice",
+      "blockedBy": [8],
+      "bodySha256": "6b5bb825372c59a4dcb7358e974131d3c3e935f15bb3d12bd377da6ca9751746"
+    },
+    {
+      "planId": "14",
+      "number": 14,
+      "databaseId": 5890897645,
+      "url": "https://github.com/hyetigran/read-at-three/issues/14",
+      "title": "Deliver Lesson 3 oral slow-to-fast practice",
+      "blockedBy": [5],
+      "bodySha256": "e0f7d9a3cf2b4f7968121f1c07f5df82bf53cde2ab90e63eddfc2e2569a284ee"
+    },
+    {
+      "planId": "15",
+      "number": 15,
+      "databaseId": 5890898594,
+      "url": "https://github.com/hyetigran/read-at-three/issues/15",
+      "title": "Follow the parent's voice and finish Lesson 3",
+      "blockedBy": [13, 14],
+      "bodySha256": "18e69bd8219721dcec8d2b80cf5ffbb9bccd65f58b872fe5040cb0386f08eb23"
+    },
+    {
+      "planId": "16",
+      "number": 16,
+      "databaseId": 5890899984,
+      "url": "https://github.com/hyetigran/read-at-three/issues/16",
+      "title": "Complete every Lesson 4 task",
+      "blockedBy": [15],
+      "bodySha256": "a1144fa3ceb603ccd749ab97fbd3032d554dd224166e827490113a75c4037b21"
+    },
+    {
+      "planId": "17",
+      "number": 17,
+      "databaseId": 5890900905,
+      "url": "https://github.com/hyetigran/read-at-three/issues/17",
+      "title": "Introduce long ē and child-pointed single sounds",
+      "blockedBy": [13, 14],
+      "bodySha256": "83acb142027d8bf8d61a736d3824057dec8879c82e282d8160415b07f1efdb15"
+    },
+    {
+      "planId": "18",
+      "number": 18,
+      "databaseId": 5890902145,
+      "url": "https://github.com/hyetigran/read-at-three/issues/18",
+      "title": "Rhyme and read connected sounds to finish Lesson 5",
+      "blockedBy": [17],
+      "bodySha256": "19dba062f35bb449aea9b66521ca97ca8abdf2fcaa13230a431d07f985e5a51b"
+    },
+    {
+      "planId": "19",
+      "number": 19,
+      "databaseId": 5890903150,
+      "url": "https://github.com/hyetigran/read-at-three/issues/19",
+      "title": "Complete every Lesson 6 task",
+      "blockedBy": [18],
+      "bodySha256": "01a01c3e215c38dbde5cc94e47773546a39fd5be79a4f58023da5b27bcbae282"
+    },
+    {
+      "planId": "20",
+      "number": 20,
+      "databaseId": 5890904059,
+      "url": "https://github.com/hyetigran/read-at-three/issues/20",
+      "title": "Install content and cold-launch teaching offline",
+      "blockedBy": [8],
+      "bodySha256": "e59622d9dc353a70be83c08466caa5eed492f5f5a1ac72f2cc960fe6bdf2d53a"
+    },
+    {
+      "planId": "21",
+      "number": 21,
+      "databaseId": 5890905027,
+      "url": "https://github.com/hyetigran/read-at-three/issues/21",
+      "title": "Update content without changing saved teaching",
+      "blockedBy": [20],
+      "bodySha256": "14dfc50584f063e65f22b1fe96dea6695057b7f749b7469ac8098aec86c20289"
+    },
+    {
+      "planId": "22",
+      "number": 22,
+      "databaseId": 5890906232,
+      "url": "https://github.com/hyetigran/read-at-three/issues/22",
+      "title": "Export a protected offline-complete parent backup",
+      "blockedBy": [7, 9, 10, 20],
+      "bodySha256": "0dfac9a649a344f8eac2e3147fabbe5679964333b6a8b9e12cf6d0f75950a7df"
+    },
+    {
+      "planId": "23",
+      "number": 23,
+      "databaseId": 5890908506,
+      "url": "https://github.com/hyetigran/read-at-three/issues/23",
+      "title": "Restore backups as new profiles and resume offline",
+      "blockedBy": [22],
+      "bodySha256": "7d9116da71c65daac366635ceb240474c79e18b3e903b21b214d672bb037f717"
+    },
+    {
+      "planId": "24",
+      "number": 24,
+      "databaseId": 5890909453,
+      "url": "https://github.com/hyetigran/read-at-three/issues/24",
+      "title": "Recover from storage failures without false progress",
+      "blockedBy": [11, 21, 23],
+      "bodySha256": "744fe024bc6f7bd9445ee5a3903ec749d9fdb7f3545bac82523050908b452f4a"
+    },
+    {
+      "planId": "25",
+      "number": 25,
+      "databaseId": 5890911232,
+      "url": "https://github.com/hyetigran/read-at-three/issues/25",
+      "title": "Pass the complete SPA functional handoff gate",
+      "blockedBy": [12, 16, 19, 24],
+      "bodySha256": "b68c061b73f898a68d5f4a4a34578af4aa48829e8dd9aa67dd9c227a2267c7bf"
+    },
+    {
+      "planId": "26",
+      "number": 26,
+      "databaseId": 5890913451,
+      "url": "https://github.com/hyetigran/read-at-three/issues/26",
+      "title": "Run the first teaching task natively with Expo",
+      "blockedBy": [25],
+      "bodySha256": "e76e7182e626b2d5e0339a4d93e9ac661927f36a1e358998faa7c814f8be19fc"
+    },
+    {
+      "planId": "27",
+      "number": 27,
+      "databaseId": 5890914440,
+      "url": "https://github.com/hyetigran/read-at-three/issues/27",
+      "title": "Deliver every reading activity on native screens",
+      "blockedBy": [26],
+      "bodySha256": "52c31c69add03173ea303d65ed1f3c2af5fa251d7d56374dcdc9a1a93289a12a"
+    },
+    {
+      "planId": "28",
+      "number": 28,
+      "databaseId": 5890915480,
+      "url": "https://github.com/hyetigran/read-at-three/issues/28",
+      "title": "Write, edit and resume all six tasks with native ink",
+      "blockedBy": [26],
+      "bodySha256": "5cd87229367075ee577cbcda18cc90da80c3becb5860ae3c9b8b7056612eb276"
+    },
+    {
+      "planId": "29",
+      "number": 29,
+      "databaseId": 5890916463,
+      "url": "https://github.com/hyetigran/read-at-three/issues/29",
+      "title": "Install, update and recover native offline content",
+      "blockedBy": [26],
+      "bodySha256": "e830e04e3573f8d3cb432962aa47c603ef830499efae37c118b6d44f3d6a331d"
+    },
+    {
+      "planId": "30",
+      "number": 30,
+      "databaseId": 5890917470,
+      "url": "https://github.com/hyetigran/read-at-three/issues/30",
+      "title": "Back up and restore native profiles offline",
+      "blockedBy": [28, 29],
+      "bodySha256": "b7aead62518a64c3f2acc663929f630e5369e2a3df5b2c3ebaf004fb1942c7af"
+    },
+    {
+      "planId": "31",
+      "number": 31,
+      "databaseId": 5890918872,
+      "url": "https://github.com/hyetigran/read-at-three/issues/31",
+      "title": "Finish native landscape, accessibility and parent privacy flows",
+      "blockedBy": [27, 30],
+      "bodySha256": "4629b790f8576ecf5266997267a14623d825200bd456d0d4f29f3c6c3d6bedc9"
+    },
+    {
+      "planId": "32",
+      "number": 32,
+      "databaseId": 5890920360,
+      "url": "https://github.com/hyetigran/read-at-three/issues/32",
+      "title": "Qualify the iPad release on real supported devices",
+      "blockedBy": [31],
+      "bodySha256": "e7e3960c92656de42df1b13cb6dc0f06a3af659cc79ac2dfdcfb6d28ca3bff85"
+    },
+    {
+      "planId": "33",
+      "number": 33,
+      "databaseId": 5890921381,
+      "url": "https://github.com/hyetigran/read-at-three/issues/33",
+      "title": "Qualify the Android tablet release on real supported devices",
+      "blockedBy": [31],
+      "bodySha256": "ef3995dc8f99b426a5b2c0ba853b95c6b60e2ed47993418942ee39b703c11cff"
+    },
+    {
+      "planId": "34",
+      "number": 34,
+      "databaseId": 5890922341,
+      "url": "https://github.com/hyetigran/read-at-three/issues/34",
+      "title": "Prepare both tablet applications for public release",
+      "blockedBy": [32, 33],
+      "bodySha256": "58fd3940f2488befa5c6f59811d76cc624774a87f7b277fc39b6ced9a6a7fe53"
+    }
+  ],
+  "verifiedAt": "2026-10-16T20:44:24.991208+00:00",
+  "nativeDependencyCount": 48
+}
