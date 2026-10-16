@@ -1,6 +1,6 @@
 # Database contract
 
-**Status:** Normative logical design, revised October 16, 2026. Shared Drizzle/SQLite schema for the initial React SPA (SQLite WASM/OPFS worker binding) and subsequent React Native/Expo application (expo-sqlite). This is not an implemented application database. Read with [architecture sections 3–9](../../ARCHITECTURE.md).
+**Status:** Normative logical design, revised October 16, 2026. Shared Drizzle/SQLite schema for the initial React SPA (SQLite WASM/OPFS worker binding) and subsequent React Native/Expo application (expo-sqlite). The first-turn subset is implemented and migrated against real Node SQLite and browser OPFS; the full logical design below remains the target contract. No published-upgrade/native qualification is implied. Read with [architecture sections 3–9](../../ARCHITECTURE.md).
 
 ## Types and field notation
 

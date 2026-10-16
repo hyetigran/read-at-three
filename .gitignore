@@ -12,3 +12,6 @@ output/
 design/
 .local/
 .scratch/
+
+playwright-report/
+test-results/

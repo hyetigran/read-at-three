@@ -1,0 +1,38 @@
+{
+  "formatVersion": 1,
+  "packageHash": "5f3c43eb337017ba49eca80980baff32e16ea22e37e19d906ba08e11ea3b7120",
+  "body": {
+    "courseId": "fixture.course",
+    "releaseId": "fixture.release.1",
+    "coverage": "partial-first-m",
+    "title": { "kind": "added", "text": "Synthetic test activity" },
+    "lessonId": "fixture.lesson",
+    "taskId": "fixture.task",
+    "startNodeId": "fixture.model",
+    "nodes": [
+      {
+        "id": "fixture.model",
+        "parentAction": { "kind": "added", "text": "Fixture parent action." },
+        "spoken": { "kind": "added", "text": "Fixture model." },
+        "expected": { "kind": "added", "text": "Fixture expected sound." },
+        "parentRole": "model",
+        "glyph": "m",
+        "cue": { "kind": "sustain", "durationMs": 3000 },
+        "next": { "kind": "node", "nodeId": "fixture.response" }
+      },
+      {
+        "id": "fixture.response",
+        "parentAction": { "kind": "added", "text": "Fixture response action." },
+        "spoken": { "kind": "added", "text": "Fixture child response." },
+        "expected": { "kind": "added", "text": "Fixture expected response." },
+        "parentRole": "listen",
+        "glyph": "m",
+        "cue": { "kind": "sustain", "durationMs": 3000 },
+        "next": {
+          "kind": "frontier",
+          "unmetObligations": ["fixture.remaining-required-teaching"]
+        }
+      }
+    ]
+  }
+}

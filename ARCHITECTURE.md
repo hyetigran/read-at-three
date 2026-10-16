@@ -720,7 +720,7 @@ Operational reporting focuses on install failures, save failures, content compat
 
 ## 17. Proposed repository structure
 
-This tree is an implementation plan, not a claim that these directories already exist. Existing source files remain unchanged.
+This tree describes the target structure. The first slice implements `apps/web`, `packages/teaching` (currently the curriculum/session contracts and engine), `packages/storage`, content tools and real-driver/browser tests. Other modules are added as their vertical slices land. Local source inputs remain excluded from the public repository.
 
 ```text
 ARCHITECTURE.md
@@ -756,7 +756,7 @@ tests/
     end-to-end/                    six-lesson production flows
 ```
 
-Domain modules depend on their data contracts and ports. Platform implementations depend on those ports. Presentation depends on committed projections and dispatch APIs. React integration does not invert that dependency: the pure engine imports neither React Query nor a platform. Add import-boundary checks using the TypeScript compiler/tooling, without ESLint. Content authoring does not import runtime screens, and the runtime does not parse the author's workstation Markdown during a lesson. Root package.json currently configures formatting tools; application workspaces are added when scaffolded.
+Domain modules depend on their data contracts and ports. Platform implementations depend on those ports. Presentation depends on committed projections and dispatch APIs. React integration does not invert that dependency: the pure engine imports neither React Query nor a platform. Add import-boundary checks using the TypeScript compiler/tooling, without ESLint. Content authoring does not import runtime screens, and the runtime does not parse the author's workstation Markdown during a lesson. The root workspace now runs the first web slice, shared/storage tests, precompiled validators and import-boundary checks.
 
 ## 18. Decision records and implementation order
 
@@ -776,4 +776,4 @@ Domain modules depend on their data contracts and ports. Platform implementation
 
 Implementation follows the PRD's production rollout: establish the React SPA/shared packages, SQLite/Drizzle and content contracts, implement the engine and ink modules, author all 45 tasks, finish the SPA, then adapt the application to Expo and run each platform's release acceptance. Native adaptation begins only after the full accepted SPA functional gate passes, including all 45 tasks, source corrections/review, every writing target/phase, profiles/avatar preferences, progress/current-run Undo, save/resume, offline packages, protected complete backup/restore and failure recovery. Final physical-device polish/performance remains a native release gate. These are increments of the production application, not throwaway prototypes.
 
-This revision specifies the review's missing contracts and the user's subsequent stack selection; [the resolution record](ARCHITECTURE_REVIEW.md#resolution-record--october-15-2026) maps the review findings to their changes and required acceptance evidence. Application implementation and real-driver/device verification remain outstanding. Exact qualified platform versions/devices, optional parent-reference media, signing/store provisioning and publication arrangements remain engineering or external release inputs. Multiple profiles, complete protected backups, parent override, current-run Undo and landscape tablet scope are settled requirements.
+This revision specifies the review's missing contracts and the user's subsequent stack selection; [the resolution record](ARCHITECTURE_REVIEW.md#resolution-record--october-15-2026) maps the review findings to their changes and required acceptance evidence. The first printed-sound slice has real-driver and browser restart/fault evidence; full application implementation and native/device verification remain outstanding. Exact qualified platform versions/devices, optional parent-reference media, signing/store provisioning and publication arrangements remain engineering or external release inputs. Multiple profiles, complete protected backups, parent override, current-run Undo and landscape tablet scope are settled requirements.
