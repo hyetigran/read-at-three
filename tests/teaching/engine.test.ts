@@ -9,6 +9,7 @@ import {
   project,
   prepareCommand,
   parseProjection,
+  parseId,
 } from "../../packages/teaching/src/index.ts";
 const hash = async (text: string) =>
   createHash("sha256").update(text).digest("hex");
@@ -60,17 +61,19 @@ export async function fixture() {
 test("parent acceptance follows exact nodes and partial frontier never completes", async () => {
   const content = await fixture();
   const first = initialState(content);
+  const modelId = content.body.startNodeId;
+  const childId = parseId({ kind: "node", value: "child" });
   assert.equal(project(content, first).kind, "teaching");
-  assert.throws(() => evaluate(content, first, "child"), /current/);
-  const second = evaluate(content, first, "model");
+  assert.throws(() => evaluate(content, first, childId), /current/);
+  const second = evaluate(content, first, modelId);
   assert.equal(project(content, second).kind, "teaching");
-  const frontier = evaluate(content, second, "child");
+  const frontier = evaluate(content, second, childId);
   assert.deepEqual(project(content, frontier), {
     kind: "frontier",
     status: "inProgress",
     unmetObligations: ["later-required-m", "required-s"],
   });
-  assert.throws(() => evaluate(content, frontier, "child"), /frontier/);
+  assert.throws(() => evaluate(content, frontier, childId), /frontier/);
 });
 test("content rejects tamper, cycles, unknown properties and missing frontier", async () => {
   const content = await fixture();

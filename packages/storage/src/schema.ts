@@ -11,9 +11,43 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
-import type { Counter } from "../../teaching/src/index.ts";
-import { parseCounter } from "../../teaching/src/index.ts";
+import type {
+  Counter,
+  Id,
+  IdKind,
+  Hash,
+  HashKind,
+} from "../../teaching/src/index.ts";
+import { parseCounter, parseId, parseHash } from "../../teaching/src/index.ts";
 import { readCounter } from "./executor.ts";
+const identity = <Kind extends IdKind>(kind: Kind) =>
+  customType<{ data: Id<Kind>; driverData: string }>({
+    dataType: () => "text",
+    toDriver: (value) => value,
+    fromDriver: (value) => parseId({ kind, value }),
+  });
+const hashed = <Kind extends HashKind>(kind: Kind) =>
+  customType<{ data: Hash<Kind>; driverData: string }>({
+    dataType: () => "text",
+    toDriver: (value) => value,
+    fromDriver: (value) => parseHash({ kind, value }),
+  });
+const profileId = identity("profile");
+const sessionId = identity("session");
+const runId = identity("run");
+const commandId = identity("command");
+const advanceId = identity("advance");
+const installationId = identity("installation");
+const courseId = identity("course");
+const releaseId = identity("release");
+const lessonId = identity("lesson");
+const taskId = identity("task");
+const receiptScopeId = identity<"profile" | "session">("profile");
+const scopeTargetId = identity<"lesson" | "task">("lesson");
+const packageHash = hashed("package");
+const payloadHash = hashed("payload");
+const migrationId = identity("migration");
+const migrationHash = hashed("migration");
 const bytes = customType<{ data: Uint8Array; driverData: Uint8Array }>({
   dataType: () => "blob",
   toDriver: (value) => value,
@@ -42,8 +76,8 @@ export const schemaMigration = sqliteTable(
   "schema_migration",
   {
     version: integer("version").primaryKey(),
-    migrationId: text("migration_id").notNull(),
-    checksum: text("checksum").notNull(),
+    migrationId: migrationId("migration_id").notNull(),
+    checksum: migrationHash("checksum").notNull(),
   },
   (table) => [
     check("version_positive", sql`version>0`),
@@ -54,7 +88,7 @@ export const schemaMigration = sqliteTable(
 export const installation = sqliteTable(
   "installation",
   {
-    id: text("installation_id").primaryKey(),
+    id: installationId("installation_id").primaryKey(),
     revision: counter("revision").notNull(),
     databaseVersion: integer("database_version").notNull(),
     singleton: integer("singleton").notNull(),
@@ -69,10 +103,10 @@ export const installation = sqliteTable(
 export const profile = sqliteTable(
   "profile",
   {
-    id: text("profile_id").primaryKey(),
+    id: profileId("profile_id").primaryKey(),
     generation: counter("generation").notNull(),
     revision: counter("revision").notNull(),
-    undoRunId: text("undo_run_id"),
+    undoRunId: runId("undo_run_id"),
     preferencesVersion: integer("preferences_version").notNull(),
     preferences: text("preferences").notNull(),
   },
@@ -87,9 +121,9 @@ export const profile = sqliteTable(
 export const installedPackage = sqliteTable(
   "installed_package",
   {
-    packageHash: text("package_hash").primaryKey(),
-    courseId: text("course_id").notNull(),
-    releaseId: text("release_id").notNull(),
+    packageHash: packageHash("package_hash").primaryKey(),
+    courseId: courseId("course_id").notNull(),
+    releaseId: releaseId("release_id").notNull(),
     contentSchemaVersion: integer("content_schema_version").notNull(),
     capabilities: text("capabilities").notNull(),
     manifestVersion: integer("manifest_version").notNull(),
@@ -120,9 +154,9 @@ export const installedPackage = sqliteTable(
 export const courseActivation = sqliteTable(
   "course_activation",
   {
-    courseId: text("course_id").primaryKey(),
-    activePackageHash: text("active_package_hash").notNull(),
-    fallbackPackageHash: text("fallback_package_hash"),
+    courseId: courseId("course_id").primaryKey(),
+    activePackageHash: packageHash("active_package_hash").notNull(),
+    fallbackPackageHash: packageHash("fallback_package_hash"),
     revision: counter("revision").notNull(),
   },
   (table) => [
@@ -140,10 +174,10 @@ export const courseActivation = sqliteTable(
 export const courseCursor = sqliteTable(
   "course_cursor",
   {
-    profileId: text("profile_id").notNull(),
+    profileId: profileId("profile_id").notNull(),
     generation: counter("generation").notNull(),
-    courseId: text("course_id").notNull(),
-    resumeSessionId: text("resume_session_id"),
+    courseId: courseId("course_id").notNull(),
+    resumeSessionId: sessionId("resume_session_id"),
     selectionCounter: counter("selection_counter").notNull(),
     revision: counter("revision").notNull(),
   },
@@ -167,21 +201,21 @@ export const courseCursor = sqliteTable(
 export const session = sqliteTable(
   "session",
   {
-    sessionId: text("session_id").primaryKey(),
-    profileId: text("profile_id").notNull(),
+    sessionId: sessionId("session_id").primaryKey(),
+    profileId: profileId("profile_id").notNull(),
     generation: counter("generation").notNull(),
-    courseId: text("course_id").notNull(),
-    packageHash: text("package_hash").notNull(),
-    lessonId: text("lesson_id").notNull(),
-    taskId: text("task_id").notNull(),
-    currentRunId: text("current_run_id").notNull(),
+    courseId: courseId("course_id").notNull(),
+    packageHash: packageHash("package_hash").notNull(),
+    lessonId: lessonId("lesson_id").notNull(),
+    taskId: taskId("task_id").notNull(),
+    currentRunId: runId("current_run_id").notNull(),
     scopeKind: text("scope_kind", {
       enum: ["progression", "lessonReplay", "taskReplay"],
     }).notNull(),
-    scopeTargetId: text("scope_target_id").notNull(),
+    scopeTargetId: scopeTargetId("scope_target_id").notNull(),
     status: text("status", { enum: ["active", "paused", "closed"] }).notNull(),
     lastSelectedSeq: counter("last_selected_seq").notNull(),
-    returnSessionId: text("return_session_id"),
+    returnSessionId: sessionId("return_session_id"),
     revision: counter("revision").notNull(),
   },
   (table) => [
@@ -244,21 +278,21 @@ export const session = sqliteTable(
 export const taskRun = sqliteTable(
   "task_run",
   {
-    runId: text("run_id").primaryKey(),
-    sessionId: text("session_id").notNull(),
-    profileId: text("profile_id").notNull(),
+    runId: runId("run_id").primaryKey(),
+    sessionId: sessionId("session_id").notNull(),
+    profileId: profileId("profile_id").notNull(),
     generation: counter("generation").notNull(),
-    courseId: text("course_id").notNull(),
-    packageHash: text("package_hash").notNull(),
-    lessonId: text("lesson_id").notNull(),
-    taskId: text("task_id").notNull(),
+    courseId: courseId("course_id").notNull(),
+    packageHash: packageHash("package_hash").notNull(),
+    lessonId: lessonId("lesson_id").notNull(),
+    taskId: taskId("task_id").notNull(),
     ordinal: counter("ordinal").notNull(),
     status: text("status", {
       enum: ["inProgress", "completed", "skipped", "abandoned"],
     }).notNull(),
     stateVersion: integer("state_version").notNull(),
     state: text("state").notNull(),
-    activeAdvanceId: text("active_advance_id"),
+    activeAdvanceId: advanceId("active_advance_id"),
     nextAdvanceSeq: counter("next_advance_seq").notNull(),
     revision: counter("revision").notNull(),
   },
@@ -294,15 +328,15 @@ export const taskRun = sqliteTable(
 export const taskAdvance = sqliteTable(
   "task_advance",
   {
-    advanceId: text("advance_id").primaryKey(),
-    runId: text("run_id").notNull(),
-    profileId: text("profile_id").notNull(),
+    advanceId: advanceId("advance_id").primaryKey(),
+    runId: runId("run_id").notNull(),
+    profileId: profileId("profile_id").notNull(),
     generation: counter("generation").notNull(),
     seq: counter("seq").notNull(),
-    previousAdvanceId: text("previous_advance_id"),
+    previousAdvanceId: advanceId("previous_advance_id"),
     status: text("status", { enum: ["accepted", "withdrawn"] }).notNull(),
-    commandId: text("command_id").notNull(),
-    payloadHash: text("payload_hash").notNull(),
+    commandId: commandId("command_id").notNull(),
+    payloadHash: payloadHash("payload_hash").notNull(),
     stateVersion: integer("state_version").notNull(),
     beforeState: text("before_state").notNull(),
     afterState: text("after_state").notNull(),
@@ -341,14 +375,14 @@ export const commandReceipt = sqliteTable(
   "command_receipt",
   {
     scopeKind: text("scope_kind", { enum: ["profile", "session"] }).notNull(),
-    scopeId: text("scope_id").notNull(),
+    scopeId: receiptScopeId("scope_id").notNull(),
     scopeGeneration: counter("scope_generation").notNull(),
-    commandId: text("command_id").notNull(),
-    ownerProfileId: text("owner_profile_id").notNull(),
+    commandId: commandId("command_id").notNull(),
+    ownerProfileId: profileId("owner_profile_id").notNull(),
     ownerGeneration: counter("owner_generation").notNull(),
     expectedRevision: counter("expected_revision").notNull(),
     resultingRevision: counter("resulting_revision").notNull(),
-    payloadHash: text("payload_hash").notNull(),
+    payloadHash: payloadHash("payload_hash").notNull(),
     resultVersion: integer("result_version").notNull(),
     result: text("result").notNull(),
   },

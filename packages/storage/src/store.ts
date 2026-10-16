@@ -7,12 +7,14 @@ import {
   initialState,
   increment,
   parseCounter,
+  parseId,
   parseDevelopmentPackage,
   parseReceipt,
   parseTeachingState,
 } from "../../teaching/src/index.ts";
 import type {
   CommittedProjection,
+  AdvanceId,
   DevelopmentPackage,
   HashFunction,
   IdFactory,
@@ -61,7 +63,7 @@ export function createTeachingApplication({
           await db
             .insert(schema.installation)
             .values({
-              id: ids(),
+              id: parseId({ kind: "installation", value: ids() }),
               revision: parseCounter("0"),
               databaseVersion: 1,
               singleton: 1,
@@ -70,7 +72,7 @@ export function createTeachingApplication({
           await db
             .insert(schema.profile)
             .values({
-              id: ids(),
+              id: parseId({ kind: "profile", value: ids() }),
               generation: parseCounter("0"),
               revision: parseCounter("0"),
               undoRunId: null,
@@ -233,7 +235,7 @@ export function createTeachingApplication({
         .where(eq(schema.taskAdvance.runId, run.runId))
         .orderBy(asc(schema.taskAdvance.seq))
         .all();
-      let previous: string | null = null;
+      let previous: AdvanceId | null = null;
       let previousAfter: string | null = null;
       let nextSeq = "1";
       for (const advance of advances) {

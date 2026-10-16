@@ -5,6 +5,8 @@ export {
   parseDevelopmentPackage,
   parseCommand,
   parseCounter,
+  parseId,
+  parseHash,
   increment,
   parseTeachingState,
   parseReceipt,

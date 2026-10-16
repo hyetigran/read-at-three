@@ -2,6 +2,7 @@ import type {
   DevelopmentPackage,
   TeachingState,
   EngineProjection,
+  NodeId,
 } from "./types.ts";
 import { canonical } from "./content.ts";
 export function initialState(content: DevelopmentPackage): TeachingState {
@@ -12,7 +13,7 @@ export function initialState(content: DevelopmentPackage): TeachingState {
     acceptedNodeIds: [],
   };
 }
-function currentNode(content: DevelopmentPackage, id: string) {
+function currentNode(content: DevelopmentPackage, id: NodeId) {
   const node = content.body.nodes.find((node) => node.id === id);
   if (!node) throw new Error("Saved content position is unavailable");
   return node;
@@ -53,7 +54,7 @@ function transition(
 export function evaluate(
   content: DevelopmentPackage,
   state: TeachingState,
-  nodeId: string,
+  nodeId: NodeId,
 ): TeachingState {
   validatePosition(content, state);
   if (state.kind === "frontier")

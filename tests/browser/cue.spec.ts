@@ -30,17 +30,17 @@ for (const reducedMotion of motionModes) {
     );
     await page.mouse.down();
     await expect(cue).toHaveAttribute("data-stage", "start");
-    await expect(cue.getByText("Start at the first ball")).toBeVisible();
+    await expect(cue.getByText("Cue at first ball")).toBeVisible();
     await expect(cue.locator(".teaching-cue-hold")).toHaveCSS(
       "transform",
       "matrix(1, 0, 0, 1, 30, 40)",
     );
     await page.clock.runFor(250);
     await expect(cue).toHaveAttribute("data-stage", "moving");
-    await expect(cue.getByText("Move quickly under the sound")).toBeVisible();
+    await expect(cue.getByText("Cue moving")).toBeVisible();
     await page.clock.runFor(150);
     await expect(cue).toHaveAttribute("data-stage", "holding");
-    await expect(cue.getByText("Hold for at least 3 seconds")).toBeVisible();
+    await expect(cue.getByText("Cue holding · 3 s minimum")).toBeVisible();
     await expect(cue.locator(".teaching-cue-hold")).toHaveCSS(
       "transform",
       "matrix(1, 0, 0, 1, 340, 55)",
@@ -49,9 +49,7 @@ for (const reducedMotion of motionModes) {
     await expect(cue).toHaveAttribute("data-stage", "holding");
     await page.clock.runFor(1);
     await expect(cue).toHaveAttribute("data-stage", "minimum-held");
-    await expect(
-      cue.getByText("Minimum hold reached · Release when ready"),
-    ).toBeVisible();
+    await expect(cue.getByText("Cue minimum reached")).toBeVisible();
     await expect(
       page.getByText("Fixture model.", { exact: true }),
     ).toBeVisible();

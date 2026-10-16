@@ -9,17 +9,20 @@ import type {
   TeachingCommand,
 } from "@readatthree/teaching";
 
+export type WorkerRequestId = string & { readonly __brand: "WorkerRequestId" };
 export type WorkerRequest =
-  | { id: string; kind: "open"; content: unknown }
-  | { id: string; kind: "read" }
-  | { id: string; kind: "dispatch"; command: TeachingCommand };
+  | { id: WorkerRequestId; kind: "open"; content: unknown }
+  | { id: WorkerRequestId; kind: "read" }
+  | { id: WorkerRequestId; kind: "dispatch"; command: TeachingCommand };
 export type WorkerResponse =
-  | { id: string; kind: "projection"; value: Projection }
-  | { id: string; kind: "receipt"; value: DispatchResult }
-  | { id: string; kind: "failed"; message: string };
+  | { id: WorkerRequestId; kind: "projection"; value: Projection }
+  | { id: WorkerRequestId; kind: "receipt"; value: DispatchResult }
+  | { id: WorkerRequestId; kind: "failed"; message: string };
 
-function validId(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0 && value.length <= 200;
+export function parseWorkerRequestId(value: unknown): WorkerRequestId {
+  if (typeof value !== "string" || value.length < 1 || value.length > 200)
+    throw new Error("Invalid worker request identity.");
+  return value as WorkerRequestId;
 }
 
 export function parseRequest(value: unknown): WorkerRequest {
@@ -27,16 +30,16 @@ export function parseRequest(value: unknown): WorkerRequest {
     typeof value !== "object" ||
     value === null ||
     !("id" in value) ||
-    !validId(value.id) ||
     !("kind" in value)
   )
     throw new Error("Invalid worker request.");
+  const id = parseWorkerRequestId(value.id);
   if (value.kind === "open" && "content" in value)
-    return { id: value.id, kind: "open", content: value.content };
-  if (value.kind === "read") return { id: value.id, kind: "read" };
+    return { id, kind: "open", content: value.content };
+  if (value.kind === "read") return { id, kind: "read" };
   if (value.kind === "dispatch" && "command" in value)
     return {
-      id: value.id,
+      id,
       kind: "dispatch",
       command: parseCommand(value.command),
     };
@@ -48,19 +51,19 @@ export function parseResponse(value: unknown): WorkerResponse {
     typeof value !== "object" ||
     value === null ||
     !("id" in value) ||
-    !validId(value.id) ||
     !("kind" in value)
   )
     throw new Error("Invalid worker response.");
+  const id = parseWorkerRequestId(value.id);
   if (value.kind === "projection" && "value" in value)
     return {
-      id: value.id,
+      id,
       kind: "projection",
       value: parseProjection(value.value),
     };
   if (value.kind === "receipt" && "value" in value)
     return {
-      id: value.id,
+      id,
       kind: "receipt",
       value: parseDispatchResult(value.value),
     };
@@ -69,6 +72,6 @@ export function parseResponse(value: unknown): WorkerResponse {
     "message" in value &&
     typeof value.message === "string"
   )
-    return { id: value.id, kind: "failed", message: value.message };
+    return { id, kind: "failed", message: value.message };
   throw new Error("Unsupported worker response.");
 }

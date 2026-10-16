@@ -18,7 +18,7 @@ import {
   prepareCommand,
 } from "../../packages/teaching/src/index.ts";
 import type {
-  DevelopmentBody,
+  DevelopmentBodyInput,
   TeachingApplication,
   TeachingCommand,
 } from "../../packages/teaching/src/index.ts";
@@ -61,7 +61,7 @@ const body = {
       },
     },
   ],
-} as const satisfies DevelopmentBody;
+} as const satisfies DevelopmentBodyInput;
 async function fixture(t: { after(fn: () => Promise<void>): void }) {
   const directory = await mkdtemp(join(tmpdir(), "reading-store-"));
   const path = join(directory, "teaching.sqlite");
@@ -351,4 +351,13 @@ test("a missing resume cursor cannot turn existing teaching into a new entry", a
   await app.dispatch(await command(app, f.ids));
   await executor.execute("DELETE FROM course_cursor", []);
   assert.equal((await app.read()).kind, "recovery");
+});
+
+test("malformed stored identity opens recovery without replacing the profile", async (t) => {
+  const f = await fixture(t);
+  const { app, executor, db } = f.connect();
+  await app.open();
+  await executor.execute("UPDATE profile SET profile_id=?", [""]);
+  assert.equal((await app.read()).kind, "recovery");
+  assert.equal(db.prepare("select count(*) as n from profile").get()?.n, 1);
 });

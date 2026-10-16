@@ -1,15 +1,19 @@
 import { prepareCommand } from "@readatthree/teaching";
 import type { Projection, TeachingCommand } from "@readatthree/teaching";
 import { hashText } from "./hash.ts";
-import { parseResponse } from "./protocol.ts";
-import type { WorkerRequest, WorkerResponse } from "./protocol.ts";
+import { parseResponse, parseWorkerRequestId } from "./protocol.ts";
+import type {
+  WorkerRequest,
+  WorkerResponse,
+  WorkerRequestId,
+} from "./protocol.ts";
 import { isTeachingViewport } from "./viewport.ts";
 
 export function createBrowserTeachingClient() {
   let worker: Worker | undefined;
   let opened: Promise<Projection> | undefined;
   const pending = new Map<
-    string,
+    WorkerRequestId,
     {
       resolve: (response: WorkerResponse) => void;
       reject: (error: Error) => void;
@@ -87,7 +91,7 @@ export function createBrowserTeachingClient() {
       worker.addEventListener("messageerror", () => dispose());
       try {
         const response = await request({
-          id: crypto.randomUUID(),
+          id: parseWorkerRequestId(crypto.randomUUID()),
           kind: "open",
           content,
         });
@@ -123,7 +127,10 @@ export function createBrowserTeachingClient() {
     async read(): Promise<Projection> {
       const initial = await open();
       if (initial.kind === "recovery") return initial;
-      const response = await request({ id: crypto.randomUUID(), kind: "read" });
+      const response = await request({
+        id: parseWorkerRequestId(crypto.randomUUID()),
+        kind: "read",
+      });
       if (response.kind !== "projection")
         throw new Error(
           "The local store returned an invalid reading position.",
@@ -145,7 +152,7 @@ export function createBrowserTeachingClient() {
       const current = await open();
       if (current.kind === "recovery") throw new Error(current.message);
       const response = await request({
-        id: crypto.randomUUID(),
+        id: parseWorkerRequestId(crypto.randomUUID()),
         kind: "dispatch",
         command,
       });

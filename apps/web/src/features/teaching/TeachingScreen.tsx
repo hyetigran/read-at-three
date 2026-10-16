@@ -176,12 +176,12 @@ function SilentCue({
     stage === "idle"
       ? "Hold silent cue"
       : stage === "start"
-        ? "Start at the first ball"
+        ? "Cue at first ball"
         : stage === "moving"
-          ? "Move quickly under the sound"
+          ? "Cue moving"
           : stage === "holding"
-            ? `Hold for at least ${Math.ceil(durationMs / 1000)} seconds`
-            : "Minimum hold reached · Release when ready";
+            ? `Cue holding · ${Math.ceil(durationMs / 1000)} s minimum`
+            : "Cue minimum reached";
 
   return (
     <Button

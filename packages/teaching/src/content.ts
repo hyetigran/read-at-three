@@ -1,6 +1,12 @@
 import canonicalize from "canonicalize";
+import { unicodeLength } from "./unicode-length.ts";
 import type {
-  DevelopmentBody,
+  DevelopmentBodyInput,
+  Id,
+  IdKind,
+  Hash,
+  HashKind,
+  NodeId,
   DevelopmentPackage,
   HashFunction,
   TeachingState,
@@ -16,7 +22,7 @@ import {
   validateProjection,
   validateResult,
 } from "./generated-validators.js";
-export function canonicalContentBody(body: DevelopmentBody): string {
+export function canonicalContentBody(body: DevelopmentBodyInput): string {
   return canonical(body);
 }
 export function canonical(value: unknown): string {
@@ -24,6 +30,32 @@ export function canonical(value: unknown): string {
   if (typeof result !== "string")
     throw new Error("Value cannot be canonically encoded");
   return result;
+}
+export function parseId<Kind extends IdKind>({
+  kind,
+  value,
+}: {
+  kind: Kind;
+  value: unknown;
+}): Id<Kind> {
+  if (
+    typeof value !== "string" ||
+    unicodeLength(value) < 1 ||
+    unicodeLength(value) > 200
+  )
+    throw new Error(`Invalid ${kind} identity`);
+  return value as Id<Kind>;
+}
+export function parseHash<Kind extends HashKind>({
+  kind,
+  value,
+}: {
+  kind: Kind;
+  value: unknown;
+}): Hash<Kind> {
+  if (typeof value !== "string" || !/^[a-f0-9]{64}$/.test(value))
+    throw new Error(`Invalid ${kind} hash`);
+  return value as Hash<Kind>;
 }
 export function parseCounter(value: unknown): Counter {
   if (
@@ -56,7 +88,7 @@ export async function parseDevelopmentPackage(
   const nodes = new Map(input.body.nodes.map((node) => [node.id, node]));
   if (nodes.size !== input.body.nodes.length)
     throw new Error("Duplicate content node");
-  const visited = new Set<string>();
+  const visited = new Set<NodeId>();
   let next = input.body.startNodeId;
   while (true) {
     if (visited.has(next)) throw new Error("Content cycle");

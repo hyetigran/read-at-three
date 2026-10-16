@@ -1,4 +1,10 @@
-import { canonical, deepFreeze, increment, parseCommand } from "./content.ts";
+import {
+  canonical,
+  deepFreeze,
+  increment,
+  parseCommand,
+  parseId,
+} from "./content.ts";
 import { evaluate, initialState, project } from "./engine.ts";
 import type {
   CommittedProjection,
@@ -158,8 +164,8 @@ export function createCoordinator({
             );
           if (context.session)
             return reject("already-started", "Saved teaching must be resumed.");
-          const sessionId = ids(),
-            runId = ids();
+          const sessionId = parseId({ kind: "session", value: ids() });
+          const runId = parseId({ kind: "run", value: ids() });
           const receipt: CommitReceipt = {
             kind: "committed",
             commandId: command.commandId,
@@ -218,7 +224,7 @@ export function createCoordinator({
           context: { ...context, session },
           before: session.state,
           after,
-          advanceId: ids(),
+          advanceId: parseId({ kind: "advance", value: ids() }),
           receipt,
         });
         return receipt;

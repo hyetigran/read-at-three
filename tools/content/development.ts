@@ -9,8 +9,8 @@ import {
 } from "@readatthree/teaching";
 import type {
   Copy,
-  DevelopmentBody,
-  TeachingNode,
+  DevelopmentBodyInput,
+  TeachingNodeInput,
 } from "@readatthree/teaching";
 
 const hash = async (text: string) =>
@@ -22,7 +22,7 @@ const fixtureOutput = resolve(root, "tests/fixtures/development-package.json");
 const fixture = process.argv.includes("--fixture");
 const added = (text: string): Copy => ({ kind: "added", text });
 
-async function save(body: DevelopmentBody, path: string) {
+async function save(body: DevelopmentBodyInput, path: string) {
   const value = {
     formatVersion: 1,
     packageHash: await hash(canonicalContentBody(body)),
@@ -40,7 +40,7 @@ async function save(body: DevelopmentBody, path: string) {
 }
 
 if (fixture) {
-  const nodes: TeachingNode[] = [
+  const nodes: TeachingNodeInput[] = [
     {
       id: "fixture.model",
       parentAction: added("Fixture parent action."),
@@ -134,7 +134,7 @@ if (fixture) {
       throw new Error("A required supplied source step is missing.");
     return match[1];
   });
-  const nodes: TeachingNode[] = steps.map((step, index) => {
+  const nodes: TeachingNodeInput[] = steps.map((step, index) => {
     const sourceRef = `book.printed31.l01.t01.s0${index + 1}`;
     const actions = [...step.matchAll(/\([^()]*\)/g)]
       .map((match) => match[0])
@@ -175,7 +175,7 @@ if (fixture) {
             },
     };
   });
-  const draft: DevelopmentBody = {
+  const draft: DevelopmentBodyInput = {
     courseId: "teach-reading.supplied",
     releaseId: "development-content-fingerprint",
     coverage: "partial-first-m",
