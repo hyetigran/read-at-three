@@ -1,0 +1,14 @@
+node_modules/
+dist/
+build/
+coverage/
+.expo/
+.DS_Store
+
+# Local source material and designs contain supplied book excerpts.
+# Publication requires the separately recorded content arrangements.
+data/
+output/
+design/
+.local/
+.scratch/

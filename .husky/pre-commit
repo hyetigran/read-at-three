@@ -1,0 +1,4 @@
+set -e
+
+npm exec --no -- lint-staged
+npm run format:check
