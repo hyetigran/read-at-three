@@ -10,11 +10,64 @@
   "scripts": {
     "format": "prettier . --write --ignore-unknown",
     "format:check": "prettier . --check --ignore-unknown",
-    "prepare": "husky"
+    "prepare": "husky",
+    "dev": "vite --config apps/web/vite.config.ts",
+    "build": "vite build --config apps/web/vite.config.ts",
+    "preview": "vite preview --config apps/web/vite.config.ts",
+    "typecheck": "tsc --project tsconfig.json && tsc --project apps/web/tsconfig.json && tsc --project apps/web/tsconfig.worker.json",
+    "test": "node --import tsx --test tests/teaching/*.test.ts tests/storage/*.test.ts",
+    "test:browser": "playwright test",
+    "content:prepare": "node --import tsx tools/content/development.ts",
+    "content:fixture": "node --import tsx tools/content/development.ts --fixture",
+    "check:boundaries": "node --import tsx tools/checks/boundaries.ts",
+    "test:browser:build": "READING_BROWSER_BUILD=1 playwright test",
+    "validators:generate": "node --import tsx tools/content/generate-validators.ts",
+    "validators:check": "node --import tsx tools/content/generate-validators.ts --check",
+    "migrations:prepare": "node --import tsx tools/migrations/prepare.ts",
+    "migrations:check": "node --import tsx tools/migrations/prepare.ts --check"
   },
   "devDependencies": {
+    "@babel/parser": "8.0.7",
+    "@babel/traverse": "8.0.7",
+    "@playwright/test": "1.64.1",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/node": "26.6.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "drizzle-kit": "0.31.11",
     "husky": "9.1.7",
     "lint-staged": "16.4.0",
-    "prettier": "3.9.10"
+    "prettier": "3.9.10",
+    "tailwindcss": "4.3.3",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vite": "8.3.4"
+  },
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "dependencies": {
+    "@radix-ui/react-slot": "1.5.0",
+    "@sqlite.org/sqlite-wasm": "3.53.4-build2",
+    "@tanstack/react-query": "5.104.3",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "canonicalize": "5.1.0",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "drizzle-orm": "0.45.4",
+    "lucide-react": "1.58.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "react-router-dom": "7.18.4",
+    "tailwind-merge": "3.7.0"
+  },
+  "overrides": {
+    "@esbuild-kit/core-utils": {
+      "esbuild": "0.25.12"
+    }
   }
 }

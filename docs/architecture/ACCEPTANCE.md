@@ -1,6 +1,6 @@
 # Architecture review acceptance matrix
 
-**Revised:** October 16, 2026. Reconciled with the accepted interview decisions and ADRs. These cases define required implementation evidence for [the architecture](../../ARCHITECTURE.md). **Execution status: not run.** This repository contains source/design documents, not the application, real storage adapters, or device test harnesses. Documentation consistency checks do not establish runtime correctness.
+**Revised:** October 16, 2026. Reconciled with the accepted interview decisions and ADRs. These cases define required implementation evidence for [the architecture](../../ARCHITECTURE.md). **Execution status: full matrix not yet passed.** The first printed-sound slice has engine, real SQLite and real OPFS restart/fault checks; see [issue #2 evidence](../evidence/issue-02.md). The remaining curriculum, ink, profiles, offline/backup and native/device cases are still required. Documentation consistency checks do not establish runtime correctness.
 
 Use stable fixture IDs and exact package hashes. Tests observe teaching position, visible saved ink, durable results, and permitted actions. They must exercise real storage transactions and process/adapter restart where specified. Mocks alone do not satisfy storage/publication cases. Every recovery/error/control label passes the source-aware renderer with app-origin highlighting.
 
