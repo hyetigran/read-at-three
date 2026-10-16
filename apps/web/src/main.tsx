@@ -66,6 +66,7 @@ function ReadyApplication({
     queryFn: () => client.read(),
     initialData: initial,
     refetchOnMount: false,
+    staleTime: Infinity,
     networkMode: "always",
   });
   const view = query.data;
@@ -90,7 +91,10 @@ function ReadyApplication({
         return;
       }
       const next = await client.read();
-      if (sameOwner(next, command) && sameOwner(active.current, command))
+      if (
+        sameOwner(active.current, command) &&
+        (next.kind === "recovery" || sameOwner(next, command))
+      )
         publish(next);
       setSave({ kind: "idle" });
     },

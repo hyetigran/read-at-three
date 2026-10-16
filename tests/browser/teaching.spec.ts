@@ -346,3 +346,83 @@ test("minimum teaching window keeps source guidance and controls reachable", asy
     ),
   ).toBe(false);
 });
+
+test("recovery after committed acceptance replaces stale teaching and reopens the saved turn", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const NativeWorker = window.Worker;
+    let committedAdvance = false;
+    let injected = false;
+    window.Worker = class extends NativeWorker {
+      private advanceId: string | undefined;
+      constructor(url: string | URL, options?: WorkerOptions) {
+        super(url, options);
+        this.addEventListener("message", (event: MessageEvent<unknown>) => {
+          const data = event.data;
+          if (
+            typeof data !== "object" ||
+            data === null ||
+            !("id" in data) ||
+            !("kind" in data)
+          )
+            return;
+          if (data.id === this.advanceId && data.kind === "receipt")
+            committedAdvance = true;
+          if (!injected && committedAdvance && data.kind === "projection") {
+            injected = true;
+            event.stopImmediatePropagation();
+            this.dispatchEvent(
+              new MessageEvent("message", {
+                data: {
+                  id: data.id,
+                  kind: "projection",
+                  value: {
+                    kind: "recovery",
+                    code: "storage-recovery",
+                    message: "Fixture recovery after saved acceptance.",
+                  },
+                },
+              }),
+            );
+          }
+        });
+      }
+      override postMessage(
+        message: unknown,
+        options?: Transferable[] | StructuredSerializeOptions,
+      ): void {
+        if (
+          typeof message === "object" &&
+          message !== null &&
+          "id" in message &&
+          typeof message.id === "string" &&
+          "kind" in message &&
+          message.kind === "dispatch" &&
+          "command" in message &&
+          typeof message.command === "object" &&
+          message.command !== null &&
+          "kind" in message.command &&
+          message.command.kind === "advance"
+        )
+          this.advanceId = message.id;
+        if (Array.isArray(options)) super.postMessage(message, options);
+        else super.postMessage(message, options);
+      }
+    };
+  });
+  await start(page);
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Saved storage is unavailable" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Continue", exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Retry opening", exact: true })
+    .click();
+  await expect(
+    page.getByText("Fixture child response.", { exact: true }),
+  ).toBeVisible();
+});

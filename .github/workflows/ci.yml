@@ -21,6 +21,7 @@ jobs:
       - run: npm run content:fixture
       - run: npm run format:check
       - run: npm run validators:check
+      - run: npm run migrations:check
       - run: npm run typecheck
       - run: npm run check:boundaries
       - run: npm test

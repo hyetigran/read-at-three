@@ -22,7 +22,9 @@
     "check:boundaries": "node --import tsx tools/checks/boundaries.ts",
     "test:browser:build": "READING_BROWSER_BUILD=1 playwright test",
     "validators:generate": "node --import tsx tools/content/generate-validators.ts",
-    "validators:check": "node --import tsx tools/content/generate-validators.ts --check"
+    "validators:check": "node --import tsx tools/content/generate-validators.ts --check",
+    "migrations:prepare": "node --import tsx tools/migrations/prepare.ts",
+    "migrations:check": "node --import tsx tools/migrations/prepare.ts --check"
   },
   "devDependencies": {
     "@babel/parser": "8.0.7",

@@ -98,12 +98,67 @@ function SaveStatus({
   );
 }
 
-function SilentCue({ disabled }: { disabled: boolean }) {
-  const [held, setHeld] = useState(false);
+type CueState =
+  | { kind: "idle" }
+  | {
+      kind: "start" | "moving" | "holding" | "minimum-held";
+      startedAt: number;
+    };
+
+const cueStartMs = 250;
+const cueMovementMs = 150;
+
+function SilentCue({
+  disabled,
+  durationMs,
+}: {
+  disabled: boolean;
+  durationMs: number;
+}) {
+  const [cue, setCue] = useState<CueState>({ kind: "idle" });
+  const stage = disabled ? "idle" : cue.kind;
+
+  function release() {
+    setCue({ kind: "idle" });
+  }
+
+  function begin() {
+    if (disabled) return;
+    const startedAt = performance.now();
+    setCue((current) =>
+      current.kind === "idle" ? { kind: "start", startedAt } : current,
+    );
+  }
+
+  useEffect(() => {
+    if (disabled || cue.kind === "idle" || cue.kind === "minimum-held") return;
+    const nextKind =
+      cue.kind === "start"
+        ? "moving"
+        : cue.kind === "moving"
+          ? "holding"
+          : "minimum-held";
+    const duration =
+      cue.kind === "start"
+        ? cueStartMs
+        : cue.kind === "moving"
+          ? cueMovementMs
+          : durationMs;
+    const timer = window.setTimeout(
+      () => {
+        const startedAt = performance.now();
+        setCue((current) =>
+          current === cue ? { kind: nextKind, startedAt } : current,
+        );
+      },
+      Math.max(0, cue.startedAt + duration - performance.now()),
+    );
+    return () => window.clearTimeout(timer);
+  }, [cue, disabled, durationMs]);
 
   useEffect(() => {
     function clear() {
-      setHeld(false);
+      setCue({ kind: "idle" });
     }
     window.addEventListener("blur", clear);
     document.addEventListener("visibilitychange", clear);
@@ -114,8 +169,19 @@ function SilentCue({ disabled }: { disabled: boolean }) {
   }, []);
 
   useEffect(() => {
-    if (disabled) setHeld(false);
+    if (disabled) setCue({ kind: "idle" });
   }, [disabled]);
+
+  const label =
+    stage === "idle"
+      ? "Hold silent cue"
+      : stage === "start"
+        ? "Start at the first ball"
+        : stage === "moving"
+          ? "Move quickly under the sound"
+          : stage === "holding"
+            ? `Hold for at least ${Math.ceil(durationMs / 1000)} seconds`
+            : "Minimum hold reached · Release when ready";
 
   return (
     <Button
@@ -123,43 +189,44 @@ function SilentCue({ disabled }: { disabled: boolean }) {
       variant="ghost"
       disabled={disabled}
       aria-label="Hold silent pointing cue"
-      aria-pressed={held && !disabled}
-      data-held={held && !disabled}
+      aria-pressed={stage !== "idle"}
+      data-held={stage !== "idle"}
+      data-stage={stage}
       onPointerDown={(event) => {
         if (!event.isPrimary || event.button !== 0) return;
         event.preventDefault();
         event.currentTarget.focus({ preventScroll: true });
         event.currentTarget.setPointerCapture(event.pointerId);
-        setHeld(true);
+        begin();
       }}
       onPointerUp={(event) => {
-        setHeld(false);
+        release();
         if (event.currentTarget.hasPointerCapture(event.pointerId)) {
           event.currentTarget.releasePointerCapture(event.pointerId);
         }
       }}
-      onPointerCancel={() => setHeld(false)}
-      onLostPointerCapture={() => setHeld(false)}
-      onBlur={() => setHeld(false)}
+      onPointerCancel={release}
+      onLostPointerCapture={release}
+      onBlur={release}
       onKeyDown={(event) => {
         if (event.key !== " " && event.key !== "Enter") return;
         event.preventDefault();
-        if (!event.repeat) setHeld(true);
+        if (!event.repeat) begin();
       }}
       onKeyUp={(event) => {
         if (event.key !== " " && event.key !== "Enter") return;
         event.preventDefault();
-        setHeld(false);
+        release();
       }}
     >
       <svg className="teaching-cue-art" viewBox="0 0 680 72" aria-hidden="true">
         <path d="M30 40H641m-16-11 19 11-19 11" />
         <circle className="teaching-cue-ball" cx="30" cy="40" r="10" />
         <circle className="teaching-cue-ball" cx="340" cy="55" r="8" />
-        <circle className="teaching-cue-hold" cx="340" cy="55" r="25" />
+        <circle className="teaching-cue-hold" cx="0" cy="0" r="25" />
       </svg>
-      <span className="teaching-cue-label">
-        <AddedText>Hold silent cue</AddedText>
+      <span className="teaching-cue-label" aria-live="polite">
+        <AddedText>{label}</AddedText>
       </span>
     </Button>
   );
@@ -217,7 +284,7 @@ function TeachingActivity({
             <path d="M35 220V80h42v20c12-16 27-24 46-24 24 0 40 10 49 29 14-19 31-29 52-29 37 0 56 24 56 63v81h-42v-77c0-19-8-29-23-29-19 0-30 13-30 33v73h-42v-77c0-19-8-29-23-29-19 0-33 13-33 33v73Z" />
           </svg>
         </div>
-        <SilentCue disabled={disabled} />
+        <SilentCue disabled={disabled} durationMs={turn.cue.durationMs} />
         <nav className="teaching-parent-controls" aria-label="Parent controls">
           <Button
             className="teaching-button teaching-continue"

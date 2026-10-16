@@ -9,6 +9,7 @@
     "tools/**/*.ts",
     "tests/**/*.ts",
     "playwright.config.ts",
-    "apps/web/vite.config.ts"
+    "apps/web/vite.config.ts",
+    "drizzle.config.ts"
   ]
 }

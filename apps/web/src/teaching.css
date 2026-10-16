@@ -176,10 +176,27 @@
   stroke: #5f4695;
   stroke-width: 3px;
   opacity: 0;
+  transform: translate(30px, 40px);
 }
 
-.teaching-cue[data-held="true"] .teaching-cue-hold {
+.teaching-cue[data-stage="start"] .teaching-cue-hold {
   opacity: 1;
+}
+
+.teaching-cue[data-stage="moving"] .teaching-cue-hold {
+  opacity: 1;
+  transform: translate(340px, 55px);
+  transition: transform 150ms linear;
+}
+
+.teaching-cue[data-stage="holding"] .teaching-cue-hold,
+.teaching-cue[data-stage="minimum-held"] .teaching-cue-hold {
+  opacity: 1;
+  transform: translate(340px, 55px);
+}
+
+.teaching-cue[data-stage="minimum-held"] .teaching-cue-hold {
+  fill: #7760b566;
 }
 
 .teaching-cue-label {
