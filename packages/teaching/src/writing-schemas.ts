@@ -11,6 +11,9 @@ import type {
   WritingPresentation,
   WritingTarget,
   WritingTask,
+  WritingPracticePlan,
+  WritingScript,
+  PracticePrescription,
 } from "./types.ts";
 import type {
   BrushSpec,
@@ -69,7 +72,7 @@ const copy = {
   ],
 } satisfies JSONSchemaType<Serialized<Copy>>;
 
-const span = {
+const plainSpan = {
   type: "object",
   properties: {
     kind: { type: "string", enum: ["action", "speech", "expected", "praise"] },
@@ -77,7 +80,71 @@ const span = {
   },
   required: ["kind", "copy"],
   additionalProperties: false,
+} satisfies JSONSchemaType<Serialized<import("./types.ts").PlainParentSpan>>;
+export const parentSpanSchema = {
+  oneOf: [
+    plainSpan,
+    {
+      type: "object",
+      properties: {
+        kind: plainSpan.properties.kind,
+        runs: {
+          type: "array",
+          minItems: 1,
+          maxItems: 100,
+          items: {
+            type: "object",
+            properties: {
+              copy,
+              emphasis: { type: "string", enum: ["plain", "strong"] },
+            },
+            required: ["copy", "emphasis"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["kind", "runs"],
+      additionalProperties: false,
+    },
+  ],
 } satisfies JSONSchemaType<Serialized<ParentSpan>>;
+const span = parentSpanSchema;
+const script = {
+  type: "object",
+  properties: {
+    sourceRefs: refs,
+    guidance: { type: "array", items: span, minItems: 1, maxItems: 100 },
+  },
+  required: ["sourceRefs", "guidance"],
+  additionalProperties: false,
+} satisfies JSONSchemaType<Serialized<WritingScript>>;
+const prescription = {
+  oneOf: [
+    {
+      type: "object",
+      properties: {
+        kind: { type: "string", const: "qualitative" },
+        instruction: copy,
+        sourceRef: id,
+        furtherPractice: { type: "string", const: "parentDirected" },
+      },
+      required: ["kind", "instruction", "sourceRef", "furtherPractice"],
+      additionalProperties: false,
+    },
+    {
+      type: "object",
+      properties: {
+        kind: { type: "string", const: "range" },
+        minimum: { type: "integer", minimum: 1, maximum: 100 },
+        maximum: { type: "integer", minimum: 1, maximum: 100 },
+        sourceRef: id,
+        furtherPractice: { type: "string", const: "parentDirected" },
+      },
+      required: ["kind", "minimum", "maximum", "sourceRef", "furtherPractice"],
+      additionalProperties: false,
+    },
+  ],
+} satisfies JSONSchemaType<Serialized<PracticePrescription>>;
 export const writingObligationSchema = {
   oneOf: [
     {
@@ -94,6 +161,12 @@ export const writingObligationSchema = {
     },
     {
       type: "object",
+      properties: { kind: { type: "string", const: "parentModel" } },
+      required: ["kind"],
+      additionalProperties: false,
+    },
+    {
+      type: "object",
       properties: {
         kind: { type: "string", const: "phaseConfirmation" },
         phase: {
@@ -101,14 +174,19 @@ export const writingObligationSchema = {
           enum: ["childTracing", "childIndependentWriting"],
         },
         practice: {
-          type: "object",
-          properties: {
-            minimum: { type: "integer", minimum: 2, maximum: 3 },
-            maximum: { type: "integer", minimum: 3, maximum: 5 },
-            allowMore: { type: "boolean", const: true },
-          },
-          required: ["minimum", "maximum", "allowMore"],
-          additionalProperties: false,
+          oneOf: [
+            prescription,
+            {
+              type: "object",
+              properties: {
+                minimum: { type: "integer", minimum: 2, maximum: 3 },
+                maximum: { type: "integer", minimum: 3, maximum: 5 },
+                allowMore: { type: "boolean", const: true },
+              },
+              required: ["minimum", "maximum", "allowMore"],
+              additionalProperties: false,
+            },
+          ],
         },
       },
       required: ["kind", "phase", "practice"],
@@ -222,6 +300,50 @@ export const writingTaskSchema = {
   ],
   additionalProperties: false,
 } satisfies JSONSchemaType<Serialized<WritingTask>>;
+const practicePhase = {
+  type: "object",
+  properties: { instruction: script, practice: prescription, praise: script },
+  required: ["instruction", "practice", "praise"],
+  additionalProperties: false,
+} as const;
+const targetPractice = {
+  type: "object",
+  properties: {
+    target: writingTargetSchema,
+    demonstration: script,
+    sound: {
+      type: "object",
+      properties: { prompt: script, expected: script, affirmation: script },
+      required: ["prompt", "expected", "affirmation"],
+      additionalProperties: false,
+    },
+    tracing: practicePhase,
+    independent: practicePhase,
+  },
+  required: ["target", "demonstration", "sound", "tracing", "independent"],
+  additionalProperties: false,
+} satisfies JSONSchemaType<
+  Serialized<import("./types.ts").WritingTargetPractice>
+>;
+export const writingPlanSchema = {
+  type: "object",
+  properties: {
+    id,
+    number: { type: "integer", minimum: 1, maximum: 100 },
+    title: copy,
+    optional: { type: "boolean", const: true },
+    introduction: script,
+    targets: { type: "array", items: targetPractice, minItems: 2, maxItems: 2 },
+  },
+  required: ["id", "number", "title", "optional", "introduction", "targets"],
+  additionalProperties: false,
+} satisfies JSONSchemaType<
+  Serialized<
+    Omit<WritingPracticePlan, "targets"> & {
+      targets: readonly import("./types.ts").WritingTargetPractice[];
+    }
+  >
+>;
 export const writingActionSchema = {
   oneOf: [
     {

@@ -1,4 +1,4 @@
-import type { Copy } from "@readatthree/teaching";
+import type { Copy, ParentSpan } from "@readatthree/teaching";
 import type { ReactNode } from "react";
 
 export function CopyText({ copy }: { copy: Copy }) {
@@ -26,4 +26,19 @@ export function CopyText({ copy }: { copy: Copy }) {
 
 export function AddedText({ children }: { children: ReactNode }) {
   return <span data-origin="added">{children}</span>;
+}
+
+export function ParentSpanText({ span }: { span: ParentSpan }) {
+  if ("copy" in span) return <CopyText copy={span.copy} />;
+  return span.runs.map((run, index) =>
+    run.emphasis === "strong" ? (
+      <strong key={index}>
+        <CopyText copy={run.copy} />
+      </strong>
+    ) : (
+      <span key={index}>
+        <CopyText copy={run.copy} />
+      </span>
+    ),
+  );
 }

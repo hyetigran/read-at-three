@@ -1,3 +1,4 @@
+import { reviewedCourseExtension, parseExtensionReview } from "./extension.ts";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -416,12 +417,52 @@ export async function prepareCourseContent(input: { fixture: boolean }) {
     });
     review = reviewValue;
   }
-  const value = {
+  let value = {
     formatVersion: 1,
     packageHash: digest(canonical(body)),
     body,
   };
-  await parseRuntimePackage(value, hash);
+  const baseline = await parseRuntimePackage(value, hash);
+  if (!input.fixture) {
+    const candidateBytes = await readFile(
+      resolve(root, ".local/runtime/lesson-02-development-package.json"),
+    );
+    const extensionReview = parseExtensionReview(
+      JSON.parse(
+        await readFile(
+          resolve(root, ".local/runtime/lesson-02-input-review.json"),
+          "utf8",
+        ),
+      ),
+    );
+    if (
+      !review ||
+      extensionReview.basePackageHash !== baseline.packageHash ||
+      extensionReview.candidateSha256 !== digest(candidateBytes) ||
+      canonical(extensionReview.sourceInputs) !==
+        canonical([...review.sources, ...review.scans])
+    )
+      throw new Error(
+        "Lesson extension review does not match reviewed curriculum inputs",
+      );
+    for (const item of extensionReview.evidenceInputs) {
+      if (digest(await readFile(resolve(root, item.path))) !== item.sha256)
+        throw new Error(
+          "Lesson extension authoring evidence changed; review again",
+        );
+    }
+    const extension = await reviewedCourseExtension({
+      previous: baseline,
+      candidate: JSON.parse(candidateBytes.toString("utf8")),
+      hash,
+    });
+    if (extension.packageHash !== extensionReview.packageHash)
+      throw new Error("Reviewed extension package identity changed");
+    if (extension.body.coverage !== "course-development-v2")
+      throw new Error("Expected reviewed content capability");
+    body = extension.body;
+    value = { formatVersion: 1, packageHash: extension.packageHash, body };
+  }
   const path = resolve(
     root,
     input.fixture
@@ -446,7 +487,7 @@ export async function prepareCourseContent(input: { fixture: boolean }) {
           sources: review.sources,
           scans: review.scans,
           scope:
-            "Six supplied lesson catalogs, 45 ordered tasks; exact existing executable Lesson 1 only.",
+            "Six supplied lesson catalogs, 45 ordered tasks; complete executable Lessons 1 and 2. Publication remains unapproved.",
           lessons: review.lessons,
           laterTeaching:
             "Absent. Metadata does not create instructional definitions or completion credit.",

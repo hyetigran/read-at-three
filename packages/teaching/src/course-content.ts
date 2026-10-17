@@ -1,7 +1,8 @@
+import { requirePlainGuidance } from "./guidance.ts";
 import { canonical, deepFreeze } from "./identity.ts";
 import { parseDevelopmentPackage, compileTask } from "./content.ts";
 import { compileControlTask } from "./control-content.ts";
-import { compileWritingTask } from "./writing.ts";
+import { compileWritingTask, compileWritingPlan } from "./writing.ts";
 import { validateCumulativePackage } from "./generated-validators.js";
 import type {
   Copy,
@@ -28,13 +29,31 @@ export type CumulativeLesson = Readonly<{
   lessonTasks: readonly CourseCatalogTask[];
   tasks: readonly MixedTask[];
 }>;
-export type CumulativeDevelopmentBody = Readonly<{
-  coverage: "course-development";
+type CumulativeBodyFields = Readonly<{
   courseId: CourseId;
   releaseId: ReleaseId;
   title: Copy;
   lessons: readonly CumulativeLesson[];
 }>;
+export type CumulativeDevelopmentBody = CumulativeBodyFields &
+  Readonly<
+    | { coverage: "course-development" }
+    | {
+        coverage: "course-development-v2";
+        contentSchemaVersion: 2;
+        requiredEngineCapabilities: readonly (
+          "writing-practice-plan-v2" | "guidance-runs-v2"
+        )[];
+      }
+  >;
+export function packageMetadata(content: RuntimePackage) {
+  return content.body.coverage === "course-development-v2"
+    ? {
+        contentSchemaVersion: content.body.contentSchemaVersion,
+        capabilities: content.body.requiredEngineCapabilities,
+      }
+    : { contentSchemaVersion: 1, capabilities: [content.body.coverage] };
+}
 export type CumulativeDevelopmentPackage = Readonly<{
   formatVersion: 1;
   packageHash: PackageHash;
@@ -70,7 +89,10 @@ export function resolvedLessons(
 }
 function resolveLessons(content: RuntimePackage): readonly ResolvedLesson[] {
   const body = content.body;
-  if (body.coverage === "course-development")
+  if (
+    body.coverage === "course-development" ||
+    body.coverage === "course-development-v2"
+  )
     return body.lessons.map((lesson) => ({
       kind: "resolvedLesson",
       enclosing: content,
@@ -187,6 +209,9 @@ export async function parseRuntimePackage(
     );
     const seen = new Set<TaskId>();
     for (const entry of lesson.tasks) {
+      if (input.body.coverage === "course-development" && "nodes" in entry.task)
+        for (const node of entry.task.nodes)
+          for (const span of node.guidance) requirePlainGuidance(span);
       const task = entry.task,
         item = metadata.get(task.id);
       if (
@@ -194,7 +219,9 @@ export async function parseRuntimePackage(
         seen.has(task.id) ||
         item.number !== task.number ||
         canonical(item.title) !== canonical(task.title) ||
-        item.optional !== (entry.kind === "soundWritingV1")
+        item.optional !==
+          (entry.kind === "soundWritingV1" ||
+            entry.kind === "writingPracticePlanV2")
       )
         throw new Error("Cumulative task membership is invalid");
       seen.add(task.id);
@@ -215,6 +242,11 @@ export async function parseRuntimePackage(
         case "soundWritingV1":
           compileWritingTask(entry.task);
           break;
+        case "writingPracticePlanV2":
+          if (input.body.coverage !== "course-development-v2")
+            throw new Error("Writing plan requires capability");
+          compileWritingPlan(entry.task);
+          break;
         default: {
           const exhaustive: never = entry;
           throw new Error(String(exhaustive));
@@ -232,7 +264,8 @@ export function cumulativeExtension({
   candidate: RuntimePackage;
 }): boolean {
   if (
-    candidate.body.coverage !== "course-development" ||
+    (candidate.body.coverage !== "course-development" &&
+      candidate.body.coverage !== "course-development-v2") ||
     previous.body.courseId !== candidate.body.courseId
   )
     return false;

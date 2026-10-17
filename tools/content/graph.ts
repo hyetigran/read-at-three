@@ -1,3 +1,4 @@
+import { requirePlainGuidance } from "@readatthree/teaching";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -13,7 +14,7 @@ import type {
   GraphNode,
   GraphTask,
   LessonTask,
-  ParentSpan,
+  PlainParentSpan as ParentSpan,
   Serialized,
 } from "@readatthree/teaching";
 import { parseLessonSources } from "./source.ts";
@@ -542,7 +543,9 @@ export async function prepareGraphContent(input: { fixture: boolean }) {
         orderedGuidance: task.nodes.map((node) => ({
           nodeId: node.id,
           kinds: node.guidance.map((span) => span.kind),
-          provenance: node.guidance.map((span) => span.copy.kind),
+          provenance: node.guidance.map(
+            (span) => requirePlainGuidance(span).copy.kind,
+          ),
           sourceRefs: node.sourceRefs,
         })),
         corrections: task.corrections,

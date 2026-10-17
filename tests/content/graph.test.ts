@@ -1,3 +1,4 @@
+import { plainCopy, requiredPlainCopy } from "../plain-guidance.ts";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -92,7 +93,9 @@ test("the explicit synthetic graph fixture is reproducible and contains only add
     ...body.lessonTasks.map((task) => task.title),
     ...body.tasks.flatMap((task) => [
       task.title,
-      ...task.nodes.flatMap((node) => node.guidance.map((span) => span.copy)),
+      ...task.nodes.flatMap((node) =>
+        node.guidance.map((span) => requiredPlainCopy(span)),
+      ),
     ]),
   ];
   assert.ok(copies.length > 50);
@@ -188,7 +191,11 @@ test("ordered guidance preserves interleaved actions, response, and praise witho
     adapted: false,
   });
   assert.deepEqual(
-    guidance.map((span) => [span.kind, span.copy.text, span.copy.kind]),
+    guidance.map((span) => [
+      span.kind,
+      requiredPlainCopy(span).text,
+      requiredPlainCopy(span).kind,
+    ]),
     [
       ["speech", "Synthetic setup.", "source"],
       ["action", "(Synthetic point.)", "source"],
@@ -258,14 +265,20 @@ test("the source adapter preserves task titles, source order, and highlighted s 
     correction.guidance.map((span) => span.kind),
     ["action", "speech", "action", "expected", "praise", "action"],
   );
-  assert.ok(correction.guidance.every((span) => span.copy.kind === "adapted"));
   assert.ok(
-    correction.guidance.some(
-      (span) => span.copy.text === "Synthetic sss model.",
+    correction.guidance.every(
+      (span) => requiredPlainCopy(span).kind === "adapted",
     ),
   );
   assert.ok(
-    correction.guidance.every((span) => !span.copy.text.includes("mmm")),
+    correction.guidance.some(
+      (span) => requiredPlainCopy(span).text === "Synthetic sss model.",
+    ),
+  );
+  assert.ok(
+    correction.guidance.every(
+      (span) => !requiredPlainCopy(span).text.includes("mmm"),
+    ),
   );
   assert.ok(
     body.tasks

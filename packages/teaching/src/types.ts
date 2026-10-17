@@ -86,10 +86,16 @@ export type LegacyDevelopmentBody = Readonly<{
   startNodeId: NodeId;
   nodes: readonly TeachingNode[];
 }>;
-export type ParentSpan = Readonly<{
+export type PlainParentSpan = Readonly<{
   kind: "action" | "speech" | "expected" | "praise";
   copy: Copy;
 }>;
+export type ParentSpan =
+  | PlainParentSpan
+  | Readonly<{
+      kind: PlainParentSpan["kind"];
+      runs: readonly Readonly<{ copy: Copy; emphasis: "plain" | "strong" }>[];
+    }>;
 export type GraphNode = Readonly<{
   id: NodeId;
   kind: "normal" | "correction";
@@ -619,6 +625,7 @@ export type MixedTask = Readonly<
   | { kind: "printedGraphV1"; task: GraphTask }
   | { kind: "graphControls"; task: ControlTask }
   | { kind: "soundWritingV1"; task: WritingTask }
+  | { kind: "writingPracticePlanV2"; task: WritingPracticePlan }
 >;
 export type ControlDevelopmentBody = Omit<
   GraphDevelopmentBody,
@@ -626,7 +633,10 @@ export type ControlDevelopmentBody = Omit<
 > &
   Readonly<{
     coverage: "lesson1-sounds-oral-complete";
-    tasks: readonly Exclude<MixedTask, { kind: "soundWritingV1" }>[];
+    tasks: readonly Exclude<
+      MixedTask,
+      { kind: "soundWritingV1" | "writingPracticePlanV2" }
+    >[];
   }>;
 export type ReviewChoice = Readonly<
   { kind: "none" } | { kind: "items"; itemIds: readonly ItemId[] }
@@ -760,10 +770,13 @@ export type InkLayer = "model" | "tracing" | "independent";
 export type WritingObligation = Readonly<
   | { kind: "soundResponse" }
   | { kind: "modelAndSound" }
+  | { kind: "parentModel" }
   | {
       kind: "phaseConfirmation";
       phase: "childTracing" | "childIndependentWriting";
-      practice: { minimum: number; maximum: number; allowMore: true };
+      practice:
+        | { minimum: number; maximum: number; allowMore: true }
+        | PracticePrescription;
     }
 >;
 export type WritingPresentation = Readonly<{
@@ -795,6 +808,52 @@ export type WritingTask = Readonly<{
   startNodeId: NodeId;
   targets: readonly WritingTarget[];
   nodes: readonly WritingNode[];
+}>;
+export type WritingScript = Readonly<{
+  sourceRefs: readonly SourceRef[];
+  guidance: readonly ParentSpan[];
+}>;
+export type PracticePrescription = Readonly<
+  | {
+      kind: "qualitative";
+      instruction: Copy;
+      sourceRef: SourceRef;
+      furtherPractice: "parentDirected";
+    }
+  | {
+      kind: "range";
+      minimum: number;
+      maximum: number;
+      sourceRef: SourceRef;
+      furtherPractice: "parentDirected";
+    }
+>;
+export type WritingTargetPractice = Readonly<{
+  target: WritingTarget;
+  demonstration: WritingScript;
+  sound: Readonly<{
+    prompt: WritingScript;
+    expected: WritingScript;
+    affirmation: WritingScript;
+  }>;
+  tracing: Readonly<{
+    instruction: WritingScript;
+    practice: PracticePrescription;
+    praise: WritingScript;
+  }>;
+  independent: Readonly<{
+    instruction: WritingScript;
+    practice: PracticePrescription;
+    praise: WritingScript;
+  }>;
+}>;
+export type WritingPracticePlan = Readonly<{
+  id: TaskId;
+  number: number;
+  title: Copy;
+  optional: true;
+  introduction: WritingScript;
+  targets: readonly [WritingTargetPractice, WritingTargetPractice];
 }>;
 export type WritingAction = Readonly<
   | {

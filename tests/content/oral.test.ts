@@ -1,3 +1,4 @@
+import { plainCopy, requiredPlainCopy } from "../plain-guidance.ts";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -113,7 +114,9 @@ test("the cumulative oral fixture is reproducible and preserves printed task def
     ...task.corrections.flatMap((correction) =>
       "label" in correction ? [correction.label] : [],
     ),
-    ...task.nodes.flatMap((node) => node.guidance.map((span) => span.copy)),
+    ...task.nodes.flatMap((node) =>
+      node.guidance.map((span) => requiredPlainCopy(span)),
+    ),
     ...task.nodes.flatMap((node) =>
       node.kind === "selectiveReview"
         ? node.items.map((item) => item.parentLabel)
@@ -270,7 +273,7 @@ test("source authoring separates all four Task 5 responses and highlights adapte
     turns.map((node) =>
       node.guidance
         .filter((span) => span.kind === "expected")
-        .map((span) => span.copy.text),
+        .map((span) => requiredPlainCopy(span).text),
     ),
     [["unitfive."], ["mu."], ["iz."], ["zu."]],
   );
@@ -293,17 +296,22 @@ test("source authoring separates all four Task 5 responses and highlights adapte
     (node) => node.id === "l01.t05.correction-quiet-1.instruction",
   );
   assert.ok(quiet);
-  assert.ok(quiet.guidance.every((span) => span.copy.kind === "adapted"));
+  assert.ok(
+    quiet.guidance.every((span) => requiredPlainCopy(span).kind === "adapted"),
+  );
   assert.ok(
     quiet.guidance.some(
       (span) =>
         span.kind === "speech" &&
-        span.copy.text === "five. Unitfive. Synthetic FAST prompt!",
+        requiredPlainCopy(span).text ===
+          "five. Unitfive. Synthetic FAST prompt!",
     ),
   );
   assert.ok(
     quiet.guidance.some(
-      (span) => span.kind === "expected" && span.copy.text === "unitfive.",
+      (span) =>
+        span.kind === "expected" &&
+        requiredPlainCopy(span).text === "unitfive.",
     ),
   );
   const slow = entry.task.nodes.find(
@@ -311,7 +319,7 @@ test("source authoring separates all four Task 5 responses and highlights adapte
   );
   assert.equal(slow?.guidance.at(-1)?.kind, "action");
   assert.equal(
-    slow?.guidance.at(-1)?.copy.text,
+    plainCopy(slow?.guidance.at(-1))?.text,
     "(Synthetic repeat exercise from first step.)",
   );
 });
@@ -333,7 +341,7 @@ test("Task 2's direct correction keeps supported response, new parent speech and
   assert.deepEqual(
     direct?.guidance
       .filter((span) => span.kind === "expected")
-      .map((span) => span.copy.text),
+      .map((span) => requiredPlainCopy(span).text),
     ["unitone."],
   );
 });
@@ -345,7 +353,7 @@ test("oral span parsing does not turn a later parent prompt into praise", () => 
     afterExpected: "speech",
   });
   assert.deepEqual(
-    spans.map((span) => [span.kind, span.copy.kind]),
+    spans.map((span) => [span.kind, requiredPlainCopy(span).kind]),
     [
       ["action", "source"],
       ["speech", "source"],

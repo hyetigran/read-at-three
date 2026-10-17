@@ -83,11 +83,13 @@ const {
   profileAdministrationReceipt,
   commandReceiptV8,
   localDiagnostics,
+  installedPackageV1,
   ...baseSchema
 } = schema;
 const latestSchema = {
   commandReceipt: commandReceiptV3,
   ...baseSchema,
+  installedPackage: installedPackageV1,
   taskRun: taskRunV6,
 };
 const initialSchema = { ...latestSchema, taskAdvance: taskAdvanceV2 };
@@ -579,8 +581,41 @@ if (arguments_.includes("--check")) {
   if ((await readFile(removalPath, "utf8")) !== removalSql)
     throw new Error("Profile removal migration stale");
 } else await writeFile(removalPath, removalSql);
+const packageOriginal = statements.find((statement) =>
+  statement.startsWith("CREATE TABLE installed_package "),
+);
+if (!packageOriginal)
+  throw new Error("Original installed package table missing");
+const packageCurrent = packageOriginal.replace(
+  "CHECK(content_schema_version=1)",
+  "CHECK(content_schema_version IN (1,2))",
+);
+if (packageOriginal === packageCurrent)
+  throw new Error("Package schema constraint was not widened");
+const packageStatements = [
+  packageCurrent.replace(
+    "CREATE TABLE installed_package ",
+    "CREATE TABLE installed_package_v10 ",
+  ),
+  "INSERT INTO installed_package_v10 SELECT * FROM installed_package",
+  "DROP TABLE installed_package",
+  "ALTER TABLE installed_package_v10 RENAME TO installed_package",
+  "UPDATE installation SET database_version = 10",
+];
+const packagePath = resolve(
+  root,
+  "packages/storage/migrations/0009_content_capabilities.sql",
+);
+const packageSql =
+  packageStatements
+    .map((statement) => statement.trim().replace(/;$/, ""))
+    .join(";\n--> statement-breakpoint\n") + ";\n";
+if (arguments_.includes("--check")) {
+  if ((await readFile(packagePath, "utf8")) !== packageSql)
+    throw new Error("Content capability migration stale");
+} else await writeFile(packagePath, packageSql);
 const output = await format(
-  `export const migrationStatements = ${JSON.stringify(statements)} as const;\nexport const migrations = [{version:1, id:"issue-02-initial", statements:migrationStatements}, {version:2, id:"issue-03-sound-task-credits", statements:${JSON.stringify(upgrades)}}, {version:3,id:"issue-04-accepting-command",statements:${JSON.stringify(finalStatements)}}, {version:4,id:"issue-06-canonical-ink",statements:${JSON.stringify(writingStatements)}}, {version:5,id:"issue-07-ink-editing",statements:${JSON.stringify(editingStatements)}}, {version:6,id:"issue-08-lesson-support",statements:${JSON.stringify(lessonStatements)}}, {version:7,id:"issue-09-advance-withdrawal",statements:${JSON.stringify(reversibleStatements)}}, {version:8,id:"issue-10-child-profiles",statements:${JSON.stringify(profileStatements)}}, {version:9,id:"issue-11-profile-removal",statements:${JSON.stringify(removalStatements)}}] as const;\n`,
+  `export const migrationStatements = ${JSON.stringify(statements)} as const;\nexport const migrations = [{version:1, id:"issue-02-initial", statements:migrationStatements}, {version:2, id:"issue-03-sound-task-credits", statements:${JSON.stringify(upgrades)}}, {version:3,id:"issue-04-accepting-command",statements:${JSON.stringify(finalStatements)}}, {version:4,id:"issue-06-canonical-ink",statements:${JSON.stringify(writingStatements)}}, {version:5,id:"issue-07-ink-editing",statements:${JSON.stringify(editingStatements)}}, {version:6,id:"issue-08-lesson-support",statements:${JSON.stringify(lessonStatements)}}, {version:7,id:"issue-09-advance-withdrawal",statements:${JSON.stringify(reversibleStatements)}}, {version:8,id:"issue-10-child-profiles",statements:${JSON.stringify(profileStatements)}}, {version:9,id:"issue-11-profile-removal",statements:${JSON.stringify(removalStatements)}}, {version:10,id:"issue-12-content-capabilities",foreignKeys:"rebuild",statements:${JSON.stringify(packageStatements)}}] as const;\n`,
   { parser: "typescript" },
 );
 const path = resolve(root, "packages/storage/src/generated-migration.ts");

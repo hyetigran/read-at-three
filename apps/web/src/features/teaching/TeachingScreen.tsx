@@ -16,7 +16,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { isTeachingViewport, subscribeViewport } from "@/platform/viewport";
-import { AddedText, CopyText } from "./CopyText";
+import { AddedText, CopyText, ParentSpanText } from "./CopyText";
 import { SoundGlyph } from "./SoundGlyph";
 import { WritingBoard } from "./WritingBoard";
 import { RecoveryScreen, WindowRecovery } from "./RecoveryScreen";
@@ -335,7 +335,7 @@ function GuidanceSpans({ guidance }: { guidance: readonly ParentSpan[] }) {
                 : "Listen for"}
         </AddedText>
       </span>
-      <CopyText copy={span.copy} />
+      <ParentSpanText span={span} />
     </p>
   ));
 }
@@ -554,7 +554,7 @@ function WritingActivity({
       ? projection.outcome === "skipped"
         ? "Optional writing skipped"
         : "Writing task complete"
-      : phase?.kind === "modelAndSound"
+      : phase?.kind === "modelAndSound" || phase?.kind === "parentModel"
         ? "Parent demonstrates"
         : phase?.kind === "phaseConfirmation"
           ? phase.phase === "childTracing"

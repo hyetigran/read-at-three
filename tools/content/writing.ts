@@ -9,7 +9,7 @@ import {
 } from "@readatthree/teaching";
 import type {
   ControlDevelopmentBody,
-  ParentSpan,
+  PlainParentSpan as ParentSpan,
   Serialized,
   WritingDevelopmentBody,
   WritingNode,

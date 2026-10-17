@@ -1,3 +1,4 @@
+import { guidanceCopies } from "./guidance.ts";
 import { canonical } from "./identity.ts";
 import type {
   ControlTask,
@@ -96,8 +97,10 @@ export function compileControlTask(task: ControlTask): CompiledControlTask {
       throw new Error("Control source guidance missing");
     for (const span of n.guidance)
       if (
-        span.copy.kind !== "added" &&
-        !n.sourceRefs.includes(span.copy.sourceRef)
+        guidanceCopies(span).some(
+          (copy) =>
+            copy.kind !== "added" && !n.sourceRefs.includes(copy.sourceRef),
+        )
       )
         throw new Error("Control guidance source missing");
     if (n.kind !== "untilFirm") continue;
