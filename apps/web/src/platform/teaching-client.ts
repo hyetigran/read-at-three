@@ -1,5 +1,9 @@
 import { prepareCommand } from "@readatthree/teaching";
-import type { Projection, TeachingCommand } from "@readatthree/teaching";
+import type {
+  AvailableAction,
+  Projection,
+  TeachingCommand,
+} from "@readatthree/teaching";
 import { hashText } from "./hash.ts";
 import { parseResponse, parseWorkerRequestId } from "./protocol.ts";
 import type {
@@ -137,9 +141,10 @@ export function createBrowserTeachingClient() {
         );
       return response.value;
     },
-    prepare(projection: Projection) {
+    prepare(projection: Projection, action: AvailableAction) {
       return prepareCommand({
         projection,
+        action,
         ids: () => crypto.randomUUID(),
         hash: hashText,
       });

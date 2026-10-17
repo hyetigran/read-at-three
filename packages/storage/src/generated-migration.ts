@@ -1,6 +1,5 @@
-// Generated from migrations/0000_initial.sql plus reviewed deferred constraints.
-// Reproduce: npx drizzle-kit generate --config drizzle.config.ts --name initial
-// Then: node --import tsx tools/migrations/prepare.ts
+// Generated from ordered Kit migrations plus reviewed deferred constraints.
+// Reproduce: node --import tsx tools/migrations/prepare.ts
 export const migrationStatements = [
   "CREATE TABLE schema_migration (version INTEGER PRIMARY KEY CHECK(version>0), migration_id TEXT NOT NULL UNIQUE, checksum TEXT NOT NULL CHECK(length(checksum)=64 AND checksum NOT GLOB '*[^a-f0-9]*'))",
   "CREATE TABLE installation (installation_id TEXT PRIMARY KEY NOT NULL, revision INTEGER NOT NULL CHECK(typeof(revision)='integer' AND revision>=0), database_version INTEGER NOT NULL CHECK(database_version>0), singleton INTEGER NOT NULL UNIQUE CHECK(singleton=1))",
@@ -19,4 +18,21 @@ export const migrationStatements = [
   "CREATE INDEX receipt_owner_revision ON command_receipt(owner_profile_id,owner_generation,scope_kind,scope_id,resulting_revision)",
   "CREATE INDEX session_package ON session(package_hash)",
   "CREATE INDEX run_package ON task_run(package_hash)",
+] as const;
+export const migrations = [
+  { version: 1, id: "issue-02-initial", statements: migrationStatements },
+  {
+    version: 2,
+    id: "issue-03-sound-task-credits",
+    statements: [
+      "CREATE TABLE `task_credit` (\n\t`credit_id` text PRIMARY KEY NOT NULL,\n\t`profile_id` text NOT NULL,\n\t`generation` integer NOT NULL,\n\t`course_id` text NOT NULL,\n\t`lesson_id` text NOT NULL,\n\t`task_id` text NOT NULL,\n\t`session_id` text NOT NULL,\n\t`run_id` text NOT NULL,\n\t`terminal_advance_id` text NOT NULL,\n\t`package_hash` text NOT NULL,\n\t`outcome` text NOT NULL,\n\t`status` text NOT NULL,\n\t`receipt_version` integer NOT NULL,\n\t`receipt` text NOT NULL,\n\tFOREIGN KEY (`run_id`,`session_id`,`profile_id`,`generation`,`course_id`,`package_hash`,`lesson_id`,`task_id`) REFERENCES `task_run`(`run_id`,`session_id`,`profile_id`,`generation`,`course_id`,`package_hash`,`lesson_id`,`task_id`) ON UPDATE no action ON DELETE no action,\n\tFOREIGN KEY (`terminal_advance_id`,`run_id`) REFERENCES `task_advance`(`advance_id`,`run_id`) ON UPDATE no action ON DELETE no action,\n\tCONSTRAINT \"generation_nonnegative\" CHECK(typeof(generation)='integer' AND generation>=0),\n\tCONSTRAINT \"package_hash_hash\" CHECK(length(package_hash)=64 AND package_hash NOT GLOB '*[^a-f0-9]*'),\n\tCONSTRAINT \"credit_outcome\" CHECK(outcome IN ('completed','skipped')),\n\tCONSTRAINT \"credit_status\" CHECK(status IN ('valid','withdrawn')),\n\tCONSTRAINT \"credit_receipt_version\" CHECK(receipt_version=1),\n\tCONSTRAINT \"credit_receipt_json\" CHECK(json_valid(receipt))\n);",
+      "CREATE INDEX `credit_owner_task` ON `task_credit` (`profile_id`,`generation`,`course_id`,`task_id`,`status`);",
+      "CREATE INDEX `credit_package` ON `task_credit` (`package_hash`);",
+      "CREATE UNIQUE INDEX `task_credit_terminal_advance_id_unique` ON `task_credit` (`terminal_advance_id`);",
+      "CREATE UNIQUE INDEX `task_credit_credit_id_profile_id_generation_course_id_lesson_id_task_id_outcome_unique` ON `task_credit` (`credit_id`,`profile_id`,`generation`,`course_id`,`lesson_id`,`task_id`,`outcome`);",
+      "CREATE TABLE `task_result` (\n\t`profile_id` text NOT NULL,\n\t`generation` integer NOT NULL,\n\t`course_id` text NOT NULL,\n\t`lesson_id` text NOT NULL,\n\t`task_id` text NOT NULL,\n\t`outcome` text NOT NULL,\n\t`accepted_credit_id` text NOT NULL,\n\tPRIMARY KEY(`profile_id`, `generation`, `course_id`, `task_id`),\n\tFOREIGN KEY (`accepted_credit_id`,`profile_id`,`generation`,`course_id`,`lesson_id`,`task_id`,`outcome`) REFERENCES `task_credit`(`credit_id`,`profile_id`,`generation`,`course_id`,`lesson_id`,`task_id`,`outcome`) ON UPDATE no action ON DELETE no action DEFERRABLE INITIALLY DEFERRED,\n\tCONSTRAINT \"generation_nonnegative\" CHECK(typeof(generation)='integer' AND generation>=0),\n\tCONSTRAINT \"result_outcome\" CHECK(outcome IN ('completed','skipped'))\n);",
+      "CREATE INDEX `result_owner_lesson` ON `task_result` (`profile_id`,`generation`,`course_id`,`lesson_id`);",
+      "UPDATE installation SET database_version=2",
+    ],
+  },
 ] as const;

@@ -13,6 +13,11 @@ import type {
   TeachingCommand,
   CommitReceipt,
   Counter,
+  GraphTask,
+  GraphNode,
+  CorrectionSpec,
+  TaskId,
+  CorrectionId,
 } from "./types.ts";
 import {
   validatePackage,
@@ -85,26 +90,56 @@ export async function parseDevelopmentPackage(
   deepFreeze(input);
   if ((await hash(canonical(input.body))) !== input.packageHash)
     throw new Error("Development content hash mismatch");
-  const nodes = new Map(input.body.nodes.map((node) => [node.id, node]));
-  if (nodes.size !== input.body.nodes.length)
-    throw new Error("Duplicate content node");
-  const visited = new Set<NodeId>();
-  let next = input.body.startNodeId;
-  while (true) {
-    if (visited.has(next)) throw new Error("Content cycle");
-    const current = nodes.get(next);
-    if (!current) throw new Error("Content node missing");
-    visited.add(next);
-    if (current.next.kind === "frontier") break;
-    next = current.next.nodeId;
+  if (input.body.coverage === "partial-first-m") {
+    const nodes = new Map(input.body.nodes.map((node) => [node.id, node]));
+    if (nodes.size !== input.body.nodes.length)
+      throw new Error("Duplicate content node");
+    const visited = new Set<NodeId>();
+    let next = input.body.startNodeId;
+    while (true) {
+      if (visited.has(next)) throw new Error("Content cycle");
+      const current = nodes.get(next);
+      if (!current) throw new Error("Content node missing");
+      visited.add(next);
+      if (current.next.kind === "frontier") break;
+      next = current.next.nodeId;
+    }
+    if (visited.size !== nodes.size)
+      throw new Error("Unreachable content node");
+  } else {
+    const metadata = new Map(
+      input.body.lessonTasks.map((task) => [task.id, task]),
+    );
+    if (
+      metadata.size !== input.body.lessonTasks.length ||
+      new Set(input.body.lessonTasks.map((task) => task.number)).size !==
+        metadata.size
+    )
+      throw new Error("Duplicate task metadata");
+    const seen = new Set<TaskId>();
+    for (const task of input.body.tasks) {
+      if (seen.has(task.id)) throw new Error("Duplicate available task");
+      seen.add(task.id);
+      const entry = metadata.get(task.id);
+      if (
+        !entry ||
+        entry.number !== task.number ||
+        canonical(entry.title) !== canonical(task.title)
+      )
+        throw new Error("Task metadata mismatch");
+      compileTask(task);
+    }
   }
-  if (visited.size !== nodes.size) throw new Error("Unreachable content node");
   return deepFreeze(input);
 }
 export function parseTeachingState(input: unknown): TeachingState {
   if (!validateState(input))
     throw new Error("Stored teaching state schema is unsupported");
-  return input;
+  if (input.kind === "graph") {
+    parseCounter(input.nextOccurrenceNumber);
+    parseCounter(input.nextCheckpointNumber);
+  }
+  return deepFreeze(input);
 }
 export function parseCommand(input: unknown): TeachingCommand {
   if (!validateCommand(input)) throw new Error("Command schema is invalid");
@@ -118,7 +153,7 @@ export function parseReceipt(input: unknown): CommitReceipt {
     throw new Error("Stored receipt schema is invalid");
   parseCounter(input.revision);
   parseCounter(input.owner.generation);
-  return input;
+  return deepFreeze(input);
 }
 export function parseProjection(
   input: unknown,
@@ -127,9 +162,11 @@ export function parseProjection(
     throw new Error("Projection schema is invalid");
   if (input.kind !== "recovery") {
     parseCounter(input.owner.generation);
-    parseCounter(
-      input.kind === "entry" ? input.profileRevision : input.revision,
-    );
+    parseCounter(input.profileRevision);
+    if (input.kind !== "entry") {
+      parseCounter(input.revision);
+      parseCounter(input.selectionCounter);
+    }
   }
   return deepFreeze(input);
 }
@@ -143,4 +180,105 @@ export function parseDispatchResult(
     parseCounter(input.revision);
   }
   return deepFreeze(input);
+}
+
+export type CompiledTask = Readonly<{
+  task: GraphTask;
+  nodes: ReadonlyMap<NodeId, GraphNode>;
+  normalNodeIds: readonly NodeId[];
+  corrections: ReadonlyMap<CorrectionId, CorrectionSpec>;
+}>;
+const compiledTasks = new WeakMap<GraphTask, CompiledTask>();
+export function compileTask(task: GraphTask): CompiledTask {
+  const cached = compiledTasks.get(task);
+  if (cached) return cached;
+  const nodes = new Map(task.nodes.map((node) => [node.id, node]));
+  if (nodes.size !== task.nodes.length) throw new Error("Duplicate graph node");
+  const normalNodeIds: NodeId[] = [];
+  let next: NodeId | null = task.startNodeId;
+  while (next !== null) {
+    if (normalNodeIds.includes(next)) throw new Error("Normal route cycle");
+    const node = nodes.get(next);
+    if (!node || node.kind !== "normal")
+      throw new Error("Normal route missing node");
+    normalNodeIds.push(node.id);
+    next = node.next.kind === "end" ? null : node.next.nodeId;
+  }
+  if (
+    normalNodeIds.length !==
+    task.nodes.filter((node) => node.kind === "normal").length
+  )
+    throw new Error("Unreachable normal node");
+  const corrections = new Map(task.corrections.map((spec) => [spec.id, spec]));
+  if (corrections.size !== task.corrections.length)
+    throw new Error("Duplicate correction");
+  const support = new Set<NodeId>();
+  for (const spec of task.corrections) {
+    const instruction = nodes.get(spec.instructionNodeId);
+    if (
+      !instruction ||
+      instruction.kind !== "correction" ||
+      instruction.next.kind !== "end"
+    )
+      throw new Error("Correction instruction is invalid");
+    support.add(instruction.id);
+    for (const eligibleId of spec.eligibleNodeIds) {
+      const eligible = nodes.get(eligibleId);
+      if (
+        !eligible ||
+        eligible.kind !== "normal" ||
+        eligible.parentRole !== "listen" ||
+        eligible.glyph !== instruction.glyph
+      )
+        throw new Error("Correction eligibility is invalid");
+    }
+    const first = spec.retestNodeIds[0];
+    const start = first === undefined ? -1 : normalNodeIds.indexOf(first);
+    if (
+      start < 0 ||
+      spec.retestNodeIds.some(
+        (id, index) => normalNodeIds[start + index] !== id,
+      )
+    )
+      throw new Error(
+        "Correction retest must be an explicit contiguous normal route",
+      );
+    for (const id of spec.retestNodeIds) {
+      if (nodes.get(id)?.parentRole !== "listen")
+        throw new Error("Correction retest is not a child response");
+    }
+    if (
+      spec.continuationNodeId !==
+      (normalNodeIds[start + spec.retestNodeIds.length] ?? null)
+    )
+      throw new Error("Correction continuation does not follow retest");
+  }
+  if (
+    task.nodes.some(
+      (node) => node.kind === "correction" && !support.has(node.id),
+    )
+  )
+    throw new Error("Unreachable correction instruction");
+  for (const node of task.nodes) {
+    for (const span of node.guidance) {
+      if (
+        span.copy.kind !== "added" &&
+        !node.sourceRefs.includes(span.copy.sourceRef)
+      )
+        throw new Error("Guidance source reference is missing");
+    }
+  }
+  const result = { task, nodes, normalNodeIds, corrections };
+  compiledTasks.set(task, result);
+  return result;
+}
+export function graphTask(
+  content: DevelopmentPackage,
+  taskId: TaskId,
+): CompiledTask {
+  if (content.body.coverage !== "lesson1-sounds-complete")
+    throw new Error("Graph package required");
+  const task = content.body.tasks.find((entry) => entry.id === taskId);
+  if (!task) throw new Error("Task is not available in exact package");
+  return compileTask(task);
 }

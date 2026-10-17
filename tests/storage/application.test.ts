@@ -157,7 +157,7 @@ test("real SQLite restart resumes exact pinned node/revision and never credits p
   assert.equal(
     first.db
       .prepare(
-        "select count(*) as n from sqlite_master where name like '%credit%' or name like '%result%'",
+        "select (select count(*) from task_credit) + (select count(*) from task_result) as n",
       )
       .get()?.n,
     0,

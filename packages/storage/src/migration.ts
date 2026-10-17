@@ -1,8 +1,8 @@
 import type { HashFunction } from "../../teaching/src/index.ts";
 import type { SqlExecutor } from "./executor.ts";
-import { migrationStatements } from "./generated-migration.ts";
+import { migrations } from "./generated-migration.ts";
 export { migrationStatements } from "./generated-migration.ts";
-export const DATABASE_VERSION = 1;
+export const DATABASE_VERSION = 2;
 export async function transaction<T>(
   executor: SqlExecutor,
   work: () => Promise<T>,
@@ -45,70 +45,93 @@ export async function initializeDatabase(
   );
   if (journal !== "delete" || (synchronous !== 2 && synchronous !== 2n))
     throw new Error("SQLite requires DELETE journal and FULL synchronization");
-  const version = firstValue(
+  const rawVersion = firstValue(
     (await executor.execute("PRAGMA user_version", [])).rows,
   );
+  const version =
+    typeof rawVersion === "bigint" ? Number(rawVersion) : rawVersion;
   if (
-    version !== 0 &&
-    version !== 0n &&
-    version !== DATABASE_VERSION &&
-    version !== BigInt(DATABASE_VERSION)
+    typeof version !== "number" ||
+    !Number.isSafeInteger(version) ||
+    version < 0 ||
+    version > DATABASE_VERSION
   )
     throw new Error(
       "Unsupported database version; update or recover this installation",
     );
-  const checksum = await hashFunction(migrationStatements.join("\n"));
-  if (version === 0 || version === 0n) {
-    const tables = (
+  const checksums = await Promise.all(
+    migrations.map((migration) =>
+      hashFunction(migration.statements.join("\n")),
+    ),
+  );
+  async function verify(appliedVersion: number): Promise<void> {
+    if (appliedVersion === 0) {
+      const tables = (
+        await executor.execute(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+          [],
+        )
+      ).rows;
+      if (tables.length)
+        throw new Error("Unversioned database already has application tables");
+      return;
+    }
+    const ledger = (
       await executor.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+        "SELECT version,migration_id,checksum FROM schema_migration ORDER BY version",
         [],
       )
     ).rows;
-    if (tables.length > 0)
-      throw new Error("Unversioned database already has application tables");
+    if (ledger.length !== appliedVersion)
+      throw new Error("Database migration ledger is incomplete");
+    for (const migration of migrations.slice(0, appliedVersion)) {
+      const row = ledger[migration.version - 1];
+      if (
+        !row ||
+        BigInt(String(row[0])) !== BigInt(migration.version) ||
+        row[1] !== migration.id ||
+        row[2] !== checksums[migration.version - 1]
+      )
+        throw new Error("Database migration checksum mismatch");
+      for (const statement of migration.statements) {
+        if (!statement.startsWith("CREATE ")) continue;
+        const name = /^CREATE (?:UNIQUE )?(?:TABLE|INDEX) [`"]?([a-z_]+)/.exec(
+          statement,
+        )?.[1];
+        if (!name) throw new Error("Invalid bundled schema migration");
+        const actual = firstValue(
+          (
+            await executor.execute(
+              "SELECT sql FROM sqlite_master WHERE name=?",
+              [name],
+            )
+          ).rows,
+        );
+        if (
+          typeof actual !== "string" ||
+          normalize(actual) !== normalize(statement)
+        )
+          throw new Error("Database schema does not match its migration");
+      }
+    }
+    if ((await executor.execute("PRAGMA foreign_key_check", [])).rows.length)
+      throw new Error("Database ownership graph is corrupt");
+  }
+  await verify(version);
+  for (const migration of migrations.slice(version)) {
+    const checksum = checksums[migration.version - 1];
+    if (!checksum) throw new Error("Migration checksum is missing");
     await transaction(executor, async () => {
-      for (const statement of migrationStatements)
+      for (const statement of migration.statements)
         await executor.execute(statement, []);
       await executor.execute(
         "INSERT INTO schema_migration(version,migration_id,checksum) VALUES(?,?,?)",
-        [DATABASE_VERSION, "issue-02-initial", checksum],
+        [migration.version, migration.id, checksum],
       );
-      await executor.execute(`PRAGMA user_version=${DATABASE_VERSION}`, []);
+      if ((await executor.execute("PRAGMA foreign_key_check", [])).rows.length)
+        throw new Error("Migration violated the ownership graph");
+      await executor.execute(`PRAGMA user_version=${migration.version}`, []);
     });
+    await verify(migration.version);
   }
-  const ledger = (
-    await executor.execute(
-      "SELECT version,migration_id,checksum FROM schema_migration ORDER BY version",
-      [],
-    )
-  ).rows;
-  if (
-    ledger.length !== 1 ||
-    (ledger[0]?.[0] !== 1 && ledger[0]?.[0] !== 1n) ||
-    ledger[0]?.[1] !== "issue-02-initial" ||
-    ledger[0]?.[2] !== checksum
-  )
-    throw new Error("Database migration checksum mismatch");
-  for (const statement of migrationStatements) {
-    const match = /^CREATE (?:UNIQUE )?(?:TABLE|INDEX) ([a-z_]+)/.exec(
-      statement,
-    );
-    const name = match?.[1];
-    if (!name) throw new Error("Invalid bundled migration");
-    const actual = firstValue(
-      (
-        await executor.execute("SELECT sql FROM sqlite_master WHERE name=?", [
-          name,
-        ])
-      ).rows,
-    );
-    if (
-      typeof actual !== "string" ||
-      normalize(actual) !== normalize(statement)
-    )
-      throw new Error("Database schema does not match its migration");
-  }
-  if ((await executor.execute("PRAGMA foreign_key_check", [])).rows.length > 0)
-    throw new Error("Database ownership graph is corrupt");
 }

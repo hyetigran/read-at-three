@@ -2,7 +2,7 @@
 
 Production reading application for Lessons 1–6 of the supplied curriculum, with digital handwriting. Implement the entire application as a React/Vite SPA first, then adapt it to React Native/Expo after the complete functional SPA handoff gate passes.
 
-Selected stack: TypeScript, shadcn/ui for web UI, TanStack React Query, and Drizzle/SQLite. Shared curriculum/session/ink logic and schema stay independent of platform screens. The first SPA slice opens and durably resumes the first two printed-m teaching turns. It uses a dedicated SQLite WASM/OPFS worker and portable teaching/storage packages. The remainder of the six-lesson application and Expo adaptation are still being implemented.
+Selected stack: TypeScript, shadcn/ui for web UI, TanStack React Query, and Drizzle/SQLite. Shared curriculum/session/ink logic and schema stay independent of platform screens. The SPA currently delivers Lesson 1 Tasks 1 and 4: complete m/s introduction and review, source corrections/retests, parent-controlled Repeat/Back/Pause, durable task completion, and explicit fresh Replay. It uses a dedicated SQLite WASM/OPFS worker and portable teaching/storage packages. The remainder of the six-lesson application and Expo adaptation are still being implemented.
 
 - [Product requirements](PRD.md)
 - [Architecture](ARCHITECTURE.md)
@@ -20,8 +20,8 @@ The 34 delivery tickets are [published on GitHub](https://github.com/hyetigran/r
 
 ## Run the development application
 
-Use Node 22.19.0 and npm 10.9.3, then `npm ci`. With the authorized local source JSON available, run `npm run content:prepare`, followed by `npm run dev`. Open the printed local URL in a supported landscape Chromium window. Generated content stays in ignored `.local/runtime`; supplied source text is not published in this repository. Missing private content produces an explicit recovery screen.
+Use Node 22.19.0 and npm 10.9.3, then `npm ci`. With the authorized local lesson JSON, overview transcription and matching independent source-review record available, run `npm run content:prepare`, followed by `npm run dev`. Open the printed local URL in a supported landscape Chromium window. Generated content stays in ignored `.local/runtime`; supplied source text is not published in this repository. Missing private content produces an explicit recovery screen. Reviewed full-task content is generated into `.local/runtime/graph-development-package.json`. Earlier partial content remains separate and resumable through its exact stored package. Starting the full task creates a new run only after an explicit parent action.
 
 For a source-free engineering checkout, run `npm run content:fixture` and `READING_CONTENT_MODE=fixture npm run dev`. This explicitly selects synthetic test wording; it is not the book curriculum. Use the same environment variable for a synthetic build. `npm run build` otherwise packages the locally prepared development content, which must remain private.
 
-`npm run test:browser` and `npm run test:browser:build` use only synthetic fixtures and real browser storage. The two implemented turns end at an unfinished-content boundary; they cannot award task or lesson completion. This is the first production increment, not the full application or a public content release. See [current evidence](docs/evidence/issue-02.md).
+`npm run test:browser` and `npm run test:browser:build` use only synthetic fixtures and real browser storage. Legacy regression cases explicitly select the earlier partial fixture. `READING_CONTENT_VARIANT=legacy` selects that development package when reproducing the earlier slice. New completed task credit does not imply lesson completion; four Lesson 1 tasks and the other supplied lessons remain outstanding. See [printed-task evidence](docs/evidence/issue-03.md) and [the earlier slice](docs/evidence/issue-02.md).
