@@ -4,6 +4,7 @@ import {
   foreignKey,
   index,
   integer,
+  real,
   primaryKey,
   sqliteTable,
   text,
@@ -42,7 +43,7 @@ const courseId = identity("course");
 const releaseId = identity("release");
 const lessonId = identity("lesson");
 const taskId = identity("task");
-const receiptScopeId = identity<"profile" | "session">("profile");
+const receiptScopeId = identity<"profile" | "session" | "document">("profile");
 const scopeTargetId = identity<"lesson" | "task">("lesson");
 const packageHash = hashed("package");
 const payloadHash = hashed("payload");
@@ -419,7 +420,7 @@ export const taskAdvance = sqliteTable(
     index("task_advance_chain").on(table.runId, table.seq, table.status),
   ],
 );
-export const commandReceipt = sqliteTable(
+export const commandReceiptV3 = sqliteTable(
   "command_receipt",
   {
     scopeKind: text("scope_kind", { enum: ["profile", "session"] }).notNull(),
@@ -444,6 +445,55 @@ export const commandReceipt = sqliteTable(
       ],
     }),
     check("receipt_scope", sql`scope_kind IN ('profile','session')`),
+    nonnegative("scope_generation"),
+    nonnegative("owner_generation"),
+    nonnegative("expected_revision"),
+    nonnegative("resulting_revision"),
+    hash("payload_hash"),
+    check("receipt_result_version", sql`result_version=1`),
+    check("receipt_result_json", sql`json_valid(result)`),
+    foreignKey({
+      columns: [table.ownerProfileId, table.ownerGeneration],
+      foreignColumns: [profile.id, profile.generation],
+    }),
+    check("receipt_generation", sql`scope_generation=owner_generation`),
+    index("receipt_owner_revision").on(
+      table.ownerProfileId,
+      table.ownerGeneration,
+      table.scopeKind,
+      table.scopeId,
+      table.resultingRevision,
+    ),
+  ],
+);
+
+export const commandReceipt = sqliteTable(
+  "command_receipt",
+  {
+    scopeKind: text("scope_kind", {
+      enum: ["profile", "session", "document"],
+    }).notNull(),
+    scopeId: receiptScopeId("scope_id").notNull(),
+    scopeGeneration: counter("scope_generation").notNull(),
+    commandId: commandId("command_id").notNull(),
+    ownerProfileId: profileId("owner_profile_id").notNull(),
+    ownerGeneration: counter("owner_generation").notNull(),
+    expectedRevision: counter("expected_revision").notNull(),
+    resultingRevision: counter("resulting_revision").notNull(),
+    payloadHash: payloadHash("payload_hash").notNull(),
+    resultVersion: integer("result_version").notNull(),
+    result: text("result").notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [
+        table.scopeKind,
+        table.scopeId,
+        table.scopeGeneration,
+        table.commandId,
+      ],
+    }),
+    check("receipt_scope", sql`scope_kind IN ('profile','session','document')`),
     nonnegative("scope_generation"),
     nonnegative("owner_generation"),
     nonnegative("expected_revision"),
@@ -586,5 +636,230 @@ export const taskResult = sqliteTable(
       table.courseId,
       table.lessonId,
     ),
+  ],
+);
+
+const documentId = identity("document");
+const strokeId = identity("stroke");
+const targetId = identity("target");
+export const inkDocument = sqliteTable(
+  "ink_document",
+  {
+    documentId: documentId("document_id").primaryKey(),
+    runId: runId("run_id").notNull(),
+    profileId: profileId("profile_id").notNull(),
+    generation: counter("generation").notNull(),
+    courseId: courseId("course_id").notNull(),
+    packageHash: packageHash("package_hash").notNull(),
+    lessonId: lessonId("lesson_id").notNull(),
+    taskId: taskId("task_id").notNull(),
+    targetId: targetId("target_id").notNull(),
+    sourceRefs: text("source_refs").notNull(),
+    phase: text("phase", {
+      enum: ["parentDemonstration", "childTracing", "childIndependentWriting"],
+    }).notNull(),
+    logicalWidth: real("logical_width").notNull(),
+    logicalHeight: real("logical_height").notNull(),
+    codecVersion: integer("codec_version").notNull(),
+    revision: counter("revision").notNull(),
+    inputEpoch: counter("input_epoch").notNull(),
+    nextStrokeOrder: counter("next_stroke_order").notNull(),
+  },
+  (t) => [
+    unique().on(t.runId, t.targetId),
+    unique().on(
+      t.documentId,
+      t.runId,
+      t.profileId,
+      t.generation,
+      t.courseId,
+      t.packageHash,
+      t.lessonId,
+      t.taskId,
+      t.targetId,
+    ),
+    foreignKey({
+      columns: [
+        t.runId,
+        t.profileId,
+        t.generation,
+        t.courseId,
+        t.packageHash,
+        t.lessonId,
+        t.taskId,
+      ],
+      foreignColumns: [
+        taskRun.runId,
+        taskRun.profileId,
+        taskRun.generation,
+        taskRun.courseId,
+        taskRun.packageHash,
+        taskRun.lessonId,
+        taskRun.taskId,
+      ],
+    }),
+    check(
+      "ink_document_phase",
+      sql`phase IN ('parentDemonstration','childTracing','childIndependentWriting')`,
+    ),
+    check(
+      "ink_document_geometry",
+      sql`logical_width>0 AND logical_height>0 AND logical_width<=100000 AND logical_height<=100000`,
+    ),
+    check("ink_document_codec", sql`codec_version=1`),
+    check("ink_document_source", sql`json_valid(source_refs)`),
+    nonnegative("revision"),
+    nonnegative("input_epoch"),
+    nonnegative("next_stroke_order"),
+    index("ink_document_package").on(t.packageHash),
+  ],
+);
+export const inkStroke = sqliteTable(
+  "ink_stroke",
+  {
+    strokeId: strokeId("stroke_id").primaryKey(),
+    documentId: documentId("document_id").notNull(),
+    layer: text("layer", {
+      enum: ["model", "tracing", "independent"],
+    }).notNull(),
+    strokeOrder: counter("stroke_order").notNull(),
+    status: text("status", {
+      enum: ["capturing", "finished", "interrupted"],
+    }).notNull(),
+    codecVersion: integer("codec_version").notNull(),
+    brushVersion: integer("brush_version").notNull(),
+    brush: text("brush").notNull(),
+    pointCount: integer("point_count").notNull(),
+  },
+  (t) => [
+    unique().on(t.documentId, t.strokeOrder),
+    unique().on(t.strokeId, t.documentId, t.layer),
+    foreignKey({
+      columns: [t.documentId],
+      foreignColumns: [inkDocument.documentId],
+    }),
+    check("ink_stroke_layer", sql`layer IN ('model','tracing','independent')`),
+    check(
+      "ink_stroke_status",
+      sql`status IN ('capturing','finished','interrupted')`,
+    ),
+    check("ink_stroke_versions", sql`codec_version=1 AND brush_version=1`),
+    check("ink_stroke_brush", sql`json_valid(brush)`),
+    check(
+      "ink_stroke_points",
+      sql`typeof(point_count)='integer' AND point_count>=0 AND point_count<=100000 AND (status='capturing' OR point_count>0)`,
+    ),
+    nonnegative("stroke_order"),
+    index("ink_stroke_document_layer").on(
+      t.documentId,
+      t.layer,
+      t.strokeOrder,
+      t.status,
+    ),
+    uniqueIndex("ink_one_capture")
+      .on(t.documentId)
+      .where(sql`status='capturing'`),
+  ],
+);
+export const inkPointChunk = sqliteTable(
+  "ink_point_chunk",
+  {
+    strokeId: strokeId("stroke_id").notNull(),
+    chunkIndex: integer("chunk_index").notNull(),
+    firstPointIndex: integer("first_point_index").notNull(),
+    pointCount: integer("point_count").notNull(),
+    codecVersion: integer("codec_version").notNull(),
+    payload: bytes("payload").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.strokeId, t.chunkIndex] }),
+    foreignKey({ columns: [t.strokeId], foreignColumns: [inkStroke.strokeId] }),
+    check(
+      "ink_chunk_index",
+      sql`typeof(chunk_index)='integer' AND typeof(first_point_index)='integer' AND chunk_index>=0 AND first_point_index>=0`,
+    ),
+    check(
+      "ink_chunk_points",
+      sql`typeof(point_count)='integer' AND point_count>0 AND point_count<=2048`,
+    ),
+    check("ink_chunk_codec", sql`codec_version=1`),
+    check(
+      "ink_chunk_bytes",
+      sql`typeof(payload)='blob' AND length(payload)=point_count*16`,
+    ),
+  ],
+);
+export const inkHistory = sqliteTable(
+  "ink_history",
+  {
+    documentId: documentId("document_id").notNull(),
+    layer: text("layer", {
+      enum: ["model", "tracing", "independent"],
+    }).notNull(),
+    baselineVersion: integer("baseline_version").notNull(),
+    baseline: text("baseline").notNull(),
+    baseSeq: counter("base_seq").notNull(),
+    cursorSeq: counter("cursor_seq").notNull(),
+    tipSeq: counter("tip_seq").notNull(),
+    nextOpSeq: counter("next_op_seq").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.documentId, t.layer] }),
+    foreignKey({
+      columns: [t.documentId],
+      foreignColumns: [inkDocument.documentId],
+    }),
+    check("ink_history_layer", sql`layer IN ('model','tracing','independent')`),
+    check(
+      "ink_history_version",
+      sql`baseline_version=1 AND json_valid(baseline)`,
+    ),
+    check(
+      "ink_history_sequence",
+      sql`typeof(base_seq)='integer' AND typeof(cursor_seq)='integer' AND typeof(tip_seq)='integer' AND typeof(next_op_seq)='integer' AND base_seq>=0 AND cursor_seq>=base_seq AND tip_seq>=cursor_seq AND next_op_seq>tip_seq`,
+    ),
+  ],
+);
+export const inkOperation = sqliteTable(
+  "ink_operation",
+  {
+    documentId: documentId("document_id").notNull(),
+    layer: text("layer", {
+      enum: ["model", "tracing", "independent"],
+    }).notNull(),
+    seq: counter("seq").notNull(),
+    kind: text("kind", {
+      enum: ["AddStroke", "RemoveStroke", "ReplaceModel", "ClearPractice"],
+    }).notNull(),
+    payloadVersion: integer("payload_version").notNull(),
+    payload: text("payload").notNull(),
+    originStrokeId: strokeId("origin_stroke_id"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.documentId, t.layer, t.seq] }),
+    foreignKey({
+      columns: [t.documentId, t.layer],
+      foreignColumns: [inkHistory.documentId, inkHistory.layer],
+    }),
+    foreignKey({
+      columns: [t.originStrokeId, t.documentId, t.layer],
+      foreignColumns: [
+        inkStroke.strokeId,
+        inkStroke.documentId,
+        inkStroke.layer,
+      ],
+    }),
+    check("ink_operation_seq", sql`typeof(seq)='integer' AND seq>0`),
+    check(
+      "ink_operation_payload",
+      sql`payload_version=1 AND json_valid(payload)`,
+    ),
+    check(
+      "ink_operation_origin",
+      sql`(kind='AddStroke' AND origin_stroke_id IS NOT NULL) OR (kind IN ('RemoveStroke','ReplaceModel','ClearPractice') AND origin_stroke_id IS NULL)`,
+    ),
+    uniqueIndex("ink_unique_origin")
+      .on(t.originStrokeId)
+      .where(sql`origin_stroke_id IS NOT NULL`),
   ],
 );

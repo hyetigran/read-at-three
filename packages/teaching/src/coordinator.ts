@@ -1,3 +1,4 @@
+import { writingTask } from "./writing.ts";
 import { controlActions } from "./control-engine.ts";
 import { canonicalReviewChoice } from "./control-content.ts";
 import {
@@ -194,17 +195,59 @@ export async function prepareCommand({
     ),
   });
 }
-function catalogFor(
-  active: DevelopmentPackage,
-  context: StoredContext,
-): readonly CatalogTask[] {
+function sameAuthoredTask({
+  previous,
+  candidate,
+  taskId,
+}: {
+  previous: DevelopmentPackage;
+  candidate: DevelopmentPackage;
+  taskId: TaskId;
+}) {
+  if (
+    (previous.body.coverage !== "lesson1-sounds-oral-complete" &&
+      previous.body.coverage !== "lesson1-complete") ||
+    (candidate.body.coverage !== "lesson1-sounds-oral-complete" &&
+      candidate.body.coverage !== "lesson1-complete") ||
+    previous.body.courseId !== candidate.body.courseId ||
+    previous.body.lessonId !== candidate.body.lessonId
+  )
+    return false;
+  const before = previous.body.tasks.find((entry) => entry.task.id === taskId),
+    after = candidate.body.tasks.find((entry) => entry.task.id === taskId);
+  return (
+    before !== undefined &&
+    after !== undefined &&
+    canonical(before) === canonical(after)
+  );
+}
+function catalogFor({
+  active,
+  context,
+  retained,
+}: {
+  active: DevelopmentPackage;
+  context: StoredContext;
+  retained: ReadonlyMap<import("./types.ts").PackageHash, DevelopmentPackage>;
+}): readonly CatalogTask[] {
   if (active.body.coverage === "partial-first-m") return [];
   return active.body.lessonTasks.map((task) => {
     const saved = context.sessions
       .filter(
         (session) =>
           session.taskId === task.id &&
-          session.packageHash === active.packageHash &&
+          (session.packageHash === active.packageHash ||
+            (() => {
+              const previous = retained.get(session.packageHash);
+              return (
+                previous !== undefined &&
+                sameAuthoredTask({
+                  previous,
+                  candidate: active,
+                  taskId: task.id,
+                })
+              );
+            })()) &&
           session.runStatus === "inProgress",
       )
       .sort((a, b) => a.sessionId.localeCompare(b.sessionId))[0];
@@ -237,14 +280,11 @@ function selectionActions({
   const sameCompleteTask =
     current !== null &&
     (current.packageHash === active.packageHash ||
-      (content.body.coverage === "lesson1-sounds-oral-complete" &&
-        active.body.coverage === "lesson1-sounds-oral-complete" &&
-        canonical(
-          content.body.tasks.find((entry) => entry.task.id === current.taskId),
-        ) ===
-          canonical(
-            active.body.tasks.find((entry) => entry.task.id === current.taskId),
-          )));
+      sameAuthoredTask({
+        previous: content,
+        candidate: active,
+        taskId: current.taskId,
+      }));
   if (current?.status === "paused")
     actions.push(
       choice("Resume", {
@@ -275,7 +315,7 @@ function selectionActions({
       continue;
     }
     if (current?.taskId === task.id) {
-      if (current.runStatus === "completed")
+      if (current.runStatus === "completed" || current.runStatus === "skipped")
         actions.push(
           choice("Replay task", {
             kind: "replay",
@@ -338,7 +378,17 @@ export function createCoordinator({
     try {
       const context = await store.current();
       const active = await store.resolvePackage(context.activePackageHash);
-      const catalog = catalogFor(active, context);
+      const retained = new Map<
+        import("./types.ts").PackageHash,
+        DevelopmentPackage
+      >([[active.packageHash, active]]);
+      for (const session of context.sessions)
+        if (!retained.has(session.packageHash))
+          retained.set(
+            session.packageHash,
+            await store.resolvePackage(session.packageHash),
+          );
+      const catalog = catalogFor({ active, context, retained });
       const content = await store.resolvePackage(
         context.session?.packageHash ?? context.activePackageHash,
       );
@@ -371,6 +421,12 @@ export function createCoordinator({
       const session = context.session;
       validatePosition(content, session.state, session.taskId);
       const engine = project(content, session.state);
+      const writing = writingTask({ content, taskId: session.taskId });
+      const documents = writing
+        ? await store.documents?.({ session })
+        : undefined;
+      if (writing && (!documents || documents.length !== 2))
+        throw new Error("Writing documents missing");
       if (
         (session.state.kind === "graph" ||
           session.state.kind === "graphControls") &&
@@ -445,8 +501,32 @@ export function createCoordinator({
             actions.push(choice("Continue", { kind: "continue" }));
         }
       }
+      if (
+        session.state.kind === "writingSkipped" &&
+        context.undoRunId === session.runId
+      ) {
+        if (
+          session.state.viewCheckpoint === null ||
+          session.state.viewCheckpoint > 0
+        )
+          actions.push(choice("Back", { kind: "back" }));
+        if (session.state.viewCheckpoint !== null)
+          actions.push(choice("Continue", { kind: "continue" }));
+      }
+      const publishedEngine: import("./types.ts").EngineProjection =
+        writing &&
+        documents &&
+        (engine.kind === "completed" || engine.kind === "skipped")
+          ? { kind: "writingResult", outcome: engine.kind, documents }
+          : writing &&
+              engine.kind === "teaching" &&
+              "presentation" in engine.turn &&
+              engine.turn.presentation.kind === "writing" &&
+              documents
+            ? { kind: "writing", turn: engine.turn, documents }
+            : engine;
       return deepFreeze({
-        ...engine,
+        ...publishedEngine,
         owner: context.owner,
         packageHash: content.packageHash,
         title,
@@ -458,7 +538,8 @@ export function createCoordinator({
         sessionStatus: session.status,
         checkpointId:
           session.state.kind === "graph" ||
-          session.state.kind === "graphControls"
+          session.state.kind === "graphControls" ||
+          session.state.kind === "writingSkipped"
             ? currentCheckpoint(session.state).id
             : null,
         taskId: session.taskId,
@@ -523,7 +604,38 @@ export function createCoordinator({
             "missing-package",
             "Exact command content package is unavailable.",
           );
-        if (command.kind === "start" || command.kind === "select") {
+        if (
+          command.kind === "start" ||
+          command.kind === "select" ||
+          command.kind === "writingSelect"
+        ) {
+          if (
+            context.session &&
+            writingTask({
+              content: await store.resolvePackage(context.session.packageHash),
+              taskId: context.session.taskId,
+            }) &&
+            context.session.status === "active" &&
+            context.session.runStatus === "inProgress" &&
+            command.kind !== "writingSelect"
+          )
+            return reject(
+              "writing-fence",
+              "Pause writing with committed documents before selecting a task.",
+            );
+          if (
+            command.kind === "writingSelect" &&
+            (!context.session ||
+              !tx.writingBarrier ||
+              !(await tx.writingBarrier({
+                session: context.session,
+                barrier: command.payload.barrier,
+              })))
+          )
+            return reject(
+              "writing-barrier",
+              "Writing selection barrier changed.",
+            );
           if (command.expectedRevision !== context.profileRevision)
             return reject(
               "stale-revision",
@@ -531,7 +643,7 @@ export function createCoordinator({
             );
           let selection: SelectionPlan;
           if (
-            command.kind === "select" &&
+            (command.kind === "select" || command.kind === "writingSelect") &&
             command.payload.intent === "resume"
           ) {
             const target = context.sessions.find(
@@ -592,7 +704,7 @@ export function createCoordinator({
                 const needed =
                   command.payload.intent === "restart"
                     ? "inProgress"
-                    : "completed";
+                    : "terminal";
                 if (
                   command.payload.intent === "replay" &&
                   command.payload.sessionId === null
@@ -606,7 +718,9 @@ export function createCoordinator({
                   if (
                     !target ||
                     target.taskId !== taskId ||
-                    target.runStatus !== needed
+                    (needed === "terminal"
+                      ? target.runStatus === "inProgress"
+                      : target.runStatus !== needed)
                   )
                     return reject(
                       "wrong-target",
@@ -681,6 +795,26 @@ export function createCoordinator({
           (session.status === "closed" && context.undoRunId !== session.runId)
         )
           return reject("not-active", "Resume the saved run before teaching.");
+        const isWriting =
+          writingTask({ content, taskId: session.taskId }) !== null;
+        if (isWriting) {
+          if (
+            command.kind !== "writingNavigate" ||
+            !tx.writingBarrier ||
+            !(await tx.writingBarrier({
+              session,
+              barrier: command.payload.barrier,
+            }))
+          )
+            return reject(
+              "writing-barrier",
+              "Committed writing documents changed or retain an active capture.",
+            );
+        } else if (command.kind === "writingNavigate")
+          return reject(
+            "wrong-task",
+            "Writing command requires a writing task.",
+          );
         let plan: TransitionPlan;
         try {
           if (command.kind === "advance") {
@@ -697,7 +831,8 @@ export function createCoordinator({
           } else {
             if (
               (session.state.kind !== "graph" &&
-                session.state.kind !== "graphControls") ||
+                session.state.kind !== "graphControls" &&
+                session.state.kind !== "writingSkipped") ||
               currentCheckpoint(session.state).id !==
                 command.payload.checkpointId
             )
@@ -738,7 +873,11 @@ export function createCoordinator({
           before: session.state,
           receipt,
         };
-        if (plan.kind === "acceptance" || plan.kind === "completion")
+        if (
+          plan.kind === "acceptance" ||
+          plan.kind === "completion" ||
+          plan.kind === "skip"
+        )
           await tx.apply({
             ...application,
             plan,
@@ -749,4 +888,77 @@ export function createCoordinator({
       });
     },
   };
+}
+
+export async function prepareWritingCommand({
+  projection,
+  action,
+  barrier,
+  ids,
+  hash,
+}: {
+  projection: CommittedProjection;
+  action: AvailableAction;
+  barrier: import("./types.ts").WritingBarrier;
+  ids: IdFactory;
+  hash: HashFunction;
+}): Promise<TeachingCommand> {
+  if (
+    projection.kind === "entry" ||
+    projection.kind === "recovery" ||
+    projection.checkpointId === null ||
+    !projection.actions.some(
+      (candidate) => canonical(candidate) === canonical(action),
+    )
+  )
+    throw new Error("Writing action capability unavailable");
+  const intent = action.intent;
+  if (
+    intent.kind === "start" ||
+    intent.kind === "resume" ||
+    intent.kind === "restart" ||
+    intent.kind === "replay"
+  ) {
+    const payload = {
+      packageHash: intent.packageHash,
+      intent: intent.kind,
+      taskId: intent.taskId,
+      sessionId: intent.sessionId,
+      barrier,
+    };
+    return parseCommand({
+      kind: "writingSelect",
+      commandId: ids(),
+      owner: projection.owner,
+      scope: {
+        kind: "profile",
+        id: projection.owner.profileId,
+        generation: projection.owner.generation,
+      },
+      expectedRevision: projection.profileRevision,
+      payload,
+      payloadHash: await hash(canonical({ kind: "writingSelect", payload })),
+    });
+  }
+  const payload = {
+    packageHash: projection.packageHash,
+    sessionId: projection.sessionId,
+    runId: projection.runId,
+    checkpointId: projection.checkpointId,
+    action: intent,
+    barrier,
+  };
+  return parseCommand({
+    kind: "writingNavigate",
+    commandId: ids(),
+    owner: projection.owner,
+    scope: {
+      kind: "session",
+      id: projection.sessionId,
+      generation: projection.owner.generation,
+    },
+    expectedRevision: projection.revision,
+    payload,
+    payloadHash: await hash(canonical({ kind: "writingNavigate", payload })),
+  });
 }

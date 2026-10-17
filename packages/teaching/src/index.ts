@@ -26,7 +26,11 @@ export {
   validateAcceptanceTransition,
   validateAcceptanceState,
 } from "./engine.ts";
-export { createCoordinator, prepareCommand } from "./coordinator.ts";
+export {
+  createCoordinator,
+  prepareCommand,
+  prepareWritingCommand,
+} from "./coordinator.ts";
 export { parseProjection, parseDispatchResult } from "./content.ts";
 export type {
   CommittedProjection as Projection,
@@ -34,3 +38,13 @@ export type {
 } from "./types.ts";
 
 export { compileControlTask } from "./control-content.ts";
+
+export {
+  compileWritingTask,
+  writingTask,
+  writingState,
+  writingPermission,
+  layerForPhase,
+} from "./writing.ts";
+
+export * from "./ink.ts";

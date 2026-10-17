@@ -2,7 +2,7 @@ import type { HashFunction } from "../../teaching/src/index.ts";
 import type { SqlExecutor } from "./executor.ts";
 import { migrations } from "./generated-migration.ts";
 export { migrationStatements } from "./generated-migration.ts";
-export const DATABASE_VERSION = 3;
+export const DATABASE_VERSION = 4;
 export async function transaction<T>(
   executor: SqlExecutor,
   work: () => Promise<T>,
@@ -111,12 +111,17 @@ export async function initializeDatabase(
           typeof actual !== "string" ||
           normalize(actual) !==
             normalize(
-              appliedVersion >= 3 && name === "task_advance"
+              appliedVersion >= 4 && name === "command_receipt"
                 ? statement.replace(
-                    ", UNIQUE(run_id,seq)",
-                    ", `accepting_command` text, UNIQUE(run_id,seq)",
+                    "('profile','session')",
+                    "('profile','session','document')",
                   )
-                : statement,
+                : appliedVersion >= 3 && name === "task_advance"
+                  ? statement.replace(
+                      ", UNIQUE(run_id,seq)",
+                      ", `accepting_command` text, UNIQUE(run_id,seq)",
+                    )
+                  : statement,
             )
         )
           throw new Error("Database schema does not match its migration");
