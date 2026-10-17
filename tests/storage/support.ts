@@ -63,7 +63,7 @@ export async function storageFixture(
       hash,
     ));
   t.after(async () => {
-    for (const db of connections) db.close();
+    for (const db of connections) if (db.isOpen) db.close();
     await rm(directory, { recursive: true, force: true });
   });
   function connect(options: { content?: RuntimePackage; hook?: SqlHook } = {}) {
