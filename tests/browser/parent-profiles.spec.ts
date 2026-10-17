@@ -1250,7 +1250,7 @@ test("parent support displays bounded local metadata and whole-origin estimates 
   expect(JSON.parse(text)).toMatchObject({
     version: 1,
     persistence: "durable",
-    metadata: { versions: { database: 9, inkCodec: 1 } },
+    metadata: { versions: { database: 10, inkCodec: 1 } },
     browserWholeOriginEstimate: { scope: "origin" },
   });
   expect(await directory(page)).toEqual(before);
