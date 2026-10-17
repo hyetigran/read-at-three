@@ -194,7 +194,14 @@ export type TeachingIntent =
       packageHash: PackageHash;
       sessionId: SessionId | null;
     }>;
-export type AvailableAction = Readonly<{ label: Copy; intent: TeachingIntent }>;
+export type AvailableAction = Readonly<
+  | { label: Copy; intent: Exclude<TeachingIntent, { kind: "help" }> }
+  | {
+      label: Copy;
+      intent: Extract<TeachingIntent, { kind: "help" }>;
+      correctionPreview: GraphNode;
+    }
+>;
 export type Owner = Readonly<{ profileId: ProfileId; generation: Counter }>;
 export type GraphTurn = GraphNode &
   Readonly<{
@@ -321,12 +328,24 @@ export type CompletionProof = Readonly<{
   requiredOccurrenceIds: readonly OccurrenceId[];
   sourceRefs: readonly SourceRef[];
 }>;
-export type TransitionPlan = Readonly<{
-  after: TeachingState;
-  acceptance: Readonly<{ occurrenceId: OccurrenceId | NodeId }> | null;
-  completion: CompletionProof | null;
-  pause: boolean;
-}>;
+export type NonAcceptingTransition = Readonly<
+  | { kind: "navigation"; after: TeachingState }
+  | { kind: "pause"; after: TeachingState }
+>;
+export type AcceptingTransition = Readonly<
+  | {
+      kind: "acceptance";
+      after: TeachingState;
+      occurrenceId: OccurrenceId | NodeId;
+    }
+  | {
+      kind: "completion";
+      after: TeachingState;
+      occurrenceId: OccurrenceId | NodeId;
+      completion: CompletionProof;
+    }
+>;
+export type TransitionPlan = NonAcceptingTransition | AcceptingTransition;
 export interface TeachingApplication {
   open(): Promise<CommittedProjection>;
   read(): Promise<CommittedProjection>;
@@ -355,6 +374,7 @@ export interface StoredContext {
   selectionCounter: Counter;
   session: StoredSession | null;
   sessions: readonly StoredSession[];
+  ownedSessionIds: readonly SessionId[];
 }
 export type SelectionPlan = Readonly<
   | {
@@ -367,6 +387,17 @@ export type SelectionPlan = Readonly<
     }
   | { kind: "resume"; session: StoredSession }
 >;
+export type ApplyTransitionInput = Readonly<{
+  command: TeachingCommand;
+  context: StoredContext & { session: StoredSession };
+  content: DevelopmentPackage;
+  before: TeachingState;
+  receipt: CommitReceipt;
+}> &
+  Readonly<
+    | { plan: NonAcceptingTransition; advanceId: null }
+    | { plan: AcceptingTransition; advanceId: AdvanceId }
+  >;
 export interface TeachingTransaction {
   context(owner: Owner): Promise<StoredContext | null>;
   receipt(
@@ -380,15 +411,7 @@ export interface TeachingTransaction {
     selection: SelectionPlan;
     receipt: CommitReceipt;
   }): Promise<void>;
-  apply(input: {
-    command: TeachingCommand;
-    context: StoredContext & { session: StoredSession };
-    content: DevelopmentPackage;
-    before: TeachingState;
-    plan: TransitionPlan;
-    advanceId: AdvanceId | null;
-    receipt: CommitReceipt;
-  }): Promise<void>;
+  apply(input: ApplyTransitionInput): Promise<void>;
 }
 export interface TeachingStore {
   current(): Promise<StoredContext>;

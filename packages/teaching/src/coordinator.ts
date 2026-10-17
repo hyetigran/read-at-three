@@ -34,7 +34,10 @@ import type {
   TaskId,
 } from "./types.ts";
 const added = (text: string) => ({ kind: "added", text }) as const;
-const choice = (label: string, intent: TeachingIntent): AvailableAction => ({
+const choice = (
+  label: string,
+  intent: Exclude<TeachingIntent, { kind: "help" }>,
+): AvailableAction => ({
   label: added(label),
   intent,
 });
@@ -329,12 +332,20 @@ export function createCoordinator({
           if (engine.kind === "teaching") {
             actions.push(choice("Repeat", { kind: "repeat" }));
             const current = engine.turn;
-            for (const spec of graphTask(content, session.taskId).task
-              .corrections) {
-              if (spec.eligibleNodeIds.includes(current.id))
-                actions.push(
-                  choice("Help", { kind: "help", correctionId: spec.id }),
+            const graph = graphTask(content, session.taskId);
+            for (const spec of graph.task.corrections) {
+              if (spec.eligibleNodeIds.includes(current.id)) {
+                const correctionPreview = graph.nodes.get(
+                  spec.instructionNodeId,
                 );
+                if (!correctionPreview)
+                  throw new Error("Correction preview is unavailable");
+                actions.push({
+                  label: added("Help"),
+                  intent: { kind: "help", correctionId: spec.id },
+                  correctionPreview,
+                });
+              }
             }
           }
           actions.push(choice("Pause", { kind: "pause" }));
@@ -407,9 +418,7 @@ export function createCoordinator({
           return reject("wrong-scope", "Command profile does not match.");
         if (
           command.scope.kind === "session" &&
-          !context.sessions.some(
-            (session) => session.sessionId === command.scope.id,
-          )
+          !context.ownedSessionIds.includes(command.scope.id)
         )
           return reject(
             "wrong-scope",
@@ -595,10 +604,9 @@ export function createCoordinator({
             )
               throw new Error("Legacy run is not active");
             plan = {
+              kind: "acceptance",
               after: evaluate(content, session.state, command.payload.nodeId),
-              acceptance: { occurrenceId: command.payload.nodeId },
-              completion: null,
-              pause: false,
+              occurrenceId: command.payload.nodeId,
             };
           } else {
             if (
@@ -636,17 +644,20 @@ export function createCoordinator({
           revision: increment(session.revision),
           packageHash: content.packageHash,
         };
-        await tx.apply({
+        const application = {
           command,
           context: { ...context, session },
           content,
           before: session.state,
-          plan,
-          advanceId: plan.acceptance
-            ? parseId({ kind: "advance", value: ids() })
-            : null,
           receipt,
-        });
+        };
+        if (plan.kind === "acceptance" || plan.kind === "completion")
+          await tx.apply({
+            ...application,
+            plan,
+            advanceId: parseId({ kind: "advance", value: ids() }),
+          });
+        else await tx.apply({ ...application, plan, advanceId: null });
         return receipt;
       });
     },

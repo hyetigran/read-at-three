@@ -251,8 +251,16 @@ const storedCurrentSnapshot: unknown = JSON.parse(
 );
 if (snapshotContent(storedCurrentSnapshot) !== snapshotContent(currentSnapshot))
   throw new Error("Drizzle credit snapshot is stale relative to schema.ts");
+const deferredCreditStatements = creditStatements.map((statement) => {
+  if (!statement.startsWith("CREATE TABLE `task_result`")) return statement;
+  const foreignKey =
+    /^(\s*FOREIGN KEY \([^\n]+ REFERENCES `task_credit`\([^\n]+ ON UPDATE no action ON DELETE no action)(,?)$/gm;
+  if ([...statement.matchAll(foreignKey)].length !== 1)
+    throw new Error("Unreviewed result-to-credit foreign key grammar");
+  return statement.replace(foreignKey, "$1 DEFERRABLE INITIALLY DEFERRED$2");
+});
 const upgrades = [
-  ...creditStatements,
+  ...deferredCreditStatements,
   "UPDATE installation SET database_version=2",
 ];
 const output = await format(

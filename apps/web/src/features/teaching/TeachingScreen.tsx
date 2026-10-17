@@ -4,6 +4,7 @@ import type {
   CommittedProjection,
   Copy,
   GraphTurn,
+  GraphNode,
   TeachingNode,
 } from "@readatthree/teaching";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -15,6 +16,7 @@ import { SoundGlyph } from "./SoundGlyph";
 
 type TeachingScreenProps = {
   projection: CommittedProjection;
+  correctionPreview: GraphNode | null;
   busy: boolean;
   saveError: string | null;
   onAction: (action: AvailableAction) => void;
@@ -413,7 +415,11 @@ function SilentCue({
   );
 }
 
-function TurnGuidance({ turn }: { turn: TeachingNode | GraphTurn }) {
+function TurnGuidance({
+  turn,
+}: {
+  turn: TeachingNode | GraphTurn | GraphNode;
+}) {
   if ("guidance" in turn) {
     return turn.guidance.map((span, index) => (
       <p className={`teaching-guidance teaching-${span.kind}`} key={index}>
@@ -460,13 +466,15 @@ function TurnGuidance({ turn }: { turn: TeachingNode | GraphTurn }) {
 
 function TeachingActivity({
   turn,
+  preview,
   actions,
   completed,
   disabled,
   cueKey,
   onAction,
 }: {
-  turn: TeachingNode | GraphTurn;
+  turn: TeachingNode | GraphTurn | GraphNode;
+  preview: boolean;
   actions: readonly AvailableAction[];
   completed: boolean;
   disabled: boolean;
@@ -494,17 +502,19 @@ function TeachingActivity({
       <section className="teaching-parent-panel" aria-label="Parent guidance">
         <div className="teaching-parent-heading">
           <AddedText>
-            {completed
-              ? "Completed task · Reviewing saved context"
-              : routeKind === "correctionInstruction"
-                ? "Correction · Follow the source retest"
-                : routeKind === "correctionRetest"
-                  ? "Retest"
-                  : routeKind === "repeat"
-                    ? "Extra practice · Return to the saved turn afterward"
-                    : turn.parentRole === "model"
-                      ? "Parent models"
-                      : "Child responds"}
+            {preview
+              ? "Correction preview · Not saved"
+              : completed
+                ? "Completed task · Reviewing saved context"
+                : routeKind === "correctionInstruction"
+                  ? "Correction · Follow the source retest"
+                  : routeKind === "correctionRetest"
+                    ? "Retest"
+                    : routeKind === "repeat"
+                      ? "Extra practice · Return to the saved turn afterward"
+                      : turn.parentRole === "model"
+                        ? "Parent models"
+                        : "Child responds"}
           </AddedText>
           <AddedText>Parent only</AddedText>
         </div>
@@ -546,6 +556,7 @@ function TeachingActivity({
 
 export function TeachingScreen({
   projection,
+  correctionPreview,
   busy,
   saveError,
   onAction,
@@ -559,7 +570,7 @@ export function TeachingScreen({
   );
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [cueGeneration, setCueGeneration] = useState(0);
-  const disabled = busy || saveError !== null;
+  const disabled = busy || saveError !== null || correctionPreview !== null;
   function act(action: AvailableAction) {
     setCueGeneration((generation) => generation + 1);
     setCatalogOpen(false);
@@ -608,6 +619,7 @@ export function TeachingScreen({
     />
   );
   if (projection.kind === "teaching" && projection.sessionStatus !== "paused") {
+    const displayedTurn = correctionPreview ?? projection.turn;
     const pause = projection.actions.filter(
       (action) => action.intent.kind === "pause",
     );
@@ -615,7 +627,9 @@ export function TeachingScreen({
       <main
         className="teaching-screen teaching-active"
         aria-busy={busy}
-        data-turn-id={projection.turn.id}
+        data-turn-id={displayedTurn.id}
+        data-committed-turn-id={projection.turn.id}
+        data-context={correctionPreview ? "uncommitted" : "committed"}
         data-checkpoint-id={projection.checkpointId ?? undefined}
         data-run-status={projection.runStatus}
       >
@@ -662,7 +676,8 @@ export function TeachingScreen({
             projection.turn.id,
             cueGeneration,
           ])}
-          turn={projection.turn}
+          turn={displayedTurn}
+          preview={correctionPreview !== null}
           actions={projection.actions}
           completed={projection.runStatus === "completed"}
           disabled={disabled || catalogOpen}

@@ -500,6 +500,7 @@ export function createTeachingApplication({
       selectionCounter: cursor?.selectionCounter ?? parseCounter("0"),
       session: selected ?? null,
       sessions,
+      ownedSessionIds: rows.map((row) => row.sessionId),
       completedTaskIds: results
         .filter((result) => result.outcome === "completed")
         .map((result) => result.taskId),
@@ -721,19 +722,17 @@ export function createTeachingApplication({
       await updateCursor(owner, result.sessionId, nextSelection);
       await saveReceipt(command, result);
     },
-    async apply({
-      command,
-      context: current,
-      content: value,
-      plan,
-      advanceId,
-      receipt: result,
-      before,
-    }) {
+    async apply(input) {
+      const {
+        command,
+        context: current,
+        content: value,
+        receipt: result,
+        before,
+      } = input;
+      const { plan, advanceId } = input;
       const saved = current.session;
       const revision = increment(saved.runRevision);
-      if (Boolean(plan.acceptance) !== Boolean(advanceId))
-        throw new Error("Acceptance identity is missing");
       if (advanceId) {
         await db
           .insert(schema.taskAdvance)
@@ -751,7 +750,8 @@ export function createTeachingApplication({
             beforeState: canonical(before),
             afterState: canonical(plan.after),
             beforeRunStatus: "inProgress",
-            afterRunStatus: plan.completion ? "completed" : "inProgress",
+            afterRunStatus:
+              plan.kind === "completion" ? "completed" : "inProgress",
             acceptedRunRevision: revision,
           })
           .run();
@@ -760,7 +760,7 @@ export function createTeachingApplication({
         .update(schema.taskRun)
         .set({
           state: canonical(plan.after),
-          status: plan.completion ? "completed" : saved.runStatus,
+          status: plan.kind === "completion" ? "completed" : saved.runStatus,
           activeAdvanceId: advanceId ?? saved.activeAdvanceId,
           nextAdvanceSeq: advanceId
             ? increment(saved.nextAdvanceSeq)
@@ -774,17 +774,15 @@ export function createTeachingApplication({
         .set({
           revision: result.revision,
           status:
-            plan.completion || saved.runStatus === "completed"
+            plan.kind === "completion" || saved.runStatus === "completed"
               ? "closed"
-              : plan.pause
+              : plan.kind === "pause"
                 ? "paused"
                 : "active",
         })
         .where(eq(schema.session.sessionId, saved.sessionId))
         .run();
-      if (plan.completion) {
-        if (!advanceId)
-          throw new Error("Completion requires a terminal advance");
+      if (advanceId !== null && plan.kind === "completion") {
         const run = (
           await db
             .select()

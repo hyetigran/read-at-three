@@ -398,8 +398,7 @@ export function evaluateGraph({
   if ((status === "completed") !== wasComplete)
     throw new Error("Run completion does not match its obligations");
   let after = state;
-  let acceptance: TransitionPlan["acceptance"] = null;
-  let completion: CompletionProof | null = null;
+  let occurrenceId: OccurrenceId | null = null;
   let occurrences = [...state.occurrences];
   let nextOccurrenceNumber = state.nextOccurrenceNumber;
   const allocate = (
@@ -468,7 +467,7 @@ export function evaluateGraph({
   };
   switch (action.kind) {
     case "pause":
-      return { after: state, acceptance: null, completion: null, pause: true };
+      return { kind: "pause", after: state };
     case "back":
       if (state.checkpointIndex === 0) throw new Error("Back is unavailable");
       after = { ...state, checkpointIndex: state.checkpointIndex - 1 };
@@ -518,7 +517,7 @@ export function evaluateGraph({
       if (!accepted) {
         if (status === "completed")
           throw new Error("Closed run cannot accept new practice");
-        acceptance = { occurrenceId: current.id };
+        occurrenceId = current.id;
         after = {
           ...state,
           acceptedOccurrenceIds: [...state.acceptedOccurrenceIds, current.id],
@@ -572,21 +571,27 @@ export function evaluateGraph({
   const isComplete = required.every((entry) =>
     after.acceptedOccurrenceIds.includes(entry.id),
   );
-  if (!wasComplete && isComplete && acceptance)
-    completion = {
-      taskId: state.taskId,
-      packageHash: content.packageHash,
-      requiredOccurrenceIds: required.map((entry) => entry.id),
-      sourceRefs: [
-        ...new Set(
-          graph.task.nodes
-            .filter((node) => node.kind === "normal")
-            .flatMap((node) => node.sourceRefs),
-        ),
-      ],
-    };
   validatePosition(content, after);
-  return deepFreeze({ after, acceptance, completion, pause: false });
+  if (occurrenceId === null) return deepFreeze({ kind: "navigation", after });
+  if (!wasComplete && isComplete)
+    return deepFreeze({
+      kind: "completion",
+      after,
+      occurrenceId,
+      completion: {
+        taskId: state.taskId,
+        packageHash: content.packageHash,
+        requiredOccurrenceIds: required.map((entry) => entry.id),
+        sourceRefs: [
+          ...new Set(
+            graph.task.nodes
+              .filter((node) => node.kind === "normal")
+              .flatMap((node) => node.sourceRefs),
+          ),
+        ],
+      },
+    });
+  return deepFreeze({ kind: "acceptance", after, occurrenceId });
 }
 export function validateAcceptanceTransition({
   content,
@@ -615,7 +620,10 @@ export function validateAcceptanceTransition({
       status: "inProgress",
       action: { kind: "continue" },
     });
-    if (!expected.acceptance || canonical(expected.after) !== canonical(after))
+    if (
+      (expected.kind !== "acceptance" && expected.kind !== "completion") ||
+      canonical(expected.after) !== canonical(after)
+    )
       throw new Error("Acceptance snapshots do not match graph");
   } else {
     if (

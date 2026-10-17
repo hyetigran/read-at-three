@@ -74,8 +74,10 @@ test("six introductory turns and two review turns require separate parent accept
       );
       assert.equal(completionProof(content, state), null);
       const plan = act(content, state);
-      assert.notEqual(plan.acceptance, null);
-      assert.equal(plan.completion !== null, i === expected.length - 1);
+      assert.equal(
+        plan.kind,
+        i === expected.length - 1 ? "completion" : "acceptance",
+      );
       state = plan.after;
     }
     assert.deepEqual(seen, expected);
@@ -104,8 +106,9 @@ test("first-child Help retests its fixed required occurrence and still owes Agai
     assert.equal(turn(content, state).id, `child-${prefix}`);
     assert.equal(turn(content, state).occurrenceId, owed);
     const retest = act(content, state);
-    assert.equal(retest.acceptance?.occurrenceId, owed);
-    assert.equal(retest.completion, null);
+    assert.equal(retest.kind, "acceptance");
+    if (retest.kind !== "acceptance") throw new Error("Expected acceptance");
+    assert.equal(retest.occurrenceId, owed);
     assert.equal(turn(content, retest.after).id, `again-${prefix}`);
     assert.equal(
       retest.after.acceptedOccurrenceIds.includes(
@@ -136,7 +139,7 @@ test("Help from Again creates a support retest and returns to the outstanding Ag
     const retest = act(content, state);
     assert.equal(turn(content, retest.after).occurrenceId, again);
     assert.equal(retest.after.acceptedOccurrenceIds.includes(again), false);
-    assert.equal(retest.completion, null);
+    assert.equal(retest.kind, "acceptance");
   }
 });
 
@@ -185,7 +188,9 @@ test("review s correction repeats the whole m/s exercise and retests only author
   assert.equal(turn(content, state).id, "review-s");
   assert.equal(turn(content, state).occurrenceId, owedS);
   const done = act(content, state);
-  assert.equal(done.completion?.requiredOccurrenceIds.length, 2);
+  assert.equal(done.kind, "completion");
+  if (done.kind !== "completion") throw new Error("Expected completion");
+  assert.equal(done.completion.requiredOccurrenceIds.length, 2);
   assert.equal(
     done.after.acceptedOccurrenceIds.filter((id) => id === acceptedM).length,
     1,
@@ -199,7 +204,7 @@ test("Back and reconfirm retain acceptance, including completion independent of 
   state = act(content, state, { kind: "back" }).after;
   assert.equal(turn(content, state).id, "child-m");
   const reconfirm = act(content, state);
-  assert.equal(reconfirm.acceptance, null);
+  assert.equal(reconfirm.kind, "navigation");
   assert.deepEqual(reconfirm.after.acceptedOccurrenceIds, accepted);
   state = advance(content, reconfirm.after, 4);
   const proof = completionProof(content, state);
@@ -222,8 +227,7 @@ test("Back and reconfirm retain acceptance, including completion independent of 
     /closed/,
   );
   const forward = act(content, state, { kind: "continue" }, "completed");
-  assert.equal(forward.acceptance, null);
-  assert.equal(forward.completion, null);
+  assert.equal(forward.kind, "navigation");
   assert.deepEqual(project(content, forward.after), { kind: "completed" });
 });
 
@@ -237,8 +241,7 @@ test("pause/restart serialization restores correction retest and suspended pract
   }).after;
   state = act(content, state).after;
   const paused = act(content, state, { kind: "pause" });
-  assert.equal(paused.pause, true);
-  assert.equal(paused.acceptance, null);
+  assert.equal(paused.kind, "pause");
   const restored = graph(
     parseTeachingState(JSON.parse(canonical(paused.after))),
   );
@@ -250,13 +253,14 @@ test("acceptance validation permits navigation gaps and rejects changed acceptan
   const content = await graphFixture();
   const before = start(content);
   const accepted = act(content, before);
-  assert(accepted.acceptance);
+  assert.equal(accepted.kind, "acceptance");
+  if (accepted.kind !== "acceptance") throw new Error("Expected acceptance");
   validateAcceptanceTransition({
     content,
     taskId: task1,
     before,
     after: accepted.after,
-    occurrenceId: accepted.acceptance.occurrenceId,
+    occurrenceId: accepted.occurrenceId,
   });
   const navigated = act(content, accepted.after, { kind: "repeat" }).after;
   validateAcceptanceState({

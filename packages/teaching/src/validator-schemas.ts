@@ -183,16 +183,17 @@ const stateSchema = {
     }),
   ],
 };
+const regularGraphAction = record({
+  kind: { enum: ["continue", "back", "repeat", "pause"] },
+});
+const helpIntent = record({ kind: { const: "help" }, correctionId: id });
 const graphAction = {
-  oneOf: [
-    record({ kind: { enum: ["continue", "back", "repeat", "pause"] } }),
-    record({ kind: { const: "help" }, correctionId: id }),
-  ],
+  oneOf: [regularGraphAction, helpIntent],
 };
 const selectionIntent = { enum: ["start", "resume", "replay", "restart"] };
 const semanticIntent = {
   oneOf: [
-    graphAction,
+    regularGraphAction,
     record({
       kind: selectionIntent,
       taskId: id,
@@ -201,7 +202,12 @@ const semanticIntent = {
     }),
   ],
 };
-const action = record({ label: copy, intent: semanticIntent });
+const action = {
+  oneOf: [
+    record({ label: copy, intent: semanticIntent }),
+    record({ label: copy, intent: helpIntent, correctionPreview: graphNode }),
+  ],
+};
 const owner = record({ profileId: id, generation: counter });
 const commandCommon = {
   commandId: id,

@@ -10,6 +10,7 @@ import {
 } from "@tanstack/react-query";
 import type {
   AvailableAction,
+  GraphNode,
   Projection,
   TeachingCommand,
 } from "@readatthree/teaching";
@@ -66,6 +67,9 @@ function ReadyApplication({
   const cache = useQueryClient();
   const [queryKey, setQueryKey] = useState(() => keyFor(initial));
   const [save, setSave] = useState<SaveState>({ kind: "idle" });
+  const [correctionPreview, setCorrectionPreview] = useState<GraphNode | null>(
+    null,
+  );
   const active = useRef(initial);
   const live = useRef(true);
   const operation = useRef<SaveState["kind"]>("idle");
@@ -98,6 +102,7 @@ function ReadyApplication({
   const view = query.data;
   active.current = view;
   function publish(next: Projection) {
+    setCorrectionPreview(null);
     const nextKey = keyFor(next);
     cache.setQueryData(nextKey, next);
     active.current = next;
@@ -155,11 +160,15 @@ function ReadyApplication({
     )
       return;
     const captured = view;
+    setCorrectionPreview(
+      "correctionPreview" in action ? action.correctionPreview : null,
+    );
     saveState({ kind: "preparing" });
     try {
       const command = await client.prepare(captured, action);
       const prepared = { command, origin: captured };
       if (!isCurrent(prepared)) {
+        setCorrectionPreview(null);
         saveState({ kind: "idle" });
         return;
       }
@@ -211,6 +220,7 @@ function ReadyApplication({
   return (
     <TeachingScreen
       projection={query.isError ? recovery : view}
+      correctionPreview={correctionPreview}
       busy={
         mutation.isPending ||
         save.kind === "preparing" ||

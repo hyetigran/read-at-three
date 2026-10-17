@@ -68,6 +68,7 @@ function harness(
     selectionCounter: count("0"),
     session: selected,
     sessions: selected ? [selected] : [],
+    ownedSessionIds: selected ? [selected.sessionId] : [],
   };
   let unavailable = false;
   const receipts = new Map<
@@ -287,6 +288,23 @@ test("retained matching receipt wins over stale revision and unavailable package
   };
   assert.deepEqual(await h.app.dispatch(command), receipt);
   assert.equal(h.applications.length, 0);
+  const restarted = session(content, task1, "replacement");
+  h.context = {
+    ...h.context,
+    session: restarted,
+    sessions: [restarted],
+    ownedSessionIds: [selected.sessionId, restarted.sessionId],
+  };
+  assert.deepEqual(await h.app.dispatch(command), receipt);
+  assert.equal(h.applications.length, 0);
+  const foreign = parseCommand({
+    ...command,
+    scope: { ...command.scope, id: "foreign-session" },
+  });
+  const wrongScope = await h.app.dispatch(foreign);
+  assert.equal(wrongScope.kind, "rejected");
+  if (wrongScope.kind !== "rejected") throw new Error("Expected rejection");
+  assert.equal(wrongScope.code, "wrong-scope");
   if (command.kind !== "navigate") throw new Error("Expected navigate");
   const changed = await rehash({
     ...command,
@@ -306,6 +324,137 @@ test("retained matching receipt wins over stale revision and unavailable package
   assert.equal(stale.code, "stale-owner");
 });
 
+test("retained ownership permits receipt retries but does not make an abandoned session selectable or active", async () => {
+  const content = await graphFixture();
+  const abandoned = session(content);
+  const h = harness(content, abandoned);
+  const original = await h.app.read();
+  const pending = await prepared(h, original, action(original, "continue"));
+  const replacement = session(content, task1, "replacement");
+  h.context = {
+    ...h.context,
+    session: replacement,
+    sessions: [replacement],
+    ownedSessionIds: [abandoned.sessionId, replacement.sessionId],
+  };
+  const inactive = await h.app.dispatch(pending);
+  assert.equal(inactive.kind, "rejected");
+  if (inactive.kind !== "rejected") throw new Error("Expected rejection");
+  assert.equal(inactive.code, "wrong-target");
+  const resume = await rehash(
+    parseCommand({
+      commandId: "resume-abandoned",
+      owner: h.context.owner,
+      scope: {
+        kind: "profile",
+        id: h.context.owner.profileId,
+        generation: h.context.owner.generation,
+      },
+      expectedRevision: h.context.profileRevision,
+      payloadHash: pending.payloadHash,
+      kind: "select",
+      payload: {
+        packageHash: content.packageHash,
+        intent: "resume",
+        taskId: task1,
+        sessionId: abandoned.sessionId,
+      },
+    }),
+  );
+  const unavailable = await h.app.dispatch(resume);
+  assert.equal(unavailable.kind, "rejected");
+  if (unavailable.kind !== "rejected") throw new Error("Expected rejection");
+  assert.equal(unavailable.code, "wrong-target");
+  assert.equal(h.selections.length, 0);
+  assert.equal(h.applications.length, 0);
+});
+
+test("Help projects only the applicable immutable correction without changing saved teaching or command content", async () => {
+  const content = await graphFixture();
+  const selected = session(content);
+  const first = evaluateGraph({
+    content,
+    state: state(content),
+    status: "inProgress",
+    action: { kind: "continue" },
+  });
+  const child = { ...selected, state: first.after };
+  const h = harness(content, child);
+  const before = canonical(h.context);
+  const view = parseProjection(await h.app.read());
+  const help = action(view, "help");
+  assert("correctionPreview" in help);
+  assert.equal(help.correctionPreview.id, "support-m");
+  assert.equal(help.correctionPreview.kind, "correction");
+  assert.equal(help.correctionPreview.glyph, "m");
+  assert.deepEqual(help.correctionPreview.sourceRefs, ["synthetic-source"]);
+  assert.deepEqual(
+    help.correctionPreview.guidance.map((span) => span.copy.text),
+    [
+      "Synthetic setup support-m",
+      "Synthetic movement support-m",
+      "Synthetic prompt support-m",
+      "Synthetic expected support-m",
+      "Synthetic praise support-m",
+    ],
+  );
+  assert(Object.isFrozen(help.correctionPreview));
+  assert(Object.isFrozen(help.correctionPreview.guidance));
+  const command = await prepared(h, view, help);
+  assert.equal(command.kind, "navigate");
+  if (command.kind !== "navigate") throw new Error("Expected navigation");
+  assert.deepEqual(command.payload.action, {
+    kind: "help",
+    correctionId: "help-m",
+  });
+  assert.deepEqual(Object.keys(command.payload).sort(), [
+    "action",
+    "checkpointId",
+    "packageHash",
+    "runId",
+    "sessionId",
+  ]);
+  assert.equal(canonical(h.context), before);
+  assert.equal(h.selections.length, 0);
+  assert.equal(h.applications.length, 0);
+  await assert.rejects(
+    prepared(h, view, {
+      ...help,
+      correctionPreview: { ...help.correctionPreview, glyph: "s" },
+    }),
+    /Action is unavailable/,
+  );
+  const withoutPreview = { label: help.label, intent: help.intent };
+  assert.throws(
+    () => parseProjection({ ...view, actions: [withoutPreview] }),
+    /schema/,
+  );
+  const continueAction = action(view, "continue");
+  assert.throws(
+    () =>
+      parseProjection({
+        ...view,
+        actions: [
+          { ...continueAction, correctionPreview: help.correctionPreview },
+        ],
+      }),
+    /schema/,
+  );
+  assert.throws(
+    () =>
+      parseProjection({
+        ...view,
+        actions: [
+          {
+            ...help,
+            correctionPreview: { ...help.correctionPreview, unknown: true },
+          },
+        ],
+      }),
+    /schema/,
+  );
+});
+
 test("Pause plan has no acceptance and terminal Back prepares a navigation command with its saved checkpoint", async () => {
   const content = await graphFixture();
   let selected = session(content);
@@ -313,7 +462,7 @@ test("Pause plan has no acceptance and terminal Back prepares a navigation comma
   let view = await h.app.read();
   const pause = await prepared(h, view, action(view, "pause"));
   assert.equal((await h.app.dispatch(pause)).kind, "committed");
-  assert.equal(h.applications[0]?.plan.pause, true);
+  assert.equal(h.applications[0]?.plan.kind, "pause");
   assert.equal(h.applications[0]?.advanceId, null);
   let completed = state(content);
   for (let i = 0; i < 6; i++) {
@@ -345,8 +494,7 @@ test("Pause plan has no acceptance and terminal Back prepares a navigation comma
   assert.equal((await h.app.dispatch(back)).kind, "committed");
   const applied = h.applications[1];
   assert(applied);
-  assert.equal(applied.plan.acceptance, null);
-  assert.equal(applied.plan.completion, null);
+  assert.equal(applied.plan.kind, "navigation");
   assert.equal(applied.plan.after.kind, "graph");
 });
 

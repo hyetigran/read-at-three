@@ -331,3 +331,51 @@ test("an older bundled catalog cannot downgrade a later active package or rebind
   if (fresh.kind !== "teaching") throw new Error("Fresh task did not start");
   assert.equal(fresh.packageHash, later.packageHash);
 });
+
+test("retained acceptance receipt remains replayable after explicit Restart archives its session", async (t) => {
+  const f = await storageFixture(t);
+  const first = f.connect();
+  await first.app.open();
+  await f.act(first.app, "start");
+  const command = await prepareCommand({
+    projection: await first.app.read(),
+    ids: f.ids,
+    hash,
+  });
+  const receipt = await first.app.dispatch(command);
+  assert.equal(receipt.kind, "committed");
+  await f.act(first.app, "restart");
+  const fresh = await first.app.read();
+  assert.deepEqual(await first.app.dispatch(command), receipt);
+  assert.deepEqual(await first.app.read(), fresh);
+  assert.equal(
+    first.db.prepare("SELECT count(*) AS n FROM task_advance").get()?.n,
+    1,
+  );
+});
+
+test("result-to-credit NO ACTION relationship is deferred until COMMIT", async (t) => {
+  const f = await storageFixture(t);
+  const first = f.connect();
+  await first.app.open();
+  await f.act(first.app, "start");
+  for (let index = 0; index < 6; index++) await f.act(first.app, "continue");
+  const ddl = first.db
+    .prepare("SELECT sql FROM sqlite_master WHERE name='task_result'")
+    .get()?.sql;
+  assert.equal(typeof ddl, "string");
+  assert.match(String(ddl), /DEFERRABLE INITIALLY DEFERRED/);
+  first.db.exec("BEGIN");
+  first.db.exec("DELETE FROM task_credit");
+  assert.equal(
+    first.db.prepare("SELECT count(*) AS n FROM task_result").get()?.n,
+    1,
+  );
+  assert.throws(() => first.db.exec("COMMIT"), /FOREIGN KEY constraint failed/);
+  first.db.exec("ROLLBACK");
+  assert.equal((await first.app.read()).kind, "completed");
+  assert.equal(
+    first.db.prepare("SELECT count(*) AS n FROM task_credit").get()?.n,
+    1,
+  );
+});

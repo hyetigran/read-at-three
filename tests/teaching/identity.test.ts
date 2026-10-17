@@ -24,6 +24,11 @@ import type {
   SourceRef,
   TaskId,
   TeachingCommand,
+  TransitionPlan,
+  ApplyTransitionInput,
+  TeachingState,
+  CompletionProof,
+  AvailableAction,
 } from "../../packages/teaching/src/index.ts";
 import type { WorkerRequestId } from "../../apps/web/src/platform/protocol.ts";
 
@@ -62,6 +67,7 @@ type CrossAssignments = {
 }[keyof DomainPrimitives];
 type AssertFalse<Value extends false> = Value;
 type AssertTrue<Value extends true> = Value;
+type AssertNever<Value extends never> = Value;
 export type DomainPrimitivesCannotCrossAssign = AssertFalse<CrossAssignments>;
 export type PlainStringsAreNotSessionIds = AssertFalse<
   string extends SessionId ? true : false
@@ -73,6 +79,52 @@ export type CommandUsesNominalTargets = AssertTrue<
     runId: RunId;
     nodeId: NodeId;
   }
+    ? true
+    : false
+>;
+export type CompletionNeedsAnAcceptedOccurrence = AssertFalse<
+  {
+    kind: "completion";
+    after: TeachingState;
+    completion: CompletionProof;
+  } extends TransitionPlan
+    ? true
+    : false
+>;
+export type CompletionNeedsItsProof = AssertFalse<
+  {
+    kind: "completion";
+    after: TeachingState;
+    occurrenceId: OccurrenceId;
+  } extends TransitionPlan
+    ? true
+    : false
+>;
+export type PauseHasNoAcceptanceOrCompletion = AssertNever<
+  Extract<
+    "occurrenceId" | "completion",
+    keyof Extract<TransitionPlan, { kind: "pause" }>
+  >
+>;
+export type AcceptingWritesNeedAnAdvance = AssertFalse<
+  Omit<Extract<ApplyTransitionInput, { advanceId: AdvanceId }>, "advanceId"> & {
+    advanceId: null;
+  } extends ApplyTransitionInput
+    ? true
+    : false
+>;
+export type NavigationCannotCreateAnAdvance = AssertFalse<
+  Omit<Extract<ApplyTransitionInput, { advanceId: null }>, "advanceId"> & {
+    advanceId: AdvanceId;
+  } extends ApplyTransitionInput
+    ? true
+    : false
+>;
+export type HelpCannotOmitItsPreview = AssertFalse<
+  Omit<
+    Extract<AvailableAction, { correctionPreview: object }>,
+    "correctionPreview"
+  > extends AvailableAction
     ? true
     : false
 >;

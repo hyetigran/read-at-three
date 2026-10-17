@@ -208,6 +208,13 @@ test("full browser process restart restores a graph correction route in actual O
       "data-turn-id",
       /correction-m$/,
     );
+    await expect(page.locator("main[data-context]")).toHaveAttribute(
+      "data-context",
+      "committed",
+    );
+    await expect(
+      page.getByRole("button", { name: "Continue", exact: true }),
+    ).toBeEnabled();
     const checkpoint = await page
       .locator("main[data-turn-id]")
       .getAttribute("data-checkpoint-id");
@@ -232,4 +239,94 @@ test("full browser process restart restores a graph correction route in actual O
     await context.close();
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test("Help shows an uncommitted source preview through delayed and failed save, then retries the same command", async ({
+  page,
+}) => {
+  await page.addInitScript(`
+  const NativeWorker=window.Worker;let held=false;const attempts=[];
+  window.readHelpAttempts=()=>attempts.slice();
+  window.Worker=class extends NativeWorker {
+   postMessage(message,options){
+    if(message?.kind==='dispatch'&&message.command?.kind==='navigate'&&message.command.payload.action.kind==='help'){
+     attempts.push(JSON.stringify(message.command));
+     if(!held){held=true;window.failHeldHelp=()=>this.dispatchEvent(new MessageEvent('message',{data:{id:message.id,kind:'failed',message:'Injected Help save failure'}}));return;}
+    }
+    super.postMessage(message,options);
+   }
+  };
+ `);
+  await start(page);
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await turn(page, "s02.response-m");
+  const geometry = await anchors(page);
+  const cue = page.getByRole("button", {
+    name: "Hold silent pointing cue",
+    exact: true,
+  });
+  await cue.focus();
+  await page.keyboard.down("Space");
+  await page.getByRole("button", { name: "Help", exact: true }).click();
+  await page.keyboard.up("Space");
+  await expect(
+    page.getByText("Correction preview · Not saved", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Synthetic m correction model.", { exact: true }),
+  ).toBeVisible();
+  await expect(page.locator("main[data-context]")).toHaveAttribute(
+    "data-context",
+    "uncommitted",
+  );
+  await expect(page.locator("main[data-committed-turn-id]")).toHaveAttribute(
+    "data-committed-turn-id",
+    /s02.response-m$/,
+  );
+  expect(await anchors(page)).toEqual(geometry);
+  await expect(
+    page.getByRole("button", { name: "Continue", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Hold silent pointing cue", exact: true }),
+  ).toHaveAttribute("aria-pressed", "false");
+  await page.evaluate(() => {
+    if ("failHeldHelp" in window && typeof window.failHeldHelp === "function")
+      window.failHeldHelp();
+    else throw new Error("Help fault hook missing");
+  });
+  await expect(
+    page.getByRole("button", { name: "Retry save", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Correction preview · Not saved", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Synthetic m correction model.", { exact: true }),
+  ).toBeVisible();
+  expect(await anchors(page)).toEqual(geometry);
+  await page.getByRole("button", { name: "Retry save", exact: true }).click();
+  await expect(page.locator("main[data-context]")).toHaveAttribute(
+    "data-context",
+    "committed",
+  );
+  await expect(page.locator("main[data-turn-id]")).toHaveAttribute(
+    "data-turn-id",
+    /correction-m$/,
+  );
+  await expect(
+    page.getByRole("button", { name: "Continue", exact: true }),
+  ).toBeEnabled();
+  const attempts = await page.evaluate(() => {
+    if (
+      "readHelpAttempts" in window &&
+      typeof window.readHelpAttempts === "function"
+    )
+      return window.readHelpAttempts();
+    throw new Error("Help attempts unavailable");
+  });
+  expect(attempts).toHaveLength(2);
+  expect(attempts[0]).toEqual(attempts[1]);
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await turn(page, "s02.response-m");
 });
