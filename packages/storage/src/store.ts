@@ -56,6 +56,7 @@ import type {
   ApplicationRead,
   HistoricalWork,
   SavedWork,
+  ProfileAdministrationApplication,
 } from "../../teaching/src/index.ts";
 import { sqlValues } from "./executor.ts";
 import type { SqlExecutor } from "./executor.ts";
@@ -109,7 +110,7 @@ export function createTeachingApplication({
   content: RuntimePackage;
   ids: IdFactory;
   hash: HashFunction;
-}): WritingApplication & CourseApplication {
+}): WritingApplication & CourseApplication & ProfileAdministrationApplication {
   const db = drizzle(async (sql, parameters, method) => {
     if (method === "get")
       throw new Error("Repository must use array-row reads");
@@ -1560,6 +1561,12 @@ export function createTeachingApplication({
     }
   }
   return {
+    readDirectory: async () => {
+      throw new Error("Profile administration is not implemented");
+    },
+    administer: async () => {
+      throw new Error("Profile administration is not implemented");
+    },
     open: () => exclusive(normalRead),
     read: () => exclusive(normalRead),
     readApplication: (target) =>

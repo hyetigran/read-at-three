@@ -57,3 +57,5 @@ export * from "./ink-reservation.ts";
 export * from "./course-content.ts";
 
 export * from "./course.ts";
+
+export * from "./profiles.ts";
