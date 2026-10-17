@@ -1,10 +1,11 @@
 import { TeachingRecoveryError } from "@readatthree/react-integration";
 import type {
-  WritingApplication,
-  RecoveryOpening,
-  CourseApplication,
-  CourseReadTarget,
+  SelectedApplication,
+  SelectedRecoveryOpening,
 } from "@readatthree/teaching";
+type Input<Method extends keyof SelectedApplication> = Parameters<
+  SelectedApplication[Method]
+>[0];
 import { parseResponse, parseWorkerRequestId } from "./protocol.ts";
 import type {
   WorkerRequest,
@@ -14,6 +15,7 @@ import type {
 
 export function createBrowserTeachingClient() {
   let worker: Worker | undefined;
+  let connectionRevision = 0;
   let lossListener = () => {};
   const pending = new Map<
     WorkerRequestId,
@@ -24,6 +26,7 @@ export function createBrowserTeachingClient() {
     }
   >();
   function dispose() {
+    connectionRevision++;
     worker?.terminate();
     worker = undefined;
     lossListener();
@@ -52,7 +55,7 @@ export function createBrowserTeachingClient() {
     onLoss(listener: () => void) {
       lossListener = listener;
     },
-    async connect(opening: RecoveryOpening) {
+    async connect(opening: SelectedRecoveryOpening) {
       dispose();
       if (
         !window.isSecureContext ||
@@ -110,101 +113,111 @@ export function createBrowserTeachingClient() {
         );
       return response.value;
     },
-    async read(target: CourseReadTarget = { kind: "cursor" }) {
-      const response = await request({ id: id(), kind: "read", target });
+    connectionTicket: () => connectionRevision,
+    async read(input: Input<"readApplication">) {
+      const response = await request({ id: id(), kind: "read", input });
       if (response.kind !== "application")
         throw new Error("The saved place could not be read.");
-      const application = response.value;
+      const { directory, application } = response.value;
       if (application.kind === "recovery")
         throw new TeachingRecoveryError(application);
       return {
+        directory,
         courseId: application.courseId,
         projection: application.projection,
         application,
       };
     },
-    async readWork(input: Parameters<CourseApplication["readWork"]>[0]) {
-      const response = await request({ id: id(), kind: "readWork", ...input });
+    async readDirectory() {
+      const response = await request({ id: id(), kind: "readDirectory" });
+      if (response.kind !== "directory")
+        throw new Error("Child profiles could not be loaded.");
+      return response.value;
+    },
+    async readWork(input: Input<"readWork">) {
+      const response = await request({ id: id(), kind: "readWork", input });
       if (response.kind !== "work")
         throw new Error("Saved work could not be read.");
       return response.value;
     },
-    async readPracticeControls(
-      binding: Parameters<WritingApplication["readPracticeControls"]>[0],
-    ) {
+    async readPracticeControls(input: Input<"readPracticeControls">) {
       const response = await request({
         id: id(),
         kind: "readPracticeControls",
-        binding,
+        input,
       });
       if (response.kind !== "practiceControls")
         throw new Error("Practice tools could not be read.");
       return response.value;
     },
-    async dispatch(command: Parameters<WritingApplication["dispatch"]>[0]) {
-      const response = await request({ id: id(), kind: "dispatch", command });
-      if (response.kind !== "receipt")
-        throw new Error("The local save could not be confirmed.");
+    async execute(operation: Input<"execute">) {
+      const response = await request({ id: id(), kind: "execute", operation });
+      if (response.kind !== "execution")
+        throw new Error("The saved action could not be confirmed.");
       return response.value;
     },
-    async readInk({ token }: Parameters<WritingApplication["readInk"]>[0]) {
-      const response = await request({ id: id(), kind: "readInk", token });
+    async administer(command: Input<"administer">) {
+      const response = await request({ id: id(), kind: "administer", command });
+      if (response.kind !== "profileReceipt")
+        throw new Error("The profile change could not be confirmed.");
+      return response.value;
+    },
+    async readDeparture(input: Input<"readDeparture">) {
+      const response = await request({
+        id: id(),
+        kind: "readDeparture",
+        selection: input.selection,
+      });
+      if (response.kind !== "departure")
+        throw new Error(
+          "The current child’s saved work could not be confirmed.",
+        );
+      return response.value;
+    },
+    async readInk(input: Input<"readInk">) {
+      const response = await request({ id: id(), kind: "readInk", input });
       if (response.kind !== "inkSnapshot")
         throw new Error("The writing could not be restored.");
       return response.value;
     },
-    async dispatchInk(
-      command: Parameters<WritingApplication["dispatchInk"]>[0],
-    ) {
-      const response = await request({
-        id: id(),
-        kind: "dispatchInk",
-        command,
-      });
-      if (response.kind !== "inkReceipt")
-        throw new Error("The writing save could not be confirmed.");
-      return response.value;
-    },
-    async recoverInk({
-      recoveryId,
-      command,
-    }: Parameters<WritingApplication["recoverInk"]>[0]) {
+    async recoverInk(input: Input<"recoverInk">) {
       const response = await request({
         id: id(),
         kind: "recoverInk",
-        recoveryId,
-        command,
+        ...input,
       });
-      if (response.kind !== "inkReceipt")
-        throw new Error("The writing recovery could not be confirmed.");
+      if (response.kind !== "inkRecovery")
+        throw new Error("Saved writing could not be recovered.");
       return response.value;
     },
-    async recoverTeaching({
-      recoveryId,
-      command,
-    }: Parameters<WritingApplication["recoverTeaching"]>[0]) {
+    async recoverTeaching(input: Input<"recoverTeaching">) {
       const response = await request({
         id: id(),
         kind: "recoverTeaching",
-        recoveryId,
-        command,
+        ...input,
       });
-      if (response.kind !== "receipt")
-        throw new Error("The teaching recovery could not be confirmed.");
+      if (response.kind !== "teachingRecovery")
+        throw new Error("The saved lesson could not be recovered.");
       return response.value;
     },
-    async reconcileRecovery({
-      recoveryId,
-      choice,
-    }: Parameters<WritingApplication["reconcileRecovery"]>[0]) {
+    async recoverAdministration(input: Input<"recoverAdministration">) {
+      const response = await request({
+        id: id(),
+        kind: "recoverAdministration",
+        ...input,
+      });
+      if (response.kind !== "administrationRecovery")
+        throw new Error("The profile change could not be recovered.");
+      return response.value;
+    },
+    async reconcileRecovery(input: Input<"reconcileRecovery">) {
       const response = await request({
         id: id(),
         kind: "reconcileRecovery",
-        recoveryId,
-        choice,
+        ...input,
       });
-      if (response.kind !== "projection")
-        throw new Error("The saved place could not reopen.");
+      if (response.kind !== "reconciled")
+        throw new Error("Saved work could not be reopened.");
       return response.value;
     },
     close: dispose,
@@ -216,5 +229,5 @@ export type BrowserTeachingClient = ReturnType<
 
 export type InkLifecycleClient = Omit<
   BrowserTeachingClient,
-  "read" | "readWork" | "dispatch" | "recoverTeaching" | "readPracticeControls"
+  "readWork" | "readPracticeControls"
 >;

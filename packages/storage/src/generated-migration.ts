@@ -1,5 +1,3 @@
-// Generated from ordered Kit migrations plus reviewed deferred constraints.
-// Reproduce: node --import tsx tools/migrations/prepare.ts
 export const migrationStatements = [
   "CREATE TABLE schema_migration (version INTEGER PRIMARY KEY CHECK(version>0), migration_id TEXT NOT NULL UNIQUE, checksum TEXT NOT NULL CHECK(length(checksum)=64 AND checksum NOT GLOB '*[^a-f0-9]*'))",
   "CREATE TABLE installation (installation_id TEXT PRIMARY KEY NOT NULL, revision INTEGER NOT NULL CHECK(typeof(revision)='integer' AND revision>=0), database_version INTEGER NOT NULL CHECK(database_version>0), singleton INTEGER NOT NULL UNIQUE CHECK(singleton=1))",

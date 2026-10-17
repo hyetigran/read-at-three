@@ -1,3 +1,10 @@
+import { readEnvelope } from "./support.ts";
+import {
+  executeTeaching,
+  selectedInk,
+  selectedProjection,
+} from "../storage/selected-support.ts";
+
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
@@ -11,9 +18,9 @@ import {
 } from "@readatthree/teaching";
 import type {
   CommittedProjection,
-  TeachingCommand,
+  SelectedTeachingOperation,
   TeachingIntent,
-  WritingApplication,
+  SelectedApplication,
 } from "@readatthree/teaching";
 import {
   createCommittedTeaching,
@@ -43,12 +50,12 @@ async function fixture(t: Parameters<typeof storageFixture>[0]) {
   const store = await storageFixture(t, content);
   let failCommit = false;
   let reads = 0;
-  const deliveries: TeachingCommand[] = [];
+  const deliveries: SelectedTeachingOperation[] = [];
   let beforeDispatch = async () => {};
   let afterDispatch = async () => {};
   let afterRead = async (value: ReadEnvelope) => value;
   let beforeActivate = async () => {};
-  const connection = store.connect({
+  const connection = await store.connectReady({
     hook: async (sql, work) => {
       if (sql === "COMMIT" && failCommit) {
         failCommit = false;
@@ -57,8 +64,8 @@ async function fixture(t: Parameters<typeof storageFixture>[0]) {
       return work();
     },
   });
-  let app: WritingApplication = connection.app;
-  await app.open();
+  let app: SelectedApplication = connection.app;
+  await selectedProjection(app);
   const client = new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: Infinity },
@@ -69,32 +76,30 @@ async function fixture(t: Parameters<typeof storageFixture>[0]) {
   const runtime = createCommittedTeaching({
     queryClient: client,
     repository: {
-      async read() {
+      async read(input) {
         reads++;
-        return afterRead({
-          courseId: content.body.courseId,
-          projection: await app.read(),
-        });
+        return afterRead(await readEnvelope(app, input, content.body.courseId));
       },
-      async dispatch(command) {
+      async execute(operation) {
+        const command = operation;
         deliveries.push(command);
         await beforeDispatch();
-        const result = await app.dispatch(command);
+        const result = await app.execute(operation);
         await afterDispatch();
         return result;
       },
       async recoverTeaching(input) {
-        deliveries.push(input.command);
+        deliveries.push(input.operation);
         return app.recoverTeaching(input);
       },
     },
-    stageRestore: async (projection) => {
+    stageRestore: async ({ projection }) => {
       if (
         projection.kind === "writing" ||
         projection.kind === "writingResult"
       ) {
         for (const token of projection.documents) {
-          const snapshot = await app.readInk({ token });
+          const snapshot = await selectedInk(app, { token });
           assert.equal(canonical(snapshot.token), canonical(token));
         }
       }
@@ -123,7 +128,7 @@ async function fixture(t: Parameters<typeof storageFixture>[0]) {
     return {
       kind: "refresh",
       courseId: value.courseId,
-      owner: value.projection.owner,
+      selection: value.directory.selection,
     };
   }
   function assertSelected() {
@@ -175,10 +180,22 @@ async function fixture(t: Parameters<typeof storageFixture>[0]) {
             ids: store.ids,
             hash,
           });
-    return { command, origin };
+    return {
+      operation: {
+        kind: "teaching",
+        selection: current().directory.selection,
+        command,
+      },
+      origin,
+    };
   }
   async function start() {
-    await runtime.read({ expectation: { kind: "opening" } });
+    await runtime.read({
+      expectation: {
+        kind: "opening",
+        selection: (await app.readDirectory()).selection,
+      },
+    });
     await runtime.execute({
       kind: "normal",
       prepared: await prepare("start", "fixture.graph.l01.t06"),
@@ -215,7 +232,7 @@ async function fixture(t: Parameters<typeof storageFixture>[0]) {
       beforeActivate = fn;
     },
     replace: async () => {
-      const next = store.connect();
+      const next = await store.connectReady();
       app = next.app;
       return next;
     },
@@ -243,7 +260,7 @@ test("real Query reads and exact explicit mutations remain local offline, preser
   assert.equal(f.client.getQueryState(selected.queryKey)?.isInvalidated, true);
   assert.equal(f.readCount(), beforeInk);
   const prepared = await f.prepare("skipWriting");
-  const exact = canonical(prepared.command);
+  const exact = canonical(prepared.operation);
   const before = f.current();
   f.failCommit();
   await assert.rejects(
@@ -347,7 +364,7 @@ test("mismatched committed reread and failed canonical restore retain the select
       .deliveries()
       .slice(1)
       .map((delivery) => canonical(delivery)),
-    Array(3).fill(canonical(prepared.command)),
+    Array(3).fill(canonical(prepared.operation)),
   );
   f.assertSelected();
 });
@@ -420,7 +437,7 @@ for (const lostAcknowledgement of [false, true]) {
     const f = await fixture(t);
     await f.start();
     const prepared = await f.prepare("continue"),
-      original = canonical(prepared.command),
+      original = canonical(prepared.operation),
       old = f.current();
     if (lostAcknowledgement)
       f.afterDispatch(async () => {
@@ -434,15 +451,13 @@ for (const lostAcknowledgement of [false, true]) {
     const inventory = await next.app.openRecovery({
       kind: "warm",
       retainedStrokeIds: [],
-      teaching: {
-        kind: "pending",
-        commandId: prepared.command.commandId,
-        payloadHash: prepared.command.payloadHash,
-      },
+      selection: prepared.operation.selection,
+      teaching: prepared.operation,
+      administration: null,
     });
     const reads = f.readCount(),
       activations = f.activated.length;
-    assert.equal((await next.app.read()).kind, "recovery");
+    assert.equal((await selectedProjection(next.app)).kind, "recovery");
     const resolved = await f.runtime.execute({
       kind: "closedRecovery",
       recoveryId: inventory.recoveryId,
@@ -492,7 +507,7 @@ test("an actual canonical repository refetch cannot publish changed teaching bef
   const old = f.current(),
     activations = f.activated.length;
   const prepared = await f.prepare("continue");
-  const receipt = await f.app.dispatch(prepared.command);
+  const receipt = await executeTeaching(f.app, prepared.operation);
   assert.equal(receipt.kind, "committed");
   if (receipt.kind !== "committed")
     throw new Error("Committed transition required");
@@ -523,9 +538,15 @@ test("an actual canonical repository refetch cannot publish changed teaching bef
 
 test("actual stored recovery preserves its category and explanation without selecting teaching cache data", async (t) => {
   const f = await fixture(t);
-  f.db.prepare("UPDATE profile SET profile_id=?").run("");
+  await f.store.act(f.app, "start");
+  f.db.exec("DELETE FROM course_cursor");
   await assert.rejects(
-    f.runtime.read({ expectation: { kind: "opening" } }),
+    f.runtime.read({
+      expectation: {
+        kind: "opening",
+        selection: (await f.app.readDirectory()).selection,
+      },
+    }),
     (error: unknown) => {
       assert.ok(error instanceof TeachingRecoveryError);
       assert.equal(error.code, "invalid-position");

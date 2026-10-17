@@ -104,6 +104,7 @@ function ApplicationShell() {
     return true;
   });
   const read = committed.visible.data?.application;
+  const selection = committed.visible.data?.directory.selection;
   const projection = committed.visible.data?.projection;
   const ownerKey = read ? canonical(read.witness.owner) : null;
   const ownerRef = useRef(ownerKey);
@@ -237,7 +238,7 @@ function ApplicationShell() {
     (operation.kind === "openingFailed"
       ? { code: "storage-initialization-failed", message: operation.message }
       : null);
-  if (!projection || !read || recovery)
+  if (!projection || !read || !selection || recovery)
     screen = (
       <RecoveryScreen
         recovery={recovery}
@@ -276,7 +277,9 @@ function ApplicationShell() {
         />
       );
   else if (location.pathname.startsWith("/work/"))
-    screen = <SavedWorkScreen read={read} client={client} />;
+    screen = (
+      <SavedWorkScreen read={read} client={client} selection={selection} />
+    );
   else if (location.pathname === "/parent/gate")
     screen = (
       <ParentGate

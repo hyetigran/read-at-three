@@ -39,6 +39,7 @@ const administration = {
 const selection = {
   properties: { installationId: string, revision: string, owner },
 } satisfies SomeJTDSchemaType;
+export const selectedOwnerSchema = selection;
 const target = {
   properties: { owner, revision: string },
 } satisfies SomeJTDSchemaType;
@@ -74,6 +75,7 @@ const departure = {
     },
   },
 } satisfies SomeJTDSchemaType;
+export const departureSchema = departure;
 const payload = {
   discriminator,
   mapping: {

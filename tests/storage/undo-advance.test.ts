@@ -1,3 +1,14 @@
+import {
+  changeProfile,
+  executeInk,
+  executeTeaching,
+  prepareSelectedInk,
+  prepareSelectedTeaching,
+  selectedCourse,
+  selectedInk,
+  selectedProjection,
+} from "./selected-support.ts";
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -11,7 +22,7 @@ import {
 } from "../../packages/teaching/src/index.ts";
 import type {
   CommittedProjection,
-  TeachingApplication,
+  SelectedApplication,
 } from "../../packages/teaching/src/index.ts";
 import { controlFixture } from "../teaching/control-fixture.ts";
 import { writingFixture } from "../teaching/writing-fixture.ts";
@@ -31,8 +42,8 @@ function actionFor(projection: CommittedProjection, kind: string) {
 
 test("a parent can repeatedly Undo advance to the same task run's start after a physical SQLite reopen", async (t) => {
   const fixture = await storageFixture(t);
-  const first = fixture.connect();
-  assert.equal((await first.app.open()).kind, "entry");
+  const first = await fixture.connectReady();
+  assert.equal((await selectedProjection(first.app)).kind, "entry");
   assert.equal(
     (
       await fixture.act(
@@ -44,43 +55,46 @@ test("a parent can repeatedly Undo advance to the same task run's start after a 
     ).kind,
     "committed",
   );
-  const start = teaching(await first.app.read());
+  const start = teaching(await selectedProjection(first.app));
   assert.equal(start.taskId, "fixture.task");
   assert.equal(start.turn.id, "fixture.graph.l01.t01.s01.model-m");
   assert.equal(actionFor(start, "undoAdvance"), undefined);
 
   assert.equal((await fixture.act(first.app, "continue")).kind, "committed");
-  const response = teaching(await first.app.read());
+  const response = teaching(await selectedProjection(first.app));
   assert.equal(response.turn.id, "fixture.graph.l01.t01.s02.response-m");
   assert.equal(response.runId, start.runId);
   assert.equal((await fixture.act(first.app, "continue")).kind, "committed");
-  const again = teaching(await first.app.read());
+  const again = teaching(await selectedProjection(first.app));
   assert.equal(again.turn.id, "fixture.graph.l01.t01.s03.again-m");
   assert.equal(again.runId, start.runId);
   assert.equal((await fixture.act(first.app, "pause")).kind, "committed");
 
   first.db.close();
   assert.equal(first.db.isOpen, false);
-  const reopened = fixture.connect();
+  const reopened = await fixture.connectReady();
   const recovery = await reopened.app.openRecovery({ kind: "cold" });
   await reopened.app.reconcileRecovery({
     recoveryId: recovery.recoveryId,
     choice: { kind: "cold" },
   });
-  const cold = teaching(await reopened.app.open());
+  const cold = teaching(await selectedProjection(reopened.app));
   assert.equal(cold.turn.id, "fixture.graph.l01.t01.s03.again-m");
   assert.equal(cold.runId, start.runId);
   assert.equal(cold.sessionId, start.sessionId);
   assert.equal(cold.packageHash, fixture.content.packageHash);
   if (cold.sessionStatus === "paused")
     assert.equal((await fixture.act(reopened.app, "resume")).kind, "committed");
-  assert.equal(teaching(await reopened.app.read()).sessionStatus, "active");
+  assert.equal(
+    teaching(await selectedProjection(reopened.app)).sessionStatus,
+    "active",
+  );
 
   for (const expectedNodeId of [
     "fixture.graph.l01.t01.s02.response-m",
     "fixture.graph.l01.t01.s01.model-m",
   ]) {
-    const projection = teaching(await reopened.app.read());
+    const projection = teaching(await selectedProjection(reopened.app));
     const undo = actionFor(projection, "undoAdvance");
     assert.ok(
       undo,
@@ -88,18 +102,21 @@ test("a parent can repeatedly Undo advance to the same task run's start after a 
     );
     assert.equal(
       (
-        await reopened.app.dispatch(
-          await prepareCommand({
-            projection,
-            request: { kind: "action", action: undo },
-            ids: fixture.ids,
-            hash,
-          }),
+        await executeTeaching(
+          reopened.app,
+          await prepareSelectedTeaching(reopened.app, async () =>
+            prepareCommand({
+              projection,
+              request: { kind: "action", action: undo },
+              ids: fixture.ids,
+              hash,
+            }),
+          ),
         )
       ).kind,
       "committed",
     );
-    const restored = teaching(await reopened.app.read());
+    const restored = teaching(await selectedProjection(reopened.app));
     assert.equal(restored.turn.id, expectedNodeId);
     assert.equal(restored.taskId, "fixture.task");
     assert.equal(restored.runId, start.runId);
@@ -108,10 +125,10 @@ test("a parent can repeatedly Undo advance to the same task run's start after a 
     assert.equal(restored.sessionStatus, "active");
   }
 
-  const restoredStart = teaching(await reopened.app.read());
+  const restoredStart = teaching(await selectedProjection(reopened.app));
   assert.equal(actionFor(restoredStart, "undoAdvance"), undefined);
   assert.equal(first.db.isOpen, false);
-  const application = await reopened.app.readApplication({ kind: "cursor" });
+  const application = await selectedCourse(reopened.app, { kind: "cursor" });
   if (application.kind !== "ready") assert.fail(application.message);
   assert.deepEqual(
     application.course.lessons.map((lesson) => ({
@@ -141,11 +158,11 @@ test("a parent can repeatedly Undo advance to the same task run's start after a 
 
 test("terminal Undo withdraws only this run's credit and new acceptance stays on a fresh branch", async (t) => {
   const fixture = await storageFixture(t);
-  const { app, db } = fixture.connect();
-  await app.open();
+  const { app, db } = await fixture.connectReady();
+  await selectedProjection(app);
   await fixture.act(app, "start");
   for (let i = 0; i < 6; i++) await fixture.act(app, "continue");
-  const completed = await app.read();
+  const completed = await selectedProjection(app);
   assert.equal(completed.kind, "completed");
   if (completed.kind !== "completed") assert.fail("Completion required");
   assert.equal(
@@ -153,7 +170,7 @@ test("terminal Undo withdraws only this run's credit and new acceptance stays on
     true,
   );
   assert.equal((await fixture.act(app, "undoAdvance")).kind, "committed");
-  const reopened = teaching(await app.read());
+  const reopened = teaching(await selectedProjection(app));
   assert.equal(reopened.turn.id, "fixture.graph.l01.t01.s06.again-s");
   assert.equal(reopened.runId, completed.runId);
   assert.equal(reopened.runStatus, "inProgress");
@@ -162,7 +179,7 @@ test("terminal Undo withdraws only this run's credit and new acceptance stays on
     false,
   );
   assert.equal((await fixture.act(app, "continue")).kind, "committed");
-  assert.equal((await app.read()).kind, "completed");
+  assert.equal((await selectedProjection(app)).kind, "completed");
   assert.deepEqual(
     db
       .prepare("SELECT seq,status FROM task_advance ORDER BY seq")
@@ -188,7 +205,7 @@ test("terminal Undo withdraws only this run's credit and new acceptance stays on
   await fixture.act(app, "replay");
   for (let i = 0; i < 6; i++) await fixture.act(app, "continue");
   await fixture.act(app, "undoAdvance");
-  const earlierCredit = teaching(await app.read());
+  const earlierCredit = teaching(await selectedProjection(app));
   assert.notEqual(earlierCredit.runId, completed.runId);
   assert.equal(
     earlierCredit.catalog.find((task) => task.id === "fixture.task")?.completed,
@@ -206,7 +223,7 @@ test("terminal Undo withdraws only this run's credit and new acceptance stays on
 test("a lost Undo acknowledgement retries exactly once and pre-COMMIT failure preserves all teaching evidence", async (t) => {
   const fixture = await storageFixture(t);
   let failure: "write" | "reply" | null = null;
-  const first = fixture.connect({
+  const first = await fixture.connectReady({
     hook: async (sql, work) => {
       if (
         failure === "write" &&
@@ -223,25 +240,27 @@ test("a lost Undo acknowledgement retries exactly once and pre-COMMIT failure pr
       return result;
     },
   });
-  await first.app.open();
+  await selectedProjection(first.app);
   await fixture.act(first.app, "start");
   await fixture.act(first.app, "continue");
   await fixture.act(first.app, "continue");
-  const origin = teaching(await first.app.read());
+  const origin = teaching(await selectedProjection(first.app));
   const undo = actionFor(origin, "undoAdvance");
   assert.ok(undo);
-  const command = await prepareCommand({
-    projection: origin,
-    request: { kind: "action", action: undo },
-    ids: fixture.ids,
-    hash,
-  });
+  const command = await prepareSelectedTeaching(first.app, async () =>
+    prepareCommand({
+      projection: origin,
+      request: { kind: "action", action: undo },
+      ids: fixture.ids,
+      hash,
+    }),
+  );
   const before = first.db
     .prepare("SELECT state,revision,active_advance_id FROM task_run")
     .all();
   failure = "write";
   await assert.rejects(
-    first.app.dispatch(command),
+    executeTeaching(first.app, command),
     (error: unknown) =>
       error instanceof Error &&
       error.cause instanceof Error &&
@@ -253,16 +272,16 @@ test("a lost Undo acknowledgement retries exactly once and pre-COMMIT failure pr
       .all(),
     before,
   );
-  assert.deepEqual(await first.app.read(), origin);
+  assert.deepEqual(await selectedProjection(first.app), origin);
   failure = "reply";
-  await assert.rejects(first.app.dispatch(command), /Lost Undo reply/);
+  await assert.rejects(executeTeaching(first.app, command), /Lost Undo reply/);
   first.db.close();
-  const replacement = fixture.connect();
-  const receipt = await replacement.app.dispatch(command);
+  const replacement = await fixture.connectReady();
+  const receipt = await executeTeaching(replacement.app, command);
   assert.equal(receipt.kind, "committed");
-  assert.deepEqual(await replacement.app.dispatch(command), receipt);
+  assert.deepEqual(await executeTeaching(replacement.app, command), receipt);
   assert.equal(
-    teaching(await replacement.app.read()).turn.id,
+    teaching(await selectedProjection(replacement.app)).turn.id,
     "fixture.graph.l01.t01.s02.response-m",
   );
   assert.equal(
@@ -271,55 +290,70 @@ test("a lost Undo acknowledgement retries exactly once and pre-COMMIT failure pr
     1,
   );
   replacement.db.prepare("DELETE FROM command_receipt").run();
-  const saved = await replacement.app.read();
-  assert.equal((await replacement.app.dispatch(command)).kind, "rejected");
-  assert.deepEqual(await replacement.app.read(), saved);
+  const saved = await selectedProjection(replacement.app);
+  assert.equal(
+    (await executeTeaching(replacement.app, command)).kind,
+    "rejected",
+  );
+  assert.deepEqual(await selectedProjection(replacement.app), saved);
   assert.equal(
     (await fixture.act(replacement.app, "undoAdvance")).kind,
     "committed",
   );
   assert.equal(
-    teaching(await replacement.app.read()).turn.id,
+    teaching(await selectedProjection(replacement.app)).turn.id,
     "fixture.graph.l01.t01.s01.model-m",
   );
 });
 
 test("sequential profile-bound storage reads preserve each child's window and only their new run closes it", async (t) => {
   const fixture = await storageFixture(t);
-  const first = fixture.connect();
-  await first.app.open();
+  const first = await fixture.connectReady();
+  await selectedProjection(first.app);
   await fixture.act(first.app, "start");
   await fixture.act(first.app, "continue");
   await fixture.act(first.app, "continue");
-  const saved = teaching(await first.app.read());
-  const secondOwner = {
-    profileId: parseId({ kind: "profile", value: "zz-child" }),
-    generation: parseCounter("0"),
-  };
-  first.db
-    .prepare(
-      "INSERT INTO profile(profile_id,generation,revision,undo_run_id,preferences_version,preferences) VALUES(?,0,0,NULL,1,?)",
-    )
-    .run(secondOwner.profileId, '{"version":1}');
+  const saved = teaching(await selectedProjection(first.app));
   const primaryUndo = actionFor(saved, "undoAdvance");
   assert.ok(primaryUndo);
-  const otherOwnerCommand = await prepareCommand({
-    projection: saved,
-    request: { kind: "action", action: primaryUndo },
-    ids: fixture.ids,
-    hash,
-  });
-  assert.equal((await first.app.dispatch(otherOwnerCommand)).kind, "committed");
+  const otherOwnerCommand = await prepareSelectedTeaching(first.app, async () =>
+    prepareCommand({
+      projection: saved,
+      request: { kind: "action", action: primaryUndo },
+      ids: fixture.ids,
+      hash,
+    }),
+  );
+  assert.equal(
+    (await executeTeaching(first.app, otherOwnerCommand)).kind,
+    "committed",
+  );
   const primaryWindow = first.db
     .prepare("SELECT undo_run_id FROM profile WHERE profile_id=?")
     .get(saved.owner.profileId)?.undo_run_id;
+  const creation = await changeProfile(
+    first.app,
+    fixture.ids,
+    hash,
+    (directory) => ({
+      kind: "createAndSelect",
+      directory: directory.administration,
+      preferences: { avatarId: "owl" },
+    }),
+  );
+  if (creation.result.effect.kind !== "created")
+    assert.fail("The second child must be created through administration");
+  const secondOwner = creation.result.effect.target.owner;
   first.db.close();
-  const second = fixture.connect({ owner: secondOwner });
-  const secondEntry = await second.app.open();
+  const second = await fixture.connectReady();
+  const secondEntry = await selectedProjection(second.app);
   assert.equal(secondEntry.kind, "entry");
   if (secondEntry.kind !== "entry") assert.fail("Second child entry required");
   assert.deepEqual(secondEntry.owner, secondOwner);
-  assert.equal((await second.app.dispatch(otherOwnerCommand)).kind, "rejected");
+  assert.equal(
+    (await executeTeaching(second.app, otherOwnerCommand)).kind,
+    "rejected",
+  );
   assert.equal(
     second.db
       .prepare("SELECT undo_run_id FROM profile WHERE profile_id=?")
@@ -328,10 +362,15 @@ test("sequential profile-bound storage reads preserve each child's window and on
   );
   await fixture.act(second.app, "start");
   await fixture.act(second.app, "continue");
-  const secondSaved = teaching(await second.app.read());
+  const secondSaved = teaching(await selectedProjection(second.app));
+  await changeProfile(second.app, fixture.ids, hash, (directory) => ({
+    kind: "selectProfile",
+    directory: directory.administration,
+    target: saved.owner,
+  }));
   second.db.close();
-  const primary = fixture.connect({ owner: saved.owner });
-  const returned = teaching(await primary.app.open());
+  const primary = await fixture.connectReady();
+  const returned = teaching(await selectedProjection(primary.app));
   assert.equal(returned.runId, saved.runId);
   assert.ok(actionFor(returned, "undoAdvance"));
   await fixture.act(
@@ -340,14 +379,24 @@ test("sequential profile-bound storage reads preserve each child's window and on
     (action) =>
       "taskId" in action.intent && String(action.intent.taskId).includes("t04"),
   );
+  await changeProfile(primary.app, fixture.ids, hash, (directory) => ({
+    kind: "selectProfile",
+    directory: directory.administration,
+    target: secondOwner,
+  }));
   primary.db.close();
-  const alternate = fixture.connect({ owner: secondOwner });
-  const secondReturned = teaching(await alternate.app.open());
+  const alternate = await fixture.connectReady();
+  const secondReturned = teaching(await selectedProjection(alternate.app));
   assert.equal(secondReturned.runId, secondSaved.runId);
   assert.ok(actionFor(secondReturned, "undoAdvance"));
+  await changeProfile(alternate.app, fixture.ids, hash, (directory) => ({
+    kind: "selectProfile",
+    directory: directory.administration,
+    target: saved.owner,
+  }));
   alternate.db.close();
-  const resumed = fixture.connect({ owner: saved.owner });
-  await resumed.app.open();
+  const resumed = await fixture.connectReady();
+  await selectedProjection(resumed.app);
   await fixture.act(
     resumed.app,
     "resume",
@@ -355,13 +404,27 @@ test("sequential profile-bound storage reads preserve each child's window and on
       "sessionId" in action.intent &&
       action.intent.sessionId === saved.sessionId,
   );
-  assert.equal(teaching(await resumed.app.read()).runId, saved.runId);
-  assert.equal(actionFor(await resumed.app.read(), "undoAdvance"), undefined);
+  assert.equal(
+    teaching(await selectedProjection(resumed.app)).runId,
+    saved.runId,
+  );
+  assert.equal(
+    actionFor(await selectedProjection(resumed.app), "undoAdvance"),
+    undefined,
+  );
   resumed.db.close();
-  const staleOwner = fixture.connect({
-    owner: { ...saved.owner, generation: parseCounter("1") },
-  });
-  assert.equal((await staleOwner.app.open()).kind, "recovery");
+  const staleOwner = fixture.connect();
+  const directory = await staleOwner.app.readDirectory();
+  await assert.rejects(
+    staleOwner.app.readApplication({
+      selection: {
+        ...directory.selection,
+        owner: { ...saved.owner, generation: parseCounter("1") },
+      },
+      target: { kind: "cursor" },
+    }),
+    /lifetime changed/,
+  );
   assert.equal(
     staleOwner.db.prepare("SELECT count(*) AS n FROM profile").get()?.n,
     2,
@@ -370,48 +433,49 @@ test("sequential profile-bound storage reads preserve each child's window and on
 
 test("starting a run in another course permanently closes this child's older Undo window", async (t) => {
   const fixture = await storageFixture(t);
-  const first = fixture.connect();
-  await first.app.open();
+  const first = await fixture.connectReady();
+  await selectedProjection(first.app);
   await fixture.act(first.app, "start");
   await fixture.act(first.app, "continue");
-  const saved = teaching(await first.app.read());
+  const saved = teaching(await selectedProjection(first.app));
   const undo = actionFor(saved, "undoAdvance");
   assert.ok(undo);
-  const stale = await prepareCommand({
-    projection: saved,
-    request: { kind: "action", action: undo },
-    ids: fixture.ids,
-    hash,
-  });
+  const stale = await prepareSelectedTeaching(first.app, async () =>
+    prepareCommand({
+      projection: saved,
+      request: { kind: "action", action: undo },
+      ids: fixture.ids,
+      hash,
+    }),
+  );
   first.db.close();
-  const another = fixture.connect({
-    owner: saved.owner,
+  const another = await fixture.connectReady({
     content: await writingFixture(),
   });
-  await another.app.open();
+  await selectedProjection(another.app);
   await fixture.act(another.app, "start");
   another.db.close();
-  const original = fixture.connect({ owner: saved.owner });
+  const original = await fixture.connectReady();
   const recovery = await original.app.openRecovery({ kind: "cold" });
   await original.app.reconcileRecovery({
     recoveryId: recovery.recoveryId,
     choice: { kind: "cold" },
   });
-  const restored = teaching(await original.app.open());
+  const restored = teaching(await selectedProjection(original.app));
   assert.equal(restored.runId, saved.runId);
   assert.equal(restored.turn.id, "fixture.graph.l01.t01.s02.response-m");
   assert.equal(actionFor(restored, "undoAdvance"), undefined);
-  assert.equal((await original.app.dispatch(stale)).kind, "rejected");
-  assert.deepEqual(await original.app.read(), restored);
+  assert.equal((await executeTeaching(original.app, stale)).kind, "rejected");
+  assert.deepEqual(await selectedProjection(original.app), restored);
 });
 
 test("writing Undo preserves every layer and history while prior Skip remains valid", async (t) => {
   const fixture = await practiceFixture(t);
-  const first = fixture.connect();
-  await first.app.open();
+  const first = await fixture.connectReady();
+  await selectedProjection(first.app);
   await fixture.action(first.app, "start");
   await fixture.action(first.app, "skipWriting");
-  const skipped = await first.app.readApplication({ kind: "cursor" });
+  const skipped = await selectedCourse(first.app, { kind: "cursor" });
   assert.equal(skipped.kind, "ready");
   if (skipped.kind !== "ready") assert.fail("Skipped course required");
   assert.equal(skipped.course.lessons[0]?.progress, "unfinished");
@@ -423,29 +487,31 @@ test("writing Undo preserves every layer and history while prior Skip remains va
   await fixture.action(first.app, "confirmTracing");
   await fixture.draw(first.app, 125);
   const { token: oldIndependentToken } = await fixture.current(first.app);
-  const staleInk = await prepareInkCommand({
-    token: oldIndependentToken,
-    edit: {
-      kind: "begin",
-      strokeId: parseId({ kind: "stroke", value: fixture.ids() }),
-      layer: "independent",
-      brush: {
-        kind: "round",
-        width: 5,
-        colorRole: "child",
-        cap: "round",
-        join: "round",
+  const staleInk = await prepareSelectedInk(first.app, async () =>
+    prepareInkCommand({
+      token: oldIndependentToken,
+      edit: {
+        kind: "begin",
+        strokeId: parseId({ kind: "stroke", value: fixture.ids() }),
+        layer: "independent",
+        brush: {
+          kind: "round",
+          width: 5,
+          colorRole: "child",
+          cap: "round",
+          join: "round",
+        },
+        chunks: [],
       },
-      chunks: [],
-    },
-    ids: fixture.ids,
-    hash,
-  });
+      ids: fixture.ids,
+      hash,
+    }),
+  );
   await fixture.action(first.app, "confirmIndependent");
   await fixture.action(first.app, "continue");
   await fixture.action(first.app, "confirmTracing");
   await fixture.action(first.app, "confirmIndependent");
-  assert.equal((await first.app.read()).kind, "writingResult");
+  assert.equal((await selectedProjection(first.app)).kind, "writingResult");
   const inkBefore = {
     strokes: first.db
       .prepare("SELECT * FROM ink_stroke ORDER BY stroke_id")
@@ -461,33 +527,33 @@ test("writing Undo preserves every layer and history while prior Skip remains va
       .all(),
   };
   await fixture.action(first.app, "undoAdvance");
-  let projection = await first.app.read();
+  let projection = await selectedProjection(first.app);
   assert.equal(projection.kind, "writing");
   if (projection.kind !== "writing") assert.fail("Reopened writing required");
   assert.equal(projection.turn.id, "fixture.writing.turn.7");
   assert.equal(projection.runStatus, "inProgress");
-  const course = await first.app.readApplication({ kind: "cursor" });
+  const course = await selectedCourse(first.app, { kind: "cursor" });
   assert.equal(course.kind, "ready");
   if (course.kind !== "ready") assert.fail("Course required");
   assert.equal(course.course.lessons[0]?.progress, "unfinished");
   assert.equal(course.course.lessons[0]?.tasks[0]?.outcome, "skipped");
   await fixture.action(first.app, "pause");
   for (let i = 0; i < 4; i++) await fixture.action(first.app, "undoAdvance");
-  projection = await first.app.read();
+  projection = await selectedProjection(first.app);
   if (projection.kind !== "writing") assert.fail("Restored tracing required");
   assert.equal(projection.turn.id, "fixture.writing.turn.3");
   const current = projection.documents.find(
     (token) => token.targetId === "first",
   );
   assert.ok(current);
-  const snapshot = await first.app.readInk({ token: current });
+  const snapshot = await selectedInk(first.app, { token: current });
   assert.equal(snapshot.writable, false);
   assert.equal(projection.sessionStatus, "paused");
   assert.equal(current.phase, "childTracing");
-  assert.equal((await first.app.dispatchInk(staleInk)).kind, "rejected");
+  assert.equal((await executeInk(first.app, staleInk)).kind, "rejected");
   await fixture.action(first.app, "resume");
   assert.equal((await fixture.current(first.app)).snapshot.writable, true);
-  projection = await first.app.read();
+  projection = await selectedProjection(first.app);
   if (projection.kind !== "writing") assert.fail("Resumed writing required");
   assert.equal(
     snapshot.strokes.filter((stroke) => stroke.layer === "independent").length,
@@ -523,13 +589,13 @@ test("writing Undo preserves every layer and history while prior Skip remains va
     inkBefore,
   );
   first.db.close();
-  const reopened = fixture.connect();
+  const reopened = await fixture.connectReady();
   const inventory = await reopened.app.openRecovery({ kind: "cold" });
   await reopened.app.reconcileRecovery({
     recoveryId: inventory.recoveryId,
     choice: { kind: "cold" },
   });
-  const cold = await reopened.app.open();
+  const cold = await selectedProjection(reopened.app);
   assert.equal(cold.kind, "writing");
   if (cold.kind !== "writing") assert.fail("Cold writing required");
   assert.equal(cold.turn.id, "fixture.writing.turn.3");
@@ -541,21 +607,23 @@ test("writing Undo preserves every layer and history while prior Skip remains va
 
 test("bounded receipt cleanup preserves the entire open acceptance chain and cannot repeat a pruned Undo", async (t) => {
   const fixture = await storageFixture(t);
-  const { app, db } = fixture.connect();
-  await app.open();
+  const { app, db } = await fixture.connectReady();
+  await selectedProjection(app);
   await fixture.act(app, "start");
   await fixture.act(app, "continue");
   await fixture.act(app, "continue");
-  const origin = teaching(await app.read());
+  const origin = teaching(await selectedProjection(app));
   const undo = actionFor(origin, "undoAdvance");
   assert.ok(undo);
-  const command = await prepareCommand({
-    projection: origin,
-    request: { kind: "action", action: undo },
-    ids: fixture.ids,
-    hash,
-  });
-  assert.equal((await app.dispatch(command)).kind, "committed");
+  const command = await prepareSelectedTeaching(app, async () =>
+    prepareCommand({
+      projection: origin,
+      request: { kind: "action", action: undo },
+      ids: fixture.ids,
+      hash,
+    }),
+  );
+  assert.equal((await executeTeaching(app, command)).kind, "committed");
   for (let i = 0; i < 130; i++) {
     assert.equal((await fixture.act(app, "back")).kind, "committed");
     assert.equal((await fixture.act(app, "continue")).kind, "committed");
@@ -571,15 +639,15 @@ test("bounded receipt cleanup preserves the entire open acceptance chain and can
   assert.equal(
     db
       .prepare("SELECT count(*) AS n FROM command_receipt WHERE command_id=?")
-      .get(command.commandId)?.n,
+      .get(command.command.commandId)?.n,
     0,
   );
-  const retained = teaching(await app.read());
+  const retained = teaching(await selectedProjection(app));
   assert.equal(retained.turn.id, "fixture.graph.l01.t01.s02.response-m");
-  assert.equal((await app.dispatch(command)).kind, "rejected");
-  assert.deepEqual(await app.read(), retained);
+  assert.equal((await executeTeaching(app, command)).kind, "rejected");
+  assert.deepEqual(await selectedProjection(app), retained);
   assert.equal((await fixture.act(app, "undoAdvance")).kind, "committed");
-  const start = teaching(await app.read());
+  const start = teaching(await selectedProjection(app));
   assert.equal(start.turn.id, "fixture.graph.l01.t01.s01.model-m");
   assert.equal(actionFor(start, "undoAdvance"), undefined);
   assert.equal(
@@ -603,8 +671,8 @@ test("missing or rehashed contradictory withdrawal and acceptance evidence refus
     "resurrect-status",
   ]) {
     const fixture = await storageFixture(t);
-    const { app, db } = fixture.connect();
-    await app.open();
+    const { app, db } = await fixture.connectReady();
+    await selectedProjection(app);
     await fixture.act(app, "start");
     await fixture.act(app, "continue");
     await fixture.act(app, "continue");
@@ -647,7 +715,7 @@ test("missing or rehashed contradictory withdrawal and acceptance evidence refus
     const before = db
       .prepare("SELECT state,revision,active_advance_id FROM task_run")
       .all();
-    assert.equal((await app.read()).kind, "recovery", mutation);
+    assert.equal((await selectedProjection(app)).kind, "recovery", mutation);
     assert.deepEqual(
       db.prepare("SELECT state,revision,active_advance_id FROM task_run").all(),
       before,
@@ -695,43 +763,47 @@ async function optionalWritingCourse() {
   );
 }
 async function courseAction(
-  app: TeachingApplication,
+  app: SelectedApplication,
   kind: string,
   ids: () => string,
 ) {
-  const projection = await app.read();
+  const projection = await selectedProjection(app);
   const action = actionFor(projection, kind);
   assert.ok(action, `Expected ${kind}`);
   const command =
     projection.kind === "writing" || projection.kind === "writingResult"
-      ? await prepareWritingCommand({
-          projection,
-          action,
-          barrier: { kind: "writing", documents: projection.documents },
-          ids,
-          hash,
-        })
-      : await prepareCommand({
-          projection,
-          request: { kind: "action", action },
-          ids,
-          hash,
-        });
-  const result = await app.dispatch(command);
+      ? await prepareSelectedTeaching(app, async () =>
+          prepareWritingCommand({
+            projection,
+            action,
+            barrier: { kind: "writing", documents: projection.documents },
+            ids,
+            hash,
+          }),
+        )
+      : await prepareSelectedTeaching(app, async () =>
+          prepareCommand({
+            projection,
+            request: { kind: "action", action },
+            ids,
+            hash,
+          }),
+        );
+  const result = await executeTeaching(app, command);
   assert.equal(result.kind, "committed");
 }
 
 test("Undo of a just-satisfied lesson withdraws exact support while earlier valid lesson credit survives replay", async (t) => {
   const fixture = await storageFixture(t, await optionalWritingCourse());
-  const { app, db } = fixture.connect();
-  await app.open();
+  const { app, db } = await fixture.connectReady();
+  await selectedProjection(app);
   await courseAction(app, "start", fixture.ids);
   await courseAction(app, "skipWriting", fixture.ids);
-  let course = await app.readApplication({ kind: "cursor" });
+  let course = await selectedCourse(app, { kind: "cursor" });
   if (course.kind !== "ready") assert.fail("Course required");
   assert.equal(course.course.lessons[0]?.progress, "satisfied");
   await courseAction(app, "undoAdvance", fixture.ids);
-  course = await app.readApplication({ kind: "cursor" });
+  course = await selectedCourse(app, { kind: "cursor" });
   if (course.kind !== "ready") assert.fail("Course required");
   assert.equal(course.course.lessons[0]?.progress, "unfinished");
   assert.equal(course.course.lessons[0]?.tasks[0]?.outcome, "unseen");
@@ -751,11 +823,11 @@ test("Undo of a just-satisfied lesson withdraws exact support while earlier vali
   await courseAction(app, "continue", fixture.ids);
   await courseAction(app, "confirmTracing", fixture.ids);
   await courseAction(app, "confirmIndependent", fixture.ids);
-  course = await app.readApplication({ kind: "cursor" });
+  course = await selectedCourse(app, { kind: "cursor" });
   if (course.kind !== "ready") assert.fail("Completed course required");
   assert.equal(course.course.lessons[0]?.tasks[0]?.outcome, "completed");
   await courseAction(app, "undoAdvance", fixture.ids);
-  course = await app.readApplication({ kind: "cursor" });
+  course = await selectedCourse(app, { kind: "cursor" });
   if (course.kind !== "ready") assert.fail("Retained course required");
   assert.equal(course.course.lessons[0]?.progress, "satisfied");
   assert.equal(course.course.lessons[0]?.tasks[0]?.outcome, "skipped");
@@ -770,46 +842,46 @@ test("Undo of a just-satisfied lesson withdraws exact support while earlier vali
 
 test("Undo follows accepted turns through correction and preserves an explicit paused session", async (t) => {
   const fixture = await storageFixture(t);
-  const { app } = fixture.connect();
-  await app.open();
+  const { app } = await fixture.connectReady();
+  await selectedProjection(app);
   await fixture.act(app, "start");
   await fixture.act(app, "continue");
   await fixture.act(app, "continue");
   await fixture.act(app, "help");
   assert.equal(
-    teaching(await app.read()).turn.id,
+    teaching(await selectedProjection(app)).turn.id,
     "fixture.graph.l01.t01.correction-m",
   );
   await fixture.act(app, "continue");
   assert.equal(
-    teaching(await app.read()).turn.id,
+    teaching(await selectedProjection(app)).turn.id,
     "fixture.graph.l01.t01.s02.response-m",
   );
   await fixture.act(app, "undoAdvance");
   assert.equal(
-    teaching(await app.read()).turn.id,
+    teaching(await selectedProjection(app)).turn.id,
     "fixture.graph.l01.t01.correction-m",
   );
   await fixture.act(app, "undoAdvance");
   assert.equal(
-    teaching(await app.read()).turn.id,
+    teaching(await selectedProjection(app)).turn.id,
     "fixture.graph.l01.t01.s02.response-m",
   );
   await fixture.act(app, "pause");
   await fixture.act(app, "undoAdvance");
-  const restored = teaching(await app.read());
+  const restored = teaching(await selectedProjection(app));
   assert.equal(restored.turn.id, "fixture.graph.l01.t01.s01.model-m");
   assert.equal(restored.sessionStatus, "paused");
   assert.equal(actionFor(restored, "continue"), undefined);
   assert.equal(actionFor(restored, "undoAdvance"), undefined);
   await fixture.act(app, "resume");
   assert.equal(
-    teaching(await app.read()).turn.id,
+    teaching(await selectedProjection(app)).turn.id,
     "fixture.graph.l01.t01.s01.model-m",
   );
   assert.equal((await fixture.act(app, "continue")).kind, "committed");
   assert.equal(
-    teaching(await app.read()).turn.id,
+    teaching(await selectedProjection(app)).turn.id,
     "fixture.graph.l01.t01.s02.response-m",
   );
 });
@@ -817,8 +889,8 @@ test("Undo follows accepted turns through correction and preserves an explicit p
 test("withdrawn review choices cannot return through Back, old Retry or a newly chosen queue", async (t) => {
   const control = await controlFixture();
   const fixture = await storageFixture(t, control.content);
-  const { app, db } = fixture.connect();
-  await app.open();
+  const { app, db } = await fixture.connectReady();
+  await selectedProjection(app);
   await fixture.act(
     app,
     "start",
@@ -828,25 +900,28 @@ test("withdrawn review choices cannot return through Back, old Retry or a newly 
   await fixture.act(app, "continue");
   await fixture.act(app, "parentReady");
   for (let i = 0; i < 5; i++) await fixture.act(app, "continue");
-  let selection = await app.read();
+  let selection = await selectedProjection(app);
   if (selection.kind !== "reviewSelection")
     assert.fail("Review selection required");
   const first = selection.items[0];
   assert.ok(first);
-  const chosen = await prepareCommand({
-    projection: selection,
-    request: {
-      kind: "review",
-      action: selection.selectionAction,
-      choice: { kind: "items", itemIds: [first.itemId] },
-    },
-    ids: fixture.ids,
-    hash,
-  });
-  const accepted = await app.dispatch(chosen);
+  const firstSelection = selection;
+  const chosen = await prepareSelectedTeaching(app, async () =>
+    prepareCommand({
+      projection: firstSelection,
+      request: {
+        kind: "review",
+        action: firstSelection.selectionAction,
+        choice: { kind: "items", itemIds: [first.itemId] },
+      },
+      ids: fixture.ids,
+      hash,
+    }),
+  );
+  const accepted = await executeTeaching(app, chosen);
   assert.equal(accepted.kind, "committed");
   await fixture.act(app, "back");
-  selection = await app.read();
+  selection = await selectedProjection(app);
   if (selection.kind !== "reviewSelection")
     assert.fail("Saved choice required");
   assert.deepEqual(selection.committedChoice, {
@@ -854,26 +929,28 @@ test("withdrawn review choices cannot return through Back, old Retry or a newly 
     itemIds: [first.itemId],
   });
   await fixture.act(app, "undoAdvance");
-  selection = await app.read();
+  selection = await selectedProjection(app);
   if (selection.kind !== "reviewSelection")
     assert.fail("Withdrawn choice selection required");
   assert.equal(selection.committedChoice, null);
-  assert.deepEqual(await app.dispatch(chosen), accepted);
-  assert.deepEqual(await app.read(), selection);
-  const none = await prepareCommand({
-    projection: selection,
-    request: {
-      kind: "review",
-      action: selection.selectionAction,
-      choice: { kind: "none" },
-    },
-    ids: fixture.ids,
-    hash,
-  });
-  assert.equal((await app.dispatch(none)).kind, "committed");
-  assert.equal((await app.read()).kind, "completed");
+  assert.deepEqual(await executeTeaching(app, chosen), accepted);
+  assert.deepEqual(await selectedProjection(app), selection);
+  const none = await prepareSelectedTeaching(app, async () =>
+    prepareCommand({
+      projection: selection,
+      request: {
+        kind: "review",
+        action: selection.selectionAction,
+        choice: { kind: "none" },
+      },
+      ids: fixture.ids,
+      hash,
+    }),
+  );
+  assert.equal((await executeTeaching(app, none)).kind, "committed");
+  assert.equal((await selectedProjection(app)).kind, "completed");
   await fixture.act(app, "undoAdvance");
-  const reopened = await app.read();
+  const reopened = await selectedProjection(app);
   if (reopened.kind !== "reviewSelection")
     assert.fail("Review obligation must reopen");
   assert.equal(reopened.committedChoice, null);

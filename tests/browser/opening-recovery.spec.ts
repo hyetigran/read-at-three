@@ -52,84 +52,41 @@ for (const { code, title } of [
   test(`repository ${code} recovery keeps its category and explanation through held Retry`, async ({
     page,
   }) => {
-    await page.addInitScript(
-      ({ code }) => {
-        const NativeWorker = window.Worker;
-        let injected = false;
-        let held: (() => void) | null = null;
-        Object.defineProperty(window, "openingReadHeld", {
-          get: () => held !== null,
-        });
-        Object.defineProperty(window, "releaseOpeningRead", {
-          value: () => {
-            if (!held) throw new Error("Opening read is not held");
-            const release = held;
-            held = null;
-            release();
-          },
-        });
-        window.Worker = class extends NativeWorker {
-          private readonly reads = new Set<string>();
-          constructor(url: string | URL, options?: WorkerOptions) {
-            super(url, options);
-            this.addEventListener("message", (event: MessageEvent<unknown>) => {
-              const data = event.data;
-              if (
-                injected ||
-                typeof data !== "object" ||
-                data === null ||
-                !("id" in data) ||
-                typeof data.id !== "string" ||
-                !this.reads.has(data.id) ||
-                !("kind" in data) ||
-                data.kind !== "application"
-              )
-                return;
-              injected = true;
-              event.stopImmediatePropagation();
-              this.dispatchEvent(
-                new MessageEvent("message", {
-                  data: {
-                    ...data,
-                    value: {
-                      kind: "recovery",
-                      code,
-                      message: "The exact saved-place failure explanation.",
-                    },
-                  },
-                }),
-              );
-            });
-          }
-          override postMessage(
-            message: unknown,
-            options?: Transferable[] | StructuredSerializeOptions,
-          ): void {
-            if (
-              typeof message === "object" &&
-              message !== null &&
-              "id" in message &&
-              typeof message.id === "string" &&
-              "kind" in message &&
-              message.kind === "read"
-            ) {
-              this.reads.add(message.id);
-              if (injected) {
-                held = () => {
-                  if (Array.isArray(options))
-                    super.postMessage(message, options);
-                  else super.postMessage(message, options);
-                };
-                return;
-              }
+    await page.addInitScript(`
+      const NativeWorker = window.Worker;
+      let injected = false;
+      let held = null;
+      Object.defineProperty(window, 'openingReadHeld', { get: () => held !== null });
+      Object.defineProperty(window, 'releaseOpeningRead', { value: () => {
+        if (!held) throw new Error('Opening read is not held');
+        const release = held;
+        held = null;
+        release();
+      } });
+      window.Worker = class extends NativeWorker {
+        constructor(url, options) {
+          super(url, options);
+          this.reads = new Set();
+          this.addEventListener('message', event => {
+            const data = event.data;
+            if (injected || data?.kind !== 'application' || !this.reads.has(data.id)) return;
+            injected = true;
+            event.stopImmediatePropagation();
+            this.dispatchEvent(new MessageEvent('message', { data: { ...data, value: { ...data.value, application: { kind: 'recovery', code: ${JSON.stringify(code)}, message: 'The exact saved-place failure explanation.' } } } }));
+          });
+        }
+        postMessage(message, options) {
+          if (message?.kind === 'read') {
+            this.reads.add(message.id);
+            if (injected) {
+              held = () => super.postMessage(message, options);
+              return;
             }
-            if (Array.isArray(options)) super.postMessage(message, options);
-            else super.postMessage(message, options);
           }
-        };
-      },
-      { code },
-    );
+          super.postMessage(message, options);
+        }
+      };
+    `);
     await page.goto("/");
     await expect(page.getByRole("heading", { name: title })).toBeVisible();
     await expect(

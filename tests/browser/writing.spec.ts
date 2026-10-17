@@ -43,7 +43,9 @@ for (const viewport of [
     const geometry = await anchors();
     await drawPractice(page);
     expect(
-      (await requests(page)).filter((r) => r.kind === "dispatchInk"),
+      (await requests(page)).filter(
+        (r) => r.kind === "execute" && r.operation.kind === "ink",
+      ),
     ).toHaveLength(0);
     await writingAction(page);
     await atWriting(page, "m-model");
@@ -63,12 +65,14 @@ for (const viewport of [
         await writingAction(page, "Back");
         await atWriting(page, "m-tracing");
         const count = (await requests(page)).filter(
-          (request) => request.kind === "dispatchInk",
+          (request) =>
+            request.kind === "execute" && request.operation.kind === "ink",
         ).length;
         await drawPractice(page);
         expect(
           (await requests(page)).filter(
-            (request) => request.kind === "dispatchInk",
+            (request) =>
+              request.kind === "execute" && request.operation.kind === "ink",
           ),
         ).toHaveLength(count);
         await writingAction(page);
@@ -116,16 +120,18 @@ for (const viewport of [
     }
     const actions = (await requests(page)).filter(
       (request) =>
-        request.kind === "dispatch" &&
-        request.command.kind === "writingNavigate",
+        request.kind === "execute" &&
+        request.operation.kind === "teaching" &&
+        request.operation.command.kind === "writingNavigate",
     );
     expect(
       actions.filter(
         (request) =>
-          request.kind === "dispatch" &&
-          request.command.kind === "writingNavigate" &&
+          request.kind === "execute" &&
+          request.operation.kind === "teaching" &&
+          request.operation.command.kind === "writingNavigate" &&
           ["confirmTracing", "confirmIndependent"].includes(
-            request.command.payload.action.kind,
+            request.operation.command.payload.action.kind,
           ),
       ),
     ).toHaveLength(4);
@@ -142,12 +148,14 @@ for (const viewport of [
     await writingAction(page, "Back");
     await atWriting(page, "s-independent");
     const count = (await requests(page)).filter(
-      (request) => request.kind === "dispatchInk",
+      (request) =>
+        request.kind === "execute" && request.operation.kind === "ink",
     ).length;
     await drawPractice(page, 1);
     expect(
       (await requests(page)).filter(
-        (request) => request.kind === "dispatchInk",
+        (request) =>
+          request.kind === "execute" && request.operation.kind === "ink",
       ),
     ).toHaveLength(count);
     await writingAction(page, "Continue");
@@ -274,11 +282,11 @@ for (const holdFinalize of [false, true]) {
       );
       if (
         selected?.kind !== "application" ||
-        selected.value.kind !== "ready" ||
-        selected.value.projection.kind !== "writing"
+        selected.value.application.kind !== "ready" ||
+        selected.value.application.projection.kind !== "writing"
       )
         throw new Error("The model teaching projection is missing");
-      const projection = selected.value.projection;
+      const projection = selected.value.application.projection;
       const checkpoint = await page
         .locator("main")
         .getAttribute("data-checkpoint-id");
@@ -314,8 +322,9 @@ for (const holdFinalize of [false, true]) {
         );
         const begins = (await requests(page)).filter(
           (request) =>
-            request.kind === "dispatchInk" &&
-            request.command.edit.kind === "begin",
+            request.kind === "execute" &&
+            request.operation.kind === "ink" &&
+            request.operation.command.edit.kind === "begin",
         ).length;
         await drawStroke(page, [
           { x: 400, y: 110 },
@@ -324,8 +333,9 @@ for (const holdFinalize of [false, true]) {
         expect(
           (await requests(page)).filter(
             (request) =>
-              request.kind === "dispatchInk" &&
-              request.command.edit.kind === "begin",
+              request.kind === "execute" &&
+              request.operation.kind === "ink" &&
+              request.operation.command.edit.kind === "begin",
           ),
         ).toHaveLength(begins);
         await page.evaluate("window.releaseHeldWritingWrite()");
@@ -342,8 +352,9 @@ for (const holdFinalize of [false, true]) {
       );
       const begins = (await requests(page)).filter(
         (request) =>
-          request.kind === "dispatchInk" &&
-          request.command.edit.kind === "begin",
+          request.kind === "execute" &&
+          request.operation.kind === "ink" &&
+          request.operation.command.edit.kind === "begin",
       ).length;
       await page.evaluate(
         "document.querySelector('canvas').dispatchEvent(window.lifecycleClosedDown)",
@@ -351,8 +362,9 @@ for (const holdFinalize of [false, true]) {
       expect(
         (await requests(page)).filter(
           (request) =>
-            request.kind === "dispatchInk" &&
-            request.command.edit.kind === "begin",
+            request.kind === "execute" &&
+            request.operation.kind === "ink" &&
+            request.operation.command.edit.kind === "begin",
         ),
       ).toHaveLength(begins);
       const next = await boardPoint(page, 250, 110);
@@ -389,9 +401,11 @@ for (const holdFinalize of [false, true]) {
         "data-checkpoint-id",
         checkpoint,
       );
-      const commands = (await requests(page))
-        .filter((request) => request.kind === "dispatch")
-        .map((request) => request.command);
+      const commands = (await requests(page)).flatMap((request) =>
+        request.kind === "execute" && request.operation.kind === "teaching"
+          ? [request.operation.command]
+          : [],
+      );
       expect(
         commands.map((command) => {
           if (command.kind === "select" || command.kind === "writingSelect")
@@ -523,9 +537,12 @@ for (const holdFinalize of [false, true]) {
       expect(other?.histories).toEqual(before[1]?.histories);
       expect(
         (await requests(page))
-          .filter((request) => request.kind === "dispatch")
-          .map((request) => {
-            const command = request.command;
+          .flatMap((request) =>
+            request.kind === "execute" && request.operation.kind === "teaching"
+              ? [request.operation.command]
+              : [],
+          )
+          .map((command) => {
             if (command.kind !== "writingSelect") return command;
             return {
               kind: command.kind,
@@ -574,8 +591,9 @@ test("warm retained newer tail survives two committed reply losses and Retry ope
       async () =>
         (await requests(page)).filter(
           (request) =>
-            request.kind === "dispatchInk" &&
-            request.command.edit.kind === "checkpoint",
+            request.kind === "execute" &&
+            request.operation.kind === "ink" &&
+            request.operation.command.edit.kind === "checkpoint",
         ).length,
     )
     .toBeGreaterThan(0);
@@ -597,24 +615,27 @@ test("warm retained newer tail survives two committed reply losses and Retry ope
   const all = await requests(page);
   const checkpoints = all.filter(
     (request) =>
-      (request.kind === "dispatchInk" || request.kind === "recoverInk") &&
-      request.command.edit.kind === "checkpoint",
+      (request.kind === "execute" || request.kind === "recoverInk") &&
+      request.operation.kind === "ink" &&
+      request.operation.command.edit.kind === "checkpoint",
   );
   expect(checkpoints).toHaveLength(2);
   if (
-    checkpoints[0]?.kind !== "dispatchInk" ||
+    checkpoints[0]?.kind !== "execute" ||
+    checkpoints[0].operation.kind !== "ink" ||
     checkpoints[1]?.kind !== "recoverInk"
   )
     throw Error("Checkpoint recovery missing");
-  expect(checkpoints[0].command).toEqual(checkpoints[1].command);
+  expect(checkpoints[0].operation).toEqual(checkpoints[1].operation);
   const tails = all.filter(
     (request) =>
-      request.kind === "recoverInk" && request.command.edit.kind === "finalize",
+      request.kind === "recoverInk" &&
+      request.operation.command.edit.kind === "finalize",
   );
   expect(tails).toHaveLength(2);
   if (tails[0]?.kind !== "recoverInk" || tails[1]?.kind !== "recoverInk")
     throw Error("Tail recovery missing");
-  expect(tails[0].command).toEqual(tails[1].command);
+  expect(tails[0].operation).toEqual(tails[1].operation);
   const first = (await latestDocuments(page))[0];
   expect(first?.strokes).toHaveLength(1);
   expect(first?.strokes[0]?.status).toBe("interrupted");
@@ -696,8 +717,9 @@ test("each phase survives a full browser process restart and cold committed capt
           async () =>
             (await requests(page)).filter(
               (request) =>
-                request.kind === "dispatchInk" &&
-                request.command.edit.kind === "checkpoint",
+                request.kind === "execute" &&
+                request.operation.kind === "ink" &&
+                request.operation.command.edit.kind === "checkpoint",
             ).length,
         )
         .toBeGreaterThan(0);
@@ -766,17 +788,18 @@ for (const fault of ["teaching-before-twice", "teaching-after-reconcile"]) {
     const all = await requests(page);
     const envelopes = all.filter(
       (request) =>
-        (request.kind === "dispatch" || request.kind === "recoverTeaching") &&
-        request.command.kind === "writingNavigate",
+        (request.kind === "execute" || request.kind === "recoverTeaching") &&
+        request.operation.kind === "teaching" &&
+        request.operation.command.kind === "writingNavigate",
     );
     const relevant = envelopes.slice(-3);
     expect(relevant).toHaveLength(3);
     const first = relevant[0];
-    if (!first || !("command" in first))
+    if (!first || !("operation" in first))
       throw Error("Teaching command missing");
     for (const request of relevant) {
-      if (!("command" in request)) throw Error("Teaching recovery missing");
-      expect(request.command).toEqual(first.command);
+      if (!("operation" in request)) throw Error("Teaching recovery missing");
+      expect(request.operation).toEqual(first.operation);
     }
     expect(
       all.filter((request) => request.kind === "recoverTeaching"),
@@ -802,21 +825,27 @@ for (const path of ["normal", "recovered teaching"]) {
       const selected = (await responses(page)).findLast(
         (response) => response.kind === "application",
       );
-      const selectedReceipt = (await responses(page)).findLast(
-        (response) => response.kind === "receipt",
-      );
+      const selectedReceipt = (await responses(page))
+        .flatMap((response) =>
+          (response.kind === "execution" &&
+            response.value.kind === "teaching") ||
+          response.kind === "teachingRecovery"
+            ? [response.value]
+            : [],
+        )
+        .at(-1);
       if (
         selected?.kind !== "application" ||
-        selected.value.kind !== "ready" ||
-        selected.value.projection.kind !== "writing" ||
-        selectedReceipt?.kind !== "receipt" ||
-        selectedReceipt.value.kind !== "committed"
+        selected.value.application.kind !== "ready" ||
+        selected.value.application.projection.kind !== "writing" ||
+        !selectedReceipt ||
+        selectedReceipt.result.kind !== "committed"
       )
         throw new Error("Committed writing selection missing");
       expect({
-        receiptRevision: selectedReceipt.value.revision,
-        profileRevision: selected.value.projection.profileRevision,
-        sessionRevision: selected.value.projection.revision,
+        receiptRevision: selectedReceipt.result.revision,
+        profileRevision: selected.value.application.projection.profileRevision,
+        sessionRevision: selected.value.application.projection.revision,
       }).toEqual({
         receiptRevision: "1",
         profileRevision: "1",
@@ -854,12 +883,14 @@ for (const path of ["normal", "recovered teaching"]) {
         "false",
       );
       const inkCount = (await requests(page)).filter(
-        (request) => request.kind === "dispatchInk",
+        (request) =>
+          request.kind === "execute" && request.operation.kind === "ink",
       ).length;
       await drawStroke(page, [{ x: 250, y: 120 }]);
       expect(
         (await requests(page)).filter(
-          (request) => request.kind === "dispatchInk",
+          (request) =>
+            request.kind === "execute" && request.operation.kind === "ink",
         ),
       ).toHaveLength(inkCount);
       await writingAction(page, "Retry save");
@@ -870,30 +901,40 @@ for (const path of ["normal", "recovered teaching"]) {
       );
       const relevant = (await requests(page)).filter(
         (request) =>
-          (request.kind === "dispatch" || request.kind === "recoverTeaching") &&
-          request.command.kind === "writingNavigate" &&
-          request.command.expectedRevision === "1",
+          (request.kind === "execute" || request.kind === "recoverTeaching") &&
+          request.operation.kind === "teaching" &&
+          request.operation.command.kind === "writingNavigate" &&
+          request.operation.command.expectedRevision === "1",
       );
       expect(relevant).toHaveLength(path === "normal" ? 2 : 3);
       const first = relevant[0];
-      if (!first || !("command" in first))
+      if (!first || !("operation" in first))
         throw new Error("Retained teaching command missing");
       for (const request of relevant) {
-        if (!("command" in request))
+        if (!("operation" in request))
           throw new Error("Teaching Retry command missing");
-        expect(request.command).toEqual(first.command);
+        expect(request.operation).toEqual(first.operation);
       }
       const committed = (await responses(page)).filter(
         (response) =>
-          response.kind === "receipt" &&
-          response.value.kind === "committed" &&
-          response.value.commandId === first.command.commandId,
+          ((response.kind === "execution" &&
+            response.value.kind === "teaching") ||
+            response.kind === "teachingRecovery") &&
+          response.value.result.kind === "committed" &&
+          response.value.result.commandId === first.operation.command.commandId,
       );
       expect(committed).toHaveLength(2);
       for (const response of committed) {
-        if (response.kind !== "receipt" || response.value.kind !== "committed")
+        if (
+          !(
+            (response.kind === "execution" &&
+              response.value.kind === "teaching") ||
+            response.kind === "teachingRecovery"
+          ) ||
+          response.value.result.kind !== "committed"
+        )
           throw new Error("Committed teaching receipt missing");
-        expect(response.value.revision).toBe("2");
+        expect(response.value.result.revision).toBe("2");
       }
       const after = await latestDocuments(page);
       expect(after.map((document) => document.token.documentId)).toEqual(
@@ -941,16 +982,18 @@ for (const path of ["normal", "recovered teaching"]) {
       );
       if (
         durable?.kind !== "application" ||
-        durable.value.kind !== "ready" ||
-        durable.value.projection.kind !== "writing"
+        durable.value.application.kind !== "ready" ||
+        durable.value.application.projection.kind !== "writing"
       )
         throw new Error("Reopened writing projection missing");
-      expect(durable.value.projection.revision).toBe(
+      expect(durable.value.application.projection.revision).toBe(
         restoration.kind === "recoveredActive" ? "2" : "4",
       );
-      const reopenedCommands = (await requests(page))
-        .filter((request) => request.kind === "dispatch")
-        .map((request) => request.command);
+      const reopenedCommands = (await requests(page)).flatMap((request) =>
+        request.kind === "execute" && request.operation.kind === "teaching"
+          ? [request.operation.command]
+          : [],
+      );
       if (restoration.kind === "recoveredActive") {
         expect(reopenedCommands).toEqual([]);
       } else {
@@ -960,34 +1003,36 @@ for (const path of ["normal", "recovered teaching"]) {
         expect(paused).toMatchObject({
           kind: "application",
           value: {
-            kind: "ready",
-            witness: { selectedSessionRevision: "3" },
-            projection: {
-              kind: "writing",
-              sessionStatus: "paused",
-              sessionId: selected.value.projection.sessionId,
-              runId: selected.value.projection.runId,
-              revision: "3",
-              checkpointId: durable.value.projection.checkpointId,
-              turn: { id: "fixture.graph.l01.t06.m-tracing" },
+            application: {
+              kind: "ready",
+              witness: { selectedSessionRevision: "3" },
+              projection: {
+                kind: "writing",
+                sessionStatus: "paused",
+                sessionId: selected.value.application.projection.sessionId,
+                runId: selected.value.application.projection.runId,
+                revision: "3",
+                checkpointId: durable.value.application.projection.checkpointId,
+                turn: { id: "fixture.graph.l01.t06.m-tracing" },
+              },
             },
           },
         });
         expect(reopenedCommands).toHaveLength(1);
         expect(reopenedCommands[0]).toMatchObject({
           kind: "writingSelect",
-          owner: selected.value.projection.owner,
+          owner: selected.value.application.projection.owner,
           scope: {
             kind: "profile",
-            id: selected.value.projection.owner.profileId,
-            generation: selected.value.projection.owner.generation,
+            id: selected.value.application.projection.owner.profileId,
+            generation: selected.value.application.projection.owner.generation,
           },
           expectedRevision: "1",
           payload: {
-            packageHash: selected.value.projection.packageHash,
+            packageHash: selected.value.application.projection.packageHash,
             intent: "resume",
             taskId: "fixture.graph.l01.t06",
-            sessionId: selected.value.projection.sessionId,
+            sessionId: selected.value.application.projection.sessionId,
           },
         });
       }
@@ -1040,15 +1085,18 @@ test("DPR reconstruction changes only pixels and stale document epochs cannot ap
     if (!committed) throw Error("Committed document missing");
     const old = (await requests(page)).find(
       (request) =>
-        request.kind === "dispatchInk" && request.command.edit.kind === "begin",
+        request.kind === "execute" &&
+        request.operation.kind === "ink" &&
+        request.operation.command.edit.kind === "begin",
     );
-    if (!old || old.kind !== "dispatchInk")
+    if (!old || old.kind !== "execute" || old.operation.kind !== "ink")
       throw Error("Old ink token missing");
     const stale = await prepareInkCommand({
-      token: old.command.token,
+      token: old.operation.command.token,
       edit: {
-        ...old.command.edit,
-        strokeId: committed.strokes[0]?.strokeId ?? old.command.edit.strokeId,
+        ...old.operation.command.edit,
+        strokeId:
+          committed.strokes[0]?.strokeId ?? old.operation.command.edit.strokeId,
       },
       ids: () => crypto.randomUUID(),
       hash: async (text) => {
@@ -1061,20 +1109,28 @@ test("DPR reconstruction changes only pixels and stale document epochs cannot ap
         ).join("");
       },
     });
-    const response: unknown = await page.evaluate((command) => {
-      if (
-        "injectWritingCommand" in window &&
-        typeof window.injectWritingCommand === "function"
-      )
-        return window.injectWritingCommand(command);
-      throw new Error("Writing probe missing");
-    }, stale);
+    const response: unknown = await page.evaluate(
+      (operation) => {
+        if (
+          "injectWritingOperation" in window &&
+          typeof window.injectWritingOperation === "function"
+        )
+          return window.injectWritingOperation(operation);
+        throw new Error("Writing probe missing");
+      },
+      { ...old.operation, command: stale },
+    );
     expect(response).toMatchObject({
-      kind: "inkReceipt",
-      value: { kind: "rejected" },
+      kind: "execution",
+      value: {
+        kind: "ink",
+        selection: old.operation.selection,
+        result: { kind: "rejected" },
+      },
     });
     const before = (await requests(page)).filter(
-      (request) => request.kind === "dispatchInk",
+      (request) =>
+        request.kind === "execute" && request.operation.kind === "ink",
     ).length;
     await page.setViewportSize({ width: 900, height: 600 });
     await expect
@@ -1088,7 +1144,8 @@ test("DPR reconstruction changes only pixels and stale document epochs cannot ap
       .toBe(1452);
     expect(
       (await requests(page)).filter(
-        (request) => request.kind === "dispatchInk",
+        (request) =>
+          request.kind === "execute" && request.operation.kind === "ink",
       ),
     ).toHaveLength(before);
     await reloadSavedTurn({ page, turnId: "fixture.graph.l01.t06.m-tracing" });
@@ -1115,7 +1172,8 @@ test("a parent action fences before its pending finalize and Retry preserves tha
     .poll(() => page.evaluate("window.hasHeldWritingWrite()"))
     .toBe(true);
   const before = (await requests(page)).filter(
-    (request) => request.kind === "dispatch",
+    (request) =>
+      request.kind === "execute" && request.operation.kind === "teaching",
   ).length;
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(page.locator("main")).toHaveAttribute("aria-busy", "true");
@@ -1125,26 +1183,35 @@ test("a parent action fences before its pending finalize and Retry preserves tha
     page.getByRole("button", { name: "Retry save", exact: true }),
   ).toBeVisible();
   expect(
-    (await requests(page)).filter((request) => request.kind === "dispatch"),
+    (await requests(page)).filter(
+      (request) =>
+        request.kind === "execute" && request.operation.kind === "teaching",
+    ),
   ).toHaveLength(before);
   await writingAction(page, "Retry save");
   await atWriting(page, "m-tracing");
   const all = await requests(page);
-  expect(all.filter((request) => request.kind === "dispatch")).toHaveLength(
-    before + 1,
-  );
+  expect(
+    all.filter(
+      (request) =>
+        request.kind === "execute" && request.operation.kind === "teaching",
+    ),
+  ).toHaveLength(before + 1);
   const finalizes = all.filter(
     (request) =>
-      request.kind === "dispatchInk" &&
-      request.command.edit.kind === "finalize",
+      request.kind === "execute" &&
+      request.operation.kind === "ink" &&
+      request.operation.command.edit.kind === "finalize",
   );
   expect(finalizes).toHaveLength(2);
   if (
-    finalizes[0]?.kind !== "dispatchInk" ||
-    finalizes[1]?.kind !== "dispatchInk"
+    finalizes[0]?.kind !== "execute" ||
+    finalizes[0].operation.kind !== "ink" ||
+    finalizes[1]?.kind !== "execute" ||
+    finalizes[1].operation.kind !== "ink"
   )
     throw Error("Finalize Retry missing");
-  expect(finalizes[0].command).toEqual(finalizes[1].command);
+  expect(finalizes[0].operation).toEqual(finalizes[1].operation);
   expect((await latestDocuments(page))[0]?.strokes).toHaveLength(1);
 });
 
@@ -1155,13 +1222,18 @@ test("task selection uses closed exact Retry, Resume keeps documents and Replay 
   await startWriting(page);
   const originalSelection = (await requests(page)).find(
     (request) =>
-      request.kind === "dispatch" &&
-      (request.command.kind === "select" ||
-        request.command.kind === "writingSelect") &&
-      request.command.payload.taskId === "fixture.graph.l01.t06" &&
-      request.command.payload.intent === "start",
+      request.kind === "execute" &&
+      request.operation.kind === "teaching" &&
+      (request.operation.command.kind === "select" ||
+        request.operation.command.kind === "writingSelect") &&
+      request.operation.command.payload.taskId === "fixture.graph.l01.t06" &&
+      request.operation.command.payload.intent === "start",
   );
-  if (!originalSelection || originalSelection.kind !== "dispatch")
+  if (
+    !originalSelection ||
+    originalSelection.kind !== "execute" ||
+    originalSelection.operation.kind !== "teaching"
+  )
     throw new Error("Original Task 6 selection missing");
   await writingAction(page);
   await drawPractice(page);
@@ -1189,21 +1261,27 @@ test("task selection uses closed exact Retry, Resume keeps documents and Replay 
   const selectedProjection = (await responses(page)).findLast(
     (response) => response.kind === "application",
   );
-  const selectedReceipt = (await responses(page)).findLast(
-    (response) => response.kind === "receipt",
-  );
+  const selectedReceipt = (await responses(page))
+    .flatMap((response) =>
+      (response.kind === "execution" && response.value.kind === "teaching") ||
+      response.kind === "teachingRecovery"
+        ? [response.value]
+        : [],
+    )
+    .at(-1);
   if (
     selectedProjection?.kind !== "application" ||
-    selectedProjection.value.kind !== "ready" ||
-    selectedProjection.value.projection.kind !== "teaching" ||
-    selectedReceipt?.kind !== "receipt" ||
-    selectedReceipt.value.kind !== "committed"
+    selectedProjection.value.application.kind !== "ready" ||
+    selectedProjection.value.application.projection.kind !== "teaching" ||
+    !selectedReceipt ||
+    selectedReceipt.result.kind !== "committed"
   )
     throw new Error("Committed task selection missing");
   expect({
-    receiptRevision: selectedReceipt.value.revision,
-    profileRevision: selectedProjection.value.projection.profileRevision,
-    sessionRevision: selectedProjection.value.projection.revision,
+    receiptRevision: selectedReceipt.result.revision,
+    profileRevision:
+      selectedProjection.value.application.projection.profileRevision,
+    sessionRevision: selectedProjection.value.application.projection.revision,
   }).toEqual({
     receiptRevision: "2",
     profileRevision: "2",
@@ -1235,28 +1313,30 @@ test("task selection uses closed exact Retry, Resume keeps documents and Replay 
   );
   const selected = (await requests(page)).filter(
     (request) =>
-      (request.kind === "dispatch" || request.kind === "recoverTeaching") &&
-      request.command.kind === "writingSelect" &&
-      request.command.payload.taskId === "fixture.graph.l01.t02",
+      (request.kind === "execute" || request.kind === "recoverTeaching") &&
+      request.operation.kind === "teaching" &&
+      request.operation.command.kind === "writingSelect" &&
+      request.operation.command.payload.taskId === "fixture.graph.l01.t02",
   );
   expect(selected).toHaveLength(3);
-  if (!selected[0] || !("command" in selected[0]))
+  if (!selected[0] || !("operation" in selected[0]))
     throw Error("Writing selection missing");
-  expect(selected[0].command.commandId).not.toBe(
-    originalSelection.command.commandId,
+  expect(selected[0].operation.command.commandId).not.toBe(
+    originalSelection.operation.command.commandId,
   );
   expect(selected.map((request) => request.kind)).toEqual([
-    "dispatch",
+    "execute",
     "recoverTeaching",
     "recoverTeaching",
   ]);
-  expect(selected[0].command).toMatchObject({
+  expect(selected[0].operation.command).toMatchObject({
     kind: "writingSelect",
-    owner: selectedProjection.value.projection.owner,
+    owner: selectedProjection.value.application.projection.owner,
     scope: {
       kind: "profile",
-      id: selectedProjection.value.projection.owner.profileId,
-      generation: selectedProjection.value.projection.owner.generation,
+      id: selectedProjection.value.application.projection.owner.profileId,
+      generation:
+        selectedProjection.value.application.projection.owner.generation,
     },
     expectedRevision: "1",
     payload: {
@@ -1266,8 +1346,8 @@ test("task selection uses closed exact Retry, Resume keeps documents and Replay 
     },
   });
   for (const request of selected) {
-    if (!("command" in request)) throw Error("Selection envelope missing");
-    expect(request.command).toEqual(selected[0].command);
+    if (!("operation" in request)) throw Error("Selection envelope missing");
+    expect(request.operation).toEqual(selected[0].operation);
   }
 });
 
@@ -1381,11 +1461,16 @@ for (const loseAfterDetach of [false, true]) {
     const pending = (await requests(page))
       .filter(
         (request) =>
-          request.kind === "dispatch" &&
-          request.command.kind === "writingNavigate",
+          request.kind === "execute" &&
+          request.operation.kind === "teaching" &&
+          request.operation.command.kind === "writingNavigate",
       )
       .at(-1);
-    if (!pending || pending.kind !== "dispatch")
+    if (
+      !pending ||
+      pending.kind !== "execute" ||
+      pending.operation.kind !== "teaching"
+    )
       throw new Error("Pending acceptance missing");
     const openings = (await requests(page)).filter(
       (request) => request.kind === "openRecovery",
@@ -1402,9 +1487,12 @@ for (const loseAfterDetach of [false, true]) {
         async () =>
           (await responses(page)).filter(
             (response) =>
-              response.kind === "receipt" &&
-              response.value.kind === "committed" &&
-              response.value.commandId === pending.command.commandId,
+              ((response.kind === "execution" &&
+                response.value.kind === "teaching") ||
+                response.kind === "teachingRecovery") &&
+              response.value.result.kind === "committed" &&
+              response.value.result.commandId ===
+                pending.operation.command.commandId,
           ).length,
       )
       .toBe(1);
@@ -1435,9 +1523,11 @@ for (const loseAfterDetach of [false, true]) {
       expect(
         (await requests(page)).filter(
           (request) =>
-            (request.kind === "dispatch" ||
+            (request.kind === "execute" ||
               request.kind === "recoverTeaching") &&
-            request.command.commandId === pending.command.commandId,
+            request.operation.kind === "teaching" &&
+            request.operation.command.commandId ===
+              pending.operation.command.commandId,
         ),
       ).toHaveLength(1);
       await writingAction(page, "Retry save");
@@ -1450,20 +1540,21 @@ for (const loseAfterDetach of [false, true]) {
       .filter(
         (response) =>
           response.kind === "application" &&
-          response.value.kind === "ready" &&
-          response.value.projection.kind === "writing",
+          response.value.application.kind === "ready" &&
+          response.value.application.projection.kind === "writing",
       )
       .at(-1);
     if (
       !committed ||
       committed.kind !== "application" ||
-      committed.value.kind !== "ready"
+      committed.value.application.kind !== "ready"
     )
       throw new Error("Committed read missing");
     expect(selected).toEqual({
-      courseId: committed.value.courseId,
-      projection: committed.value.projection,
-      application: committed.value,
+      courseId: committed.value.application.courseId,
+      projection: committed.value.application.projection,
+      directory: committed.value.directory,
+      application: committed.value.application,
     });
     expect(
       (await requests(page)).filter(
@@ -1472,20 +1563,24 @@ for (const loseAfterDetach of [false, true]) {
     ).toHaveLength(openings + (loseAfterDetach ? 1 : 0));
     const deliveries = (await requests(page)).filter(
       (request) =>
-        (request.kind === "dispatch" || request.kind === "recoverTeaching") &&
-        request.command.commandId === pending.command.commandId,
+        (request.kind === "execute" || request.kind === "recoverTeaching") &&
+        request.operation.kind === "teaching" &&
+        request.operation.command.commandId ===
+          pending.operation.command.commandId,
     );
     expect(deliveries).toHaveLength(loseAfterDetach ? 2 : 1);
     for (const delivery of deliveries) {
-      if (!("command" in delivery))
+      if (!("operation" in delivery))
         throw new Error("Teaching delivery missing");
-      expect(delivery.command).toEqual(pending.command);
+      expect(delivery.operation).toEqual(pending.operation);
     }
     expect(
       (await requests(page)).filter(
         (request) =>
-          request.kind === "dispatch" &&
-          request.command.commandId === pending.command.commandId,
+          request.kind === "execute" &&
+          request.operation.kind === "teaching" &&
+          request.operation.command.commandId ===
+            pending.operation.command.commandId,
       ),
     ).toHaveLength(1);
     const restored = (await latestDocuments(page))[0];

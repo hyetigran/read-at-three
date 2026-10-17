@@ -262,64 +262,27 @@ test("real OPFS initialization failure preserves every saved pool byte and permi
 test("lost reply after real COMMIT keeps the old screen and retries the identical acceptance once", async ({
   page,
 }) => {
-  await page.addInitScript(() => {
+  await page.addInitScript(`
     const NativeWorker = window.Worker;
     let dropped = false;
     window.Worker = class extends NativeWorker {
-      private advanceRequestId: string | undefined;
-      constructor(url: string | URL, options?: WorkerOptions) {
+      constructor(url, options) {
         super(url, options);
-        this.addEventListener("message", (event: MessageEvent<unknown>) => {
+        this.addEventListener('message', event => {
           const data = event.data;
-          if (
-            !dropped &&
-            typeof data === "object" &&
-            data !== null &&
-            "id" in data &&
-            data.id === this.advanceRequestId &&
-            "kind" in data &&
-            data.kind === "receipt" &&
-            "value" in data &&
-            typeof data.value === "object" &&
-            data.value !== null &&
-            "kind" in data.value &&
-            data.value.kind === "committed"
-          ) {
+          if (!dropped && data?.id === this.advanceRequestId && data?.kind === 'execution' && data.value.kind === 'teaching' && data.value.result.kind === 'committed') {
             dropped = true;
             event.stopImmediatePropagation();
-            queueMicrotask(() =>
-              this.dispatchEvent(
-                new ErrorEvent("error", {
-                  message: "Injected reply loss after real commit",
-                }),
-              ),
-            );
+            queueMicrotask(() => this.dispatchEvent(new ErrorEvent('error', { message: 'Injected reply loss after real commit' })));
           }
         });
       }
-      override postMessage(
-        message: unknown,
-        options?: Transferable[] | StructuredSerializeOptions,
-      ): void {
-        if (
-          typeof message === "object" &&
-          message !== null &&
-          "kind" in message &&
-          message.kind === "dispatch" &&
-          "id" in message &&
-          typeof message.id === "string" &&
-          "command" in message &&
-          typeof message.command === "object" &&
-          message.command !== null &&
-          "kind" in message.command &&
-          message.command.kind === "advance"
-        )
-          this.advanceRequestId = message.id;
-        if (Array.isArray(options)) super.postMessage(message, options);
-        else super.postMessage(message, options);
+      postMessage(message, options) {
+        if (message?.kind === 'execute' && message.operation.kind === 'teaching' && message.operation.command.kind === 'advance') this.advanceRequestId = message.id;
+        super.postMessage(message, options);
       }
     };
-  });
+  `);
   await start(page);
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(
@@ -375,66 +338,29 @@ test("minimum teaching window keeps source guidance and controls reachable", asy
 test("recovery after committed acceptance replaces stale teaching and reopens the saved turn", async ({
   page,
 }) => {
-  await page.addInitScript(() => {
+  await page.addInitScript(`
     const NativeWorker = window.Worker;
     let committedAdvance = false;
     let injected = false;
     window.Worker = class extends NativeWorker {
-      private advanceId: string | undefined;
-      constructor(url: string | URL, options?: WorkerOptions) {
+      constructor(url, options) {
         super(url, options);
-        this.addEventListener("message", (event: MessageEvent<unknown>) => {
+        this.addEventListener('message', event => {
           const data = event.data;
-          if (
-            typeof data !== "object" ||
-            data === null ||
-            !("id" in data) ||
-            !("kind" in data)
-          )
-            return;
-          if (data.id === this.advanceId && data.kind === "receipt")
-            committedAdvance = true;
-          if (!injected && committedAdvance && data.kind === "application") {
+          if (data?.id === this.advanceId && data?.kind === 'execution' && data.value.kind === 'teaching' && data.value.result.kind === 'committed') committedAdvance = true;
+          if (!injected && committedAdvance && data?.kind === 'application') {
             injected = true;
             event.stopImmediatePropagation();
-            this.dispatchEvent(
-              new MessageEvent("message", {
-                data: {
-                  ...data,
-                  value: {
-                    kind: "recovery",
-                    code: "storage-recovery",
-                    message: "Fixture recovery after saved acceptance.",
-                  },
-                },
-              }),
-            );
+            this.dispatchEvent(new MessageEvent('message', { data: { ...data, value: { ...data.value, application: { kind: 'recovery', code: 'storage-recovery', message: 'Fixture recovery after saved acceptance.' } } } }));
           }
         });
       }
-      override postMessage(
-        message: unknown,
-        options?: Transferable[] | StructuredSerializeOptions,
-      ): void {
-        if (
-          typeof message === "object" &&
-          message !== null &&
-          "id" in message &&
-          typeof message.id === "string" &&
-          "kind" in message &&
-          message.kind === "dispatch" &&
-          "command" in message &&
-          typeof message.command === "object" &&
-          message.command !== null &&
-          "kind" in message.command &&
-          message.command.kind === "advance"
-        )
-          this.advanceId = message.id;
-        if (Array.isArray(options)) super.postMessage(message, options);
-        else super.postMessage(message, options);
+      postMessage(message, options) {
+        if (message?.kind === 'execute' && message.operation.kind === 'teaching' && message.operation.command.kind === 'advance') this.advanceId = message.id;
+        super.postMessage(message, options);
       }
     };
-  });
+  `);
   await start(page);
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(

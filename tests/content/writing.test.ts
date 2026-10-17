@@ -1,3 +1,9 @@
+import {
+  executeTeaching,
+  prepareSelectedTeaching,
+  selectedProjection,
+} from "../storage/selected-support.ts";
+
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -323,22 +329,25 @@ test("actual cumulative writing fixture activation preserves five bodies, pinned
   assert.deepEqual(candidate.body.tasks.slice(0, 5), previous.body.tasks);
   assert.deepEqual(candidate.body.lessonTasks, previous.body.lessonTasks);
   const f = await storageFixture(t, previous);
-  const first = f.connect();
-  const ready = await first.app.open();
+  const first = await f.connectReady();
+  const ready = await selectedProjection(first.app);
   if (ready.kind === "recovery") throw new Error(ready.message);
   const action = ready.actions.find((action) => action.intent.kind === "start");
   assert.ok(action);
-  await first.app.dispatch(
-    await prepareCommand({
-      projection: ready,
-      request: { kind: "action", action },
-      ids: f.ids,
-      hash,
-    }),
+  await executeTeaching(
+    first.app,
+    await prepareSelectedTeaching(first.app, async () =>
+      prepareCommand({
+        projection: ready,
+        request: { kind: "action", action },
+        ids: f.ids,
+        hash,
+      }),
+    ),
   );
-  const before = await first.app.read();
-  const upgraded = f.connect({ content: candidate });
-  const after = await upgraded.app.open();
+  const before = await selectedProjection(first.app);
+  const upgraded = await f.connectReady({ content: candidate });
+  const after = await selectedProjection(upgraded.app);
   assert.ok(before.kind === "teaching" && after.kind === "teaching");
   assert.equal(after.packageHash, previous.packageHash);
   assert.equal(after.runId, before.runId);

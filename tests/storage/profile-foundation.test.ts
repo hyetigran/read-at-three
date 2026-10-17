@@ -1,3 +1,5 @@
+import { selectedCourse, selectedProjection } from "./selected-support.ts";
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createHash } from "node:crypto";
@@ -17,7 +19,7 @@ test("a fresh directory persists one anonymous selected child and requires the s
   const first = fixture.connect({
     preparation: { kind: "reviewed", hash: preparationHash },
   });
-  assert.equal((await first.app.open()).kind, "entry");
+  assert.equal((await selectedProjection(first.app)).kind, "entry");
   const directory = await first.app.readDirectory();
   assert.deepEqual(directory, {
     administration: { installationId: "graph-store-1", revision: "0" },
@@ -47,7 +49,7 @@ test("a fresh directory persists one anonymous selected child and requires the s
     preparation: { kind: "reviewed", hash: preparationHash },
   });
   assert.deepEqual(await reopened.app.readDirectory(), directory);
-  assert.equal((await reopened.app.open()).kind, "entry");
+  assert.equal((await selectedProjection(reopened.app)).kind, "entry");
   assert.equal(
     reopened.db.prepare("SELECT database_version FROM installation").get()
       ?.database_version,
@@ -222,7 +224,7 @@ test("constructed multi-child V7 migration keeps the lexicographic owner and act
   first.db.close();
   const reopened = fixture.connect();
   assert.deepEqual(await reopened.app.readDirectory(), directory);
-  const application = await reopened.app.readApplication({ kind: "cursor" });
+  const application = await selectedCourse(reopened.app, { kind: "cursor" });
   if (application.kind !== "ready") assert.fail(application.message);
   assert.deepEqual(application.projection.owner, {
     profileId: "a-child",

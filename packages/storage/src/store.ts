@@ -32,6 +32,14 @@ import {
   parseRecoveryInventory,
   parseProfileAdministrationCommand,
   profileAdministrationPreimage,
+  dispatchTeachingInTransaction,
+  parseSelectedOperation,
+  recoveryResult,
+  parseSelectedRecoveryOpening,
+  parseSelectedRecoveryInventory,
+  parseSelectedOwnerWitness,
+  parseCurrentApplicationRead,
+  RetiredSelectionError,
 } from "../../teaching/src/index.ts";
 import type {
   CommitReceipt,
@@ -53,6 +61,7 @@ import type {
   RecoveryInventory,
   RecoveryTeaching,
   InkResult,
+  InkReceipt,
   StrokeId,
   CourseApplication,
   CourseReadTarget,
@@ -64,6 +73,13 @@ import type {
   DepartureWitness,
   SelectedOwnerWitness,
   CommandRejection,
+  SelectedApplication,
+  SelectedRecoveryOpening,
+  ProfileDirectory,
+  ProfileAdministrationCommand,
+  ProfileAdministrationReceipt,
+  CommandResult,
+  RecoveryResult,
 } from "../../teaching/src/index.ts";
 import { sqlValues } from "./executor.ts";
 import type { SqlExecutor } from "./executor.ts";
@@ -110,16 +126,14 @@ export function createTeachingApplication({
   content,
   ids,
   hash,
-  owner: selectedOwner,
   preparation = { kind: "unavailable" },
 }: {
-  owner?: Owner;
   executor: SqlExecutor;
   content: RuntimePackage;
   ids: IdFactory;
   hash: HashFunction;
   preparation?: PreparationPolicy;
-}): WritingApplication & CourseApplication & ProfileAdministrationApplication {
+}): SelectedApplication {
   const db = drizzle(async (sql, parameters, method) => {
     if (method === "get")
       throw new Error("Repository must use array-row reads");
@@ -132,10 +146,6 @@ export function createTeachingApplication({
     tail = next.catch(() => undefined);
     return next;
   }
-  const matchesBoundOwner = (owner: Owner) =>
-    !selectedOwner ||
-    (owner.profileId === selectedOwner.profileId &&
-      owner.generation === selectedOwner.generation);
   const verified = new Map<PackageHash, RuntimePackage>();
   async function warmPackages() {
     verified.clear();
@@ -246,6 +256,7 @@ export function createTeachingApplication({
         );
   }
   let initialization: Promise<ReturnType<typeof createCoordinator>> | undefined;
+  let schemaInitialized = false;
   function ensureInitialized() {
     initialization ??= (async () => {
       content = await parseRuntimePackage(content, hash);
@@ -319,22 +330,6 @@ export function createTeachingApplication({
       await warmPackages();
       await transaction(executor, async () => {
         const installations = await db.select().from(schema.installation).all();
-        if (selectedOwner) {
-          const existing = (
-            await db
-              .select()
-              .from(schema.profile)
-              .where(
-                and(
-                  eq(schema.profile.id, selectedOwner.profileId),
-                  eq(schema.profile.generation, selectedOwner.generation),
-                ),
-              )
-              .all()
-          )[0];
-          if (!existing)
-            throw new Error("Selected profile generation is unavailable");
-        }
         if (!installations.length) {
           const installationId = parseId({
             kind: "installation",
@@ -476,9 +471,10 @@ export function createTeachingApplication({
         }
       });
       await warmPackages();
+      await profileDirectory.read();
+      schemaInitialized = true;
       await validateOwners();
       await ink.inventory();
-      await profileDirectory.read();
       return createCoordinator({ store, ids, hash });
     })();
     return initialization;
@@ -1054,8 +1050,7 @@ export function createTeachingApplication({
   });
   const repositories: TeachingTransaction = {
     writingBarrier: ink.barrier,
-    context: (owner) =>
-      matchesBoundOwner(owner) ? context(owner) : Promise.resolve(null),
+    context: (owner) => context(owner),
     receipt,
     ensurePackage,
     async select({
@@ -1535,15 +1530,10 @@ export function createTeachingApplication({
           .select()
           .from(schema.profile)
           .where(
-            selectedOwner
-              ? and(
-                  eq(schema.profile.id, selectedOwner.profileId),
-                  eq(schema.profile.generation, selectedOwner.generation),
-                )
-              : eq(
-                  schema.profile.id,
-                  (await profileDirectory.selected()).profileId,
-                ),
+            eq(
+              schema.profile.id,
+              (await profileDirectory.selected()).profileId,
+            ),
           )
           .orderBy(asc(schema.profile.id))
           .all()
@@ -1629,23 +1619,127 @@ export function createTeachingApplication({
       };
     }
   }
-  let recovery:
-    | { kind: "unopened" }
-    | { kind: "ready" }
-    | {
-        kind: "closed";
-        id: string;
-        opening: RecoveryOpening;
-        teaching:
-          | RecoveryTeaching
-          | {
-              kind: "resolved";
-              commandId: import("../../teaching/src/index.ts").CommandId;
-              payloadHash: import("../../teaching/src/index.ts").PayloadHash;
-            };
-      } = {
+  type ClosedRecovery = {
+    kind: "closed";
+    id: string;
+    opening: SelectedRecoveryOpening;
+    phase: "ink" | "teaching" | "administration" | "finalize";
+    settled: Set<StrokeId>;
+  };
+  let recovery: { kind: "unopened" } | { kind: "ready" } | ClosedRecovery = {
     kind: "unopened",
   };
+  function afterInk(opening: SelectedRecoveryOpening): ClosedRecovery["phase"] {
+    return opening.kind === "warm" && opening.teaching
+      ? "teaching"
+      : afterTeaching(opening);
+  }
+  function afterTeaching(
+    opening: SelectedRecoveryOpening,
+  ): ClosedRecovery["phase"] {
+    return opening.kind === "warm" && opening.administration
+      ? "administration"
+      : "finalize";
+  }
+  const rejectOperation = (
+    code: string,
+    message: string,
+  ): CommandRejection => ({ kind: "rejected", code, message });
+  async function resolveTeachingReceipt(command: TeachingCommand) {
+    if (
+      (await hash(
+        canonical({ kind: command.kind, payload: command.payload }),
+      )) !== command.payloadHash
+    )
+      return rejectOperation(
+        "payload-hash",
+        "Command payload hash does not match.",
+      );
+    const value = pinned(command.payload.packageHash);
+    const current = await context(command.owner, value.body.courseId);
+    if (!current || command.scope.generation !== command.owner.generation)
+      return rejectOperation(
+        "stale-owner",
+        "Retained command owner is unavailable.",
+      );
+    if (
+      (command.scope.kind === "profile" &&
+        command.scope.id !== command.owner.profileId) ||
+      (command.scope.kind === "session" &&
+        !current.ownedSessionIds.includes(command.scope.id))
+    )
+      return rejectOperation(
+        "wrong-scope",
+        "Retained command scope is unavailable.",
+      );
+    const saved = (
+      await db
+        .select()
+        .from(schema.commandReceipt)
+        .where(
+          and(
+            eq(schema.commandReceipt.scopeKind, command.scope.kind),
+            eq(schema.commandReceipt.scopeId, command.scope.id),
+            eq(schema.commandReceipt.scopeGeneration, command.scope.generation),
+            eq(schema.commandReceipt.commandId, command.commandId),
+          ),
+        )
+        .all()
+    )[0];
+    if (!saved) return null;
+    if (saved.payloadHash !== command.payloadHash)
+      return rejectOperation(
+        "command-identity",
+        "Retained command identity changed.",
+      );
+    const retained = await receipt(command);
+    if (
+      !retained ||
+      Number(saved.resultVersion) !== 1 ||
+      saved.expectedRevision !== command.expectedRevision ||
+      saved.resultingRevision !== increment(command.expectedRevision) ||
+      retained.result.packageHash !== command.payload.packageHash ||
+      saved.result !== canonical(retained.result)
+    )
+      throw new Error(
+        "Retained teaching receipt does not prove this exact command",
+      );
+    const run = (
+      await db
+        .select()
+        .from(schema.taskRunV6)
+        .where(eq(schema.taskRun.runId, retained.result.runId))
+        .all()
+    )[0];
+    if (
+      !run ||
+      run.sessionId !== retained.result.sessionId ||
+      run.profileId !== command.owner.profileId ||
+      run.generation !== command.owner.generation ||
+      run.packageHash !== command.payload.packageHash
+    )
+      throw new Error("Retained teaching receipt run is unavailable");
+    if (command.kind === "start") {
+      if (
+        value.body.coverage !== "partial-first-m" ||
+        run.taskId !== value.body.taskId
+      )
+        throw new Error("Retained teaching receipt task changed");
+    } else if (command.kind === "select" || command.kind === "writingSelect") {
+      if (
+        run.taskId !== command.payload.taskId ||
+        (command.payload.intent === "resume" &&
+          retained.result.sessionId !== command.payload.sessionId)
+      )
+        throw new Error("Retained teaching receipt selection changed");
+    } else if (
+      retained.result.sessionId !== command.payload.sessionId ||
+      retained.result.runId !== command.payload.runId
+    ) {
+      throw new Error("Retained teaching receipt delivery changed");
+    }
+    return retained.result;
+  }
   const recoveryProjection = (): Extract<
     CommittedProjection,
     { kind: "recovery" }
@@ -1662,25 +1756,89 @@ export function createTeachingApplication({
     }
     return recovery.kind === "ready";
   }
-  async function normalRead() {
+  async function discoverDirectory(): Promise<ProfileDirectory> {
     try {
-      if (!(await ready())) return recoveryProjection();
-      return read();
-    } catch {
-      return {
-        kind: "recovery",
-        code: "storage-recovery",
-        message:
-          "Saved storage could not be verified. Recover this installation before continuing.",
-      } satisfies CommittedProjection;
+      await ensureInitialized();
+    } catch (error) {
+      if (!schemaInitialized) throw error;
     }
+    return profileDirectory.read();
+  }
+  async function requireSelection(
+    input: SelectedOwnerWitness,
+  ): Promise<ProfileDirectory> {
+    const selection = parseSelectedOwnerWitness(input);
+    const directory = await discoverDirectory();
+    if (canonical(selection) !== canonical(directory.selection))
+      throw new RetiredSelectionError();
+    return directory;
   }
   return {
-    readDirectory: () =>
+    execute: (input) =>
       exclusive(async () => {
-        await ensureInitialized();
-        return profileDirectory.read();
+        const operation = parseSelectedOperation(input);
+        const available = await ready();
+        await warmPackages();
+        return transaction(executor, async () => {
+          const directory = await profileDirectory.read();
+          const selection = directory.selection;
+          let rejection: CommandRejection | null = null;
+          if (!available)
+            rejection = {
+              kind: "rejected",
+              code: "recovery-closed",
+              message: "Writing recovery must finish before teaching.",
+            };
+          else if (canonical(selection) !== canonical(operation.selection))
+            rejection = {
+              kind: "rejected",
+              code: "stale-selection",
+              message: "The selected child lifetime changed.",
+            };
+          else {
+            const owner =
+              operation.kind === "teaching"
+                ? operation.command.owner
+                : operation.command.token;
+            if (
+              owner.profileId !== selection.owner.profileId ||
+              owner.generation !== selection.owner.generation
+            )
+              rejection = {
+                kind: "rejected",
+                code: "stale-owner",
+                message: "The operation belongs to another child.",
+              };
+            else if (directory.initialSetup.kind === "firstLaunch")
+              rejection = {
+                kind: "rejected",
+                code: "initial-setup-required",
+                message:
+                  "Confirm parent preparation and the initial child before teaching.",
+              };
+          }
+          if (operation.kind === "teaching")
+            return {
+              kind: operation.kind,
+              selection,
+              result:
+                rejection ??
+                (await dispatchTeachingInTransaction({
+                  input: operation.command,
+                  tx: repositories,
+                  store,
+                  ids,
+                  hash,
+                })),
+            };
+          return {
+            kind: operation.kind,
+            selection,
+            result: rejection ?? (await ink.dispatch(operation.command)),
+          };
+        });
       }),
+    readDirectory: () => exclusive(discoverDirectory),
     readDeparture: (input) =>
       exclusive(async () => {
         if (!(await ready()))
@@ -1709,39 +1867,29 @@ export function createTeachingApplication({
           profileDirectory.administer({ command, depart: departProfile }),
         );
       }),
-    open: () => exclusive(normalRead),
-    read: () => exclusive(normalRead),
-    readApplication: (target) =>
+    readApplication: (input) =>
       exclusive(async () => {
+        const directory = await requireSelection(input.selection);
         try {
-          if (!(await ready())) return recoveryProjection();
-          return parseApplicationRead(
-            await (await ensureInitialized()).readApplication(target),
-          );
+          const application = !(await ready())
+            ? recoveryProjection()
+            : parseApplicationRead(
+                await (await ensureInitialized()).readApplication(input.target),
+              );
+          return parseCurrentApplicationRead({ directory, application });
         } catch {
-          return {
-            kind: "recovery",
-            code: "storage-recovery",
-            message:
-              "Saved storage could not be verified. Recover this installation before continuing.",
-          };
+          return parseCurrentApplicationRead({
+            directory,
+            application: await read(),
+          });
         }
       }),
     readWork: (input) =>
       exclusive(async () => {
         if (!(await ready())) throw new Error("Writing recovery is closed");
-        const owner = {
-            profileId: parseId({
-              kind: "profile",
-              value: input.owner.profileId,
-            }),
-            generation: parseCounter(input.owner.generation),
-          },
-          runId = parseId({ kind: "run", value: input.runId });
-        if (!matchesBoundOwner(owner))
-          throw new Error(
-            "Historical work belongs to another selected profile",
-          );
+        const directory = await requireSelection(input.selection);
+        const owner = directory.selection.owner;
+        const runId = parseId({ kind: "run", value: input.runId });
         await warmPackages();
         const current = await context(owner);
         const summary = current?.history?.find((work) => work.runId === runId);
@@ -1796,200 +1944,406 @@ export function createTeachingApplication({
             : resolvedTask({ content: value, taskId: summary.taskId })?.entry
                 .task.title;
         if (!title) throw new Error("Historical task unavailable");
-        return parseHistoricalWork({ kind: "work", summary, title, documents });
-      }),
-    dispatch: (command) =>
-      exclusive(async () => {
-        if (!(await ready()))
-          return {
-            kind: "rejected",
-            code: "ink-reconciliation-required",
-            message: "Writing recovery is closed.",
-          };
-        return (await ensureInitialized()).dispatch(command);
+        return {
+          selection: directory.selection,
+          value: parseHistoricalWork({
+            kind: "work",
+            summary,
+            title,
+            documents,
+          }),
+        };
       }),
     readPracticeControls: (input) =>
       exclusive(async () => {
-        input = parsePracticeControlsBinding(input);
+        const directory = await requireSelection(input.selection);
+        const binding = parsePracticeControlsBinding(input.binding);
         if (!(await ready())) throw new Error("Writing recovery is closed");
         const projection = await read();
         if (
           projection.kind !== "writing" ||
-          projection.owner.profileId !== input.owner.profileId ||
-          projection.owner.generation !== input.owner.generation ||
-          projection.sessionId !== input.sessionId ||
-          projection.runId !== input.runId ||
-          projection.packageHash !== input.packageHash
+          projection.owner.profileId !== binding.owner.profileId ||
+          projection.owner.generation !== binding.owner.generation ||
+          projection.sessionId !== binding.sessionId ||
+          projection.runId !== binding.runId ||
+          projection.packageHash !== binding.packageHash
         )
-          return { kind: "readOnly" };
+          return {
+            selection: directory.selection,
+            value: { kind: "readOnly" },
+          };
         for (const token of projection.documents) {
           const snapshot = await ink.snapshot({ token });
-          const summary = summarizePractice({ binding: input, snapshot });
-          if (summary.kind === "editable") return summary;
+          const summary = summarizePractice({ binding, snapshot });
+          if (summary.kind === "editable")
+            return { selection: directory.selection, value: summary };
         }
-        return { kind: "readOnly" };
+        return { selection: directory.selection, value: { kind: "readOnly" } };
       }),
     readInk: (input) =>
       exclusive(async () => {
+        const directory = await requireSelection(input.selection);
         if (!(await ready())) throw new Error("Writing recovery is closed");
-        if (!matchesBoundOwner(input.token))
-          throw new Error("Writing belongs to another selected profile");
-        return ink.snapshot(input);
-      }),
-    dispatchInk: (command) =>
-      exclusive(async () => {
-        if (!(await ready()))
-          return {
-            kind: "rejected",
-            code: "ink-reconciliation-required",
-            message: "Writing recovery is closed.",
-          };
-        if (!matchesBoundOwner(command.token))
-          return {
-            kind: "rejected",
-            code: "stale-owner",
-            message: "Writing belongs to another selected profile.",
-          };
-        return transaction(executor, () => ink.dispatch(command));
-      }),
-    openRecovery: (opening) =>
-      exclusive(async () => {
-        opening = parseRecoveryOpening(opening);
-        await ensureInitialized();
         if (
-          opening.kind === "warm" &&
-          (opening.retainedStrokeIds.length > 64 ||
-            new Set(opening.retainedStrokeIds).size !==
-              opening.retainedStrokeIds.length)
+          input.token.profileId !== directory.selection.owner.profileId ||
+          input.token.generation !== directory.selection.owner.generation
         )
-          throw new Error("Invalid retained capture declaration");
+          throw new Error("Writing belongs to another selected profile");
+        return {
+          selection: directory.selection,
+          value: await ink.snapshot({ token: input.token }),
+        };
+      }),
+    openRecovery: (input) =>
+      exclusive(async () => {
+        const opening = parseSelectedRecoveryOpening(input);
+        await ensureInitialized();
         if (
           recovery.kind === "closed" &&
           recovery.opening.kind === "warm" &&
-          opening.kind === "cold"
+          canonical(recovery.opening) !== canonical(opening)
         )
-          throw new Error(
-            "Warm retained ink cannot be replaced by cold recovery",
-          );
-        if (
-          recovery.kind === "closed" &&
-          recovery.teaching.kind === "pending" &&
-          (opening.kind !== "warm" ||
-            opening.teaching.kind !== "pending" ||
-            opening.teaching.commandId !== recovery.teaching.commandId ||
-            opening.teaching.payloadHash !== recovery.teaching.payloadHash)
-        )
-          throw new Error("Pending teaching declaration changed");
+          throw new Error("Pending warm recovery declaration changed");
         const id = ids();
         recovery = {
           kind: "closed",
           id,
           opening,
-          teaching:
-            opening.kind === "warm" ? opening.teaching : { kind: "none" },
+          settled: new Set(),
+          phase:
+            opening.kind === "warm" && opening.retainedStrokeIds.length
+              ? "ink"
+              : afterInk(opening),
         };
-        const captures = await ink.inventory();
-        return parseRecoveryInventory({
+        return parseSelectedRecoveryInventory({
           kind: "closed",
           recoveryId: id,
-          captures,
+          captures: await ink.inventory(),
+          directory: await profileDirectory.read(),
         });
       }),
     recoverInk: (input) =>
       exclusive(async () => {
+        const operation = parseSelectedOperation(input.operation);
+        if (operation.kind !== "ink")
+          throw new Error("Ink recovery requires a retained ink operation");
+        const active = recovery;
+        const directory = await profileDirectory.read();
         if (
-          recovery.kind !== "closed" ||
-          recovery.id !== input.recoveryId ||
-          recovery.opening.kind !== "warm"
+          active.kind !== "closed" ||
+          active.id !== input.recoveryId ||
+          active.opening.kind !== "warm"
         )
           return {
-            kind: "rejected",
-            code: "recovery-closed",
-            message: "Warm recovery is unavailable.",
+            selection: directory.selection,
+            resolution: "rejected",
+            result: rejectOperation(
+              "recovery-closed",
+              "Warm recovery is unavailable.",
+            ),
           };
-        const command = parseInkCommand(input.command);
-        if (!recovery.opening.retainedStrokeIds.includes(command.edit.strokeId))
+        const opening = active.opening;
+        const command = operation.command;
+        if (
+          canonical(operation.selection) !== canonical(opening.selection) ||
+          !opening.retainedStrokeIds.includes(command.edit.strokeId)
+        )
           return {
-            kind: "rejected",
-            code: "undeclared-capture",
-            message: "Capture was not retained by this client.",
+            selection: directory.selection,
+            resolution: "rejected",
+            result: rejectOperation(
+              "undeclared-capture",
+              "Capture was not retained by this client.",
+            ),
           };
-        if (!matchesBoundOwner(command.token))
-          return {
-            kind: "rejected",
-            code: "stale-owner",
-            message: "Writing belongs to another selected profile.",
-          };
-        return transaction(executor, () => ink.dispatch(command));
+        const result = await transaction(executor, async () => {
+          const current = await profileDirectory.read();
+          const same =
+            canonical(current.selection) === canonical(operation.selection);
+          if (
+            operation.selection.installationId !==
+            current.selection.installationId
+          )
+            return {
+              selection: current.selection,
+              resolution: "rejected",
+              result: rejectOperation(
+                "stale-installation",
+                "Retained ink belongs to another installation.",
+              ),
+            } satisfies RecoveryResult<InkReceipt>;
+          if (same && current.initialSetup.kind === "firstLaunch")
+            return {
+              selection: current.selection,
+              resolution: "rejected",
+              result: rejectOperation(
+                "initial-setup-required",
+                "Confirm the initial child before teaching.",
+              ),
+            } satisfies RecoveryResult<InkReceipt>;
+          if (
+            command.token.profileId !== operation.selection.owner.profileId ||
+            command.token.generation !== operation.selection.owner.generation
+          )
+            return {
+              selection: current.selection,
+              resolution: "rejected",
+              result: rejectOperation(
+                "stale-owner",
+                "Retained ink belongs to another child.",
+              ),
+            } satisfies RecoveryResult<InkReceipt>;
+          if (same && active.phase === "ink")
+            return recoveryResult<InkReceipt>(
+              current.selection,
+              await ink.dispatch(command),
+              "applied",
+            );
+          const receipt = await ink.resolveRetained(command);
+          return recoveryResult<InkReceipt>(
+            current.selection,
+            receipt ??
+              rejectOperation(
+                "stale-selection",
+                "Retired ink has no exact committed receipt.",
+              ),
+            "receiptOnly",
+          );
+        });
+        if (
+          active.phase === "ink" &&
+          result.result.kind === "inkCommitted" &&
+          command.edit.kind === "finalize"
+        ) {
+          active.settled.add(command.edit.strokeId);
+          if (
+            opening.retainedStrokeIds.every((id) => active.settled.has(id)) &&
+            !(await ink.inventory()).some((capture) =>
+              opening.retainedStrokeIds.includes(capture.strokeId),
+            )
+          )
+            active.phase = afterInk(opening);
+        }
+        return result;
       }),
     recoverTeaching: (input) =>
       exclusive(async () => {
+        const operation = parseSelectedOperation(input.operation);
+        if (operation.kind !== "teaching")
+          throw new Error(
+            "Teaching recovery requires a retained teaching operation",
+          );
+        const active = recovery;
+        const directory = await profileDirectory.read();
         if (
-          recovery.kind !== "closed" ||
-          recovery.id !== input.recoveryId ||
-          recovery.opening.kind !== "warm"
+          active.kind !== "closed" ||
+          active.id !== input.recoveryId ||
+          active.opening.kind !== "warm"
         )
           return {
-            kind: "rejected",
-            code: "recovery-closed",
-            message: "Warm recovery is unavailable.",
+            selection: directory.selection,
+            resolution: "rejected",
+            result: rejectOperation(
+              "recovery-closed",
+              "Warm recovery is unavailable.",
+            ),
           };
-        const command = parseCommand(input.command);
+        const opening = active.opening;
         if (
-          recovery.teaching.kind === "none" ||
-          recovery.teaching.commandId !== command.commandId ||
-          recovery.teaching.payloadHash !== command.payloadHash
+          !opening.teaching ||
+          canonical(opening.teaching) !== canonical(operation)
         )
           return {
-            kind: "rejected",
-            code: "undeclared-teaching",
-            message: "Teaching command was not retained by this client.",
+            selection: directory.selection,
+            resolution: "rejected",
+            result: rejectOperation(
+              "undeclared-teaching",
+              "This exact outer teaching operation was not retained.",
+            ),
           };
-        const retained = recovery.opening.retainedStrokeIds;
-        if ((await ink.inventory()).some((c) => retained.includes(c.strokeId)))
+        if (active.phase === "ink")
           return {
-            kind: "rejected",
-            code: "unsettled-capture",
-            message:
-              "Retained ink requires exact finalization before teaching.",
+            selection: directory.selection,
+            resolution: "rejected",
+            result: rejectOperation(
+              "unsettled-capture",
+              "Retained ink must resolve before teaching.",
+            ),
           };
-        recovery.teaching = {
-          kind: "pending",
-          commandId: command.commandId,
-          payloadHash: command.payloadHash,
-        };
-        const result = await (await ensureInitialized()).dispatch(command);
-        recovery.teaching = {
-          kind: "resolved",
-          commandId: command.commandId,
-          payloadHash: command.payloadHash,
-        };
+        const result = await transaction(executor, async () => {
+          const current = await profileDirectory.read();
+          const same =
+            canonical(current.selection) === canonical(operation.selection);
+          const command = operation.command;
+          if (
+            operation.selection.installationId !==
+            current.selection.installationId
+          )
+            return {
+              selection: current.selection,
+              resolution: "rejected",
+              result: rejectOperation(
+                "stale-installation",
+                "Retained teaching belongs to another installation.",
+              ),
+            } satisfies RecoveryResult<CommitReceipt>;
+          if (same && current.initialSetup.kind === "firstLaunch")
+            return {
+              selection: current.selection,
+              resolution: "rejected",
+              result: rejectOperation(
+                "initial-setup-required",
+                "Confirm the initial child before teaching.",
+              ),
+            } satisfies RecoveryResult<CommitReceipt>;
+          if (
+            command.owner.profileId !== operation.selection.owner.profileId ||
+            command.owner.generation !== operation.selection.owner.generation
+          )
+            return {
+              selection: current.selection,
+              resolution: "rejected",
+              result: rejectOperation(
+                "stale-owner",
+                "Retained teaching belongs to another child.",
+              ),
+            } satisfies RecoveryResult<CommitReceipt>;
+          if (same && active.phase === "teaching")
+            return recoveryResult<CommitReceipt>(
+              current.selection,
+              await dispatchTeachingInTransaction({
+                input: command,
+                tx: repositories,
+                store,
+                ids,
+                hash,
+              }),
+              "applied",
+            );
+          const receipt = await resolveTeachingReceipt(command);
+          return recoveryResult<CommitReceipt>(
+            current.selection,
+            receipt ??
+              rejectOperation(
+                "stale-selection",
+                "Retired teaching has no exact committed receipt.",
+              ),
+            "receiptOnly",
+          );
+        });
+        if (active.phase === "teaching") active.phase = afterTeaching(opening);
+        return result;
+      }),
+    recoverAdministration: (input) =>
+      exclusive(async () => {
+        const command = parseProfileAdministrationCommand(input.command);
+        const active = recovery;
+        const directory = await profileDirectory.read();
+        if (
+          active.kind !== "closed" ||
+          active.id !== input.recoveryId ||
+          active.opening.kind !== "warm"
+        )
+          return {
+            selection: directory.selection,
+            resolution: "rejected",
+            result: rejectOperation(
+              "recovery-closed",
+              "Warm recovery is unavailable.",
+            ),
+          };
+        if (
+          !active.opening.administration ||
+          canonical(active.opening.administration) !== canonical(command)
+        )
+          return {
+            selection: directory.selection,
+            resolution: "rejected",
+            result: rejectOperation(
+              "undeclared-administration",
+              "This exact administrative command was not retained.",
+            ),
+          };
+        if (active.phase === "ink" || active.phase === "teaching")
+          return {
+            selection: directory.selection,
+            resolution: "rejected",
+            result: rejectOperation(
+              "recovery-order",
+              "Retained ink and teaching must resolve before administration.",
+            ),
+          };
+        if (
+          (await hash(profileAdministrationPreimage(command))) !==
+          command.payloadHash
+        )
+          return {
+            selection: directory.selection,
+            resolution: "rejected",
+            result: rejectOperation(
+              "payload-hash",
+              "The retained administrative payload changed.",
+            ),
+          };
+        const result = await transaction(executor, async () => {
+          const current = await profileDirectory.read();
+          if (
+            active.phase === "administration" &&
+            canonical(current.selection) === canonical(command.selection)
+          ) {
+            const applied = await profileDirectory.administer({
+              command,
+              depart: departProfile,
+            });
+            return recoveryResult<ProfileAdministrationReceipt>(
+              (await profileDirectory.read()).selection,
+              applied,
+              "applied",
+            );
+          }
+          const receipt = await profileDirectory.resolveRetained({
+            command,
+            directory: current,
+          });
+          return recoveryResult<ProfileAdministrationReceipt>(
+            current.selection,
+            receipt ??
+              rejectOperation(
+                "stale-selection",
+                "Retired administration has no exact committed receipt.",
+              ),
+            "receiptOnly",
+          );
+        });
+        if (active.phase === "administration") active.phase = "finalize";
         return result;
       }),
     reconcileRecovery: (input) =>
       exclusive(async () => {
-        input = { ...input, choice: parseRecoveryChoice(input.choice) };
+        const choice = parseRecoveryChoice(input.choice);
+        const active = recovery;
         if (
-          recovery.kind !== "closed" ||
-          recovery.id !== input.recoveryId ||
-          recovery.opening.kind !== input.choice.kind
+          active.kind !== "closed" ||
+          active.id !== input.recoveryId ||
+          active.opening.kind !== choice.kind
         )
           throw new Error("Recovery identity changed");
-        if (recovery.teaching.kind === "pending")
+        if (active.phase !== "finalize")
           throw new Error(
-            "Retained teaching command still requires exact resolution",
+            "Declared retained work still requires exact ordered resolution",
           );
-        if (input.choice.kind === "warm") {
+        if (choice.kind === "warm") {
           if (
-            recovery.opening.kind !== "warm" ||
-            input.choice.settledStrokeIds.length > 64 ||
-            canonical([...input.choice.settledStrokeIds].sort()) !==
-              canonical([...recovery.opening.retainedStrokeIds].sort())
+            active.opening.kind !== "warm" ||
+            canonical([...choice.settledStrokeIds].sort()) !==
+              canonical([...active.opening.retainedStrokeIds].sort()) ||
+            !choice.settledStrokeIds.every((id) => active.settled.has(id))
           )
             throw new Error("Retained captures are not settled");
-          const retained = recovery.opening.retainedStrokeIds;
           if (
-            (await ink.inventory()).some((c) => retained.includes(c.strokeId))
+            (await ink.inventory()).some((capture) =>
+              choice.settledStrokeIds.includes(capture.strokeId),
+            )
           )
             throw new Error(
               "Retained capture still requires exact finalization",
@@ -2000,7 +2354,7 @@ export function createTeachingApplication({
           await ink.fenceAll();
         });
         recovery = { kind: "ready" };
-        return read();
+        return profileDirectory.read();
       }),
   };
 }

@@ -488,6 +488,84 @@ export function createInkRepository({
     code,
     message,
   });
+  async function retainedRow(command: InkCommand) {
+    const expected = command.token;
+    return (
+      await db
+        .select()
+        .from(schema.commandReceipt)
+        .where(
+          and(
+            eq(schema.commandReceipt.scopeKind, "document"),
+            eq(schema.commandReceipt.scopeId, expected.documentId),
+            eq(schema.commandReceipt.scopeGeneration, expected.generation),
+            eq(schema.commandReceipt.commandId, command.commandId),
+          ),
+        )
+        .all()
+    )[0];
+  }
+  function decodeRetained(
+    command: InkCommand,
+    receipt: typeof schema.commandReceipt.$inferSelect,
+  ): InkResult {
+    const expected = command.token;
+    if (
+      receipt.ownerProfileId !== expected.profileId ||
+      receipt.ownerGeneration !== expected.generation
+    )
+      throw new Error("Ink receipt owner invalid");
+    if (receipt.payloadHash !== command.payloadHash)
+      return reject("command-identity", "Ink command identity changed.");
+    const result = parseInkReceipt(JSON.parse(receipt.result));
+    if (
+      result.commandId !== command.commandId ||
+      result.token.documentId !== expected.documentId ||
+      result.token.revision !== receipt.resultingRevision
+    )
+      throw new Error("Ink receipt identity invalid");
+    return result;
+  }
+  async function resolveRetained(input: InkCommand): Promise<InkResult | null> {
+    const command = parseInkCommand(input);
+    const expected = command.token;
+    if (
+      (await hash(
+        canonical({
+          kind: command.kind,
+          token: command.token,
+          edit: command.edit,
+        }),
+      )) !== command.payloadHash
+    )
+      return reject("payload-hash", "Ink payload hash does not match.");
+    const row = (
+      await db
+        .select()
+        .from(schema.inkDocument)
+        .where(eq(schema.inkDocument.documentId, expected.documentId))
+        .all()
+    )[0];
+    if (!row || !owned({ row, expected, revision: false }))
+      return reject("wrong-document", "Ink document binding is unavailable.");
+    if (!(await resolve({ token: expected })))
+      return reject("stale-owner", "Ink owner/run is unavailable.");
+    const saved = await retainedRow(command);
+    if (!saved) return null;
+    if (saved.payloadHash !== command.payloadHash)
+      return reject("command-identity", "Ink command identity changed.");
+    const result = decodeRetained(command, saved);
+    if (
+      result.kind !== "inkCommitted" ||
+      Number(saved.resultVersion) !== 1 ||
+      saved.expectedRevision !== expected.revision ||
+      saved.resultingRevision !== increment(expected.revision) ||
+      canonical(result.token) !==
+        canonical({ ...expected, revision: increment(expected.revision) })
+    )
+      throw new Error("Retained ink receipt does not prove this exact command");
+    return result;
+  }
   async function dispatch(input: InkCommand): Promise<InkResult> {
     const command = parseInkCommand(input),
       expected = command.token;
@@ -513,37 +591,8 @@ export function createInkRepository({
       return reject("wrong-document", "Ink document binding or epoch changed.");
     const binding = await resolve({ token: expected });
     if (!binding) return reject("stale-owner", "Ink owner/run is unavailable.");
-    const receipt = (
-      await db
-        .select()
-        .from(schema.commandReceipt)
-        .where(
-          and(
-            eq(schema.commandReceipt.scopeKind, "document"),
-            eq(schema.commandReceipt.scopeId, expected.documentId),
-            eq(schema.commandReceipt.scopeGeneration, expected.generation),
-            eq(schema.commandReceipt.commandId, command.commandId),
-          ),
-        )
-        .all()
-    )[0];
-    if (receipt) {
-      if (
-        receipt.ownerProfileId !== expected.profileId ||
-        receipt.ownerGeneration !== expected.generation
-      )
-        throw new Error("Ink receipt owner invalid");
-      if (receipt.payloadHash !== command.payloadHash)
-        return reject("command-identity", "Ink command identity changed.");
-      const result = parseInkReceipt(JSON.parse(receipt.result));
-      if (
-        result.commandId !== command.commandId ||
-        result.token.documentId !== expected.documentId ||
-        result.token.revision !== receipt.resultingRevision
-      )
-        throw new Error("Ink receipt identity invalid");
-      return result;
-    }
+    const receipt = await retainedRow(command);
+    if (receipt) return decodeRetained(command, receipt);
     if (row.phase !== expected.phase || row.inputEpoch !== expected.inputEpoch)
       return reject("input-fenced", "Ink phase or input epoch changed.");
     if (row.revision !== expected.revision)
@@ -890,6 +939,7 @@ export function createInkRepository({
     create,
     snapshot,
     dispatch,
+    resolveRetained,
     applyPracticeControl,
     barrier,
     fence,

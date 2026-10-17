@@ -241,17 +241,13 @@ export function createProfileDirectory({
     code,
     message,
   });
-  async function administer({
+  async function resolveRetained({
     command,
-    depart,
+    directory: current,
   }: {
     command: ProfileAdministrationCommand;
-    depart(input: {
-      selection: SelectedOwnerWitness;
-      departure: DepartureWitness;
-    }): Promise<CommandRejection | null>;
-  }): Promise<ProfileAdministrationReceipt | CommandRejection> {
-    const current = await read();
+    directory: ProfileDirectory;
+  }): Promise<ProfileAdministrationReceipt | CommandRejection | null> {
     if (command.scope.installationId !== current.administration.installationId)
       return reject(
         "stale-installation",
@@ -341,6 +337,28 @@ export function createProfileDirectory({
         );
       return receipt;
     }
+    return null;
+  }
+  async function administer({
+    command,
+    depart,
+  }: {
+    command: ProfileAdministrationCommand;
+    depart(input: {
+      selection: SelectedOwnerWitness;
+      departure: DepartureWitness;
+    }): Promise<CommandRejection | null>;
+  }): Promise<ProfileAdministrationReceipt | CommandRejection> {
+    const current = await read();
+    const resolved = await resolveRetained({ command, directory: current });
+    if (resolved) return resolved;
+    const body = command.payload;
+    const live = (owner: Owner) =>
+      current.profiles.find(
+        (profile) =>
+          profile.edit.owner.profileId === owner.profileId &&
+          profile.edit.owner.generation === owner.generation,
+      );
     if (canonical(command.selection) !== canonical(current.selection))
       return reject("stale-selection", "The selected child lifetime changed.");
     if (command.scope.revision !== current.administration.revision)
@@ -586,5 +604,5 @@ export function createProfileDirectory({
     await read();
     return result;
   }
-  return { read, bootstrap, migrate, selected, administer };
+  return { read, bootstrap, migrate, selected, administer, resolveRetained };
 }

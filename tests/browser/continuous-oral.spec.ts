@@ -178,8 +178,8 @@ test("failed correction Ready keeps the committed joint turn and retries the ide
     window.readContinuousReadyAttempts=()=>attempts.slice();
     window.Worker=class extends NativeWorker {
       postMessage(message,options){
-        if(armed&&message?.kind==='dispatch'&&message.command?.kind==='navigate'&&message.command.payload.action.kind==='parentReady'){
-          attempts.push(JSON.stringify(message.command));
+        if(armed&&(message?.kind === 'execute' && message.operation.kind === 'teaching')&&message.operation.command?.kind==='navigate'&&message.operation.command.payload.action.kind==='parentReady'){
+          attempts.push(JSON.stringify(message.operation));
           if(!held){held=true;this.dispatchEvent(new MessageEvent('message',{data:{id:message.id,kind:'failed',message:'Injected continuous Ready save failure'}}));return;}
         }
         super.postMessage(message,options);

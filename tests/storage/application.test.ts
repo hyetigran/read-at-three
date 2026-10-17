@@ -1,3 +1,11 @@
+import {
+  confirmInitialProfile,
+  executeTeaching,
+  prepareSelectedTeaching,
+  selectedProjection,
+  syntheticPreparation,
+} from "./selected-support.ts";
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { DatabaseSync } from "node:sqlite";
@@ -19,8 +27,8 @@ import {
 } from "../../packages/teaching/src/index.ts";
 import type {
   DevelopmentBodyInput,
-  TeachingApplication,
-  TeachingCommand,
+  SelectedApplication,
+  SelectedTeachingOperation,
 } from "../../packages/teaching/src/index.ts";
 const hash = async (value: string) =>
   createHash("sha256").update(value).digest("hex");
@@ -112,40 +120,53 @@ async function fixture(t: { after(fn: () => Promise<void>): void }) {
     return {
       db,
       executor,
-      app: createTeachingApplication({ executor, content, ids, hash }),
+      app: createTeachingApplication({
+        executor,
+        content,
+        ids,
+        hash,
+        preparation: syntheticPreparation,
+      }),
     };
   }
-  return { connect, content, ids };
+  async function connectReady(hook?: Parameters<typeof connect>[0]) {
+    const connection = connect(hook);
+    await confirmInitialProfile(connection.app, ids, hash);
+    return connection;
+  }
+  return { connect, connectReady, content, ids };
 }
 async function command(
-  app: TeachingApplication,
+  app: SelectedApplication,
   ids: () => string,
-): Promise<TeachingCommand> {
-  return prepareCommand({ projection: await app.read(), ids, hash });
+): Promise<SelectedTeachingOperation> {
+  return prepareSelectedTeaching(app, async () =>
+    prepareCommand({ projection: await selectedProjection(app), ids, hash }),
+  );
 }
 test("real SQLite restart resumes exact pinned node/revision and never credits partial frontier", async (t) => {
   const f = await fixture(t);
-  const first = f.connect();
-  const entry = await first.app.open();
+  const first = await f.connectReady();
+  const entry = await selectedProjection(first.app);
   assert.equal(entry.kind, "entry");
   const start = await command(first.app, f.ids);
-  assert.equal((await first.app.dispatch(start)).kind, "committed");
-  const model = await first.app.read();
+  assert.equal((await executeTeaching(first.app, start)).kind, "committed");
+  const model = await selectedProjection(first.app);
   assert.equal(model.kind, "teaching");
   assert.equal(
-    (await first.app.dispatch(await command(first.app, f.ids))).kind,
+    (await executeTeaching(first.app, await command(first.app, f.ids))).kind,
     "committed",
   );
-  const restart = f.connect();
-  const child = await restart.app.open();
+  const restart = await f.connectReady();
+  const child = await selectedProjection(restart.app);
   assert.equal(child.kind, "teaching");
   if (child.kind === "teaching") {
     assert.equal(child.turn.id, "child");
     assert.equal(child.revision, "1");
     assert.equal(child.packageHash, f.content.packageHash);
   }
-  await restart.app.dispatch(await command(restart.app, f.ids));
-  const frontier = await restart.app.read();
+  await executeTeaching(restart.app, await command(restart.app, f.ids));
+  const frontier = await selectedProjection(restart.app);
   assert.equal(frontier.kind, "frontier");
   assert.deepEqual(
     first.db
@@ -169,51 +190,64 @@ test("real SQLite restart resumes exact pinned node/revision and never credits p
 });
 test("matching retry replays receipt; changed identity, stale revision, stale owner and wrong run reject atomically", async (t) => {
   const f = await fixture(t);
-  const { app, db } = f.connect();
-  await app.open();
+  const { app, db } = await f.connectReady();
+  await selectedProjection(app);
   const start = await command(app, f.ids);
-  const accepted = await app.dispatch(start);
-  assert.deepEqual(await app.dispatch(start), accepted);
+  const accepted = await executeTeaching(app, start);
+  assert.deepEqual(await executeTeaching(app, start), accepted);
   const advance = await command(app, f.ids);
-  const reused = parseCommand({
+  const reused = {
     ...advance,
-    commandId: start.commandId,
-    kind: "start",
-    scope: start.scope,
-    expectedRevision: start.expectedRevision,
-    payload: { packageHash: "0".repeat(64) },
-    payloadHash: await hash(
-      canonical({ kind: "start", payload: { packageHash: "0".repeat(64) } }),
-    ),
-  });
-  const changed = await app.dispatch(reused);
+    command: parseCommand({
+      ...advance.command,
+      commandId: start.command.commandId,
+      kind: "start",
+      scope: start.command.scope,
+      expectedRevision: start.command.expectedRevision,
+      payload: { packageHash: "0".repeat(64) },
+      payloadHash: await hash(
+        canonical({ kind: "start", payload: { packageHash: "0".repeat(64) } }),
+      ),
+    }),
+  };
+  const changed = await executeTeaching(app, reused);
   assert.equal(changed.kind, "rejected");
   if (changed.kind === "rejected")
     assert.equal(changed.code, "command-identity");
-  const stale = parseCommand({
+  const stale = {
     ...advance,
-    commandId: f.ids(),
-    expectedRevision: "3",
-  });
-  assert.equal((await app.dispatch(stale)).kind, "rejected");
-  const owner = parseCommand({
+    command: parseCommand({
+      ...advance.command,
+      commandId: f.ids(),
+      expectedRevision: "3",
+    }),
+  };
+  assert.equal((await executeTeaching(app, stale)).kind, "rejected");
+  const owner = {
     ...advance,
-    commandId: f.ids(),
-    owner: { ...advance.owner, generation: "1" },
-    scope: { ...advance.scope, generation: "1" },
-  });
-  assert.equal((await app.dispatch(owner)).kind, "rejected");
-  if (advance.kind !== "advance") throw new Error("Expected advance fixture");
-  const wrongPayload = { ...advance.payload, runId: "other-run" };
-  const wrongRun = parseCommand({
+    command: parseCommand({
+      ...advance.command,
+      commandId: f.ids(),
+      owner: { ...advance.command.owner, generation: "1" },
+      scope: { ...advance.command.scope, generation: "1" },
+    }),
+  };
+  assert.equal((await executeTeaching(app, owner)).kind, "rejected");
+  if (advance.command.kind !== "advance")
+    throw new Error("Expected advance fixture");
+  const wrongPayload = { ...advance.command.payload, runId: "other-run" };
+  const wrongRun = {
     ...advance,
-    commandId: f.ids(),
-    payload: wrongPayload,
-    payloadHash: await hash(
-      canonical({ kind: advance.kind, payload: wrongPayload }),
-    ),
-  });
-  assert.equal((await app.dispatch(wrongRun)).kind, "rejected");
+    command: parseCommand({
+      ...advance.command,
+      commandId: f.ids(),
+      payload: wrongPayload,
+      payloadHash: await hash(
+        canonical({ kind: advance.command.kind, payload: wrongPayload }),
+      ),
+    }),
+  };
+  assert.equal((await executeTeaching(app, wrongRun)).kind, "rejected");
   assert.equal(
     db.prepare("select count(*) as n from task_advance").get()?.n,
     0,
@@ -222,30 +256,30 @@ test("matching retry replays receipt; changed identity, stale revision, stale ow
 test("pre-COMMIT write failure rolls back all snapshots/revisions/receipts", async (t) => {
   const f = await fixture(t);
   let fail = false;
-  const { app, db } = f.connect(async (sql, work) => {
+  const { app, db } = await f.connectReady(async (sql, work) => {
     if (fail && sql.startsWith('insert into "task_advance"'))
       throw new Error("Injected write failure");
     return work();
   });
-  await app.open();
-  await app.dispatch(await command(app, f.ids));
-  const before = await app.read();
+  await selectedProjection(app);
+  await executeTeaching(app, await command(app, f.ids));
+  const before = await selectedProjection(app);
   const pending = await command(app, f.ids);
   fail = true;
   await assert.rejects(
-    () => app.dispatch(pending),
+    () => executeTeaching(app, pending),
     (error: unknown) =>
       error instanceof Error &&
       error.cause instanceof Error &&
       error.cause.message === "Injected write failure",
   );
-  assert.deepEqual(await app.read(), before);
+  assert.deepEqual(await selectedProjection(app), before);
   assert.equal(
     db.prepare("select count(*) as n from task_advance").get()?.n,
     0,
   );
   fail = false;
-  assert.equal((await app.dispatch(pending)).kind, "committed");
+  assert.equal((await executeTeaching(app, pending)).kind, "committed");
   assert.equal(
     db.prepare("select count(*) as n from task_advance").get()?.n,
     1,
@@ -254,7 +288,7 @@ test("pre-COMMIT write failure rolls back all snapshots/revisions/receipts", asy
 test("lost COMMIT acknowledgement retries same envelope without second acceptance", async (t) => {
   const f = await fixture(t);
   let lose = false;
-  const { app, db } = f.connect(async (sql, work) => {
+  const { app, db } = await f.connectReady(async (sql, work) => {
     const result = await work();
     if (lose && sql === "COMMIT") {
       lose = false;
@@ -262,12 +296,12 @@ test("lost COMMIT acknowledgement retries same envelope without second acceptanc
     }
     return result;
   });
-  await app.open();
-  await app.dispatch(await command(app, f.ids));
+  await selectedProjection(app);
+  await executeTeaching(app, await command(app, f.ids));
   const pending = await command(app, f.ids);
   lose = true;
-  await assert.rejects(() => app.dispatch(pending), /acknowledgement/);
-  assert.equal((await app.dispatch(pending)).kind, "committed");
+  await assert.rejects(() => executeTeaching(app, pending), /acknowledgement/);
+  assert.equal((await executeTeaching(app, pending)).kind, "committed");
   assert.equal(
     db.prepare("select count(*) as n from task_advance").get()?.n,
     1,
@@ -284,7 +318,7 @@ test("reads share the command FIFO and cannot observe uncommitted state", async 
   const release = new Promise<void>((resolve) => {
     releaseResolve = resolve;
   });
-  const { app } = f.connect(async (sql, work) => {
+  const { app } = await f.connectReady(async (sql, work) => {
     const result = await work();
     if (block && sql.startsWith('insert into "task_advance"')) {
       enteredResolve();
@@ -292,14 +326,14 @@ test("reads share the command FIFO and cannot observe uncommitted state", async 
     }
     return result;
   });
-  await app.open();
-  await app.dispatch(await command(app, f.ids));
+  await selectedProjection(app);
+  await executeTeaching(app, await command(app, f.ids));
   const pending = await command(app, f.ids);
   block = true;
-  const dispatch = app.dispatch(pending);
+  const dispatch = executeTeaching(app, pending);
   await entered;
   let readFinished = false;
-  const read = app.read().then((value) => {
+  const read = selectedProjection(app).then((value) => {
     readFinished = true;
     return value;
   });
@@ -313,14 +347,14 @@ test("reads share the command FIFO and cannot observe uncommitted state", async 
 });
 test("signed-64 counters round trip above JavaScript safe integer range and reject overflow", async (t) => {
   const f = await fixture(t);
-  const { app, executor } = f.connect();
-  await app.open();
+  const { app, executor } = await f.connectReady();
+  await selectedProjection(app);
   await executor.execute("UPDATE profile SET revision=?", [9007199254740993n]);
-  const entry = await app.read();
+  const entry = await selectedProjection(app);
   assert.equal(entry.kind, "entry");
   if (entry.kind === "entry")
     assert.equal(entry.profileRevision, "9007199254740993");
-  const receipt = await app.dispatch(await command(app, f.ids));
+  const receipt = await executeTeaching(app, await command(app, f.ids));
   assert.equal(receipt.kind, "committed");
   if (receipt.kind === "committed")
     assert.equal(receipt.revision, "9007199254740994");
@@ -328,17 +362,22 @@ test("signed-64 counters round trip above JavaScript safe integer range and reje
     9223372036854775807n,
   ]);
   const pending = await command(app, f.ids);
-  await assert.rejects(() => app.dispatch(pending), /counter/);
+  await assert.rejects(() => executeTeaching(app, pending), /counter/);
 });
 test("migration checksum mismatch becomes recovery without replacing data", async (t) => {
   const f = await fixture(t);
-  const first = f.connect();
-  await first.app.open();
+  const first = await f.connectReady();
+  await selectedProjection(first.app);
   await first.executor.execute("UPDATE schema_migration SET checksum=?", [
     "0".repeat(64),
   ]);
+  const before = first.db.prepare("SELECT * FROM profile").all();
   const reopened = f.connect();
-  assert.equal((await reopened.app.open()).kind, "recovery");
+  await assert.rejects(
+    reopened.app.readDirectory(),
+    /Database migration checksum mismatch/,
+  );
+  assert.deepEqual(first.db.prepare("SELECT * FROM profile").all(), before);
   assert.equal(
     first.db.prepare("select count(*) as n from profile").get()?.n,
     1,
@@ -346,17 +385,17 @@ test("migration checksum mismatch becomes recovery without replacing data", asyn
 });
 test("a missing resume cursor cannot turn existing teaching into a new entry", async (t) => {
   const f = await fixture(t);
-  const { app, executor } = f.connect();
-  await app.open();
-  await app.dispatch(await command(app, f.ids));
+  const { app, executor } = await f.connectReady();
+  await selectedProjection(app);
+  await executeTeaching(app, await command(app, f.ids));
   await executor.execute("DELETE FROM course_cursor", []);
-  assert.equal((await app.read()).kind, "recovery");
+  assert.equal((await selectedProjection(app)).kind, "recovery");
 });
 
-test("malformed stored identity opens recovery without replacing the profile", async (t) => {
+test("malformed stored identity rejects selected discovery without replacing the profile", async (t) => {
   const f = await fixture(t);
-  const { app, executor, db } = f.connect();
-  await app.open();
+  const { app, executor, db } = await f.connectReady();
+  await selectedProjection(app);
   await executor.execute("BEGIN IMMEDIATE", []);
   await executor.execute("PRAGMA defer_foreign_keys=ON", []);
   await executor.execute("UPDATE profile SET profile_id=?", [""]);
@@ -364,6 +403,8 @@ test("malformed stored identity opens recovery without replacing the profile", a
     "",
   ]);
   await executor.execute("COMMIT", []);
-  assert.equal((await app.read()).kind, "recovery");
+  const before = db.prepare("SELECT * FROM profile").all();
+  await assert.rejects(app.readDirectory(), /Invalid profile identity/);
+  assert.deepEqual(db.prepare("SELECT * FROM profile").all(), before);
   assert.equal(db.prepare("select count(*) as n from profile").get()?.n, 1);
 });

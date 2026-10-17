@@ -14,6 +14,7 @@ import type {
   HistoricalWork,
   Owner,
   SavedWork,
+  SelectedOwnerWitness,
 } from "@readatthree/teaching";
 import { Button } from "@/components/ui/button";
 import { AddedText, CopyText } from "@/features/teaching/CopyText";
@@ -628,10 +629,13 @@ function Drawing({
 export function SavedWorkScreen({
   read,
   client,
+  selection,
 }: {
   read: Ready;
   client: BrowserTeachingClient;
+  selection: SelectedOwnerWitness;
 }) {
+  const connection = client.connectionTicket();
   const { runId } = useParams();
   const work = read.course.lessons
     .flatMap((lesson) => lesson.tasks.flatMap((task) => task.history))
@@ -639,15 +643,24 @@ export function SavedWorkScreen({
   const result = useQuery({
     queryKey: [
       "historical-work",
+      selection.installationId,
+      selection.revision,
+      connection,
       read.witness.owner.profileId,
       read.witness.owner.generation,
       read.courseId,
       work?.packageHash,
       runId,
     ],
-    queryFn: () => {
+    queryFn: async () => {
       if (!work) throw new Error("Saved work is unavailable.");
-      return client.readWork({ owner: read.witness.owner, runId: work.runId });
+      const saved = await client.readWork({ selection, runId: work.runId });
+      if (
+        connection !== client.connectionTicket() ||
+        canonical(saved.selection) !== canonical(selection)
+      )
+        throw new Error("Saved-work reading lifetime changed.");
+      return saved.value;
     },
     enabled: !!work,
     networkMode: "always",

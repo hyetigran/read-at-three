@@ -253,8 +253,8 @@ test("Help shows an uncommitted source preview through delayed and failed save, 
   window.readHelpAttempts=()=>attempts.slice();
   window.Worker=class extends NativeWorker {
    postMessage(message,options){
-    if(message?.kind==='dispatch'&&message.command?.kind==='navigate'&&message.command.payload.action.kind==='help'){
-     attempts.push(JSON.stringify(message.command));
+    if((message?.kind === 'execute' && message.operation.kind === 'teaching')&&message.operation.command?.kind==='navigate'&&message.operation.command.payload.action.kind==='help'){
+     attempts.push(JSON.stringify(message.operation));
      if(!held){held=true;window.failHeldHelp=()=>this.dispatchEvent(new MessageEvent('message',{data:{id:message.id,kind:'failed',message:'Injected Help save failure'}}));return;}
     }
     super.postMessage(message,options);

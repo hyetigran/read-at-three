@@ -1,6 +1,6 @@
 # Issue 10 implementation evidence
 
-Issue #10 is in progress on `issue-10-child-profiles`, based on merged main `b251a02`. The profile-directory foundation at `3ca6538` and the following administration unit are implemented. Selected-owner ordinary-operation fencing, controller adoption, preparation screens and avatar UI remain pending.
+Issue #10 is in progress on `issue-10-child-profiles`, based on merged main `b251a02`. Commits `3ca6538`, `2e4ead5` and `75b678a` implement the directory foundation, profile administration and original portrait assets. The current checkpoint implements selected-owner operations and controller adoption. Preparation screens and avatar UI remain pending.
 
 ## Directory foundation
 
@@ -8,7 +8,7 @@ V8 adds selected-profile state and a separate installation administration receip
 
 Bounded preference parsing preserves unsupported animal keys and unrelated versioned choices. Displays resolve an unsupported or missing key to Rabbit without rewriting storage. Names are optional and can duplicate. Constructed V7 migration fixtures separately cover multiple children, actual nonzero generations, untouched setup and meaningful preferences without teaching. They are identified as constructed inputs rather than historical user files.
 
-Root independently passes all 26 focused profile/parser/store cases and the regular strict whole-project typecheck. The implementation owner's separate impacted run passes 50 existing application, course, Undo and writing regressions. Validator generation, migration generation and import-boundary checks pass. The foundation's whole-project default formatting check and enabled commit hook pass; these gates are repeated before each commit.
+At the administration checkpoint `2e4ead5`, root independently passes all 26 focused profile/parser/store cases and the regular strict whole-project typecheck. The implementation owner's separate impacted run passes 50 existing application, course, Undo and writing regressions. Validator generation, migration generation and import-boundary checks pass. The foundation and administration commits pass whole-project default formatting and the enabled commit hook; these gates are repeated before each commit.
 
 ## Administration behavior
 
@@ -24,4 +24,18 @@ The compatibility corpus contains 36 genuine V7 databases, including qualified o
 
 Three injected failures reach V8's ledger and selection writes immediately before migration COMMIT. Each restores the entire V7 file byte for byte. A clean Retry produces exactly the independently qualified V8 database bytes. Three probes using the actual archived V7 initializer refuse actual V8 copies before attempting any writer statement and leave their whole files unchanged.
 
-The independent corpus comparison covers migration and directory reads. Full teaching cold-recovery and historical-projection comparison, ordinary-operation lifetimes, retained-administration recovery after Worker loss, incoming restoration and browser flows require subsequent checks. The full suite, independent final reviews, production qualification, exact-head CI, PR and merge remain pending. No native, physical-device or release qualification is claimed. Supplied Lessons 1–6 remain the curriculum scope; book-bearing source and runtime packages remain private.
+The independent corpus comparison covers migration and directory reads. Full teaching cold-recovery and historical-projection comparison still require a committed current-port checkpoint. Browser flows, independent final reviews, production qualification, exact-head CI, PR and merge remain pending. No native, physical-device or release qualification is claimed. Supplied Lessons 1–6 remain the curriculum scope; book-bearing source and runtime packages remain private.
+
+## Selected operations and controller adoption
+
+Current teaching and ink operations retain an outer selected-child witness for exact Retry. The existing writer checks the complete lifetime inside its sole transaction before ordinary receipt lookup. Switching A to B and back to A retires the original A operation without changing A's generation. Current teaching, writing, historical work, controls and departure reads use that same lifetime. The production factory no longer exposes raw unscoped teaching operations or an immutable-owner option. The portable coordinator retains its domain test interface; its extracted transaction body preserves the original command logic.
+
+Warm recovery freezes complete declarations and resolves retained ink, teaching and administration in order before the final orphan fence. Retired operations can resolve proven committed receipts; a receipt miss cannot execute them. Command-specific receipt checks reject substituted task/session/run identities. Supported directory discovery can show recovery after canonical teaching or ink corruption without granting writes. Unsupported schemas, failed initialization and malformed directory metadata still reject discovery.
+
+The controller distinguishes a lost acknowledgement from failed restoration after a known commit. Retry preserves the original command or restores the already selected child without creating or selecting again. Directory, teaching, restored ink and controls publish together. Incoming controls retain the correct selected witness for subsequent queries. Tests exercise editing B during A's live contact, pre/post-COMMIT failures, Worker replacement, failed incoming ink restoration, superseded receipts, monotonic directory revisions, returned writing Undo and late callbacks.
+
+Root independently passes all 275 Node tests with zero failures or skips. Strict root, web and Worker checks, trusted-validator checks, migration checks and import boundaries pass against unchanged frozen working-tree bytes. Independent review reproduced two defects in controls publication and retained-receipt coherence; both have concrete failing and passing regressions. A subsequent comment-only cleanup removes generator notices through their emitters and proves every generated executable byte and SQL/checksum array unchanged. Browser migration compiles and collects all 82 existing tests; two unsupported-storage UI checks pass. Full teaching/writing browser execution awaits the validated preparation provider and legitimate setup flow. Production preparation remains explicitly unavailable at this checkpoint.
+
+## Original portrait assets
+
+Commit `75b678a` extracts all eight accepted original animal portraits as inert standalone SVGs. It adds only the SVG namespace and trailing newline to the frozen design markup. Original elements, geometry, attributes, colors and order stay exact. Chromium 156.0.8078.4 renders all eight assets at 216 and 48 pixels. All 16 PNG outputs match the frozen reference renders byte for byte, and root inspects the complete sheet. The [artwork record](../../apps/web/src/assets/README.md) pins each runtime asset's hash and provenance. This qualifies the assets, not chooser accessibility, production screen integration or native rendering.

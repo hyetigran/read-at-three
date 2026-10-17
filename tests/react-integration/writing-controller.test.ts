@@ -1,3 +1,14 @@
+import { readEnvelope } from "./support.ts";
+import {
+  executeInk,
+  executeTeaching,
+  selectedControls,
+  selectedInk,
+  selectedProjection,
+  syntheticPreparation,
+  changeProfile,
+} from "../storage/selected-support.ts";
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { QueryClient } from "@tanstack/react-query";
@@ -11,7 +22,10 @@ function deferred() {
   });
   return { promise, release };
 }
-async function controllerFixture(t: Parameters<typeof practiceFixture>[0]) {
+async function controllerFixture(
+  t: Parameters<typeof practiceFixture>[0],
+  options: { deferOpen?: boolean } = {},
+) {
   const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window"),
     previousDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
   Object.defineProperty(globalThis, "window", {
@@ -27,9 +41,38 @@ async function controllerFixture(t: Parameters<typeof practiceFixture>[0]) {
     configurable: true,
     value: Object.assign(new EventTarget(), { visibilityState: "visible" }),
   });
-  const f = await practiceFixture(t),
-    { app } = f.connect();
+  const f = await practiceFixture(t);
+  let sqlHook: import("../storage/support.ts").SqlHook = async (_sql, work) =>
+    work();
+  const hook: import("../storage/support.ts").SqlHook = (sql, work) =>
+    sqlHook(sql, work);
+  let { app, db } = await f.connectReady({ hook });
   await f.start(app);
+  let connectionRevision = 0;
+  let replace = false;
+  let onLoss = () => {};
+  const events: string[] = [];
+  const administrativeDeliveries: import("@readatthree/teaching").ProfileAdministrationCommand[] =
+    [];
+  let beforeAdmin = async (
+    _command: import("@readatthree/teaching").ProfileAdministrationCommand,
+  ) => {};
+  let afterAdmin = async (
+    _command: import("@readatthree/teaching").ProfileAdministrationCommand,
+    _result: Awaited<ReturnType<typeof app.administer>>,
+  ) => {};
+  let beforeRead = async (
+    _input: Parameters<typeof app.readApplication>[0],
+  ) => {};
+  let beforeInkRead = async (_input: Parameters<typeof app.readInk>[0]) => {};
+  let afterDirectory = async (
+    value: Awaited<ReturnType<typeof app.readDirectory>>,
+  ) => value;
+  let beforeConnect = async () => {};
+  const read = async (input: Parameters<typeof app.readApplication>[0]) => {
+    await beforeRead(input);
+    return readEnvelope(app, input, f.content.body.courseId);
+  };
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: Infinity },
@@ -37,36 +80,91 @@ async function controllerFixture(t: Parameters<typeof practiceFixture>[0]) {
     },
   });
   let deliveries = 0;
-  const teachingDeliveries: import("@readatthree/teaching").TeachingCommand[] =
+  const teachingDeliveries: import("@readatthree/teaching").SelectedTeachingOperation[] =
     [];
   const controller = createWritingController({
     client: {
-      onLoss() {},
-      close() {},
-      connect: (opening) => app.openRecovery(opening),
-      readInk: (input) => app.readInk(input),
-      dispatchInk: (command) => {
-        deliveries++;
-        return app.dispatchInk(command);
+      onLoss(listener) {
+        onLoss = listener;
       },
-      recoverInk: (input) => app.recoverInk(input),
-      reconcileRecovery: (input) => app.reconcileRecovery(input),
+      close() {},
+      connectionTicket: () => connectionRevision,
+      connect: async (opening) => {
+        await beforeConnect();
+        connectionRevision++;
+        if (replace) {
+          if (db.isOpen) db.close();
+          ({ app, db } = f.connect({
+            preparation: syntheticPreparation,
+            hook,
+          }));
+          replace = false;
+        }
+        events.push(`open:${opening.kind}`);
+        return app.openRecovery(opening);
+      },
+      read: async (input) => {
+        const value = await read(input);
+        if (value.projection.kind === "recovery" || !value.application)
+          throw new Error("Application required");
+        return {
+          directory: value.directory,
+          projection: value.projection,
+          courseId: value.courseId,
+          application: value.application,
+        };
+      },
+      readDirectory: async () => afterDirectory(await app.readDirectory()),
+      readDeparture: (input) => app.readDeparture(input),
+      administer: async (command) => {
+        administrativeDeliveries.push(command);
+        events.push("administration");
+        await beforeAdmin(command);
+        const result = await app.administer(command);
+        await afterAdmin(command, result);
+        return result;
+      },
+      recoverAdministration: (input) => {
+        events.push("recover:administration");
+        return app.recoverAdministration(input);
+      },
+      readInk: async (input) => {
+        await beforeInkRead(input);
+        return app.readInk(input);
+      },
+      execute: (operation) => {
+        if (operation.kind === "ink") deliveries++;
+        return app.execute(operation);
+      },
+      recoverInk: (input) => {
+        events.push("recover:ink");
+        return app.recoverInk(input);
+      },
+      recoverTeaching: (input) => {
+        events.push("recover:teaching");
+        return app.recoverTeaching(input);
+      },
+      reconcileRecovery: (input) => {
+        events.push("reconcile");
+        return app.reconcileRecovery(input);
+      },
     },
     createTeaching: (stageRestore) =>
       createCommittedTeaching({
         queryClient,
         stageRestore,
         repository: {
-          read: async () => ({
-            courseId: f.content.body.courseId,
-            projection: await app.read(),
-          }),
-          dispatch: (command) => {
-            teachingDeliveries.push(command);
-            return app.dispatch(command);
+          read,
+          execute: (operation) => {
+            if (operation.kind === "teaching")
+              teachingDeliveries.push(operation);
+            return app.execute(operation);
           },
-          recoverTeaching: (input) => app.recoverTeaching(input),
-          readPracticeControls: (binding) => app.readPracticeControls(binding),
+          recoverTeaching: (input) => {
+            events.push("recover:teaching");
+            return app.recoverTeaching(input);
+          },
+          readPracticeControls: (input) => app.readPracticeControls(input),
         },
       }),
   });
@@ -80,16 +178,54 @@ async function controllerFixture(t: Parameters<typeof practiceFixture>[0]) {
       Object.defineProperty(globalThis, "document", previousDocument);
     else Reflect.deleteProperty(globalThis, "document");
   });
-  await controller.open();
-  const board = controller.getBoard().find((value) => value.snapshot.writable);
-  if (!board) throw new Error("Writable board required");
+  if (!options.deferOpen) await controller.open();
   return {
     ...f,
-    app,
+    get app() {
+      return app;
+    },
+    get db() {
+      return db;
+    },
     controller,
-    board,
+    queryClient,
+    get board() {
+      const value = controller
+        .getBoard()
+        .find((entry) => entry.snapshot.writable);
+      if (!value) throw new Error("Writable board required");
+      return value;
+    },
     teachingDeliveries,
+    administrativeDeliveries,
+    events,
     deliveries: () => deliveries,
+    sqlHook(value: typeof sqlHook) {
+      sqlHook = value;
+    },
+    beforeAdmin(value: typeof beforeAdmin) {
+      beforeAdmin = value;
+    },
+    afterAdmin(value: typeof afterAdmin) {
+      afterAdmin = value;
+    },
+    beforeRead(value: typeof beforeRead) {
+      beforeRead = value;
+    },
+    beforeInkRead(value: typeof beforeInkRead) {
+      beforeInkRead = value;
+    },
+    afterDirectory(value: typeof afterDirectory) {
+      afterDirectory = value;
+    },
+    beforeConnect(value: typeof beforeConnect) {
+      beforeConnect = value;
+    },
+    lose() {
+      connectionRevision++;
+      replace = true;
+      onLoss();
+    },
   };
 }
 test(
@@ -247,7 +383,7 @@ test("original contact token and fence serial prevent old callbacks from joining
 
 test("blur and pagehide reject stale teaching callbacks while a lifecycle Pause remains allowed", async (t) => {
   const f = await controllerFixture(t);
-  const { db } = f.connect();
+  const { db } = await f.connectReady();
   function savedPosition() {
     return {
       runs: db
@@ -285,7 +421,9 @@ test("blur and pagehide reject stale teaching callbacks while a lifecycle Pause 
   await f.controller.visit();
   assert.deepEqual(
     f.teachingDeliveries.map((command) =>
-      "action" in command.payload ? command.payload.action : command.kind,
+      "action" in command.command.payload
+        ? command.command.payload.action
+        : command.command.kind,
     ),
     [{ kind: "pause" }],
   );
@@ -305,12 +443,12 @@ test("blur and pagehide reject stale teaching callbacks while a lifecycle Pause 
   assert.equal(await f.controller.enter(resume), true);
   assert.equal(f.teachingDeliveries.length, 2);
   const resumeCommand = f.teachingDeliveries[1];
-  if (!resumeCommand || resumeCommand.kind !== "writingSelect")
+  if (!resumeCommand || resumeCommand.command.kind !== "writingSelect")
     throw new Error("Exact saved writing selection required");
-  assert.equal(resumeCommand.payload.intent, "resume");
-  assert.equal(resumeCommand.payload.sessionId, paused.sessionId);
-  assert.equal(resumeCommand.payload.taskId, paused.taskId);
-  assert.equal(resumeCommand.payload.packageHash, paused.packageHash);
+  assert.equal(resumeCommand.command.payload.intent, "resume");
+  assert.equal(resumeCommand.command.payload.sessionId, paused.sessionId);
+  assert.equal(resumeCommand.command.payload.taskId, paused.taskId);
+  assert.equal(resumeCommand.command.payload.packageHash, paused.packageHash);
   assert.deepEqual(savedPosition(), before);
   const next = advance();
   const count = f.teachingDeliveries.length;
@@ -322,7 +460,9 @@ test("blur and pagehide reject stale teaching callbacks while a lifecycle Pause 
     f.teachingDeliveries
       .slice(count)
       .map((command) =>
-        "action" in command.payload ? command.payload.action : command.kind,
+        "action" in command.command.payload
+          ? command.command.payload.action
+          : command.command.kind,
       ),
     [{ kind: "pause" }],
   );
@@ -362,10 +502,10 @@ test("teaching Undo drains a live child trace, fences old callbacks and publishe
   assert.equal(restored.runId, origin.runId);
   assert.equal(restored.sessionId, origin.sessionId);
   const delivered = f.teachingDeliveries.at(-1);
-  assert.equal(delivered?.kind, "writingUndoAdvance");
-  if (!delivered || delivered.kind !== "writingUndoAdvance")
+  assert.equal(delivered?.command.kind, "writingUndoAdvance");
+  if (!delivered || delivered.command.kind !== "writingUndoAdvance")
     assert.fail("Writing Undo command required");
-  assert.equal(delivered.payload.barrier.documents.length, 2);
+  assert.equal(delivered.command.payload.barrier.documents.length, 2);
   const board = f.controller
     .getBoard()
     .find((value) => value.snapshot.token.targetId === "first");
@@ -402,5 +542,404 @@ test("teaching Undo drains a live child trace, fences old callbacks and publishe
     canonical.snapshot.strokes.find((stroke) => stroke.layer === "tracing")
       ?.pointCount,
     2,
+  );
+});
+
+function waitForPaint(
+  controller: ReturnType<typeof createWritingController>,
+  predicate: () => boolean,
+) {
+  if (predicate()) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    const unsubscribe = controller.subscribePaint(() => {
+      if (!predicate()) return;
+      unsubscribe();
+      resolve();
+    });
+  });
+}
+function controllerDirectory(
+  controller: ReturnType<typeof createWritingController>,
+) {
+  const read = controller.committed.getSnapshot().visible.data;
+  if (!read) throw new Error("Committed directory required");
+  return read.directory;
+}
+async function choose(
+  controller: ReturnType<typeof createWritingController>,
+  owner: import("@readatthree/teaching").Owner,
+) {
+  const directory = controllerDirectory(controller);
+  return controller.administer({
+    kind: "selectProfile",
+    directory: directory.administration,
+    target: owner,
+  });
+}
+async function resumeController(
+  controller: ReturnType<typeof createWritingController>,
+) {
+  controller.setSurface("teaching");
+  const view = controller.committed.getSnapshot().visible.data?.projection;
+  if (!view || view.kind === "recovery") throw new Error("Teaching required");
+  const resume = view.actions.find((action) => action.intent.kind === "resume");
+  if (resume) assert.equal(await controller.enter(resume), true);
+}
+
+test("editing B's avatar keeps A's active contact, teaching and Undo intact across a later switch-back", async (t) => {
+  const f = await controllerFixture(t);
+  const ownerA = controllerDirectory(f.controller).selection.owner;
+  const initial = controllerDirectory(f.controller);
+  assert.equal(
+    (
+      await f.controller.administer({
+        kind: "createAndSelect",
+        directory: initial.administration,
+        preferences: { avatarId: "owl" },
+      })
+    ).kind,
+    "visible",
+  );
+  const ownerB = controllerDirectory(f.controller).selection.owner;
+  assert.equal((await choose(f.controller, ownerA)).kind, "visible");
+  await resumeController(f.controller);
+  const board = f.board;
+  const contact = f.controller.begin(
+    board.snapshot.token.documentId,
+    { x: 100, y: 100, elapsedMs: 0 },
+    performance.now(),
+  );
+  assert.ok(contact);
+  await waitForPaint(f.controller, () =>
+    f.controller
+      .getBoard()
+      .some(
+        (value) =>
+          value.snapshot.token.documentId === board.snapshot.token.documentId &&
+          BigInt(value.snapshot.token.revision) >
+            BigInt(board.snapshot.token.revision),
+      ),
+  );
+  const protectedRows = () => ({
+    runs: f.db.prepare("SELECT * FROM task_run ORDER BY run_id").all(),
+    advances: f.db
+      .prepare("SELECT * FROM task_advance ORDER BY advance_id")
+      .all(),
+    cursors: f.db
+      .prepare("SELECT * FROM course_cursor ORDER BY profile_id,course_id")
+      .all(),
+    documents: f.db
+      .prepare("SELECT * FROM ink_document ORDER BY document_id")
+      .all(),
+    strokes: f.db.prepare("SELECT * FROM ink_stroke ORDER BY stroke_id").all(),
+    profiles: f.db
+      .prepare(
+        "SELECT profile_id,generation,undo_run_id FROM profile ORDER BY profile_id",
+      )
+      .all(),
+  });
+  const before = protectedRows();
+  const directory = controllerDirectory(f.controller);
+  const profileB = directory.profiles.find(
+    (profile) => profile.edit.owner.profileId === ownerB.profileId,
+  );
+  assert.ok(profileB);
+  const teaching = f.teachingDeliveries.length;
+  const result = await f.controller.administer({
+    kind: "setAvatar",
+    directory: directory.administration,
+    target: profileB.edit,
+    avatarId: "fox",
+  });
+  assert.equal(result.kind, "visible");
+  assert.deepEqual(protectedRows(), before);
+  assert.equal(f.teachingDeliveries.length, teaching);
+  assert.deepEqual(
+    controllerDirectory(f.controller).selection,
+    directory.selection,
+  );
+  f.controller.append(contact, [{ x: 150, y: 110, elapsedMs: 10 }]);
+  f.controller.finish(contact, "finished");
+  await f.controller.interrupt();
+  const saved = await f.current(f.app);
+  const stroke = saved.snapshot.strokes.find(
+    (value) => value.strokeId === contact.strokeId,
+  );
+  assert.ok(stroke);
+  assert.equal(stroke.pointCount, 2);
+  assert.equal(stroke.status, "finished");
+  assert.equal((await choose(f.controller, ownerB)).kind, "visible");
+  assert.equal((await choose(f.controller, ownerA)).kind, "visible");
+  await resumeController(f.controller);
+  const after = await f.current(f.app);
+  assert.equal(after.projection.runId, saved.projection.runId);
+  assert.equal(after.projection.turn.id, saved.projection.turn.id);
+  assert.deepEqual(after.snapshot.strokes, saved.snapshot.strokes);
+  const stable = after.snapshot;
+  f.controller.append(contact, [{ x: 200, y: 120, elapsedMs: 20 }]);
+  f.controller.finish(contact, "finished");
+  await f.controller.interrupt();
+  assert.deepEqual((await f.current(f.app)).snapshot.strokes, stable.strokes);
+  const returned =
+    f.controller.committed.getSnapshot().visible.data?.projection;
+  assert.ok(returned?.kind === "writing");
+  const undo = returned.actions.find(
+    (action) => action.intent.kind === "undoAdvance",
+  );
+  assert.ok(undo);
+  assert.equal(await f.controller.enter(undo), true);
+  const restored =
+    f.controller.committed.getSnapshot().visible.data?.projection;
+  assert.ok(restored?.kind === "writing");
+  assert.equal(restored.turn.id, "fixture.writing.turn.2");
+  assert.equal(restored.runId, saved.projection.runId);
+  assert.equal(
+    f.db.prepare("SELECT count(*) AS count FROM advance_withdrawal").get()
+      ?.count,
+    1,
+  );
+  assert.ok(
+    f.controller
+      .getBoard()
+      .some((value) =>
+        value.strokes.some(
+          (stroke) =>
+            stroke.strokeId === contact.strokeId && stroke.points.length === 2,
+        ),
+      ),
+  );
+});
+
+for (const boundary of ["beforeCommit", "afterCommit", "workerLoss"] as const) {
+  test(`controller creates once with exact administrative Retry after ${boundary}`, async (t) => {
+    const f = await controllerFixture(t);
+    const ownerA = controllerDirectory(f.controller).selection.owner;
+    let armed = true;
+    if (boundary === "beforeCommit") {
+      f.beforeAdmin(async () => {
+        f.sqlHook(async (sql, work) => {
+          if (sql === "COMMIT" && armed) {
+            armed = false;
+            throw new Error("Pre-COMMIT administration failure");
+          }
+          return work();
+        });
+      });
+    } else {
+      f.afterAdmin(async () => {
+        if (!armed) return;
+        armed = false;
+        if (boundary === "workerLoss") f.lose();
+        throw new Error("Committed administrative acknowledgement lost");
+      });
+    }
+    const directory = controllerDirectory(f.controller);
+    assert.equal(
+      (
+        await f.controller.administer({
+          kind: "createAndSelect",
+          directory: directory.administration,
+          preferences: { avatarId: "bear" },
+        })
+      ).kind,
+      "held",
+    );
+    assert.equal(f.controller.getState().operation.kind, "adminFailed");
+    assert.equal(f.controller.canWrite(), false);
+    const saved = await f.app.readDirectory();
+    assert.equal(saved.profiles.length, boundary === "beforeCommit" ? 1 : 2);
+    if (boundary === "beforeCommit")
+      assert.deepEqual(saved.selection.owner, ownerA);
+    const original = f.administrativeDeliveries[0];
+    assert.ok(original);
+    await f.controller.retry();
+    const visible = controllerDirectory(f.controller);
+    assert.equal(visible.profiles.length, 2);
+    assert.equal(visible.selection.revision, "1");
+    assert.notDeepEqual(visible.selection.owner, ownerA);
+    assert.equal(f.controller.getState().operation.kind, "idle");
+    assert.deepEqual(await f.app.readDirectory(), visible);
+    if (boundary === "workerLoss") {
+      assert.deepEqual(f.events.slice(-3), [
+        "open:warm",
+        "recover:administration",
+        "reconcile",
+      ]);
+      assert.equal(f.administrativeDeliveries.length, 1);
+    } else {
+      assert.equal(f.administrativeDeliveries.length, 2);
+      assert.deepEqual(f.administrativeDeliveries[1], original);
+    }
+    assert.equal(
+      f.db.prepare("SELECT count(*) AS count FROM profile").get()?.count,
+      2,
+    );
+    assert.equal(
+      f.db
+        .prepare(
+          "SELECT count(*) AS count FROM profile_administration_receipt WHERE command_id=?",
+        )
+        .get(original.commandId)?.count,
+      1,
+    );
+  });
+}
+
+test("committed B waits behind failed canonical restoration and Retry only adopts the saved selection", async (t) => {
+  const f = await controllerFixture(t, { deferOpen: true });
+  const ownerA = (await f.app.readDirectory()).selection.owner;
+  const { hash } = await import("../storage/support.ts");
+  await changeProfile(f.app, f.ids, hash, (directory) => ({
+    kind: "createAndSelect",
+    directory: directory.administration,
+    preferences: { avatarId: "owl" },
+  }));
+  await f.start(f.app);
+  const ownerB = (await f.app.readDirectory()).selection.owner;
+  await changeProfile(f.app, f.ids, hash, (directory) => ({
+    kind: "selectProfile",
+    directory: directory.administration,
+    target: ownerA,
+  }));
+  await f.controller.open();
+  const old = f.controller.committed.getSnapshot().visible.data;
+  const oldBoard = f.controller.getBoard();
+  const entered = deferred(),
+    release = deferred();
+  let armed = true;
+  f.beforeInkRead(async (input) => {
+    if (!armed || input.selection.owner.profileId !== ownerB.profileId) return;
+    armed = false;
+    entered.release();
+    await release.promise;
+    throw new Error("Incoming canonical document unavailable");
+  });
+  const selecting = choose(f.controller, ownerB);
+  await entered.promise;
+  assert.deepEqual((await f.app.readDirectory()).selection.owner, ownerB);
+  assert.strictEqual(f.controller.committed.getSnapshot().visible.data, old);
+  assert.deepEqual(f.controller.getBoard(), oldBoard);
+  assert.equal(f.controller.canWrite(), false);
+  release.release();
+  assert.equal((await selecting).kind, "held");
+  assert.equal(f.controller.getState().operation.kind, "adoptionFailed");
+  const selection = (await f.app.readDirectory()).selection;
+  await f.controller.retry();
+  assert.equal(f.administrativeDeliveries.length, 1);
+  assert.deepEqual(controllerDirectory(f.controller).selection, selection);
+  assert.deepEqual(controllerDirectory(f.controller).selection.owner, ownerB);
+  assert.equal(f.controller.getState().operation.kind, "idle");
+  assert.ok(
+    f.controller
+      .getBoard()
+      .every((entry) => entry.snapshot.token.profileId === ownerB.profileId),
+  );
+});
+
+test("a superseded administrative receipt resolves without adopting its retired B lifetime", async (t) => {
+  const f = await controllerFixture(t);
+  const ownerA = controllerDirectory(f.controller).selection.owner;
+  const { hash } = await import("../storage/support.ts");
+  let armed = true;
+  f.afterAdmin(async () => {
+    if (!armed) return;
+    armed = false;
+    await changeProfile(f.app, f.ids, hash, (directory) => ({
+      kind: "selectProfile",
+      directory: directory.administration,
+      target: ownerA,
+    }));
+  });
+  const directory = controllerDirectory(f.controller);
+  const result = await f.controller.administer({
+    kind: "createAndSelect",
+    directory: directory.administration,
+    preferences: { avatarId: "owl" },
+  });
+  assert.equal(result.kind, "resolved");
+  assert.equal(f.controller.getState().operation.kind, "rejected");
+  assert.deepEqual(
+    controllerDirectory(f.controller).selection,
+    directory.selection,
+  );
+  assert.equal(f.controller.canWrite(), false);
+  await f.controller.retry();
+  const adopted = controllerDirectory(f.controller);
+  assert.deepEqual(adopted.selection.owner, ownerA);
+  assert.equal(adopted.selection.revision, "2");
+  assert.equal(adopted.profiles.length, 2);
+  assert.equal(f.administrativeDeliveries.length, 1);
+});
+
+test("failed cold opening exposes recovery without teaching or input and retries through the real replacement connection", async (t) => {
+  const f = await controllerFixture(t, { deferOpen: true });
+  const before = f.db.prepare("SELECT * FROM task_run ORDER BY run_id").all();
+  f.db.exec("PRAGMA user_version=9");
+  f.lose();
+  await f.controller.open();
+  const state = f.controller.getState();
+  assert.equal(state.operation.kind, "openingFailed");
+  if (state.operation.kind !== "openingFailed")
+    assert.fail("Opening recovery required");
+  assert.match(state.operation.message, /Unsupported database version/);
+  assert.equal(f.controller.committed.getSnapshot().visible.data, undefined);
+  assert.equal(f.controller.canWrite(), false);
+  assert.deepEqual(
+    f.db.prepare("SELECT * FROM task_run ORDER BY run_id").all(),
+    before,
+  );
+  assert.equal(f.db.prepare("PRAGMA user_version").get()?.user_version, 9);
+  f.db.exec("PRAGMA user_version=8");
+  f.lose();
+  await f.controller.retry();
+  assert.equal(f.controller.getState().operation.kind, "idle");
+  assert.equal(
+    f.controller.committed.getSnapshot().visible.data?.projection.kind,
+    "writing",
+  );
+});
+
+test("same-selection connection replacement retires a delayed restore and old contact callbacks", async (t) => {
+  const f = await controllerFixture(t);
+  const selected = controllerDirectory(f.controller).selection;
+  const original = f.controller.committed.getSnapshot().visible.data;
+  const board = f.board;
+  const contact = f.controller.begin(
+    board.snapshot.token.documentId,
+    { x: 100, y: 100, elapsedMs: 0 },
+    performance.now(),
+  );
+  assert.ok(contact);
+  const entered = deferred(),
+    release = deferred();
+  let armed = true;
+  f.beforeRead(async () => {
+    if (!armed) return;
+    armed = false;
+    entered.release();
+    await release.promise;
+  });
+  const reading = f.controller.retry();
+  await entered.promise;
+  f.lose();
+  release.release();
+  await reading;
+  assert.strictEqual(
+    f.controller.committed.getSnapshot().visible.data,
+    original,
+  );
+  assert.equal(f.controller.canWrite(), false);
+  await f.controller.retry();
+  assert.deepEqual(controllerDirectory(f.controller).selection, selected);
+  const before = (await f.current(f.app)).snapshot;
+  f.controller.append(contact, [{ x: 200, y: 200, elapsedMs: 20 }]);
+  f.controller.finish(contact, "finished");
+  await f.controller.interrupt();
+  const after = (await f.current(f.app)).snapshot;
+  assert.deepEqual(after, before);
+  assert.equal(
+    after.strokes.find((stroke) => stroke.strokeId === contact.strokeId)
+      ?.pointCount,
+    1,
   );
 });

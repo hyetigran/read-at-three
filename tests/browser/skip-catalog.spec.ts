@@ -17,9 +17,12 @@ async function assertSkippedCatalog(page: Page) {
   const response = (await responses(page)).findLast(
     (response) => response.kind === "application",
   );
-  if (response?.kind !== "application" || response.value.kind !== "ready")
+  if (
+    response?.kind !== "application" ||
+    response.value.application.kind !== "ready"
+  )
     throw Error("Committed catalog projection is missing");
-  const projectedTask = response.value.projection.catalog.find(
+  const projectedTask = response.value.application.projection.catalog.find(
     (entry) => entry.number === 6,
   );
   expect(projectedTask).toMatchObject({

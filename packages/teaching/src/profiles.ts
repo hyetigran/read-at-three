@@ -367,7 +367,7 @@ function preferences(
       : { displayName: displayName(input.displayName) }),
   };
 }
-function departure(
+export function decodeDepartureWitness(
   input: Extract<RawPayload, { kind: "selectProfile" }>["departure"],
 ): DepartureWitness {
   if (
@@ -427,13 +427,13 @@ function payload(input: RawPayload): ProfileAdministrationPayload {
         kind: input.kind,
         owner: owner(input.owner),
         preferences: preferences(input.preferences),
-        departure: departure(input.departure),
+        departure: decodeDepartureWitness(input.departure),
       };
     case "selectProfile":
       return {
         kind: input.kind,
         target: owner(input.target),
-        departure: departure(input.departure),
+        departure: decodeDepartureWitness(input.departure),
       };
     case "acknowledgePreparation":
       return {

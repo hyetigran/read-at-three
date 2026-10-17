@@ -1,3 +1,11 @@
+import {
+  confirmInitialProfile,
+  executeTeaching,
+  prepareSelectedTeaching,
+  selectedProjection,
+  syntheticPreparation,
+} from "./selected-support.ts";
+
 import { DatabaseSync } from "node:sqlite";
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -15,10 +23,11 @@ import {
 import type {
   AvailableAction,
   RuntimePackage,
-  TeachingApplication,
+  SelectedApplication,
   TeachingIntent,
   Owner,
 } from "../../packages/teaching/src/index.ts";
+
 export const hash = async (text: string) =>
   createHash("sha256").update(text).digest("hex");
 export type SqlHook = (
@@ -71,7 +80,6 @@ export async function storageFixture(
     options: {
       content?: RuntimePackage;
       hook?: SqlHook;
-      owner?: Owner;
       preparation?: Parameters<
         typeof createTeachingApplication
       >[0]["preparation"];
@@ -86,7 +94,6 @@ export async function storageFixture(
       db,
       executor,
       app: createTeachingApplication({
-        ...(options.owner ? { owner: options.owner } : {}),
         ...(options.preparation ? { preparation: options.preparation } : {}),
         executor,
         content: options.content ?? content,
@@ -95,25 +102,36 @@ export async function storageFixture(
       }),
     };
   }
+  async function connectReady(options: Parameters<typeof connect>[0] = {}) {
+    const connection = connect({
+      preparation: syntheticPreparation,
+      ...options,
+    });
+    await confirmInitialProfile(connection.app, ids, hash);
+    return connection;
+  }
   async function act(
-    app: TeachingApplication,
+    app: SelectedApplication,
     kind: TeachingIntent["kind"],
     matches: (action: AvailableAction) => boolean = () => true,
   ) {
-    const projection = await app.read();
+    const projection = await selectedProjection(app);
     if (projection.kind === "recovery") throw new Error(projection.message);
     const action = projection.actions.find(
       (action) => action.intent.kind === kind && matches(action),
     );
     if (!action) throw new Error(`No ${kind} at ${projection.kind}`);
-    return app.dispatch(
-      await prepareCommand({
-        projection,
-        request: { kind: "action", action },
-        ids,
-        hash,
-      }),
+    return executeTeaching(
+      app,
+      await prepareSelectedTeaching(app, async () =>
+        prepareCommand({
+          projection,
+          request: { kind: "action", action },
+          ids,
+          hash,
+        }),
+      ),
     );
   }
-  return { content, connect, ids, act };
+  return { content, connect, connectReady, ids, act };
 }

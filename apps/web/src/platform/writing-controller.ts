@@ -1,6 +1,8 @@
 import {
   canonical,
   prepareWritingControl,
+  parseSelectedOperation,
+  prepareProfileAdministration,
   summarizePractice,
   inkAdmissionAnchor,
   inkStrokeMetadataReservation,
@@ -38,6 +40,14 @@ import type {
   RetainedInkUsage,
   BrushSpec,
   TeachingCommand,
+  SelectedOwnerWitness,
+  SelectedInkOperation,
+  ProfileDirectory,
+  ProfileAdministrationIntent,
+  ProfileAdministrationCommand,
+  ProfileAdministrationReceipt,
+  CommandRejection,
+  Counter,
 } from "@readatthree/teaching";
 import type { InkLifecycleClient } from "./teaching-client.ts";
 import type {
@@ -45,6 +55,7 @@ import type {
   PreparedAction,
   ReadExpectation,
   RestoreTeaching,
+  ReadEnvelope,
 } from "@readatthree/react-integration";
 import { hashText } from "./hash.ts";
 import { isTeachingViewport } from "./viewport.ts";
@@ -63,7 +74,27 @@ export type Operation =
   | { kind: "pending"; prepared: PreparedAction }
   | { kind: "failed"; prepared: PreparedAction; message: string }
   | { kind: "inkFailed"; message: string; retry: InkRetry }
+  | { kind: "adminPreparing"; intent: ProfileAdministrationIntent }
+  | { kind: "adminSaving"; command: ProfileAdministrationCommand }
+  | {
+      kind: "adminFailed";
+      command: ProfileAdministrationCommand;
+      message: string;
+    }
+  | { kind: "adopting"; receipt: ProfileAdministrationReceipt }
+  | {
+      kind: "adoptionFailed";
+      receipt: ProfileAdministrationReceipt;
+      message: string;
+    }
   | { kind: "rejected"; message: string };
+export type AdministrationOutcome =
+  | Readonly<{
+      kind: "visible" | "resolved";
+      receipt: ProfileAdministrationReceipt;
+    }>
+  | Readonly<{ kind: "held" }>
+  | CommandRejection;
 export type ControllerState = Readonly<{
   operation: Operation;
   correctionPreview: GraphNode | ControlTurnNode | null;
@@ -86,6 +117,8 @@ export type InkContact = Readonly<{
   originalToken: DocumentToken;
   fenceSerial: number;
   startedAt: number;
+  selection: SelectedOwnerWitness;
+  connectionTicket: number;
 }>;
 const brushFor = (layer: RenderStroke["layer"]): BrushSpec => ({
   kind: "round",
@@ -95,7 +128,7 @@ const brushFor = (layer: RenderStroke["layer"]): BrushSpec => ({
   join: "round",
 });
 type PendingInk = Readonly<{
-  command: InkCommand;
+  operation: SelectedInkOperation;
   through: number;
   chunks: readonly InkChunk[];
 }>;
@@ -154,6 +187,9 @@ export function createWritingController({
   let closed = false;
   let semanticReservation = 0;
   let connected = false;
+  let discovered: ProfileDirectory | null = null;
+  let directorySerial = 0;
+  let minimumAdministration: Counter | null = null;
   let opening: Promise<void> | null = null;
   let started = false;
   let draining: Promise<void> | null = null;
@@ -161,13 +197,21 @@ export function createWritingController({
   const teaching = createTeaching(stageRestore);
   function refreshExpectation(): ReadExpectation {
     const current = teaching.current();
-    return current && current.projection.kind !== "recovery"
+    return current &&
+      current.projection.kind !== "recovery" &&
+      (!discovered ||
+        canonical(discovered.selection) ===
+          canonical(current.directory.selection))
       ? {
           kind: "refresh",
-          owner: current.projection.owner,
+          selection: current.directory.selection,
           courseId: current.courseId,
         }
-      : { kind: "opening" };
+      : discovered
+        ? { kind: "opening", selection: discovered.selection }
+        : (() => {
+            throw new Error("Selected directory has not been discovered.");
+          })();
   }
   function publish(next: Partial<ControllerState>) {
     state = { ...state, ...next };
@@ -248,13 +292,24 @@ export function createWritingController({
         },
       });
   });
-  async function stageRestore(projection: Projection) {
+  async function stageRestore(read: ReadEnvelope) {
+    const projection = read.projection;
+    const connection = client.connectionTicket();
     const next = new Map<DocumentToken["documentId"], DocumentView>();
     let practiceControls: import("@readatthree/teaching").PracticeControlsSummary =
       { kind: "readOnly" };
     if (writing(projection)) {
       for (const token of projection.documents) {
-        const snapshot = await client.readInk({ token });
+        const restored = await client.readInk({
+          selection: read.directory.selection,
+          token,
+        });
+        if (
+          connection !== client.connectionTicket() ||
+          canonical(restored.selection) !== canonical(read.directory.selection)
+        )
+          throw new Error("The writing restoration lease changed.");
+        const snapshot = restored.value;
         if (canonical(snapshot.token) !== canonical(token))
           throw new Error(
             "The restored writing did not match its committed document.",
@@ -298,10 +353,13 @@ export function createWritingController({
     return {
       practiceControls,
       activate() {
+        if (connection !== client.connectionTicket())
+          throw new Error("The writing restoration connection changed.");
         documents.clear();
         for (const [key, value] of next) documents.set(key, value);
-        paint();
+        discovered = read.directory;
       },
+      publish: paint,
     };
   }
   function chunksFor(
@@ -428,7 +486,14 @@ export function createWritingController({
         capture.segmentStart = points.length;
       },
     });
-    const pending = { command, through: points.length, chunks };
+    const operation = parseSelectedOperation({
+      kind: "ink",
+      selection: capture.contact.selection,
+      command,
+    });
+    if (operation.kind !== "ink")
+      throw new Error("Retained ink operation required.");
+    const pending = { operation, through: points.length, chunks };
     capture.pending = pending;
     const retained = queue.retain({ command });
     if (retained.kind === "fenced")
@@ -452,7 +517,7 @@ export function createWritingController({
     capture.began = true;
     capture.pending = null;
     capture.reserved = null;
-    if (pending.command.edit.kind === "finalize") {
+    if (pending.operation.command.edit.kind === "finalize") {
       view.strokes = [
         ...view.strokes,
         {
@@ -469,10 +534,26 @@ export function createWritingController({
   }
   async function send(capture: Capture, recoveryId?: string) {
     const pending = await prepare(capture);
-    const result =
-      recoveryId === undefined
-        ? await client.dispatchInk(pending.command)
-        : await client.recoverInk({ recoveryId, command: pending.command });
+    let result: import("@readatthree/teaching").InkResult;
+    if (recoveryId === undefined) {
+      const connection = client.connectionTicket();
+      const response = await client.execute(pending.operation);
+      if (connection !== client.connectionTicket())
+        throw new Error(
+          "The ink connection lease changed before acknowledgement.",
+        );
+      if (response.kind !== "ink") throw new Error("Ink result required.");
+      if (
+        response.result.kind === "inkCommitted" &&
+        canonical(response.selection) !== canonical(pending.operation.selection)
+      )
+        throw new Error("Retired ink result cannot publish.");
+      result = response.result;
+    } else {
+      result = (
+        await client.recoverInk({ recoveryId, operation: pending.operation })
+      ).result;
+    }
     if (result.kind !== "inkCommitted")
       throw new Error(
         "The writing binding changed. Retained writing needs recovery.",
@@ -506,22 +587,29 @@ export function createWritingController({
       draining = null;
     }
   }
-  async function reconcile(prepared: PreparedAction | null = null) {
+  async function reconcile(
+    prepared: PreparedAction | null = null,
+    administration: ProfileAdministrationCommand | null = null,
+  ) {
     fence();
     const retained = [...spool];
     const retainedStrokeIds = retained.map((capture) => capture.strokeId);
+    const selection =
+      prepared?.operation.selection ??
+      administration?.selection ??
+      retained[0]?.contact.selection ??
+      teaching.current()?.directory.selection ??
+      discovered?.selection;
+    if ((retained.length || prepared || administration) && !selection)
+      throw new Error("Retained selected lifetime is unavailable.");
     const inventory = await client.connect(
-      retained.length || prepared
+      selection && (retained.length || prepared || administration)
         ? {
             kind: "warm",
+            selection,
             retainedStrokeIds,
-            teaching: prepared
-              ? {
-                  kind: "pending",
-                  commandId: prepared.command.commandId,
-                  payloadHash: prepared.command.payloadHash,
-                }
-              : { kind: "none" },
+            teaching: prepared?.operation ?? null,
+            administration,
           }
         : { kind: "cold" },
     );
@@ -538,15 +626,31 @@ export function createWritingController({
       : null;
     if (attempt && attempt.kind !== "resolved")
       throw new Error("Closed recovery cannot publish teaching.");
-    const projection = await client.reconcileRecovery({
+    const administrative = administration
+      ? await client.recoverAdministration({
+          recoveryId: inventory.recoveryId,
+          command: administration,
+        })
+      : null;
+    const directory = await client.reconcileRecovery({
       recoveryId: inventory.recoveryId,
       choice:
-        retained.length || prepared
+        retained.length || prepared || administration
           ? { kind: "warm", settledStrokeIds: retainedStrokeIds }
           : { kind: "cold" },
     });
+    discovered = directory;
+    const current = await client.read({
+      selection: directory.selection,
+      target: { kind: "cursor" },
+    });
     connected = true;
-    return { result: attempt?.result ?? null, projection };
+    return {
+      result: attempt?.result ?? null,
+      administrative: administrative?.result ?? null,
+      directory,
+      projection: current.projection,
+    };
   }
   async function open(): Promise<void> {
     if (opening) return opening;
@@ -585,8 +689,8 @@ export function createWritingController({
     publish({ operation: { kind: "pending", prepared } });
     try {
       const pausing =
-        "action" in prepared.command.payload &&
-        prepared.command.payload.action.kind === "pause";
+        "action" in prepared.operation.command.payload &&
+        prepared.operation.command.payload.action.kind === "pause";
       if (
         !pausing &&
         (!isTeachingViewport() || document.visibilityState !== "visible")
@@ -636,6 +740,9 @@ export function createWritingController({
       return;
     }
     let prepared: PreparedAction;
+    const source = teaching.current();
+    if (!source) throw new Error("Selected teaching source is unavailable.");
+    const selection = source.directory.selection;
     try {
       if ("kind" in request) {
         await teaching.read({ expectation: refreshExpectation() });
@@ -704,7 +811,14 @@ export function createWritingController({
         return exhaustive;
       }
       checkOperation(ticket);
-      prepared = { command, origin };
+      const operation = parseSelectedOperation({
+        kind: "teaching",
+        selection,
+        command,
+      });
+      if (operation.kind !== "teaching")
+        throw new Error("Prepared teaching operation required.");
+      prepared = { operation, origin };
     } catch {
       if (closed || operationSerial !== ticket) return;
       semanticReservation = 0;
@@ -751,11 +865,29 @@ export function createWritingController({
     void enter(request);
   }
   function waitForOperation() {
-    if (!["opening", "preparing", "pending"].includes(state.operation.kind))
+    if (
+      ![
+        "opening",
+        "preparing",
+        "pending",
+        "adminPreparing",
+        "adminSaving",
+        "adopting",
+      ].includes(state.operation.kind)
+    )
       return Promise.resolve();
     return new Promise<void>((resolve) => {
       const listener = () => {
-        if (["opening", "preparing", "pending"].includes(state.operation.kind))
+        if (
+          [
+            "opening",
+            "preparing",
+            "pending",
+            "adminPreparing",
+            "adminSaving",
+            "adopting",
+          ].includes(state.operation.kind)
+        )
           return;
         subscribers.delete(listener);
         resolve();
@@ -820,12 +952,215 @@ export function createWritingController({
     reopenInput();
   }
 
+  async function readDirectory(ticket: number) {
+    const reading = ++directorySerial;
+    const connection = client.connectionTicket();
+    const directory = await client.readDirectory();
+    checkOperation(ticket);
+    if (reading !== directorySerial || connection !== client.connectionTicket())
+      throw new Error("The directory read lease changed.");
+    if (
+      minimumAdministration !== null &&
+      BigInt(directory.administration.revision) < BigInt(minimumAdministration)
+    )
+      throw new Error("A newer committed profile directory is required.");
+    minimumAdministration = directory.administration.revision;
+    return directory;
+  }
+  async function adopt(
+    receipt: ProfileAdministrationReceipt,
+    ticket: number,
+  ): Promise<AdministrationOutcome> {
+    publish({ operation: { kind: "adopting", receipt } });
+    try {
+      if (
+        minimumAdministration === null ||
+        BigInt(receipt.administration.revision) > BigInt(minimumAdministration)
+      )
+        minimumAdministration = receipt.administration.revision;
+      const directory = await readDirectory(ticket);
+      if (canonical(directory.selection) !== canonical(receipt.selection)) {
+        if (
+          canonical(teaching.current()?.directory.selection) ===
+          canonical(directory.selection)
+        ) {
+          publish({ operation: { kind: "idle" } });
+          reopenInput();
+        } else {
+          fence();
+          publish({
+            operation: {
+              kind: "rejected",
+              message:
+                "A newer child selection replaced this saved result. Retry to restore the current child.",
+            },
+          });
+        }
+        return { kind: "resolved", receipt };
+      }
+      if (!teaching.adoptDirectory(directory)) {
+        fence();
+        await drain();
+        checkOperation(ticket);
+        teaching.retire();
+        await teaching.read({
+          expectation: {
+            kind: "opening",
+            selection: directory.selection,
+            minimumAdministration: receipt.administration.revision,
+          },
+        });
+        checkOperation(ticket);
+      }
+      discovered = teaching.current()?.directory ?? directory;
+      publish({ operation: { kind: "idle" }, correctionPreview: null });
+      reopenInput();
+      return { kind: "visible", receipt };
+    } catch {
+      if (operationSerial === ticket && !closed) {
+        fence();
+        publish({
+          operation: { kind: "adoptionFailed", receipt, message: saveMessage },
+        });
+      }
+      return { kind: "held" };
+    }
+  }
+  async function saveAdministration(
+    command: ProfileAdministrationCommand,
+    ticket: number,
+  ): Promise<AdministrationOutcome> {
+    publish({ operation: { kind: "adminSaving", command } });
+    try {
+      const connection = client.connectionTicket();
+      const receipt = await client.administer(command);
+      checkOperation(ticket);
+      if (connection !== client.connectionTicket())
+        throw new Error("The administrative connection lease changed.");
+      if (receipt.kind === "rejected") {
+        fence();
+        publish({ operation: { kind: "rejected", message: receipt.message } });
+        return receipt;
+      }
+      return adopt(receipt, ticket);
+    } catch {
+      if (operationSerial === ticket && !closed) {
+        fence();
+        publish({
+          operation: { kind: "adminFailed", command, message: saveMessage },
+        });
+      }
+      return { kind: "held" };
+    }
+  }
+  async function administer(
+    intent: ProfileAdministrationIntent,
+  ): Promise<AdministrationOutcome> {
+    await waitForOperation();
+    if (state.operation.kind !== "idle") return { kind: "held" };
+    const selection =
+      teaching.current()?.directory.selection ?? discovered?.selection;
+    if (!selection) return { kind: "held" };
+    const switching =
+      intent.kind === "selectProfile" || intent.kind === "createAndSelect";
+    if (switching) {
+      routeSuspended = true;
+      fence();
+      if (!(await settleVisit())) return { kind: "held" };
+      teaching.retire();
+    }
+    const ticket = ++operationSerial;
+    directorySerial++;
+    publish({ operation: { kind: "adminPreparing", intent } });
+    try {
+      const directory = await readDirectory(ticket);
+      if (canonical(directory.selection) !== canonical(selection))
+        throw new Error(
+          "The selected child changed before administration preparation.",
+        );
+      const common = { selection, ids, hash: hashText };
+      const command =
+        intent.kind === "selectProfile" || intent.kind === "createAndSelect"
+          ? await prepareProfileAdministration({
+              ...common,
+              intent,
+              departure: await client.readDeparture({ selection }),
+            })
+          : await prepareProfileAdministration({ ...common, intent });
+      checkOperation(ticket);
+      return saveAdministration(command, ticket);
+    } catch {
+      if (operationSerial === ticket && !closed) {
+        fence();
+        publish({
+          operation: {
+            kind: "rejected",
+            message:
+              "The profile change could not be prepared from this saved selection. Retry to reload it.",
+          },
+        });
+      }
+      return { kind: "held" };
+    }
+  }
+  async function retryAdministration(
+    operation: Extract<Operation, { kind: "adminFailed" | "adoptionFailed" }>,
+  ) {
+    const ticket = ++operationSerial;
+    fence();
+    if (operation.kind === "adoptionFailed") {
+      try {
+        if (!connected) await reconcile();
+        checkOperation(ticket);
+        await adopt(operation.receipt, ticket);
+      } catch {
+        if (operationSerial === ticket && !closed)
+          publish({ operation: { ...operation, message: saveMessage } });
+      }
+      return;
+    }
+    if (connected) {
+      await saveAdministration(operation.command, ticket);
+      return;
+    }
+    try {
+      const recovery = await reconcile(null, operation.command);
+      checkOperation(ticket);
+      if (
+        !recovery.administrative ||
+        recovery.administrative.kind === "rejected"
+      ) {
+        publish({
+          operation: {
+            kind: "rejected",
+            message: recovery.administrative?.message ?? saveMessage,
+          },
+        });
+        return;
+      }
+      await adopt(recovery.administrative, ticket);
+    } catch {
+      if (operationSerial === ticket && !closed)
+        publish({ operation: { ...operation, message: saveMessage } });
+    }
+  }
+
   async function retry() {
     const operation = state.operation;
+    if (
+      operation.kind === "adminFailed" ||
+      operation.kind === "adoptionFailed"
+    ) {
+      await retryAdministration(operation);
+      return;
+    }
     if (
       operation.kind === "opening" ||
       operation.kind === "pending" ||
       operation.kind === "preparing" ||
+      operation.kind === "adminPreparing" ||
+      operation.kind === "adminSaving" ||
+      operation.kind === "adopting" ||
       !isTeachingViewport() ||
       document.visibilityState !== "visible"
     )
@@ -851,6 +1186,20 @@ export function createWritingController({
       checkOperation(ticket);
       if (operation.kind === "failed") {
         const result = recovery?.result;
+        if (
+          recovery &&
+          canonical(recovery.directory.selection) !==
+            canonical(operation.prepared.operation.selection)
+        ) {
+          publish({
+            operation: {
+              kind: "rejected",
+              message:
+                "The retained operation is resolved for an earlier child selection. Retry to restore the current child.",
+            },
+          });
+          return;
+        }
         if (!result || result.kind === "rejected") {
           publish({
             operation: {
@@ -880,6 +1229,14 @@ export function createWritingController({
         publish({ operation: { kind: "idle" }, correctionPreview: null });
         reopenInput();
       } else {
+        discovered = await readDirectory(ticket);
+        const current = teaching.current();
+        if (
+          !current ||
+          canonical(discovered.selection) !==
+            canonical(current.directory.selection)
+        )
+          teaching.retire();
         await teaching.read({ expectation: refreshExpectation() });
         checkOperation(ticket);
         semanticReservation = 0;
@@ -1018,6 +1375,8 @@ export function createWritingController({
       void interrupt();
       return null;
     }
+    const selection = teaching.current()?.directory.selection;
+    if (!selection) return null;
     const strokeId = parseId({ kind: "stroke", value: ids() });
     const layer = layerForPhase(view.snapshot.token.phase);
     const contact = Object.freeze({
@@ -1025,6 +1384,8 @@ export function createWritingController({
       originalToken: view.snapshot.token,
       fenceSerial,
       startedAt,
+      selection,
+      connectionTicket: client.connectionTicket(),
     });
     const capture: Capture = {
       strokeId,
@@ -1063,6 +1424,12 @@ export function createWritingController({
   }
   function append(contact: InkContact, samples: readonly InkSample[]) {
     if (
+      contact.connectionTicket !== client.connectionTicket() ||
+      canonical(contact.selection) !==
+        canonical(teaching.current()?.directory.selection)
+    )
+      return;
+    if (
       fenced ||
       active?.contact !== contact ||
       contact.fenceSerial !== fenceSerial ||
@@ -1088,6 +1455,12 @@ export function createWritingController({
     paint();
   }
   function finish(contact: InkContact, status: "finished" | "interrupted") {
+    if (
+      contact.connectionTicket !== client.connectionTicket() ||
+      canonical(contact.selection) !==
+        canonical(teaching.current()?.directory.selection)
+    )
+      return;
     if (active?.contact !== contact || contact.fenceSerial !== fenceSerial)
       return;
     active.status = status;
@@ -1150,6 +1523,7 @@ export function createWritingController({
     committed: teaching.view,
     open,
     act,
+    administer,
     enter,
     visit,
     setSurface,

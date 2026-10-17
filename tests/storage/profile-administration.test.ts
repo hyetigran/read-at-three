@@ -1,3 +1,5 @@
+import { selectedCourse, selectedWork } from "./selected-support.ts";
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -352,10 +354,10 @@ for (const failure of ["before", "after"] satisfies readonly (
     const ownerA = await fixture.setup(first.app);
     await fixture.start(first.app);
     await fixture.draw(first.app, 80);
-    const before = await first.app.readApplication({ kind: "cursor" });
+    const before = await selectedCourse(first.app, { kind: "cursor" });
     if (before.kind !== "ready" || before.projection.kind !== "writing")
       assert.fail("A's writing must be active");
-    const work = await first.app.readWork({
+    const work = await selectedWork(first.app, {
       owner: ownerA,
       runId: before.projection.runId,
     });
@@ -378,11 +380,11 @@ for (const failure of ["before", "after"] satisfies readonly (
       assert.equal(directory.administration.revision, "2");
       assert.deepEqual(directory.selection.owner, ownerA);
       assert.deepEqual(
-        await first.app.readApplication({ kind: "cursor" }),
+        await selectedCourse(first.app, { kind: "cursor" }),
         before,
       );
       assert.deepEqual(
-        await first.app.readWork({
+        await selectedWork(first.app, {
           owner: ownerA,
           runId: before.projection.runId,
         }),
@@ -415,7 +417,7 @@ for (const failure of ["before", "after"] satisfies readonly (
       directory: directory.administration,
       target: ownerA,
     }));
-    const restored = await reopened.app.readApplication({ kind: "cursor" });
+    const restored = await selectedCourse(reopened.app, { kind: "cursor" });
     if (restored.kind !== "ready" || restored.projection.kind !== "writing")
       assert.fail("A's saved writing must return");
     assert.equal(restored.projection.runId, before.projection.runId);
@@ -423,7 +425,7 @@ for (const failure of ["before", "after"] satisfies readonly (
     assert.equal(restored.projection.turn.id, before.projection.turn.id);
     assert.equal(restored.projection.sessionStatus, "paused");
     assert.deepEqual(
-      await reopened.app.readWork({
+      await selectedWork(reopened.app, {
         owner: ownerA,
         runId: before.projection.runId,
       }),

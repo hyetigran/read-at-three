@@ -28,6 +28,7 @@ export {
 } from "./engine.ts";
 export {
   createCoordinator,
+  dispatchTeachingInTransaction,
   prepareCommand,
   prepareWritingCommand,
   prepareWritingControl,
@@ -59,3 +60,5 @@ export * from "./course-content.ts";
 export * from "./course.ts";
 
 export * from "./profiles.ts";
+
+export * from "./selection.ts";

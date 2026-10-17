@@ -37,6 +37,7 @@ import type {
   TeachingApplication,
   TeachingCommand,
   TeachingStore,
+  TeachingTransaction,
   CommitReceipt,
   CommandResult,
   StoredContext,
@@ -416,11 +417,6 @@ export function createCoordinator({
 }): TeachingApplication & {
   readApplication(target: CourseReadTarget): Promise<ApplicationRead>;
 } {
-  const reject = (code: string, message: string): CommandResult => ({
-    kind: "rejected",
-    code,
-    message,
-  });
   async function readApplication(
     target: CourseReadTarget,
   ): Promise<ApplicationRead> {
@@ -674,440 +670,417 @@ export function createCoordinator({
     read,
     readApplication,
     async dispatch(input) {
-      const command = parseCommand(input);
+      return store.transaction((tx) =>
+        dispatchTeachingInTransaction({ input, tx, store, ids, hash }),
+      );
+    },
+  };
+}
+
+export async function dispatchTeachingInTransaction({
+  input,
+  tx,
+  store,
+  ids,
+  hash,
+}: {
+  input: TeachingCommand;
+  tx: TeachingTransaction;
+  store: Pick<TeachingStore, "resolvePackage">;
+  ids: IdFactory;
+  hash: HashFunction;
+}): Promise<CommandResult> {
+  const reject = (code: string, message: string): CommandResult => ({
+    kind: "rejected",
+    code,
+    message,
+  });
+  const command = parseCommand(input);
+  if (
+    (await hash(
+      canonical({ kind: command.kind, payload: command.payload }),
+    )) !== command.payloadHash
+  )
+    return reject("payload-hash", "Command payload hash does not match.");
+  let content: RuntimePackage | undefined;
+  try {
+    content = await store.resolvePackage(command.payload.packageHash);
+  } catch {}
+  if (command.scope.generation !== command.owner.generation)
+    return reject("stale-owner", "Command owner generation changed.");
+  const context = await tx.context(command.owner);
+  if (!context) return reject("stale-owner", "Command owner no longer exists.");
+  if (
+    command.scope.kind === "profile" &&
+    command.scope.id !== context.owner.profileId
+  )
+    return reject("wrong-scope", "Command profile does not match.");
+  if (
+    command.scope.kind === "session" &&
+    !context.ownedSessionIds.includes(command.scope.id)
+  )
+    return reject(
+      "wrong-scope",
+      "Command session is not owned by this profile.",
+    );
+  const saved = await tx.receipt(command);
+  if (saved)
+    return saved.payloadHash === command.payloadHash
+      ? saved.result
+      : reject(
+          "command-identity",
+          "Command identity was reused with a changed payload.",
+        );
+  if (!content || content.packageHash !== command.payload.packageHash)
+    return reject(
+      "missing-package",
+      "Exact command content package is unavailable.",
+    );
+  if (
+    command.kind === "start" ||
+    command.kind === "select" ||
+    command.kind === "writingSelect"
+  ) {
+    if (
+      context.session &&
+      writingTask({
+        content: await store.resolvePackage(context.session.packageHash),
+        taskId: context.session.taskId,
+      }) &&
+      context.session.status === "active" &&
+      context.session.runStatus === "inProgress" &&
+      command.kind !== "writingSelect"
+    )
+      return reject(
+        "writing-fence",
+        "Pause writing with committed documents before selecting a task.",
+      );
+    if (
+      command.kind === "writingSelect" &&
+      (!context.session ||
+        !tx.writingBarrier ||
+        !(await tx.writingBarrier({
+          session: context.session,
+          barrier: command.payload.barrier,
+        })))
+    )
+      return reject("writing-barrier", "Writing selection barrier changed.");
+    if (command.expectedRevision !== context.profileRevision)
+      return reject("stale-revision", "Profile changed before this selection.");
+    let selection: SelectionPlan;
+    if (
+      (command.kind === "select" || command.kind === "writingSelect") &&
+      command.payload.intent === "resume"
+    ) {
+      const target = context.sessions.find(
+        (session) => session.sessionId === command.payload.sessionId,
+      );
       if (
-        (await hash(
-          canonical({ kind: command.kind, payload: command.payload }),
-        )) !== command.payloadHash
+        !target ||
+        target.taskId !== command.payload.taskId ||
+        target.packageHash !== content.packageHash ||
+        target.runStatus !== "inProgress" ||
+        target.status === "closed"
       )
-        return reject("payload-hash", "Command payload hash does not match.");
-      let content: RuntimePackage | undefined;
-      try {
-        content = await store.resolvePackage(command.payload.packageHash);
-      } catch {}
-      return store.transaction(async (tx) => {
-        if (command.scope.generation !== command.owner.generation)
-          return reject("stale-owner", "Command owner generation changed.");
-        const context = await tx.context(command.owner);
-        if (!context)
-          return reject("stale-owner", "Command owner no longer exists.");
-        if (
-          command.scope.kind === "profile" &&
-          command.scope.id !== context.owner.profileId
-        )
-          return reject("wrong-scope", "Command profile does not match.");
-        if (
-          command.scope.kind === "session" &&
-          !context.ownedSessionIds.includes(command.scope.id)
-        )
+        return reject("wrong-target", "Saved run is unavailable for Resume.");
+      selection = { kind: "resume", session: target };
+    } else {
+      if (content.packageHash !== context.activePackageHash)
+        return reject(
+          "inactive-package",
+          "New runs use the active content package.",
+        );
+      let taskId: TaskId;
+      let replaceSessionId = null;
+      if (command.kind === "start") {
+        if (content.body.coverage !== "partial-first-m" || context.session)
+          return reject("already-started", "Choose an explicit task action.");
+        taskId = content.body.taskId;
+      } else {
+        taskId = command.payload.taskId;
+        if (content.body.coverage === "partial-first-m")
+          return reject("legacy-start", "Legacy preview can only be resumed.");
+        try {
+          taskDefinition({ content, taskId });
+        } catch {
           return reject(
-            "wrong-scope",
-            "Command session is not owned by this profile.",
+            "task-unavailable",
+            "Task is unavailable in the active package.",
           );
-        const saved = await tx.receipt(command);
-        if (saved)
-          return saved.payloadHash === command.payloadHash
-            ? saved.result
-            : reject(
-                "command-identity",
-                "Command identity was reused with a changed payload.",
-              );
-        if (!content || content.packageHash !== command.payload.packageHash)
-          return reject(
-            "missing-package",
-            "Exact command content package is unavailable.",
-          );
+        }
         if (
-          command.kind === "start" ||
-          command.kind === "select" ||
-          command.kind === "writingSelect"
+          command.payload.intent === "restart" ||
+          command.payload.intent === "replay"
         ) {
+          const target = context.sessions.find(
+            (session) => session.sessionId === command.payload.sessionId,
+          );
+          const needed =
+            command.payload.intent === "restart" ? "inProgress" : "terminal";
           if (
-            context.session &&
-            writingTask({
-              content: await store.resolvePackage(context.session.packageHash),
-              taskId: context.session.taskId,
-            }) &&
-            context.session.status === "active" &&
-            context.session.runStatus === "inProgress" &&
-            command.kind !== "writingSelect"
-          )
-            return reject(
-              "writing-fence",
-              "Pause writing with committed documents before selecting a task.",
-            );
-          if (
-            command.kind === "writingSelect" &&
-            (!context.session ||
-              !tx.writingBarrier ||
-              !(await tx.writingBarrier({
-                session: context.session,
-                barrier: command.payload.barrier,
-              })))
-          )
-            return reject(
-              "writing-barrier",
-              "Writing selection barrier changed.",
-            );
-          if (command.expectedRevision !== context.profileRevision)
-            return reject(
-              "stale-revision",
-              "Profile changed before this selection.",
-            );
-          let selection: SelectionPlan;
-          if (
-            (command.kind === "select" || command.kind === "writingSelect") &&
-            command.payload.intent === "resume"
+            command.payload.intent === "replay" &&
+            command.payload.sessionId === null
           ) {
-            const target = context.sessions.find(
-              (session) => session.sessionId === command.payload.sessionId,
-            );
             if (
-              !target ||
-              target.taskId !== command.payload.taskId ||
-              target.packageHash !== content.packageHash ||
-              target.runStatus !== "inProgress" ||
-              target.status === "closed"
+              !context.taskResults.some(
+                (result) =>
+                  result.taskId === taskId && result.outcome === "completed",
+              )
             )
               return reject(
                 "wrong-target",
-                "Saved run is unavailable for Resume.",
+                "Replay needs an existing valid task result.",
               );
-            selection = { kind: "resume", session: target };
           } else {
-            if (content.packageHash !== context.activePackageHash)
+            if (
+              !target ||
+              target.taskId !== taskId ||
+              (needed === "terminal"
+                ? target.runStatus === "inProgress"
+                : target.runStatus !== needed)
+            )
               return reject(
-                "inactive-package",
-                "New runs use the active content package.",
+                "wrong-target",
+                "Explicit replacement does not match its saved task.",
               );
-            let taskId: TaskId;
-            let replaceSessionId = null;
-            if (command.kind === "start") {
-              if (
-                content.body.coverage !== "partial-first-m" ||
-                context.session
-              )
-                return reject(
-                  "already-started",
-                  "Choose an explicit task action.",
-                );
-              taskId = content.body.taskId;
-            } else {
-              taskId = command.payload.taskId;
-              if (content.body.coverage === "partial-first-m")
-                return reject(
-                  "legacy-start",
-                  "Legacy preview can only be resumed.",
-                );
-              try {
-                taskDefinition({ content, taskId });
-              } catch {
-                return reject(
-                  "task-unavailable",
-                  "Task is unavailable in the active package.",
-                );
-              }
-              if (
-                command.payload.intent === "restart" ||
-                command.payload.intent === "replay"
-              ) {
-                const target = context.sessions.find(
-                  (session) => session.sessionId === command.payload.sessionId,
-                );
-                const needed =
-                  command.payload.intent === "restart"
-                    ? "inProgress"
-                    : "terminal";
-                if (
-                  command.payload.intent === "replay" &&
-                  command.payload.sessionId === null
-                ) {
-                  if (
-                    !context.taskResults.some(
-                      (result) =>
-                        result.taskId === taskId &&
-                        result.outcome === "completed",
-                    )
-                  )
-                    return reject(
-                      "wrong-target",
-                      "Replay needs an existing valid task result.",
-                    );
-                } else {
-                  if (
-                    !target ||
-                    target.taskId !== taskId ||
-                    (needed === "terminal"
-                      ? target.runStatus === "inProgress"
-                      : target.runStatus !== needed)
-                  )
-                    return reject(
-                      "wrong-target",
-                      "Explicit replacement does not match its saved task.",
-                    );
-                  replaceSessionId = target.sessionId;
-                }
-              } else if (command.payload.sessionId !== null)
-                return reject(
-                  "wrong-target",
-                  "Start cannot silently replace a saved run.",
-                );
-              const live = context.sessions.find(
-                (session) =>
-                  session.taskId === taskId &&
-                  session.runStatus === "inProgress",
-              );
-              if (live && live.sessionId !== replaceSessionId)
-                return reject(
-                  "saved-run-exists",
-                  "Resume or explicitly restart this saved task.",
-                );
-            }
-            selection = {
-              kind: "new",
-              sessionId: parseId({ kind: "session", value: ids() }),
-              runId: parseId({ kind: "run", value: ids() }),
-              taskId,
-              state: initialState(content, taskId),
-              replaceSessionId,
-            };
+            replaceSessionId = target.sessionId;
           }
-          await tx.ensurePackage(content);
-          const receipt: CommitReceipt = {
-            kind: "committed",
-            commandId: command.commandId,
-            owner: context.owner,
-            sessionId:
-              selection.kind === "new"
-                ? selection.sessionId
-                : selection.session.sessionId,
-            runId:
-              selection.kind === "new"
-                ? selection.runId
-                : selection.session.runId,
-            revision: increment(context.profileRevision),
-            packageHash: content.packageHash,
-          };
-          await tx.select({ command, context, content, selection, receipt });
-          return receipt;
-        }
-        const session = context.session;
-        if (
-          !session ||
-          session.sessionId !== command.scope.id ||
-          session.sessionId !== command.payload.sessionId ||
-          session.runId !== command.payload.runId ||
-          session.packageHash !== command.payload.packageHash
-        )
+        } else if (command.payload.sessionId !== null)
           return reject(
             "wrong-target",
-            "Command does not target the selected teaching run.",
+            "Start cannot silently replace a saved run.",
           );
-        if (command.expectedRevision !== session.revision)
+        const live = context.sessions.find(
+          (session) =>
+            session.taskId === taskId && session.runStatus === "inProgress",
+        );
+        if (live && live.sessionId !== replaceSessionId)
           return reject(
-            "stale-revision",
-            "Teaching changed before this command.",
+            "saved-run-exists",
+            "Resume or explicitly restart this saved task.",
           );
-        if (
-          command.kind === "undoAdvance" ||
-          command.kind === "writingUndoAdvance"
-        ) {
-          const binding = command.payload;
-          if (
-            !tx.undoAdvance ||
-            context.undoRunId !== session.runId ||
-            session.activeAdvanceId !== binding.advanceId ||
-            session.runRevision !== binding.runRevision ||
-            context.profileRevision !== binding.profileRevision ||
-            context.cursorRevision !== binding.cursorRevision ||
-            context.selectionCounter !== binding.selectionCounter
-          )
-            return reject(
-              "stale-undo",
-              "The saved Undo advance window changed.",
-            );
-          const writing =
-            writingTask({ content, taskId: session.taskId }) !== null;
-          if (
-            writing
-              ? command.kind !== "writingUndoAdvance" ||
-                !tx.writingBarrier ||
-                !(await tx.writingBarrier({
-                  session,
-                  barrier: command.payload.barrier,
-                }))
-              : command.kind !== "undoAdvance"
-          )
-            return reject(
-              "writing-barrier",
-              "Undo requires the current committed writing documents.",
-            );
-          await tx.ensurePackage(content);
-          const receipt: CommitReceipt = {
-            kind: "committed",
-            commandId: command.commandId,
-            owner: context.owner,
-            sessionId: session.sessionId,
-            runId: session.runId,
-            revision: increment(session.revision),
-            packageHash: content.packageHash,
-          };
-          await tx.undoAdvance({
-            command,
-            context: { ...context, session },
-            content,
-            receipt,
-          });
-          return receipt;
-        }
-        if (
-          session.status === "paused" ||
-          (session.status === "closed" && context.undoRunId !== session.runId)
-        )
-          return reject("not-active", "Resume the saved run before teaching.");
-        const isWriting =
-          writingTask({ content, taskId: session.taskId }) !== null;
-        if (isWriting) {
-          if (
-            (command.kind !== "writingNavigate" &&
-              command.kind !== "writingControl") ||
-            !tx.writingBarrier ||
-            !(await tx.writingBarrier({
-              session,
-              barrier: command.payload.barrier,
-            }))
-          )
-            return reject(
-              "writing-barrier",
-              "Committed writing documents changed or retain an active capture.",
-            );
-        } else if (
-          command.kind === "writingNavigate" ||
-          command.kind === "writingControl"
-        )
-          return reject(
-            "wrong-task",
-            "Writing command requires a writing task.",
-          );
-        if (command.kind === "writingControl") {
-          const document = command.payload.barrier.documents.find(
-            (token) => token.documentId === command.payload.documentId,
-          );
-          if (
-            !document ||
-            session.status !== "active" ||
-            session.runStatus !== "inProgress" ||
-            (session.state.kind !== "graph" &&
-              session.state.kind !== "graphControls") ||
-            currentCheckpoint(session.state).id !==
-              command.payload.checkpointId ||
-            !writingPermission({
-              content,
-              state: session.state,
-              targetId: document.targetId,
-            }).writable ||
-            layerForPhase(document.phase) !== command.payload.layer ||
-            !tx.applyWritingControl
-          )
-            return reject(
-              "invalid-control",
-              "Practice control is unavailable at this saved position.",
-            );
-          const receipt: CommitReceipt = {
-            kind: "committed",
-            commandId: command.commandId,
-            owner: context.owner,
-            sessionId: session.sessionId,
-            runId: session.runId,
-            revision: increment(session.revision),
-            packageHash: content.packageHash,
-          };
-          if (
-            !(await tx.applyWritingControl({
-              command,
-              context: { ...context, session },
-              receipt,
-            }))
-          )
-            return reject(
-              "invalid-control",
-              "Practice control is unavailable at this saved position.",
-            );
-          return receipt;
-        }
-        let plan: TransitionPlan;
-        try {
-          if (command.kind === "advance") {
-            if (
-              session.runStatus !== "inProgress" ||
-              session.status !== "active"
-            )
-              throw new Error("Legacy run is not active");
-            plan = {
-              kind: "acceptance",
-              after: evaluate(content, session.state, command.payload.nodeId),
-              occurrenceId: command.payload.nodeId,
-            };
-          } else {
-            if (
-              (session.state.kind !== "graph" &&
-                session.state.kind !== "graphControls" &&
-                session.state.kind !== "writingSkipped") ||
-              currentCheckpoint(session.state).id !==
-                command.payload.checkpointId
-            )
-              throw new Error("Checkpoint changed");
-            if (
-              session.runStatus === "completed" &&
-              command.payload.action.kind !== "back" &&
-              command.payload.action.kind !== "continue"
-            )
-              throw new Error("Closed run is review only");
-            plan = evaluateGraph({
-              content,
-              state: session.state,
-              status: session.runStatus,
-              action: command.payload.action,
-            });
-          }
-        } catch {
-          return reject(
-            "invalid-action",
-            "Parent action is unavailable at this saved position.",
-          );
-        }
-        await tx.ensurePackage(content);
-        const receipt: CommitReceipt = {
-          kind: "committed",
-          commandId: command.commandId,
-          owner: context.owner,
-          sessionId: session.sessionId,
-          runId: session.runId,
-          revision: increment(session.revision),
-          packageHash: content.packageHash,
-        };
-        const application = {
-          command,
-          context: { ...context, session },
-          content,
-          before: session.state,
-          receipt,
-        };
-        if (
-          plan.kind === "acceptance" ||
-          plan.kind === "completion" ||
-          plan.kind === "skip"
-        )
-          await tx.apply({
-            ...application,
-            plan,
-            advanceId: parseId({ kind: "advance", value: ids() }),
-          });
-        else await tx.apply({ ...application, plan, advanceId: null });
-        return receipt;
+      }
+      selection = {
+        kind: "new",
+        sessionId: parseId({ kind: "session", value: ids() }),
+        runId: parseId({ kind: "run", value: ids() }),
+        taskId,
+        state: initialState(content, taskId),
+        replaceSessionId,
+      };
+    }
+    await tx.ensurePackage(content);
+    const receipt: CommitReceipt = {
+      kind: "committed",
+      commandId: command.commandId,
+      owner: context.owner,
+      sessionId:
+        selection.kind === "new"
+          ? selection.sessionId
+          : selection.session.sessionId,
+      runId:
+        selection.kind === "new" ? selection.runId : selection.session.runId,
+      revision: increment(context.profileRevision),
+      packageHash: content.packageHash,
+    };
+    await tx.select({ command, context, content, selection, receipt });
+    return receipt;
+  }
+  const session = context.session;
+  if (
+    !session ||
+    session.sessionId !== command.scope.id ||
+    session.sessionId !== command.payload.sessionId ||
+    session.runId !== command.payload.runId ||
+    session.packageHash !== command.payload.packageHash
+  )
+    return reject(
+      "wrong-target",
+      "Command does not target the selected teaching run.",
+    );
+  if (command.expectedRevision !== session.revision)
+    return reject("stale-revision", "Teaching changed before this command.");
+  if (command.kind === "undoAdvance" || command.kind === "writingUndoAdvance") {
+    const binding = command.payload;
+    if (
+      !tx.undoAdvance ||
+      context.undoRunId !== session.runId ||
+      session.activeAdvanceId !== binding.advanceId ||
+      session.runRevision !== binding.runRevision ||
+      context.profileRevision !== binding.profileRevision ||
+      context.cursorRevision !== binding.cursorRevision ||
+      context.selectionCounter !== binding.selectionCounter
+    )
+      return reject("stale-undo", "The saved Undo advance window changed.");
+    const writing = writingTask({ content, taskId: session.taskId }) !== null;
+    if (
+      writing
+        ? command.kind !== "writingUndoAdvance" ||
+          !tx.writingBarrier ||
+          !(await tx.writingBarrier({
+            session,
+            barrier: command.payload.barrier,
+          }))
+        : command.kind !== "undoAdvance"
+    )
+      return reject(
+        "writing-barrier",
+        "Undo requires the current committed writing documents.",
+      );
+    await tx.ensurePackage(content);
+    const receipt: CommitReceipt = {
+      kind: "committed",
+      commandId: command.commandId,
+      owner: context.owner,
+      sessionId: session.sessionId,
+      runId: session.runId,
+      revision: increment(session.revision),
+      packageHash: content.packageHash,
+    };
+    await tx.undoAdvance({
+      command,
+      context: { ...context, session },
+      content,
+      receipt,
+    });
+    return receipt;
+  }
+  if (
+    session.status === "paused" ||
+    (session.status === "closed" && context.undoRunId !== session.runId)
+  )
+    return reject("not-active", "Resume the saved run before teaching.");
+  const isWriting = writingTask({ content, taskId: session.taskId }) !== null;
+  if (isWriting) {
+    if (
+      (command.kind !== "writingNavigate" &&
+        command.kind !== "writingControl") ||
+      !tx.writingBarrier ||
+      !(await tx.writingBarrier({
+        session,
+        barrier: command.payload.barrier,
+      }))
+    )
+      return reject(
+        "writing-barrier",
+        "Committed writing documents changed or retain an active capture.",
+      );
+  } else if (
+    command.kind === "writingNavigate" ||
+    command.kind === "writingControl"
+  )
+    return reject("wrong-task", "Writing command requires a writing task.");
+  if (command.kind === "writingControl") {
+    const document = command.payload.barrier.documents.find(
+      (token) => token.documentId === command.payload.documentId,
+    );
+    if (
+      !document ||
+      session.status !== "active" ||
+      session.runStatus !== "inProgress" ||
+      (session.state.kind !== "graph" &&
+        session.state.kind !== "graphControls") ||
+      currentCheckpoint(session.state).id !== command.payload.checkpointId ||
+      !writingPermission({
+        content,
+        state: session.state,
+        targetId: document.targetId,
+      }).writable ||
+      layerForPhase(document.phase) !== command.payload.layer ||
+      !tx.applyWritingControl
+    )
+      return reject(
+        "invalid-control",
+        "Practice control is unavailable at this saved position.",
+      );
+    const receipt: CommitReceipt = {
+      kind: "committed",
+      commandId: command.commandId,
+      owner: context.owner,
+      sessionId: session.sessionId,
+      runId: session.runId,
+      revision: increment(session.revision),
+      packageHash: content.packageHash,
+    };
+    if (
+      !(await tx.applyWritingControl({
+        command,
+        context: { ...context, session },
+        receipt,
+      }))
+    )
+      return reject(
+        "invalid-control",
+        "Practice control is unavailable at this saved position.",
+      );
+    return receipt;
+  }
+  let plan: TransitionPlan;
+  try {
+    if (command.kind === "advance") {
+      if (session.runStatus !== "inProgress" || session.status !== "active")
+        throw new Error("Legacy run is not active");
+      plan = {
+        kind: "acceptance",
+        after: evaluate(content, session.state, command.payload.nodeId),
+        occurrenceId: command.payload.nodeId,
+      };
+    } else {
+      if (
+        (session.state.kind !== "graph" &&
+          session.state.kind !== "graphControls" &&
+          session.state.kind !== "writingSkipped") ||
+        currentCheckpoint(session.state).id !== command.payload.checkpointId
+      )
+        throw new Error("Checkpoint changed");
+      if (
+        session.runStatus === "completed" &&
+        command.payload.action.kind !== "back" &&
+        command.payload.action.kind !== "continue"
+      )
+        throw new Error("Closed run is review only");
+      plan = evaluateGraph({
+        content,
+        state: session.state,
+        status: session.runStatus,
+        action: command.payload.action,
       });
-    },
+    }
+  } catch {
+    return reject(
+      "invalid-action",
+      "Parent action is unavailable at this saved position.",
+    );
+  }
+  await tx.ensurePackage(content);
+  const receipt: CommitReceipt = {
+    kind: "committed",
+    commandId: command.commandId,
+    owner: context.owner,
+    sessionId: session.sessionId,
+    runId: session.runId,
+    revision: increment(session.revision),
+    packageHash: content.packageHash,
   };
+  const application = {
+    command,
+    context: { ...context, session },
+    content,
+    before: session.state,
+    receipt,
+  };
+  if (
+    plan.kind === "acceptance" ||
+    plan.kind === "completion" ||
+    plan.kind === "skip"
+  )
+    await tx.apply({
+      ...application,
+      plan,
+      advanceId: parseId({ kind: "advance", value: ids() }),
+    });
+  else await tx.apply({ ...application, plan, advanceId: null });
+  return receipt;
 }
 
 export async function prepareWritingCommand({

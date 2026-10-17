@@ -1,3 +1,5 @@
+import { selectedProjection } from "./selected-support.ts";
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFile } from "node:fs/promises";
@@ -159,7 +161,7 @@ test("real captured V1 data upgrades without rebinding pinned bytes; full task r
       "SELECT verified_manifest FROM installed_package WHERE package_hash=?",
     )
     .get(capture.packageHash)?.verified_manifest;
-  const view = await first.app.open();
+  const view = await selectedProjection(first.app);
   assert.equal(view.kind, "teaching");
   if (view.kind === "teaching") {
     assert.equal(view.packageHash, capture.packageHash);
@@ -188,11 +190,11 @@ test("real captured V1 data upgrades without rebinding pinned bytes; full task r
     DATABASE_VERSION,
   );
   const restart = f.connect();
-  assert.deepEqual(await restart.app.open(), view);
+  assert.deepEqual(await selectedProjection(restart.app), view);
   await f.act(restart.app, "continue");
-  assert.equal((await restart.app.read()).kind, "frontier");
+  assert.equal((await selectedProjection(restart.app)).kind, "frontier");
   await f.act(restart.app, "restart");
-  const full = await restart.app.read();
+  const full = await selectedProjection(restart.app);
   assert.equal(full.kind, "teaching");
   if (full.kind === "teaching") {
     assert.equal(full.packageHash, f.content.packageHash);
@@ -277,7 +279,7 @@ test("genuine main V2 capture upgrades in place; new oral catalog preserves exac
       "SELECT verified_manifest FROM installed_package WHERE package_hash=?",
     )
     .get(capture.packageHash)?.verified_manifest;
-  const view = await first.app.open();
+  const view = await selectedProjection(first.app);
   assert.equal(view.kind, "teaching");
   if (view.kind !== "teaching") throw new Error("Lost captured context");
   assert.equal(view.packageHash, capture.packageHash);
@@ -308,9 +310,9 @@ test("genuine main V2 capture upgrades in place; new oral catalog preserves exac
       .get()?.n,
     2,
   );
-  assert.deepEqual(await f.connect().app.open(), view);
+  assert.deepEqual(await selectedProjection(f.connect().app), view);
   await f.act(first.app, "continue");
-  assert.equal((await f.connect().app.open()).kind, "teaching");
+  assert.equal((await selectedProjection(f.connect().app)).kind, "teaching");
   const older = f.connect({
     content:
       f.content.body.coverage === "lesson1-sounds-oral-complete"
@@ -327,7 +329,7 @@ test("genuine main V2 capture upgrades in place; new oral catalog preserves exac
           )
         : f.content,
   });
-  await older.app.open();
+  await selectedProjection(older.app);
   assert.equal(
     first.db.prepare("SELECT active_package_hash FROM course_activation").get()
       ?.active_package_hash,

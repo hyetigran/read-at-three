@@ -1,3 +1,11 @@
+import { readEnvelope } from "./support.ts";
+import {
+  executeTeaching,
+  selectedControls,
+  selectedInk,
+  selectedProjection,
+} from "../storage/selected-support.ts";
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { QueryClient } from "@tanstack/react-query";
@@ -17,7 +25,7 @@ function deferred() {
 }
 async function queryFixture(t: Parameters<typeof practiceFixture>[0]) {
   const f = await practiceFixture(t),
-    connection = f.connect(),
+    connection = await f.connectReady(),
     { app } = connection;
   await f.start(app);
   const client = new QueryClient({
@@ -34,22 +42,23 @@ async function queryFixture(t: Parameters<typeof practiceFixture>[0]) {
   const runtime = createCommittedTeaching({
     queryClient: client,
     repository: {
-      read: async () => ({
-        courseId: f.content.body.courseId,
-        projection: await afterRead(await app.read()),
-      }),
-      dispatch: (command) => app.dispatch(command),
+      read: async (input) => {
+        const value = await readEnvelope(app, input, f.content.body.courseId);
+        return { ...value, projection: await afterRead(value.projection) };
+      },
+      execute: (operation) => app.execute(operation),
       recoverTeaching: (input) => app.recoverTeaching(input),
-      readPracticeControls: async (binding) => {
+      readPracticeControls: async (input) => {
         summaryReads++;
-        return afterSummary(await app.readPracticeControls(binding));
+        const value = await app.readPracticeControls(input);
+        return { ...value, value: await afterSummary(value.value) };
       },
     },
-    stageRestore: async (projection) => {
+    stageRestore: async ({ projection }) => {
       let summary: PracticeControlsSummary = { kind: "readOnly" };
       if (projection.kind === "writing")
         for (const token of projection.documents) {
-          const snapshot = await app.readInk({ token });
+          const snapshot = await selectedInk(app, { token });
           const value = summarizePractice({
             binding: {
               owner: projection.owner,
@@ -74,7 +83,12 @@ async function queryFixture(t: Parameters<typeof practiceFixture>[0]) {
     runtime.close();
     client.clear();
   });
-  await runtime.read({ expectation: { kind: "opening" } });
+  await runtime.read({
+    expectation: {
+      kind: "opening",
+      selection: (await app.readDirectory()).selection,
+    },
+  });
   return {
     ...f,
     ...connection,
@@ -140,7 +154,7 @@ test("real Query coalesces delayed obsolete summaries without waiting for rapid 
     .getQueryCache()
     .getAll()
     .find((query) => query.queryKey[0] === "practice-controls");
-  assert.deepEqual(cache?.queryKey.slice(1, 8), [
+  assert.deepEqual(cache?.queryKey.slice(3, 10), [
     summary.binding.owner.profileId,
     summary.binding.owner.generation,
     summary.token.courseId,
@@ -175,20 +189,22 @@ test("control receipt rejects wrong exact document fences and obsolete staged ac
   await f.runtime.read({
     expectation: {
       kind: "refresh",
-      owner: origin.owner,
+      selection: (await f.app.readDirectory()).selection,
       courseId: f.content.body.courseId,
     },
   });
   const old = f.runtime.current(),
     oldSummary = f.runtime.practiceControls.getSnapshot();
   const command = await f.prepareControl(f.app, { kind: "inkUndo" }),
-    prepared = { command, origin };
+    prepared = { operation: command, origin };
+  assert.ok(command.command.kind === "writingControl");
+  const documentId = command.command.payload.documentId;
   f.afterRead(async (projection) =>
     projection.kind === "writing"
       ? {
           ...projection,
           documents: projection.documents.map((token) =>
-            token.documentId === command.payload.documentId
+            token.documentId === documentId
               ? { ...token, inputEpoch: increment(token.inputEpoch) }
               : token,
           ),
@@ -227,5 +243,121 @@ test("control receipt rejects wrong exact document fences and obsolete staged ac
   assert.equal(
     canonical(summary.token),
     canonical((await f.current(f.app)).token),
+  );
+});
+
+test("A to B staged writing adoption publishes one ownership snapshot and refetchable B controls", async (t) => {
+  const f = await queryFixture(t);
+  const directoryA = await f.app.readDirectory();
+  const { changeProfile } = await import("../storage/selected-support.ts");
+  const { hash } = await import("../storage/support.ts");
+  await changeProfile(f.app, f.ids, hash, (directory) => ({
+    kind: "createAndSelect",
+    directory: directory.administration,
+    preferences: { avatarId: "owl" },
+  }));
+  await f.start(f.app);
+  const directoryB = await f.app.readDirectory();
+  assert.notDeepEqual(directoryA.selection.owner, directoryB.selection.owner);
+  f.runtime.retire();
+  const observed: string[] = [];
+  const inspect = () => {
+    const visible = f.runtime.current();
+    const controls = f.runtime.practiceControls.getSnapshot();
+    if (visible && controls.kind === "editable") {
+      assert.deepEqual(
+        controls.binding.owner,
+        visible.directory.selection.owner,
+      );
+      observed.push(visible.directory.selection.owner.profileId);
+    }
+  };
+  const stopView = f.runtime.view.subscribe(inspect);
+  const stopControls = f.runtime.practiceControls.subscribe(inspect);
+  t.after(() => {
+    stopView();
+    stopControls();
+  });
+  await f.runtime.read({
+    expectation: { kind: "opening", selection: directoryB.selection },
+  });
+  const summary = f.runtime.practiceControls.getSnapshot();
+  assert.ok(summary.kind === "editable");
+  assert.deepEqual(summary.binding.owner, directoryB.selection.owner);
+  const selected = f.client
+    .getQueryCache()
+    .getAll()
+    .find((query) => query.queryKey[0] === "practice-controls");
+  assert.ok(selected);
+  assert.deepEqual(selected.queryKey.slice(1, 3), [
+    directoryB.selection.installationId,
+    directoryB.selection.revision,
+  ]);
+  const reads = f.summaryReads();
+  const refetched = await f.client.query({
+    queryKey: selected.queryKey,
+    staleTime: 0,
+  });
+  assert.equal(f.summaryReads(), reads + 1);
+  assert.deepEqual(refetched, summary);
+  assert.deepEqual(f.runtime.practiceControls.getSnapshot(), summary);
+  assert.ok(observed.includes(directoryB.selection.owner.profileId));
+});
+
+test("an older same-selection directory cannot replace newer committed profile cosmetics", async (t) => {
+  const f = await queryFixture(t);
+  const { changeProfile } = await import("../storage/selected-support.ts");
+  const { hash } = await import("../storage/support.ts");
+  const ownerA = (await f.app.readDirectory()).selection.owner;
+  await changeProfile(f.app, f.ids, hash, (directory) => ({
+    kind: "createAndSelect",
+    directory: directory.administration,
+    preferences: { avatarId: "owl" },
+  }));
+  const ownerB = (await f.app.readDirectory()).selection.owner;
+  await changeProfile(f.app, f.ids, hash, (directory) => ({
+    kind: "selectProfile",
+    directory: directory.administration,
+    target: ownerA,
+  }));
+  const directory = await f.app.readDirectory();
+  f.runtime.retire();
+  await f.runtime.read({
+    expectation: { kind: "opening", selection: directory.selection },
+  });
+  const target = directory.profiles.find(
+    (profile) => profile.edit.owner.profileId === ownerB.profileId,
+  );
+  assert.ok(target);
+  await changeProfile(f.app, f.ids, hash, (value) => ({
+    kind: "setAvatar",
+    directory: value.administration,
+    target: target.edit,
+    avatarId: "fox",
+  }));
+  const older = await f.app.readDirectory();
+  const nextTarget = older.profiles.find(
+    (profile) => profile.edit.owner.profileId === ownerB.profileId,
+  );
+  assert.ok(nextTarget);
+  await changeProfile(f.app, f.ids, hash, (value) => ({
+    kind: "setAvatar",
+    directory: value.administration,
+    target: nextTarget.edit,
+    avatarId: "bear",
+  }));
+  const newer = await f.app.readDirectory();
+  const projection = f.runtime.current()?.projection;
+  assert.equal(f.runtime.adoptDirectory(newer), true);
+  assert.equal(f.runtime.adoptDirectory(older), false);
+  assert.deepEqual(f.runtime.current()?.directory, newer);
+  assert.strictEqual(f.runtime.current()?.projection, projection);
+  assert.equal(
+    f.runtime
+      .current()
+      ?.directory.profiles.find(
+        (profile) => profile.edit.owner.profileId === ownerB.profileId,
+      )?.preferences.avatarId,
+    "bear",
   );
 });

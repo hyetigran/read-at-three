@@ -1,3 +1,9 @@
+import {
+  selectedCourse,
+  selectedProjection,
+  selectedWork,
+} from "./selected-support.ts";
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -21,7 +27,7 @@ test("confirming another child's animal survives SQLite reopen without changing 
   } satisfies PreparationPolicy;
   const first = fixture.connect({ preparation });
   const app = first.app;
-  assert.equal((await app.open()).kind, "entry");
+  assert.equal((await selectedProjection(app)).kind, "entry");
 
   async function administer(intent: ProfileAdministrationIntent) {
     const directory = await app.readDirectory();
@@ -93,7 +99,7 @@ test("confirming another child's animal survives SQLite reopen without changing 
   const modelStrokeId = await fixture.start(app);
   const childStrokeId = await fixture.draw(app, 75);
   assert.equal((await fixture.action(app, "pause")).kind, "committed");
-  const before = await app.readApplication({ kind: "cursor" });
+  const before = await selectedCourse(app, { kind: "cursor" });
   if (before.kind !== "ready" || before.projection.kind !== "writing")
     assert.fail("A's unfinished writing must be selected");
   assert.equal(before.projection.turn.id, "fixture.writing.turn.3");
@@ -104,7 +110,7 @@ test("confirming another child's animal survives SQLite reopen without changing 
     ),
     true,
   );
-  const work = await app.readWork({
+  const work = await selectedWork(app, {
     owner: ownerA,
     runId: before.projection.runId,
   });
@@ -148,9 +154,9 @@ test("confirming another child's animal survives SQLite reopen without changing 
   assert.deepEqual(directory.selection, selectedA);
   assert.deepEqual(child(directory, ownerA.profileId), profileA);
   assert.equal(child(directory, ownerB.profileId).preferences.avatarId, "cat");
-  assert.deepEqual(await app.readApplication({ kind: "cursor" }), before);
+  assert.deepEqual(await selectedCourse(app, { kind: "cursor" }), before);
   assert.deepEqual(
-    await app.readWork({ owner: ownerA, runId: before.projection.runId }),
+    await selectedWork(app, { owner: ownerA, runId: before.projection.runId }),
     work,
   );
 
@@ -169,7 +175,7 @@ test("confirming another child's animal survives SQLite reopen without changing 
     recoveryId: recovery.recoveryId,
     choice: { kind: "cold" },
   });
-  const restored = await reopened.app.readApplication({ kind: "cursor" });
+  const restored = await selectedCourse(reopened.app, { kind: "cursor" });
   if (restored.kind !== "ready" || restored.projection.kind !== "writing")
     assert.fail("A's saved writing must resume after reopening");
   const { documents: beforeDocuments, ...beforeTeaching } = before.projection;
@@ -187,7 +193,7 @@ test("confirming another child's animal survives SQLite reopen without changing 
     })),
   );
   assert.deepEqual(
-    await reopened.app.readWork({
+    await selectedWork(reopened.app, {
       owner: ownerA,
       runId: before.projection.runId,
     }),

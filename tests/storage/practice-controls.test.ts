@@ -1,3 +1,12 @@
+import {
+  executeInk,
+  executeTeaching,
+  prepareSelectedInk,
+  prepareSelectedTeaching,
+  selectedInk,
+  selectedProjection,
+} from "./selected-support.ts";
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -21,7 +30,7 @@ for (const boundary of [
   test(`practice ${boundary} fault preserves geometry and teaching rows, exact Retry commits once`, async (t) => {
     const f = await practiceFixture(t);
     let armed = false;
-    const connection = f.connect({
+    const connection = await f.connectReady({
       hook: async (sql, work) => {
         const matches =
           boundary === "history"
@@ -53,7 +62,10 @@ for (const boundary of [
         "course_cursor",
       ].map((table) => canonical(db.prepare(`SELECT * FROM ${table}`).all()));
     const beforeTeaching = protectedRows();
-    await app.dispatch(await f.prepareControl(app, { kind: "inkUndo" }));
+    await executeTeaching(
+      app,
+      await f.prepareControl(app, { kind: "inkUndo" }),
+    );
     const command = await f.prepareControl(app, { kind: "clearPractice" });
     if (boundary === "collection") {
       const old = await f.current(app);
@@ -63,15 +75,18 @@ for (const boundary of [
       assert.equal(history?.cursorSeq, "1");
     }
     armed = true;
-    await assert.rejects(app.dispatch(command), /Injected|Failed query/);
+    await assert.rejects(
+      executeTeaching(app, command),
+      /Injected|Failed query/,
+    );
     assert.deepEqual(protectedRows(), beforeTeaching);
     assert.deepEqual(
       await f.visible(app),
       boundary === "afterCommit" ? [] : [first],
     );
-    const result = await app.dispatch(command);
+    const result = await executeTeaching(app, command);
     assert.equal(result.kind, "committed");
-    assert.deepEqual(await app.dispatch(command), result);
+    assert.deepEqual(await executeTeaching(app, command), result);
     assert.deepEqual(await f.visible(app), []);
     const saved = await f.current(app);
     assert.deepEqual(
@@ -91,14 +106,17 @@ for (const boundary of [
         .get()?.count,
       1,
     );
-    const cold = f.connect().app,
+    const cold = (await f.connectReady()).app,
       inventory = await cold.openRecovery({ kind: "cold" });
     await cold.reconcileRecovery({
       recoveryId: inventory.recoveryId,
       choice: { kind: "cold" },
     });
     assert.deepEqual(await f.visible(cold), []);
-    await cold.dispatch(await f.prepareControl(cold, { kind: "inkUndo" }));
+    await executeTeaching(
+      cold,
+      await f.prepareControl(cold, { kind: "inkUndo" }),
+    );
     assert.deepEqual(await f.visible(cold), [first]);
     await f.action(cold, "confirmTracing");
     await f.action(cold, "back");
@@ -111,7 +129,7 @@ for (const boundary of [
 test("Clear compaction collects only unreachable geometry, rolls back after actual collection, and reopens its baseline", async (t) => {
   const f = await practiceFixture(t);
   let armed = false;
-  const { app, db } = f.connect({
+  const { app, db } = await f.connectReady({
     hook: async (sql, work) => {
       const result = await work();
       if (armed && sql.startsWith('delete from "ink_point_chunk"')) {
@@ -123,7 +141,10 @@ test("Clear compaction collects only unreachable geometry, rolls back after actu
   });
   const model = await f.start(app),
     first = await f.draw(app, 100);
-  await app.dispatch(await f.prepareControl(app, { kind: "clearPractice" }));
+  await executeTeaching(
+    app,
+    await f.prepareControl(app, { kind: "clearPractice" }),
+  );
   for (let index = 0; index < 127; index++) await f.draw(app, 200 + index);
   const before = await f.current(app),
     history = before.snapshot.histories.find(
@@ -164,22 +185,24 @@ test("Clear compaction collects only unreachable geometry, rolls back after actu
     chunks: [chunk],
   });
   const capture = (await f.current(app)).snapshot;
-  const finish = await prepareInkCommand({
-    token,
-    edit: {
-      kind: "finalize",
-      strokeId,
-      layer: "tracing",
-      chunks: [],
-      status: "finished",
-    },
-    ids: f.ids,
-    hash: hash,
-  });
+  const finish = await prepareSelectedInk(app, async () =>
+    prepareInkCommand({
+      token,
+      edit: {
+        kind: "finalize",
+        strokeId,
+        layer: "tracing",
+        chunks: [],
+        status: "finished",
+      },
+      ids: f.ids,
+      hash: hash,
+    }),
+  );
   armed = true;
-  await assert.rejects(app.dispatchInk(finish), /Failed query/);
+  await assert.rejects(executeInk(app, finish), /Failed query/);
   assert.equal(canonical((await f.current(app)).snapshot), canonical(capture));
-  assert.equal((await app.dispatchInk(finish)).kind, "inkCommitted");
+  assert.equal((await executeInk(app, finish)).kind, "inkCommitted");
   const saved = (await f.current(app)).snapshot,
     compacted = saved.histories.find((value) => value.layer === "tracing");
   assert.deepEqual(
@@ -206,7 +229,7 @@ test("Clear compaction collects only unreachable geometry, rolls back after actu
       .get(first)?.count,
     0,
   );
-  const reopened = f.connect().app,
+  const reopened = (await f.connectReady()).app,
     inventory = await reopened.openRecovery({ kind: "cold" });
   await reopened.reconcileRecovery({
     recoveryId: inventory.recoveryId,
@@ -221,11 +244,11 @@ test("Clear compaction collects only unreachable geometry, rolls back after actu
 
 test("empty begin retains redo, first nonempty checkpoint discards it and cold orphan recovery adds once", async (t) => {
   const f = await practiceFixture(t),
-    { app } = f.connect();
+    { app } = await f.connectReady();
   await f.start(app);
   const first = await f.draw(app, 100),
     second = await f.draw(app, 200);
-  await app.dispatch(await f.prepareControl(app, { kind: "inkUndo" }));
+  await executeTeaching(app, await f.prepareControl(app, { kind: "inkUndo" }));
   const before = await f.current(app);
   const strokeId = parseId({ kind: "stroke", value: f.ids() });
   const token = await f.edit(app, before.token, {
@@ -273,7 +296,7 @@ test("empty begin retains redo, first nonempty checkpoint discards it and cold o
     false,
   );
   for (let open = 0; open < 2; open++) {
-    const cold = f.connect(),
+    const cold = await f.connectReady(),
       inventory = await cold.app.openRecovery({ kind: "cold" });
     await cold.app.reconcileRecovery({
       recoveryId: inventory.recoveryId,
@@ -299,7 +322,7 @@ test("empty begin retains redo, first nonempty checkpoint discards it and cold o
 
 test("wrong layer, other target, accepted Back and terminal practice controls change no saved rows", async (t) => {
   const f = await practiceFixture(t),
-    { app, db } = f.connect();
+    { app, db } = await f.connectReady();
   await f.start(app);
   await f.draw(app, 100);
   async function attempt(
@@ -309,18 +332,20 @@ test("wrong layer, other target, accepted Back and terminal practice controls ch
     const { projection } = await f.current(app),
       token = projection.documents.find((value) => value.targetId === target);
     if (!token) throw new Error("Target missing");
-    const command = await prepareWritingControl({
-      projection,
-      documentId: token.documentId,
-      layer,
-      control: { kind: "clearPractice" },
-      barrier: { kind: "writing", documents: projection.documents },
-      ids: f.ids,
-      hash,
-    });
+    const command = await prepareSelectedTeaching(app, async () =>
+      prepareWritingControl({
+        projection,
+        documentId: token.documentId,
+        layer,
+        control: { kind: "clearPractice" },
+        barrier: { kind: "writing", documents: projection.documents },
+        ids: f.ids,
+        hash,
+      }),
+    );
     const before = canonical(db.prepare("SELECT * FROM task_run").all()),
       snapshot = (await f.current(app)).snapshot;
-    assert.equal((await app.dispatch(command)).kind, "rejected");
+    assert.equal((await executeTeaching(app, command)).kind, "rejected");
     assert.equal(canonical(db.prepare("SELECT * FROM task_run").all()), before);
     assert.deepEqual((await f.current(app)).snapshot, snapshot);
     return command;
@@ -333,22 +358,25 @@ test("wrong layer, other target, accepted Back and terminal practice controls ch
   await f.action(app, "continue");
   const retained = await f.prepareControl(app, { kind: "clearPractice" });
   await f.action(app, "skipWriting");
-  const terminal = await app.read();
+  const terminal = await selectedProjection(app);
   if (terminal.kind !== "writingResult")
     throw new Error("Terminal result required");
   const payload = {
-    ...retained.payload,
+    ...retained.command.payload,
     barrier: { kind: "writing", documents: terminal.documents },
   };
-  const command = parseCommand({
+  const command = {
     ...retained,
-    commandId: f.ids(),
-    expectedRevision: terminal.revision,
-    payload,
-    payloadHash: await hash(canonical({ kind: "writingControl", payload })),
-  });
+    command: parseCommand({
+      ...retained.command,
+      commandId: f.ids(),
+      expectedRevision: terminal.revision,
+      payload,
+      payloadHash: await hash(canonical({ kind: "writingControl", payload })),
+    }),
+  };
   const before = canonical(db.prepare("SELECT * FROM task_credit").all());
-  assert.equal((await app.dispatch(command)).kind, "rejected");
+  assert.equal((await executeTeaching(app, command)).kind, "rejected");
   assert.equal(
     canonical(db.prepare("SELECT * FROM task_credit").all()),
     before,
@@ -362,7 +390,7 @@ test(
     const f = await practiceFixture(t);
     let armed = false,
       writes = 0;
-    const { app, db } = f.connect({
+    const { app, db } = await f.connectReady({
       hook: async (sql, work) => {
         if (
           armed &&
@@ -412,12 +440,12 @@ test(
       "UPDATE ink_document SET next_stroke_order=? WHERE document_id=?",
     ).run(count + 1, token.documentId);
     db.exec("COMMIT");
-    const before = await app.readInk({ token }),
+    const before = await selectedInk(app, { token }),
       command = await f.prepareControl(app, { kind: "clearPractice" });
     assert.equal(before.strokes.length, 40001);
     const beforeHash = await hash(canonical(before));
     armed = true;
-    const result = await app.dispatch(command);
+    const result = await executeTeaching(app, command);
     armed = false;
     assert.deepEqual(result, {
       kind: "rejected",
@@ -426,7 +454,7 @@ test(
     });
     assert.equal(writes, 0);
     assert.equal(
-      await hash(canonical(await app.readInk({ token }))),
+      await hash(canonical(await selectedInk(app, { token }))),
       beforeHash,
     );
   },

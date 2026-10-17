@@ -1,3 +1,5 @@
+import { selectedCourse, selectedWork } from "./selected-support.ts";
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -36,10 +38,10 @@ test("profile departure reads and checks every active course before atomically p
   const first = fixture.connect();
   const ownerA = await fixture.setup(first.app);
   await fixture.start(first.app);
-  const original = await first.app.readApplication({ kind: "cursor" });
+  const original = await selectedCourse(first.app, { kind: "cursor" });
   if (original.kind !== "ready" || original.projection.kind !== "writing")
     assert.fail("First-course writing required");
-  const firstWork = await first.app.readWork({
+  const firstWork = await selectedWork(first.app, {
     owner: ownerA,
     runId: original.projection.runId,
   });
@@ -60,7 +62,7 @@ test("profile departure reads and checks every active course before atomically p
     choice: { kind: "cold" },
   });
   await fixture.start(second.app);
-  const before = await second.app.readApplication({ kind: "cursor" });
+  const before = await selectedCourse(second.app, { kind: "cursor" });
   if (before.kind !== "ready" || before.projection.kind !== "writing")
     assert.fail("Second-course writing required");
   const directory = await second.app.readDirectory();
@@ -83,7 +85,7 @@ test("profile departure reads and checks every active course before atomically p
     ],
   );
   assert.deepEqual(
-    await second.app.readApplication({ kind: "cursor" }),
+    await selectedCourse(second.app, { kind: "cursor" }),
     before,
   );
   assert.equal(
@@ -113,7 +115,7 @@ test("profile departure reads and checks every active course before atomically p
     assert.equal(rejected.code, "stale-departure");
   assert.deepEqual(await second.app.readDirectory(), directory);
   assert.deepEqual(
-    await second.app.readApplication({ kind: "cursor" }),
+    await selectedCourse(second.app, { kind: "cursor" }),
     before,
   );
   const created = await fixture.change(second.app, (directory) => ({
@@ -145,7 +147,7 @@ test("profile departure reads and checks every active course before atomically p
     second.app.readDeparture({ selection: directory.selection }),
     /lifetime changed/,
   );
-  const restored = await second.app.readApplication({ kind: "cursor" });
+  const restored = await selectedCourse(second.app, { kind: "cursor" });
   if (restored.kind !== "ready" || restored.projection.kind !== "writing")
     assert.fail("A's second course must return");
   assert.equal(restored.projection.runId, before.projection.runId);
@@ -163,14 +165,14 @@ test("profile departure reads and checks every active course before atomically p
     recoveryId: reopening.recoveryId,
     choice: { kind: "cold" },
   });
-  const olderCourse = await returned.app.readApplication({ kind: "cursor" });
+  const olderCourse = await selectedCourse(returned.app, { kind: "cursor" });
   if (olderCourse.kind !== "ready" || olderCourse.projection.kind !== "writing")
     assert.fail("A's first course must remain saved");
   assert.equal(olderCourse.projection.runId, original.projection.runId);
   assert.equal(olderCourse.projection.sessionStatus, "paused");
   assert.equal(olderCourse.projection.turn.id, original.projection.turn.id);
   assert.deepEqual(
-    await returned.app.readWork({
+    await selectedWork(returned.app, {
       owner: ownerA,
       runId: original.projection.runId,
     }),
@@ -184,7 +186,7 @@ test("profile selection rejects unflushed owned capture without pausing or creat
   await fixture.setup(app);
   await fixture.start(app);
   const capture = await beginEmptyCapture(fixture, app);
-  const before = await app.readApplication({ kind: "cursor" });
+  const before = await selectedCourse(app, { kind: "cursor" });
   const directory = await app.readDirectory();
   const command = await fixture.request(app, (directory) => ({
     kind: "createAndSelect",
@@ -195,7 +197,7 @@ test("profile selection rejects unflushed owned capture without pausing or creat
   assert.equal(rejected.kind, "rejected");
   if (rejected.kind === "rejected")
     assert.equal(rejected.code, "unsettled-capture");
-  assert.deepEqual(await app.readApplication({ kind: "cursor" }), before);
+  assert.deepEqual(await selectedCourse(app, { kind: "cursor" }), before);
   assert.deepEqual(await app.readDirectory(), directory);
   assert.equal(
     db
