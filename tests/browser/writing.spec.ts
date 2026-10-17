@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { decodeInkPoints, prepareInkCommand } from "@readatthree/teaching";
 import {
   atWriting,
+  atWritableWriting,
+  finalizedWriting,
   boardPoint,
   drawPractice,
   drawStroke,
@@ -253,51 +255,130 @@ test("touch, pen semantics, contact cancellation and boundaries preserve confirm
   ).toBe(true);
 });
 
-test("resize, hidden lifecycle, unsupported child unmount and reattach flush without accepting teaching", async ({
-  page,
-}) => {
-  await probe(page);
-  await startWriting(page);
-  await writingAction(page);
-  const start = await boardPoint(page, 120, 110);
-  await page.mouse.move(start.x, start.y);
-  await page.mouse.down();
-  await page.mouse.move(start.x + 35, start.y + 20);
-  await page.setViewportSize({ width: 800, height: 600 });
-  await expect(
-    page.getByText("Make room for reading", { exact: true }),
-  ).toBeVisible();
-  await page.mouse.up();
-  await page.setViewportSize({ width: 1280, height: 800 });
-  await atWriting(page, "m-model");
-  const next = await boardPoint(page, 250, 110);
-  await page.mouse.move(next.x, next.y);
-  await page.mouse.down();
-  await page.mouse.move(next.x + 20, next.y + 10);
-  await page.evaluate(() => {
-    Object.defineProperty(document, "visibilityState", {
-      configurable: true,
-      value: "hidden",
-    });
-    document.dispatchEvent(new Event("visibilitychange"));
-    window.dispatchEvent(new PageTransitionEvent("pagehide"));
-  });
-  await page.mouse.up();
-  await page.evaluate(() => {
-    Object.defineProperty(document, "visibilityState", {
-      configurable: true,
-      value: "visible",
-    });
-    document.dispatchEvent(new Event("visibilitychange"));
-  });
-  await page.reload();
-  await atWriting(page, "m-model");
-  const first = (await latestDocuments(page))[0];
-  expect(first?.strokes).toHaveLength(2);
-  expect(
-    first?.strokes.every((stroke) => stroke.status === "interrupted"),
-  ).toBe(true);
-});
+for (const holdFinalize of [false, true]) {
+  test(
+    holdFinalize
+      ? "held lifecycle finalization fences reattached input until its exact acknowledgement"
+      : "resize, hidden lifecycle, unsupported child unmount and reattach flush without accepting teaching",
+    async ({ page }) => {
+      await probe(page);
+      await startWriting(page);
+      await writingAction(page);
+      await atWritableWriting(page, "m-model");
+      const original = (await latestDocuments(page))[0];
+      if (!original) throw new Error("The model document is missing");
+      const start = await boardPoint(page, 120, 110);
+      const firstEnd = await boardPoint(page, 155, 130);
+      await page.mouse.move(start.x, start.y);
+      await page.mouse.down();
+      await page.mouse.move(firstEnd.x, firstEnd.y);
+      if (holdFinalize)
+        await page.evaluate("window.armWritingFault('hold-finalize')");
+      await page.setViewportSize({ width: 800, height: 600 });
+      await expect(
+        page.getByText("Make room for reading", { exact: true }),
+      ).toBeVisible();
+      if (holdFinalize)
+        await expect
+          .poll(() => page.evaluate("window.hasHeldWritingWrite()"))
+          .toBe(true);
+      await page.mouse.up();
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await atWriting(page, "m-model");
+      if (holdFinalize) {
+        await expect(page.locator("canvas")).toHaveAttribute(
+          "data-writable",
+          "false",
+        );
+        const begins = (await requests(page)).filter(
+          (request) =>
+            request.kind === "dispatchInk" &&
+            request.command.edit.kind === "begin",
+        ).length;
+        await drawStroke(page, [
+          { x: 400, y: 110 },
+          { x: 420, y: 120 },
+        ]);
+        expect(
+          (await requests(page)).filter(
+            (request) =>
+              request.kind === "dispatchInk" &&
+              request.command.edit.kind === "begin",
+          ),
+        ).toHaveLength(begins);
+        await page.evaluate("window.releaseHeldWritingWrite()");
+      }
+      await atWritableWriting(page, "m-model");
+      await finalizedWriting(page, original.token.documentId, 1);
+      const next = await boardPoint(page, 250, 110);
+      const secondEnd = await boardPoint(page, 270, 120);
+      await page.mouse.move(next.x, next.y);
+      await page.mouse.down();
+      await page.mouse.move(secondEnd.x, secondEnd.y);
+      await page.evaluate(() => {
+        Object.defineProperty(document, "visibilityState", {
+          configurable: true,
+          value: "hidden",
+        });
+        document.dispatchEvent(new Event("visibilitychange"));
+        window.dispatchEvent(new PageTransitionEvent("pagehide"));
+      });
+      await page.mouse.up();
+      await page.evaluate(() => {
+        Object.defineProperty(document, "visibilityState", {
+          configurable: true,
+          value: "visible",
+        });
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+      await finalizedWriting(page, original.token.documentId, 2);
+      await atWritableWriting(page, "m-model");
+      expect(
+        (await requests(page)).filter((request) => request.kind === "dispatch"),
+      ).toHaveLength(2);
+      await page.reload();
+      await atWritableWriting(page, "m-model");
+      const first = (await latestDocuments(page))[0];
+      expect(first?.token.documentId).toBe(original.token.documentId);
+      expect(first?.strokes).toHaveLength(2);
+      expect(
+        first?.strokes.every((stroke) => stroke.status === "interrupted"),
+      ).toBe(true);
+      if (!first) throw new Error("Restored document missing");
+      for (const [index, expected] of [
+        [
+          { x: 120, y: 110 },
+          { x: 155, y: 130 },
+        ],
+        [
+          { x: 250, y: 110 },
+          { x: 270, y: 120 },
+        ],
+      ].entries()) {
+        const stroke = first.strokes[index];
+        if (!stroke) throw new Error("Interrupted stroke missing");
+        const points = stroke.chunks.flatMap((chunk) =>
+          decodeInkPoints({
+            payload: Uint8Array.from(chunk.payload),
+            pointCount: chunk.pointCount,
+            bounds: first.bounds,
+          }),
+        );
+        expect(points[0]?.x).toBeCloseTo(expected[0]?.x ?? NaN, 3);
+        expect(points[0]?.y).toBeCloseTo(expected[0]?.y ?? NaN, 3);
+        expect(points.at(-1)?.x).toBeCloseTo(expected[1]?.x ?? NaN, 3);
+        expect(points.at(-1)?.y).toBeCloseTo(expected[1]?.y ?? NaN, 3);
+      }
+      expect(
+        first.histories.find((history) => history.layer === "model")
+          ?.operations,
+      ).toHaveLength(2);
+      expect(
+        (await requests(page)).filter((request) => request.kind === "dispatch"),
+      ).toHaveLength(0);
+    },
+  );
+}
 
 test("warm retained newer tail survives two committed reply losses and Retry opening", async ({
   page,
@@ -530,6 +611,7 @@ for (const path of ["normal", "recovered teaching"]) {
   for (const fault of [
     "teaching-receipt-command-id",
     "teaching-read-revision",
+    "teaching-restore-revision",
   ]) {
     test(`${path} publication rejects ${fault} and retains exact Retry`, async ({
       page,
@@ -982,3 +1064,156 @@ test("abrupt browser process loss restores committed checkpoints without promisi
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+for (const loseAfterDetach of [false, true]) {
+  test(`full Query consumer remount retains ${loseAfterDetach ? "unknown" : "pending"} acceptance and reattaches to its actual selected cache`, async ({
+    page,
+  }) => {
+    test.skip(
+      process.env.READING_BROWSER_BUILD === "1",
+      "Development-only test module is served by Vite; real-app production recovery cases run separately.",
+    );
+    await probe(page);
+    await page.route("**/query-remount", async (route) => {
+      const response = await route.fetch({ url: `${writingBase}/` });
+      const html = await response.text();
+      const modulePath = `/@fs${new URL("../react-integration/remount-harness.ts", import.meta.url).pathname}`;
+      await route.fulfill({
+        response,
+        body: html.replace("/src/main.tsx", modulePath),
+      });
+    });
+    await page.goto(`${writingBase}/query-remount`);
+    await page
+      .getByRole("button", { name: "Start Task 6", exact: true })
+      .click();
+    await atWriting(page, "m-sound");
+    await writingAction(page);
+    await atWritableWriting(page, "m-model");
+    const original = (await latestDocuments(page))[0];
+    if (!original) throw new Error("Model document missing");
+    await drawStroke(page, [
+      { x: 120, y: 110 },
+      { x: 160, y: 130 },
+    ]);
+    await finalizedWriting(page, original.token.documentId, 1);
+    await page.evaluate("window.armWritingFault('hold-teaching')");
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    await expect
+      .poll(() => page.evaluate("window.hasHeldTeachingWrite()"))
+      .toBe(true);
+    const pending = (await requests(page))
+      .filter(
+        (request) =>
+          request.kind === "dispatch" &&
+          request.command.kind === "writingNavigate",
+      )
+      .at(-1);
+    if (!pending || pending.kind !== "dispatch")
+      throw new Error("Pending acceptance missing");
+    const openings = (await requests(page)).filter(
+      (request) => request.kind === "openRecovery",
+    ).length;
+    await page
+      .getByRole("button", { name: "Detach consumer", exact: true })
+      .click();
+    await expect(page.locator("#detached")).toBeVisible();
+    if (loseAfterDetach)
+      await page.evaluate("window.armWritingFault('teaching-after')");
+    await page.evaluate("window.releaseHeldTeachingWrite()");
+    await expect
+      .poll(
+        async () =>
+          (await responses(page)).filter(
+            (response) =>
+              response.kind === "receipt" &&
+              response.value.kind === "committed" &&
+              response.value.commandId === pending.command.commandId,
+          ).length,
+      )
+      .toBe(1);
+    if (!loseAfterDetach)
+      await expect
+        .poll(async () =>
+          (await snapshots(page)).some(
+            (snapshot) =>
+              snapshot.token.documentId === original.token.documentId &&
+              snapshot.token.phase === "childTracing",
+          ),
+        )
+        .toBe(true);
+    await page
+      .getByRole("button", { name: "Attach consumer", exact: true })
+      .click();
+    if (loseAfterDetach) {
+      await atWriting(page, "m-model");
+      await expect(page.locator("canvas")).toHaveAttribute(
+        "data-writable",
+        "false",
+      );
+      expect(
+        (await requests(page)).filter(
+          (request) => request.kind === "openRecovery",
+        ),
+      ).toHaveLength(openings);
+      expect(
+        (await requests(page)).filter(
+          (request) =>
+            (request.kind === "dispatch" ||
+              request.kind === "recoverTeaching") &&
+            request.command.commandId === pending.command.commandId,
+        ),
+      ).toHaveLength(1);
+      await writingAction(page, "Retry save");
+    }
+    await atWritableWriting(page, "m-tracing");
+    const selected: unknown = JSON.parse(
+      (await page.locator("#selected-query").textContent()) ?? "null",
+    );
+    const committed = (await responses(page))
+      .filter(
+        (response) =>
+          response.kind === "projection" && response.value.kind === "writing",
+      )
+      .at(-1);
+    if (!committed || committed.kind !== "projection")
+      throw new Error("Committed read missing");
+    expect(selected).toEqual({
+      courseId: committed.courseId,
+      projection: committed.value,
+    });
+    expect(
+      (await requests(page)).filter(
+        (request) => request.kind === "openRecovery",
+      ),
+    ).toHaveLength(openings + (loseAfterDetach ? 1 : 0));
+    const deliveries = (await requests(page)).filter(
+      (request) =>
+        (request.kind === "dispatch" || request.kind === "recoverTeaching") &&
+        request.command.commandId === pending.command.commandId,
+    );
+    expect(deliveries).toHaveLength(loseAfterDetach ? 2 : 1);
+    for (const delivery of deliveries) {
+      if (!("command" in delivery))
+        throw new Error("Teaching delivery missing");
+      expect(delivery.command).toEqual(pending.command);
+    }
+    expect(
+      (await requests(page)).filter(
+        (request) =>
+          request.kind === "dispatch" &&
+          request.command.commandId === pending.command.commandId,
+      ),
+    ).toHaveLength(1);
+    const restored = (await latestDocuments(page))[0];
+    expect(restored?.token.documentId).toBe(original.token.documentId);
+    expect(restored?.strokes).toHaveLength(1);
+    expect(
+      restored?.histories.find((history) => history.layer === "model")
+        ?.operations,
+    ).toHaveLength(1);
+    await page.reload();
+    await atWritableWriting(page, "m-tracing");
+    expect((await latestDocuments(page))[0]?.strokes).toHaveLength(1);
+  });
+}

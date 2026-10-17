@@ -20,6 +20,7 @@ import { isTeachingViewport, subscribeViewport } from "@/platform/viewport";
 import { AddedText, CopyText } from "./CopyText";
 import { SoundGlyph } from "./SoundGlyph";
 import { WritingBoard } from "./WritingBoard";
+import { RecoveryScreen, WindowRecovery } from "./RecoveryScreen";
 import type { WritingController } from "@/platform/writing-controller";
 
 type TeachingScreenProps = {
@@ -118,27 +119,6 @@ function ActionButton({
   );
 }
 
-function recoveryTitle(code: string) {
-  switch (code) {
-    case "missing-package":
-    case "content-missing":
-      return "Teaching content is missing";
-    case "storage-recovery":
-    case "unsupported-storage":
-    case "storage-unavailable":
-    case "storage-initialization-failed":
-      return "Saved storage is unavailable";
-    case "storage-busy":
-      return "Storage is open in another window";
-    case "worker-lost":
-      return "The storage connection was interrupted";
-    case "invalid-position":
-      return "Your saved place needs attention";
-    default:
-      return "Reading is paused";
-  }
-}
-
 function ScreenHeading({
   title,
   taskNumber,
@@ -160,23 +140,6 @@ function ScreenHeading({
       </h1>
       <div className="teaching-header-actions">{children}</div>
     </header>
-  );
-}
-
-function RecoveryPanel({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="teaching-recovery" aria-labelledby="recovery-heading">
-      <h1 id="recovery-heading">
-        <AddedText>{title}</AddedText>
-      </h1>
-      {children}
-    </section>
   );
 }
 
@@ -288,9 +251,11 @@ function TaskCatalog({
                         ? "Teaching content not installed"
                         : task.completed
                           ? "Completed"
-                          : task.savedSessionId
-                            ? "Saved activity"
-                            : "Available"}
+                          : task.skipped
+                            ? "Skipped"
+                            : task.savedSessionId
+                              ? "Saved activity"
+                              : "Available"}
                       {task.optional ? " · Optional" : ""}
                     </AddedText>
                   </p>
@@ -934,36 +899,10 @@ export function TeachingScreen({
   const saveStatus = (
     <SaveStatus busy={busy} saveError={saveError} onRetry={onRetry} />
   );
-  if (!supportedWindow)
-    return (
-      <main className="teaching-screen teaching-centered" aria-busy={busy}>
-        <RecoveryPanel title="Make room for reading">
-          <p>
-            <AddedText>
-              Rotate your tablet to landscape or enlarge this window to
-              continue. Teaching, drawing and pointing cues are paused. Your
-              saved place is kept.
-            </AddedText>
-          </p>
-        </RecoveryPanel>
-      </main>
-    );
+  if (!supportedWindow) return <WindowRecovery busy={busy} />;
   if (projection.kind === "recovery")
     return (
-      <main className="teaching-screen teaching-centered" aria-busy={busy}>
-        <RecoveryPanel title={recoveryTitle(projection.code)}>
-          <p>
-            <AddedText>{projection.message}</AddedText>
-          </p>
-          <Button
-            className="teaching-button teaching-retry"
-            onClick={onOpenRetry}
-            disabled={busy}
-          >
-            <AddedText>{busy ? "Opening…" : "Retry opening"}</AddedText>
-          </Button>
-        </RecoveryPanel>
-      </main>
+      <RecoveryScreen recovery={projection} busy={busy} onRetry={onOpenRetry} />
     );
   const catalog = (
     <TaskCatalog

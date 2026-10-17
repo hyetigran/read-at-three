@@ -733,9 +733,7 @@ export function createTeachingApplication({
       session: selected ?? null,
       sessions,
       ownedSessionIds: rows.map((row) => row.sessionId),
-      completedTaskIds: results
-        .filter((result) => result.outcome === "completed")
-        .map((result) => result.taskId),
+      taskResults: results.map(({ taskId, outcome }) => ({ taskId, outcome })),
     };
   }
   async function receipt(command: TeachingCommand) {

@@ -231,7 +231,7 @@ function catalogFor({
   retained: ReadonlyMap<import("./types.ts").PackageHash, DevelopmentPackage>;
 }): readonly CatalogTask[] {
   if (active.body.coverage === "partial-first-m") return [];
-  return active.body.lessonTasks.map((task) => {
+  return active.body.lessonTasks.map((task): CatalogTask => {
     const saved = context.sessions
       .filter(
         (session) =>
@@ -251,9 +251,12 @@ function catalogFor({
           session.runStatus === "inProgress",
       )
       .sort((a, b) => a.sessionId.localeCompare(b.sessionId))[0];
-    return {
+    const result = context.taskResults.find(
+      (result) => result.taskId === task.id,
+    );
+    const entry = {
       ...task,
-      completed: context.completedTaskIds.includes(task.id),
+      completed: result?.outcome === "completed",
       available:
         active.body.coverage !== "partial-first-m" &&
         active.body.tasks.some(
@@ -262,6 +265,9 @@ function catalogFor({
       packageHash: active.packageHash,
       savedSessionId: saved?.sessionId ?? null,
     };
+    return result?.outcome === "skipped" && task.optional
+      ? { ...entry, optional: true, completed: false, skipped: true }
+      : entry;
   });
 }
 function selectionActions({
@@ -709,7 +715,13 @@ export function createCoordinator({
                   command.payload.intent === "replay" &&
                   command.payload.sessionId === null
                 ) {
-                  if (!context.completedTaskIds.includes(taskId))
+                  if (
+                    !context.taskResults.some(
+                      (result) =>
+                        result.taskId === taskId &&
+                        result.outcome === "completed",
+                    )
+                  )
                     return reject(
                       "wrong-target",
                       "Replay needs an existing valid task result.",

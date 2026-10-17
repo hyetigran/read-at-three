@@ -2,14 +2,15 @@ import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import { createTeachingApplication } from "@readatthree/storage";
 import type { SqlExecutor } from "@readatthree/storage";
 import { parseDevelopmentPackage } from "@readatthree/teaching";
-import type { WritingApplication } from "@readatthree/teaching";
+import type { CourseId, WritingApplication } from "@readatthree/teaching";
 import { hashText } from "./hash.ts";
 import { parseRequest } from "./protocol.ts";
 import type { WorkerResponse } from "./protocol.ts";
 
-let application: Promise<WritingApplication> | undefined;
+type OpenedStore = Readonly<{ app: WritingApplication; courseId: CourseId }>;
+let application: Promise<OpenedStore> | undefined;
 
-function bootstrap(content: unknown): Promise<WritingApplication> {
+function bootstrap(content: unknown): Promise<OpenedStore> {
   return new Promise((resolve, reject) => {
     navigator.locks
       .request(
@@ -51,14 +52,15 @@ function bootstrap(content: unknown): Promise<WritingApplication> {
                 return { rows };
               },
             };
-            resolve(
-              createTeachingApplication({
+            resolve({
+              courseId: verified.body.courseId,
+              app: createTeachingApplication({
                 executor,
                 content: verified,
                 ids: () => crypto.randomUUID(),
                 hash: hashText,
               }),
-            );
+            });
             await new Promise<void>(() => {});
           } catch (error) {
             reject(error);
@@ -76,7 +78,7 @@ self.addEventListener("message", (event: MessageEvent<unknown>) => {
       if (request.kind === "openRecovery")
         application ??= bootstrap(request.content);
       if (!application) throw new Error("The local store has not been opened.");
-      const app = await application;
+      const { app, courseId } = await application;
       let response: WorkerResponse;
       switch (request.kind) {
         case "openRecovery":
@@ -90,6 +92,7 @@ self.addEventListener("message", (event: MessageEvent<unknown>) => {
           response = {
             id: request.id,
             kind: "projection",
+            courseId,
             value: await app.read(),
           };
           break;
@@ -138,6 +141,7 @@ self.addEventListener("message", (event: MessageEvent<unknown>) => {
           response = {
             id: request.id,
             kind: "projection",
+            courseId,
             value: await app.reconcileRecovery({
               recoveryId: request.recoveryId,
               choice: request.choice,

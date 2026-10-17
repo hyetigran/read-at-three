@@ -15,11 +15,14 @@ export async function probe(page: Page) {
   await page.addInitScript(`
     const NativeWorker = window.Worker;
     const requests = [], snapshots = [], responses = [];
-    let mode = '', held = null, heldWrite = null, droppedTail = false, loseRecoveredTeaching = false, loseReconcile = false;
+    let mode = '', held = null, heldWrite = null, heldTeaching = null, droppedTail = false, loseRecoveredTeaching = false, loseReconcile = false;
     window.writingEvidence = () => structuredClone({requests, snapshots, responses});
     window.armWritingFault = (value) => { mode = value; if(value==='teaching-before-twice'){mode='teaching-before';loseRecoveredTeaching=true;} if(value==='teaching-after-reconcile'){mode='teaching-after';loseReconcile=true;} };
     window.hasHeldWritingReply = () => held !== null;
     window.hasHeldWritingWrite = () => heldWrite !== null;
+    window.releaseHeldWritingWrite = () => { if(!heldWrite) throw Error('No retained writing write');const send=heldWrite.release;heldWrite=null;send(); };
+    window.hasHeldTeachingWrite = () => heldTeaching !== null;
+    window.releaseHeldTeachingWrite = () => { if(!heldTeaching) throw Error('No retained teaching write');const send=heldTeaching;heldTeaching=null;send(); };
     window.failHeldWritingWrite = () => { if(!heldWrite) throw Error('No retained writing write');const {worker,message}=heldWrite;heldWrite=null;worker.dispatchEvent(new MessageEvent('message',{data:{id:message.id,kind:'failed',message:'Injected finalized write failure'}})); };
     window.loseWritingReply = () => { if (!held) throw Error('No committed reply held'); const worker=held; held=null; worker.dispatchEvent(new ErrorEvent('error',{message:'Injected committed reply loss'})); };
     window.injectWritingCommand = command => new Promise(resolve=>{const worker=window.activeWritingWorker,id=crypto.randomUUID();const listener=event=>{if(event.data?.id===id){worker.removeEventListener('message',listener);resolve(event.data);}};worker.addEventListener('message',listener);worker.postMessage({id,kind:'dispatchInk',command});});
@@ -37,12 +40,14 @@ export async function probe(page: Page) {
             mode='';event.stopImmediatePropagation();this.dispatchEvent(new MessageEvent('message',{data:{...data,value:{...data.value,commandId:'wrong-teaching-command'}}}));
           } else if (mode === 'teaching-read-revision' && request?.kind === 'read' && data?.kind === 'projection' && data.value.kind === 'writing') {
             mode='';event.stopImmediatePropagation();this.dispatchEvent(new MessageEvent('message',{data:{...data,value:{...data.value,revision:'99'}}}));
+          } else if (mode === 'teaching-restore-revision' && request?.kind === 'readInk' && data?.kind === 'inkSnapshot') {
+            mode='';event.stopImmediatePropagation();this.dispatchEvent(new MessageEvent('message',{data:{...data,value:{...data.value,token:{...data.value.token,revision:'99'}}}}));
           } else if (loseRecoveredTeaching && request?.kind === 'recoverTeaching' && data?.kind === 'receipt') {
             loseRecoveredTeaching=false;event.stopImmediatePropagation();queueMicrotask(()=>this.dispatchEvent(new ErrorEvent('error',{message:'Injected recovered teaching reply loss'})));
           } else if (loseReconcile && request?.kind === 'reconcileRecovery' && data?.kind === 'projection') {
             loseReconcile=false;event.stopImmediatePropagation();queueMicrotask(()=>this.dispatchEvent(new ErrorEvent('error',{message:'Injected reconciliation reply loss'})));
           } else if (mode === 'teaching-read-recovery' && request?.kind === 'read' && data?.kind === 'projection') {
-            mode=''; event.stopImmediatePropagation();this.dispatchEvent(new MessageEvent('message',{data:{id:data.id,kind:'projection',value:{kind:'recovery',code:'worker-lost',message:'Synthetic connection recovery.'}}}));queueMicrotask(()=>this.dispatchEvent(new ErrorEvent('error',{message:'Injected worker replacement after read recovery'})));
+            mode=''; event.stopImmediatePropagation();this.dispatchEvent(new MessageEvent('message',{data:{...data,value:{kind:'recovery',code:'worker-lost',message:'Synthetic connection recovery.'}}}));queueMicrotask(()=>this.dispatchEvent(new ErrorEvent('error',{message:'Injected worker replacement after read recovery'})));
           } else if (mode === 'checkpoint-tail' && request?.kind === 'dispatchInk' && request.command.edit.kind === 'checkpoint' && data?.kind === 'inkReceipt') {
             event.stopImmediatePropagation(); held=this; mode='tail-reply';
           } else if (mode === 'tail-reply' && !droppedTail && request?.kind === 'recoverInk' && request.command.edit.kind === 'finalize' && data?.kind === 'inkReceipt') {
@@ -55,10 +60,11 @@ export async function probe(page: Page) {
       postMessage(message, options) {
         requests.push(structuredClone(message));
         this.sent.set(message.id, message);
+        if(mode === 'hold-teaching' && message.kind === 'dispatch'){mode='';heldTeaching=()=>super.postMessage(message,options);return;}
         if (mode === 'teaching-before' && message.kind === 'dispatch') {
           mode=''; queueMicrotask(()=>this.dispatchEvent(new ErrorEvent('error',{message:'Injected transport loss before teaching write'}))); return;
         }
-        if(mode === 'hold-finalize' && message.kind === 'dispatchInk' && message.command.edit.kind === 'finalize'){mode='';heldWrite={worker:this,message};return;}
+        if(mode === 'hold-finalize' && message.kind === 'dispatchInk' && message.command.edit.kind === 'finalize'){mode='';heldWrite={worker:this,message,release:()=>super.postMessage(message,options)};return;}
         if (mode === 'ink-failure' && message.kind === 'dispatchInk' && message.command.edit.kind === 'finalize') {
           mode=''; this.dispatchEvent(new MessageEvent('message',{data:{id:message.id,kind:'failed',message:'Injected writing transaction failure'}})); return;
         }
@@ -104,6 +110,38 @@ export async function atWriting(page: Page, suffix: string) {
     `${writingTask}.${suffix}`,
   );
   await expect(page.locator("main")).toHaveAttribute("aria-busy", "false");
+}
+export async function atWritableWriting(page: Page, suffix: string) {
+  await atWriting(page, suffix);
+  await expect(page.locator("canvas")).toHaveAttribute("data-writable", "true");
+}
+export async function finalizedWriting(
+  page: Page,
+  documentId: string,
+  expected: number,
+) {
+  await expect
+    .poll(async () => {
+      const sent = (await requests(page)).filter(
+        (request) =>
+          request.kind === "dispatchInk" &&
+          request.command.token.documentId === documentId &&
+          request.command.edit.kind === "finalize",
+      );
+      const replies = await responses(page);
+      return sent.filter(
+        (request) =>
+          request.kind === "dispatchInk" &&
+          replies.some(
+            (reply) =>
+              reply.id === request.id &&
+              reply.kind === "inkReceipt" &&
+              reply.value.kind === "inkCommitted" &&
+              reply.value.commandId === request.command.commandId,
+          ),
+      ).length;
+    })
+    .toBe(expected);
 }
 export async function writingAction(page: Page, name = "Continue") {
   await page.getByRole("button", { name, exact: true }).click();

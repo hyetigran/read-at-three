@@ -63,7 +63,7 @@ function harness(
     },
     profileRevision: count("0"),
     undoRunId: selected?.runId ?? null,
-    completedTaskIds: [],
+    taskResults: [],
     activePackageHash: content.packageHash,
     selectionCounter: count("0"),
     session: selected,
@@ -490,7 +490,7 @@ test("Pause plan has no acceptance and terminal Back prepares a navigation comma
     ...h.context,
     session: selected,
     sessions: [selected],
-    completedTaskIds: [task1],
+    taskResults: [{ taskId: task1, outcome: "completed" }],
   };
   view = parseProjection(await h.app.read());
   assert.equal(view.kind, "completed");
@@ -506,7 +506,10 @@ test("Pause plan has no acceptance and terminal Back prepares a navigation comma
 test("an unfinished replay retains prior catalog completion and explicit replay starts fresh", async () => {
   const content = await graphFixture();
   const h = harness(content);
-  h.context = { ...h.context, completedTaskIds: [task1] };
+  h.context = {
+    ...h.context,
+    taskResults: [{ taskId: task1, outcome: "completed" }],
+  };
   const view = ready(await h.app.read());
   assert.equal(view.catalog.find((task) => task.id === task1)?.completed, true);
   const replay = await prepared(h, view, action(view, "replay", task1));

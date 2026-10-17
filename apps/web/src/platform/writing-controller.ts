@@ -1,4 +1,5 @@
 import {
+  canonical,
   createInkBuffer,
   createInkCommandQueue,
   decodeInkPoints,
@@ -14,7 +15,6 @@ import {
 } from "@readatthree/teaching";
 import type {
   AvailableAction,
-  CommitReceipt,
   ControlTurnNode,
   DocumentToken,
   GraphNode,
@@ -28,31 +28,32 @@ import type {
   ReviewChoice,
   ReviewSelectionAction,
   StrokeId,
-  TeachingCommand,
 } from "@readatthree/teaching";
-import type { BrowserTeachingClient } from "./teaching-client.ts";
+import type { InkLifecycleClient } from "./teaching-client.ts";
+import type {
+  CommittedTeachingExecution,
+  PreparedAction,
+  ReadExpectation,
+  RestoreTeaching,
+} from "@readatthree/react-integration";
 import { hashText } from "./hash.ts";
 import { isTeachingViewport } from "./viewport.ts";
 
 export type ActionRequest =
   | AvailableAction
   | Readonly<{ action: ReviewSelectionAction; choice: ReviewChoice }>;
-type PreparedAction = Readonly<{
-  command: TeachingCommand;
-  origin: Projection;
-}>;
 type InkRetry =
   | { kind: "inkOnly" }
   | { kind: "action"; request: ActionRequest; origin: Projection };
 export type Operation =
   | { kind: "opening" | "idle" }
+  | { kind: "openingFailed"; message: string }
   | { kind: "preparing"; request: ActionRequest; origin: Projection }
   | { kind: "pending"; prepared: PreparedAction }
   | { kind: "failed"; prepared: PreparedAction; message: string }
   | { kind: "inkFailed"; message: string; retry: InkRetry }
   | { kind: "rejected"; message: string };
 export type ControllerState = Readonly<{
-  projection: Projection;
   operation: Operation;
   correctionPreview: GraphNode | ControlTurnNode | null;
 }>;
@@ -81,49 +82,22 @@ type Capture = {
   chunks: readonly InkChunk[];
 };
 const ids = () => crypto.randomUUID();
-const unavailable: Projection = {
-  kind: "recovery",
-  code: "storage-unavailable",
-  message:
-    "The saved reading place could not open safely. Keep this window open and retry.",
-};
 const saveMessage =
   "This save could not be confirmed. Keep this reading window open and retry the same action.";
-function matchesReceipt({
-  projection,
-  command,
-  receipt,
-}: {
-  projection: Projection;
-  command: TeachingCommand;
-  receipt: CommitReceipt;
-}) {
-  return (
-    projection.kind !== "recovery" &&
-    projection.kind !== "entry" &&
-    receipt.commandId === command.commandId &&
-    receipt.owner.profileId === command.owner.profileId &&
-    receipt.owner.generation === command.owner.generation &&
-    projection.owner.profileId === receipt.owner.profileId &&
-    projection.owner.generation === receipt.owner.generation &&
-    projection.sessionId === receipt.sessionId &&
-    projection.runId === receipt.runId &&
-    projection.packageHash === receipt.packageHash &&
-    projection.packageHash === command.payload.packageHash &&
-    (command.scope.kind === "profile"
-      ? projection.profileRevision
-      : projection.revision) === receipt.revision
-  );
-}
 function writing(
   view: Projection,
 ): view is Extract<Projection, { kind: "writing" | "writingResult" }> {
   return view.kind === "writing" || view.kind === "writingResult";
 }
 
-export function createWritingController(client: BrowserTeachingClient) {
+export function createWritingController({
+  client,
+  createTeaching,
+}: Readonly<{
+  client: InkLifecycleClient;
+  createTeaching: (stageRestore: RestoreTeaching) => CommittedTeachingExecution;
+}>) {
   let state: ControllerState = {
-    projection: unavailable,
     operation: { kind: "opening" },
     correctionPreview: null,
   };
@@ -135,10 +109,21 @@ export function createWritingController(client: BrowserTeachingClient) {
   let active: Capture | null = null;
   let fenced = true;
   let connected = false;
-  let opening: Promise<Projection> | null = null;
+  let opening: Promise<void> | null = null;
   let started = false;
   let draining: Promise<void> | null = null;
   const queue = createInkCommandQueue();
+  const teaching = createTeaching(stageRestore);
+  function refreshExpectation(): ReadExpectation {
+    const current = teaching.current();
+    return current && current.projection.kind !== "recovery"
+      ? {
+          kind: "refresh",
+          owner: current.projection.owner,
+          courseId: current.courseId,
+        }
+      : { kind: "opening" };
+  }
   function publish(next: Partial<ControllerState>) {
     state = { ...state, ...next };
     for (const listener of subscribers) listener();
@@ -167,6 +152,7 @@ export function createWritingController(client: BrowserTeachingClient) {
     const wasConnected = connected;
     connected = false;
     fence();
+    teaching.connectionLost();
     if (wasConnected && state.operation.kind === "idle")
       publish({
         operation: {
@@ -176,11 +162,15 @@ export function createWritingController(client: BrowserTeachingClient) {
         },
       });
   });
-  async function restore(projection: Projection) {
+  async function stageRestore(projection: Projection) {
     const next = new Map<DocumentToken["documentId"], DocumentView>();
     if (writing(projection)) {
       for (const token of projection.documents) {
         const snapshot = await client.readInk({ token });
+        if (canonical(snapshot.token) !== canonical(token))
+          throw new Error(
+            "The restored writing did not match its committed document.",
+          );
         const visible = new Set(
           snapshot.histories.flatMap((history) =>
             visibleInkStrokes({ history, strokes: snapshot.strokes }),
@@ -203,9 +193,13 @@ export function createWritingController(client: BrowserTeachingClient) {
         next.set(token.documentId, { snapshot, strokes });
       }
     }
-    documents.clear();
-    for (const [key, value] of next) documents.set(key, value);
-    paint();
+    return {
+      activate() {
+        documents.clear();
+        for (const [key, value] of next) documents.set(key, value);
+        paint();
+      },
+    };
   }
   function chunksFor(
     capture: Capture,
@@ -290,6 +284,7 @@ export function createWritingController(client: BrowserTeachingClient) {
     receipt: InkReceipt,
   ) {
     queue.acknowledge({ receipt });
+    teaching.inkCommitted({ token: receipt.token });
     const view = documents.get(capture.documentId);
     if (!view) throw new Error("Writing receipt lost its document.");
     view.snapshot = { ...view.snapshot, token: receipt.token };
@@ -374,13 +369,16 @@ export function createWritingController(client: BrowserTeachingClient) {
       capture.status = "interrupted";
       while (spool.includes(capture)) await send(capture, inventory.recoveryId);
     }
-    const teachingResult = prepared
-      ? await client.recoverTeaching({
+    const attempt = prepared
+      ? await teaching.execute({
+          kind: "closedRecovery",
           recoveryId: inventory.recoveryId,
-          command: prepared.command,
+          prepared,
         })
       : null;
-    const projection = await client.reconcileRecovery({
+    if (attempt && attempt.kind !== "resolved")
+      throw new Error("Closed recovery cannot publish teaching.");
+    await client.reconcileRecovery({
       recoveryId: inventory.recoveryId,
       choice:
         retained.length || prepared
@@ -388,43 +386,30 @@ export function createWritingController(client: BrowserTeachingClient) {
           : { kind: "cold" },
     });
     connected = true;
-    return { projection, teachingResult };
+    return attempt?.result ?? null;
   }
-  async function open(): Promise<Projection> {
+  async function open(): Promise<void> {
     if (opening) return opening;
-    if (started) return state.projection;
+    if (started) return;
     started = true;
     publish({ operation: { kind: "opening" } });
     opening = (async () => {
       try {
-        const { projection } = await reconcile();
-        await restore(projection);
-        publish({
-          projection,
-          operation: { kind: "idle" },
-          correctionPreview: null,
-        });
+        await reconcile();
+        await teaching.read({ expectation: refreshExpectation() });
+        publish({ operation: { kind: "idle" }, correctionPreview: null });
         reopenInput();
-        return projection;
       } catch (error) {
         fence();
-        const projection: Projection = {
-          kind: "recovery",
-          code: "storage-initialization-failed",
-          message:
-            error instanceof Error
-              ? error.message
-              : "The saved reading place could not open safely. Keep this window open and retry.",
-        };
         publish({
-          projection,
           operation: {
-            kind: "inkFailed",
-            message: saveMessage,
-            retry: { kind: "inkOnly" },
+            kind: "openingFailed",
+            message:
+              error instanceof Error
+                ? error.message
+                : "The saved place could not be opened.",
           },
         });
-        return projection;
       } finally {
         opening = null;
       }
@@ -436,8 +421,8 @@ export function createWritingController(client: BrowserTeachingClient) {
     try {
       if (!isTeachingViewport() || document.visibilityState !== "visible")
         throw new Error("Return to the reading window to save this action.");
-      const result = await client.dispatch(prepared.command);
-      if (result.kind === "rejected") {
+      const result = await teaching.execute({ kind: "normal", prepared });
+      if (result.kind === "resolved") {
         publish({
           operation: {
             kind: "rejected",
@@ -447,25 +432,7 @@ export function createWritingController(client: BrowserTeachingClient) {
         });
         return;
       }
-      const next = await client.read();
-      if (next.kind === "recovery") {
-        publish({ projection: next });
-        throw new Error("The saved place needs recovery.");
-      }
-      if (
-        !matchesReceipt({
-          projection: next,
-          command: prepared.command,
-          receipt: result,
-        })
-      )
-        throw new Error("The saved reading place did not match this save.");
-      await restore(next);
-      publish({
-        projection: next,
-        operation: { kind: "idle" },
-        correctionPreview: null,
-      });
+      publish({ operation: { kind: "idle" }, correctionPreview: null });
       reopenInput();
     } catch {
       fence();
@@ -540,7 +507,8 @@ export function createWritingController(client: BrowserTeachingClient) {
       document.visibilityState !== "visible"
     )
       return;
-    const origin = state.projection;
+    const origin = teaching.current()?.projection;
+    if (!origin) return;
     fence();
     publish({
       operation: { kind: "preparing", request, origin },
@@ -571,15 +539,12 @@ export function createWritingController(client: BrowserTeachingClient) {
         await commit(operation.prepared);
         return;
       }
-      const recovery = connected
-        ? (await drain(),
-          { projection: await client.read(), teachingResult: null })
+      const result = connected
+        ? (await drain(), null)
         : await reconcile(
             operation.kind === "failed" ? operation.prepared : null,
           );
-      const recovered = recovery.projection;
       if (operation.kind === "failed") {
-        const result = recovery.teachingResult;
         if (!result || result.kind === "rejected") {
           publish({
             operation: {
@@ -590,47 +555,48 @@ export function createWritingController(client: BrowserTeachingClient) {
           });
           return;
         }
-        const next = await client.read();
-        if (
-          !matchesReceipt({
-            projection: next,
-            command: operation.prepared.command,
+        const current = teaching.current();
+        if (!current)
+          throw new Error("The retained reading course is unavailable.");
+        await teaching.read({
+          expectation: {
+            kind: "receipt",
+            courseId: current.courseId,
+            prepared: operation.prepared,
             receipt: result,
-          })
-        )
-          throw new Error("Recovered teaching did not match its receipt.");
-        await restore(next);
-        publish({
-          projection: next,
-          operation: { kind: "idle" },
-          correctionPreview: null,
+          },
         });
+        publish({ operation: { kind: "idle" }, correctionPreview: null });
         reopenInput();
       } else {
-        await restore(recovered);
+        await teaching.read({ expectation: refreshExpectation() });
         if (operation.kind === "inkFailed" && operation.retry.kind === "action")
           await perform(operation.retry.request, operation.retry.origin);
         else {
-          publish({
-            projection: recovered,
-            operation: { kind: "idle" },
-            correctionPreview: null,
-          });
+          publish({ operation: { kind: "idle" }, correctionPreview: null });
           reopenInput();
         }
       }
-    } catch {
+    } catch (error) {
       publish({
         operation:
           operation.kind === "failed"
             ? { ...operation, message: saveMessage }
             : operation.kind === "inkFailed"
               ? operation
-              : {
-                  kind: "inkFailed",
-                  message: saveMessage,
-                  retry: { kind: "inkOnly" },
-                },
+              : operation.kind === "openingFailed"
+                ? {
+                    kind: "openingFailed",
+                    message:
+                      error instanceof Error
+                        ? error.message
+                        : operation.message,
+                  }
+                : {
+                    kind: "inkFailed",
+                    message: saveMessage,
+                    retry: { kind: "inkOnly" },
+                  },
       });
     }
   }
@@ -816,12 +782,12 @@ export function createWritingController(client: BrowserTeachingClient) {
   document.addEventListener("visibilitychange", lifecycle);
   window.visualViewport?.addEventListener("resize", lifecycle);
   return {
+    committed: teaching.view,
     open,
     act,
     retry,
     async reopen() {
       await retry();
-      return state.projection;
     },
     interrupt,
     begin,
@@ -875,6 +841,7 @@ export function createWritingController(client: BrowserTeachingClient) {
       window.removeEventListener("pagehide", lifecycle);
       document.removeEventListener("visibilitychange", lifecycle);
       window.visualViewport?.removeEventListener("resize", lifecycle);
+      teaching.close();
       client.close();
     },
   };

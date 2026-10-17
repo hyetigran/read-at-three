@@ -135,17 +135,30 @@ for (const file of await files(join(root, "packages"))) {
   function dependency(name: unknown) {
     if (typeof name !== "string")
       throw new Error("Shared imports must have literal module names.");
+    const integrationDependency =
+      owner === "react-integration" &&
+      (name === "react" || name === "@tanstack/react-query");
     if (
+      !integrationDependency &&
       /^(node:|react($|\/)|react-dom|react-native|expo($|[-/])|@tanstack\/|vite($|\/))/.test(
         name,
       )
     )
       errors.push(`${relative(root, file)} imports platform code: ${name}`);
+    if (
+      owner !== "react-integration" &&
+      name === "@readatthree/react-integration"
+    )
+      errors.push(`${relative(root, file)} imports React integration: ${name}`);
     if (name.startsWith(".")) {
       const target = resolve(dirname(file), name);
       const targetOwner = relative(join(root, "packages"), target).split(
         "/",
       )[0];
+      if (owner !== "react-integration" && targetOwner === "react-integration")
+        errors.push(
+          `${relative(root, file)} imports React integration: ${name}`,
+        );
       if (targetOwner !== owner && !target.endsWith("/src/index.ts"))
         errors.push(
           `${relative(root, file)} reaches another package's internals: ${name}`,
@@ -186,6 +199,7 @@ for (const path of [
   "apps/web/package.json",
   "packages/teaching/package.json",
   "packages/storage/package.json",
+  "packages/react-integration/package.json",
 ]) {
   const manifest: unknown = JSON.parse(
     await readFile(join(root, path), "utf8"),

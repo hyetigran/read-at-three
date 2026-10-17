@@ -387,8 +387,7 @@ test("recovery after committed acceptance replaces stale teaching and reopens th
             this.dispatchEvent(
               new MessageEvent("message", {
                 data: {
-                  id: data.id,
-                  kind: "projection",
+                  ...data,
                   value: {
                     kind: "recovery",
                     code: "storage-recovery",

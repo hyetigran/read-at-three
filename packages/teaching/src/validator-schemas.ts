@@ -17,6 +17,10 @@ import {
   writingSelectSchema,
   writingSkippedSchema,
 } from "./writing-schemas.ts";
+import {
+  catalogTaskSchema,
+  forbiddenCatalogSkippedSchema,
+} from "./catalog-schemas.ts";
 const id = { type: "string", minLength: 1, maxLength: 200 };
 const text = { type: "string", minLength: 1, maxLength: 20000 };
 const hashSchema = { type: "string", pattern: "^[a-f0-9]{64}$" };
@@ -551,18 +555,7 @@ const commonProjection = {
   title: copy,
   profileRevision: counter,
   actions: list(action),
-  catalog: list(
-    record({
-      id,
-      number: taskNumber,
-      title: copy,
-      optional: { type: "boolean" },
-      available: { type: "boolean" },
-      completed: { type: "boolean" },
-      packageHash: hashSchema,
-      savedSessionId: nullableId,
-    }),
-  ),
+  catalog: list(catalogTaskSchema),
 };
 const sessionProjection = {
   ...commonProjection,
@@ -660,6 +653,8 @@ const rootSchemas = {
 };
 
 const sharedDefinitions = {
+  forbiddenCatalogSkipped: forbiddenCatalogSkippedSchema,
+  catalogTask: catalogTaskSchema,
   graphAction,
   copy,
   graphNode,

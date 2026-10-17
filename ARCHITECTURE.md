@@ -720,7 +720,7 @@ Operational reporting focuses on install failures, save failures, content compat
 
 ## 17. Proposed repository structure
 
-This tree describes the target structure. The first slice implements `apps/web`, `packages/teaching` (currently the curriculum/session contracts and engine), `packages/storage`, content tools and real-driver/browser tests. Other modules are added as their vertical slices land. Local source inputs remain excluded from the public repository.
+This tree describes the target structure. The first slice implements `apps/web`, `packages/teaching` (currently the curriculum/session contracts and engine), `packages/storage`, `packages/react-integration`, content tools and real-driver/browser tests. Other modules are added as their vertical slices land. Local source inputs remain excluded from the public repository.
 
 ```text
 ARCHITECTURE.md

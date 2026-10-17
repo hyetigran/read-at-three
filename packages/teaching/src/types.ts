@@ -253,7 +253,11 @@ export type CatalogTask = LessonTask &
     completed: boolean;
     packageHash: PackageHash;
     savedSessionId: SessionId | null;
-  }>;
+  }> &
+  (
+    | Readonly<{ skipped?: never }>
+    | Readonly<{ optional: true; completed: false; skipped: true }>
+  );
 type Common = {
   owner: Owner;
   packageHash: PackageHash;
@@ -422,7 +426,10 @@ export interface StoredContext {
   owner: Owner;
   profileRevision: Counter;
   undoRunId: RunId | null;
-  completedTaskIds: readonly TaskId[];
+  taskResults: readonly Readonly<{
+    taskId: TaskId;
+    outcome: "completed" | "skipped";
+  }>[];
   activePackageHash: PackageHash;
   selectionCounter: Counter;
   session: StoredSession | null;

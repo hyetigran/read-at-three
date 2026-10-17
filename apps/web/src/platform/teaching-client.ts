@@ -111,7 +111,7 @@ export function createBrowserTeachingClient() {
       const response = await request({ id: id(), kind: "read" });
       if (response.kind !== "projection")
         throw new Error("The saved place could not be read.");
-      return response.value;
+      return { courseId: response.courseId, projection: response.value };
     },
     async dispatch(command: Parameters<WritingApplication["dispatch"]>[0]) {
       const response = await request({ id: id(), kind: "dispatch", command });
@@ -184,4 +184,9 @@ export function createBrowserTeachingClient() {
 }
 export type BrowserTeachingClient = ReturnType<
   typeof createBrowserTeachingClient
+>;
+
+export type InkLifecycleClient = Omit<
+  BrowserTeachingClient,
+  "read" | "dispatch" | "recoverTeaching"
 >;

@@ -1,4 +1,5 @@
 import {
+  parseId,
   parseCommand,
   parseDispatchResult,
   parseProjection,
@@ -11,6 +12,7 @@ import {
   parseRecoveryInventory,
 } from "@readatthree/teaching";
 import type {
+  CourseId,
   DispatchResult,
   Projection,
   TeachingCommand,
@@ -54,7 +56,12 @@ export type WorkerRequest =
       choice: RecoveryChoice;
     };
 export type WorkerResponse =
-  | { id: WorkerRequestId; kind: "projection"; value: Projection }
+  | {
+      id: WorkerRequestId;
+      kind: "projection";
+      courseId: CourseId;
+      value: Projection;
+    }
   | { id: WorkerRequestId; kind: "receipt"; value: DispatchResult }
   | { id: WorkerRequestId; kind: "inkReceipt"; value: InkResult }
   | { id: WorkerRequestId; kind: "inkSnapshot"; value: InkSnapshot }
@@ -171,10 +178,22 @@ export function parseResponse(value: unknown): WorkerResponse {
     return { id, kind: value.kind, message: value.message };
   }
   if (!("value" in value)) throw new Error("Missing worker response value.");
-  exact(value, ["id", "kind", "value"]);
+  exact(
+    value,
+    value.kind === "projection"
+      ? ["id", "kind", "courseId", "value"]
+      : ["id", "kind", "value"],
+  );
   switch (value.kind) {
     case "projection":
-      return { id, kind: value.kind, value: parseProjection(value.value) };
+      if (!("courseId" in value))
+        throw new Error("Missing verified course identity.");
+      return {
+        id,
+        kind: value.kind,
+        courseId: parseId({ kind: "course", value: value.courseId }),
+        value: parseProjection(value.value),
+      };
     case "receipt":
       return { id, kind: value.kind, value: parseDispatchResult(value.value) };
     case "inkSnapshot":

@@ -15,7 +15,7 @@
     "build": "vite build --config apps/web/vite.config.ts",
     "preview": "vite preview --config apps/web/vite.config.ts",
     "typecheck": "tsc --project tsconfig.json && tsc --project apps/web/tsconfig.json && tsc --project apps/web/tsconfig.worker.json",
-    "test": "node --import tsx --test tests/teaching/*.test.ts tests/storage/*.test.ts tests/content/*.test.ts",
+    "test": "node --import tsx --test tests/teaching/*.test.ts tests/storage/*.test.ts tests/content/*.test.ts tests/react-integration/*.test.ts",
     "test:browser": "playwright test",
     "content:prepare": "node --import tsx tools/content/writing.ts",
     "content:fixture": "node --import tsx tools/content/writing.ts --fixture",
