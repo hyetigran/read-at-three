@@ -70,7 +70,9 @@ A separate case holds an actual committed creation receipt, leaves the parent ro
 
 The private production reader component also passes exact source text and semantic formatting comparisons. Root independently reruns the corrected comparison over 97 fields and all 46 source marks. It catches deliberate DOM removals of partial bold and underline while preserving exact text. The earlier part-based audit had an insufficient partial-range comparison; its reports remain intact and its mark claim is superseded by this check. Component evidence does not qualify full application gates or storage.
 
-The minimum 900-by-600 map check found that the new profile button covers part of Lesson 6. Its layout fix remains pending. Physical browser process restart, unsupported stored-avatar rendering, active handwriting contact, held cues, live Undo after switching, late callback schedules, preparation availability and the complete earlier browser suite also remain pending. These focused checkpoints do not complete issue #10.
+The map profile control now sits beside the app name, with settings at the right edge. This resolves the measured overlap with Lesson 6 at 900 by 600 while retaining every original lesson position and the illustrated animals. Root independently passes six layout cases in each development and production build, covering default and 120-character names at 900 by 600, 1024 by 768 and 1280 by 800. They check all control/pedestal intersections, clipping, number hit access and actual navigation through all six lessons. Root also views the final production captures. Only the map wrapper and its dedicated CSS rule change; reader styles and artwork remain exact.
+
+Physical browser process restart, unsupported stored-avatar rendering, active handwriting contact, held cues, live Undo after switching, late callback schedules, preparation availability and the complete earlier browser suite remain pending. These focused checkpoints do not complete issue #10.
 
 ## Original portrait assets
 

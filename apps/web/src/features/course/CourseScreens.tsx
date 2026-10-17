@@ -148,32 +148,30 @@ export function LessonMap({
           </span>
           <AddedText>read at three</AddedText>
         </h1>
-        <div className="course-map-header-actions">
-          {profile && onParents ? (
-            <ProfileButton
-              profile={profile}
-              disabled={busy}
-              onClick={() => onParents("profiles")}
-            />
-          ) : null}
-          <Link
-            id="parent-settings"
-            onClick={(event) => {
-              if (onParents) {
-                event.preventDefault();
-                onParents("settings");
-              }
-            }}
-            className="course-icon-button"
-            to="/parent/gate"
-            aria-label="For parents"
-          >
-            <Settings aria-hidden="true" />
-            <span className="sr-only">
-              <AddedText>For parents</AddedText>
-            </span>
-          </Link>
-        </div>
+        {profile && onParents ? (
+          <ProfileButton
+            profile={profile}
+            disabled={busy}
+            onClick={() => onParents("profiles")}
+          />
+        ) : null}
+        <Link
+          id="parent-settings"
+          onClick={(event) => {
+            if (onParents) {
+              event.preventDefault();
+              onParents("settings");
+            }
+          }}
+          className="course-icon-button"
+          to="/parent/gate"
+          aria-label="For parents"
+        >
+          <Settings aria-hidden="true" />
+          <span className="sr-only">
+            <AddedText>For parents</AddedText>
+          </span>
+        </Link>
       </header>
       <nav className="course-map-lessons" aria-label="Lessons">
         {read.course.lessons.map((lesson, index) => {

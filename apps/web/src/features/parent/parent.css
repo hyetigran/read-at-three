@@ -79,10 +79,9 @@
   font-size: 12px;
   margin-top: 4px;
 }
-.course-map-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 14px;
+.course-map-header > .parent-profile-button {
+  margin-left: 24px;
+  margin-right: auto;
 }
 .parent-profile-button [data-origin="added"],
 .teaching-header .parent-profile-button [data-origin="added"] {
