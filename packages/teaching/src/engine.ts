@@ -1,3 +1,4 @@
+import { writingTask } from "./writing.ts";
 import {
   initialControlState,
   validateControlPosition,
@@ -112,11 +113,25 @@ export function currentCheckpoint(
   state: ControlTeachingState,
 ): ControlCheckpoint;
 export function currentCheckpoint(
-  state: GraphTeachingState | ControlTeachingState,
+  state:
+    | GraphTeachingState
+    | ControlTeachingState
+    | import("./types.ts").WritingSkippedState,
 ): Checkpoint | ControlCheckpoint;
 export function currentCheckpoint(
-  state: GraphTeachingState | ControlTeachingState,
+  state:
+    | GraphTeachingState
+    | ControlTeachingState
+    | import("./types.ts").WritingSkippedState,
 ): Checkpoint | ControlCheckpoint {
+  if (state.kind === "writingSkipped") {
+    const checkpoint =
+      state.last.checkpoints[
+        state.viewCheckpoint ?? state.last.checkpointIndex
+      ];
+    if (!checkpoint) throw new Error("Skipped view checkpoint unavailable");
+    return checkpoint;
+  }
   const checkpoint = state.checkpoints[state.checkpointIndex];
   if (!checkpoint) throw new Error("Saved checkpoint is unavailable");
   return checkpoint;
@@ -141,6 +156,25 @@ export function validatePosition(
   state: TeachingState,
   taskId?: TaskId,
 ): void {
+  if (state.kind === "writingSkipped") {
+    if (
+      !writingTask({ content, taskId: state.taskId }) ||
+      state.taskId !== state.last.taskId ||
+      (state.viewCheckpoint !== null &&
+        (!Number.isInteger(state.viewCheckpoint) ||
+          state.viewCheckpoint < 0 ||
+          state.viewCheckpoint >= state.last.checkpoints.length)) ||
+      (taskId !== undefined && taskId !== state.taskId) ||
+      controlCompletionProof({ content, state: state.last }) !== null
+    )
+      throw new Error("Invalid skipped writing state");
+    validateControlPosition({
+      content,
+      state: state.last,
+      taskId: state.taskId,
+    });
+    return;
+  }
   if (state.kind === "graphControls") {
     validateControlPosition({
       content,
@@ -395,7 +429,11 @@ export function evaluate(
   nodeId: NodeId,
 ): TeachingState {
   validatePosition(content, state);
-  if (state.kind === "graph" || state.kind === "graphControls")
+  if (
+    state.kind === "graph" ||
+    state.kind === "graphControls" ||
+    state.kind === "writingSkipped"
+  )
     throw new Error("Graph teaching needs a semantic action");
   if (state.kind === "frontier")
     throw new Error("Partial content frontier cannot advance");
@@ -410,10 +448,38 @@ export function evaluateGraph({
   action,
 }: {
   content: DevelopmentPackage;
-  state: GraphTeachingState | ControlTeachingState;
-  status: "inProgress" | "completed";
+  state:
+    | GraphTeachingState
+    | ControlTeachingState
+    | import("./types.ts").WritingSkippedState;
+  status: "inProgress" | "completed" | "skipped";
   action: GraphAction;
 }): TransitionPlan {
+  if (state.kind === "writingSkipped") {
+    validatePosition(content, state);
+    if (status !== "skipped") throw new Error("Skipped run status changed");
+    if (action.kind === "back") {
+      const index =
+        state.viewCheckpoint === null
+          ? state.last.checkpoints.length - 1
+          : state.viewCheckpoint - 1;
+      if (index < 0) throw new Error("Back unavailable");
+      return { kind: "navigation", after: { ...state, viewCheckpoint: index } };
+    }
+    if (action.kind === "continue" && state.viewCheckpoint !== null)
+      return {
+        kind: "navigation",
+        after: {
+          ...state,
+          viewCheckpoint:
+            state.viewCheckpoint === state.last.checkpoints.length - 1
+              ? null
+              : state.viewCheckpoint + 1,
+        },
+      };
+    throw new Error("Skipped writing is read only");
+  }
+  if (status === "skipped") throw new Error("Skipped teaching state missing");
   if (state.kind === "graphControls")
     return evaluateControls({ content, state, status, action });
   if (
@@ -640,7 +706,10 @@ export function validateAcceptanceTransition({
   validatePosition(content, before, taskId);
   validatePosition(content, after, taskId);
   if (before.kind === "graphControls") {
-    if (after.kind !== "graphControls" || !action)
+    if (
+      (after.kind !== "graphControls" && after.kind !== "writingSkipped") ||
+      !action
+    )
       throw new Error("Explicit control acceptance required");
     const expected = evaluateControls({
       content,
@@ -649,7 +718,9 @@ export function validateAcceptanceTransition({
       action,
     });
     if (
-      (expected.kind !== "acceptance" && expected.kind !== "completion") ||
+      (expected.kind !== "acceptance" &&
+        expected.kind !== "completion" &&
+        expected.kind !== "skip") ||
       expected.occurrenceId !== occurrenceId ||
       canonical(expected.after) !== canonical(after)
     )
@@ -667,7 +738,9 @@ export function validateAcceptanceTransition({
       action: { kind: "continue" },
     });
     if (
-      (expected.kind !== "acceptance" && expected.kind !== "completion") ||
+      (expected.kind !== "acceptance" &&
+        expected.kind !== "completion" &&
+        expected.kind !== "skip") ||
       canonical(expected.after) !== canonical(after)
     )
       throw new Error("Acceptance snapshots do not match graph");
@@ -685,6 +758,13 @@ export function project(
   state: TeachingState,
 ): EngineProjection {
   validatePosition(content, state);
+  if (state.kind === "writingSkipped")
+    return state.viewCheckpoint === null
+      ? { kind: "skipped" }
+      : projectControls({
+          content,
+          state: { ...state.last, checkpointIndex: state.viewCheckpoint },
+        });
   if (state.kind === "graphControls")
     return projectControls({ content, state });
   if (state.kind === "graph") {
@@ -757,6 +837,15 @@ export function validateAcceptanceState({
 }): void {
   validatePosition(content, baseline, taskId);
   validatePosition(content, state, taskId);
+  if (baseline.kind === "writingSkipped") {
+    if (
+      state.kind !== "writingSkipped" ||
+      canonical({ ...baseline, viewCheckpoint: null }) !==
+        canonical({ ...state, viewCheckpoint: null })
+    )
+      throw new Error("Skipped writing history changed");
+    return;
+  }
   if (baseline.kind === "graphControls") {
     if (state.kind === "graphControls") {
       const oldCheckpoints = new Map(

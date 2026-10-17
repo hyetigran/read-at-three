@@ -15,10 +15,10 @@
     "build": "vite build --config apps/web/vite.config.ts",
     "preview": "vite preview --config apps/web/vite.config.ts",
     "typecheck": "tsc --project tsconfig.json && tsc --project apps/web/tsconfig.json && tsc --project apps/web/tsconfig.worker.json",
-    "test": "node --import tsx --test tests/teaching/*.test.ts tests/storage/*.test.ts tests/content/*.test.ts",
+    "test": "node --import tsx --test tests/teaching/*.test.ts tests/storage/*.test.ts tests/content/*.test.ts tests/react-integration/*.test.ts",
     "test:browser": "playwright test",
-    "content:prepare": "node --import tsx tools/content/development.ts",
-    "content:fixture": "node --import tsx tools/content/development.ts --fixture",
+    "content:prepare": "node --import tsx tools/content/writing.ts",
+    "content:fixture": "node --import tsx tools/content/writing.ts --fixture",
     "content:prepare:graph": "node --import tsx tools/content/development.ts --graph",
     "content:fixture:graph": "node --import tsx tools/content/development.ts --graph --fixture",
     "content:prepare:legacy": "node --import tsx tools/content/development.ts --legacy",
@@ -30,7 +30,11 @@
     "migrations:prepare": "node --import tsx tools/migrations/prepare.ts",
     "migrations:check": "node --import tsx tools/migrations/prepare.ts --check",
     "content:prepare:oral": "node --import tsx tools/content/development.ts --oral",
-    "content:fixture:oral": "node --import tsx tools/content/development.ts --oral --fixture"
+    "content:fixture:oral": "node --import tsx tools/content/development.ts --oral --fixture",
+    "content:prepare:continuous": "node --import tsx tools/content/development.ts",
+    "content:fixture:continuous": "node --import tsx tools/content/development.ts --fixture",
+    "content:prepare:writing": "node --import tsx tools/content/writing.ts",
+    "content:fixture:writing": "node --import tsx tools/content/writing.ts --fixture"
   },
   "devDependencies": {
     "@babel/parser": "8.0.7",

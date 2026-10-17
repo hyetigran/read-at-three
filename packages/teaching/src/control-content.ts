@@ -1,4 +1,4 @@
-import { canonical } from "./content.ts";
+import { canonical } from "./identity.ts";
 import type {
   ControlTask,
   ControlNode,

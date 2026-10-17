@@ -1,3 +1,26 @@
+import {
+  writingTaskSchema,
+  writingPresentationSchema,
+  writingActionSchema,
+  writingBarrierSchema,
+  documentTokenSchema,
+  inkCommandSchema,
+  inkReceiptSchema,
+  inkBrushSchema,
+  inkStrokeIdsSchema,
+  inkOperationSchema,
+  inkSnapshotSchema,
+  recoveryOpeningSchema,
+  recoveryChoiceSchema,
+  recoveryInventorySchema,
+  writingNavigateSchema,
+  writingSelectSchema,
+  writingSkippedSchema,
+} from "./writing-schemas.ts";
+import {
+  catalogTaskSchema,
+  forbiddenCatalogSkippedSchema,
+} from "./catalog-schemas.ts";
 const id = { type: "string", minLength: 1, maxLength: 200 };
 const text = { type: "string", minLength: 1, maxLength: 20000 };
 const hashSchema = { type: "string", pattern: "^[a-f0-9]{64}$" };
@@ -116,7 +139,7 @@ const controlTurnNode = record({
   route: { enum: ["normal", "support"] },
   parentRole: { enum: ["model", "together", "listen"] },
   itemId: nullableId,
-  presentation: oralPresentation,
+  presentation: { oneOf: [oralPresentation, writingPresentationSchema] },
   next: destination,
 });
 const controlNode = {
@@ -331,13 +354,17 @@ const bodySchema = {
     }),
     record({
       ...packageCommon,
-      coverage: { const: "lesson1-sounds-oral-complete" },
+      coverage: { enum: ["lesson1-sounds-oral-complete", "lesson1-complete"] },
       lessonTasks: list(lessonTask, 100, 1),
       tasks: list(
         {
           oneOf: [
             record({ kind: { const: "printedGraphV1" }, task: graphTask }),
             record({ kind: { const: "graphControls" }, task: controlTask }),
+            record({
+              kind: { const: "soundWritingV1" },
+              task: writingTaskSchema,
+            }),
           ],
         },
         100,
@@ -378,6 +405,7 @@ const context = {
 const stateSchema = {
   oneOf: [
     controlState,
+    writingSkippedSchema,
     record({
       version: { const: 1 },
       kind: { const: "teaching" },
@@ -421,6 +449,7 @@ const regularGraphAction = record({
 const helpIntent = record({ kind: { const: "help" }, correctionId: id });
 const graphAction = {
   oneOf: [
+    writingActionSchema,
     regularGraphAction,
     helpIntent,
     readyAction,
@@ -431,6 +460,7 @@ const graphAction = {
 const selectionIntent = { enum: ["start", "resume", "replay", "restart"] };
 const semanticIntent = {
   oneOf: [
+    writingActionSchema,
     regularGraphAction,
     readyAction,
     confirmAction,
@@ -496,6 +526,8 @@ const commandSchema = {
         sessionId: nullableId,
       }),
     }),
+    writingSelectSchema,
+    writingNavigateSchema,
     record({
       ...commandCommon,
       kind: { const: "navigate" },
@@ -523,25 +555,14 @@ const commonProjection = {
   title: copy,
   profileRevision: counter,
   actions: list(action),
-  catalog: list(
-    record({
-      id,
-      number: taskNumber,
-      title: copy,
-      optional: { type: "boolean" },
-      available: { type: "boolean" },
-      completed: { type: "boolean" },
-      packageHash: hashSchema,
-      savedSessionId: nullableId,
-    }),
-  ),
+  catalog: list(catalogTaskSchema),
 };
 const sessionProjection = {
   ...commonProjection,
   sessionId: id,
   runId: id,
   revision: counter,
-  runStatus: { enum: ["inProgress", "completed"] },
+  runStatus: { enum: ["inProgress", "completed", "skipped"] },
   sessionStatus: { enum: ["active", "paused", "closed"] },
   checkpointId: nullableId,
   taskId: id,
@@ -584,6 +605,25 @@ const projectionSchema = {
       unmetObligations: { ...ids, minItems: 1, maxItems: 100 },
     }),
     record({ ...sessionProjection, kind: { const: "completed" } }),
+    record({ ...sessionProjection, kind: { const: "skipped" } }),
+    record({
+      ...sessionProjection,
+      kind: { const: "writingResult" },
+      outcome: { enum: ["completed", "skipped"] },
+      documents: list(documentTokenSchema, 2, 2),
+    }),
+    record({
+      ...sessionProjection,
+      kind: { const: "writing" },
+      documents: list(documentTokenSchema, 2, 2),
+      turn: record({
+        ...controlTurnNode.properties,
+        extraPractice: { type: "boolean" },
+        routeKind: { enum: ["delivering", "correction"] },
+        occurrenceId: id,
+        checkpointId: id,
+      }),
+    }),
     record({
       ...sessionProjection,
       kind: { const: "reviewSelection" },
@@ -613,6 +653,9 @@ const rootSchemas = {
 };
 
 const sharedDefinitions = {
+  forbiddenCatalogSkipped: forbiddenCatalogSkippedSchema,
+  catalogTask: catalogTaskSchema,
+  graphAction,
   copy,
   graphNode,
   controlTurnNode,
@@ -646,6 +689,16 @@ function withDefinitions(root: object) {
   };
 }
 export const validatorSchemas = {
+  validateDocumentToken: withDefinitions(documentTokenSchema),
+  validateInkSnapshot: withDefinitions(inkSnapshotSchema),
+  validateRecoveryOpening: withDefinitions(recoveryOpeningSchema),
+  validateRecoveryChoice: withDefinitions(recoveryChoiceSchema),
+  validateRecoveryInventory: withDefinitions(recoveryInventorySchema),
+  validateInkBrush: withDefinitions(inkBrushSchema),
+  validateInkStrokeIds: withDefinitions(inkStrokeIdsSchema),
+  validateInkOperation: withDefinitions(inkOperationSchema),
+  validateInkCommand: withDefinitions(inkCommandSchema),
+  validateInkReceipt: withDefinitions(inkReceiptSchema),
   validatePackage: withDefinitions(rootSchemas.validatePackage),
   validateState: withDefinitions(rootSchemas.validateState),
   validateCommand: withDefinitions(rootSchemas.validateCommand),

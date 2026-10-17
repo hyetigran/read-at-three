@@ -6,17 +6,19 @@ export function developmentContent(): Plugin {
   const mode = process.env.READING_CONTENT_MODE ?? "local";
   if (mode !== "local" && mode !== "fixture")
     throw new Error("Select local or explicit fixture content mode.");
-  const variant = process.env.READING_CONTENT_VARIANT ?? "continuous";
+  const variant = process.env.READING_CONTENT_VARIANT ?? "writing";
   if (
+    variant !== "writing" &&
     variant !== "continuous" &&
     variant !== "oral" &&
     variant !== "graph" &&
     variant !== "legacy"
   )
     throw new Error(
-      "Select continuous, oral, graph or legacy development content variant.",
+      "Select writing, continuous, oral, graph or legacy development content variant.",
     );
   const filenames = {
+    writing: "writing-development-package.json",
     continuous: "continuous-development-package.json",
     oral: "oral-development-package.json",
     graph: "graph-development-package.json",

@@ -20,7 +20,10 @@ export type IdKind =
   | "policy"
   | "review"
   | "queue"
-  | "cycle";
+  | "cycle"
+  | "target"
+  | "document"
+  | "stroke";
 export type Id<Kind extends IdKind> = string & { readonly __brand: Kind };
 export type ProfileId = Id<"profile">;
 export type SessionId = Id<"session">;
@@ -127,7 +130,10 @@ export type GraphDevelopmentBody = Readonly<{
   tasks: readonly GraphTask[];
 }>;
 export type DevelopmentBody =
-  LegacyDevelopmentBody | GraphDevelopmentBody | ControlDevelopmentBody;
+  | LegacyDevelopmentBody
+  | GraphDevelopmentBody
+  | ControlDevelopmentBody
+  | WritingDevelopmentBody;
 export type DevelopmentBodyInput = Serialized<DevelopmentBody>;
 export type TeachingNodeInput = Serialized<TeachingNode>;
 export type DevelopmentPackage = Readonly<{
@@ -187,7 +193,10 @@ export type GraphTeachingState = Readonly<{
   nextCheckpointNumber: Counter;
 }>;
 export type TeachingState =
-  LegacyTeachingState | GraphTeachingState | ControlTeachingState;
+  | LegacyTeachingState
+  | GraphTeachingState
+  | ControlTeachingState
+  | WritingSkippedState;
 export type PrintedGraphAction = Readonly<
   | { kind: "continue" | "back" | "repeat" | "pause" }
   | { kind: "help"; correctionId: CorrectionId }
@@ -225,7 +234,14 @@ export type EngineProjection =
       unmetObligations: readonly NodeId[];
     }
   | ControlSelectionProjection
-  | { kind: "completed" };
+  | { kind: "completed" }
+  | { kind: "skipped" }
+  | { kind: "writing"; turn: ControlTurn; documents: readonly DocumentToken[] }
+  | {
+      kind: "writingResult";
+      outcome: "completed" | "skipped";
+      documents: readonly DocumentToken[];
+    };
 export type Recovery = Readonly<{
   kind: "recovery";
   code: string;
@@ -237,7 +253,11 @@ export type CatalogTask = LessonTask &
     completed: boolean;
     packageHash: PackageHash;
     savedSessionId: SessionId | null;
-  }>;
+  }> &
+  (
+    | Readonly<{ skipped?: never }>
+    | Readonly<{ optional: true; completed: false; skipped: true }>
+  );
 type Common = {
   owner: Owner;
   packageHash: PackageHash;
@@ -250,7 +270,7 @@ type SessionCommon = Common & {
   sessionId: SessionId;
   runId: RunId;
   revision: Counter;
-  runStatus: "inProgress" | "completed";
+  runStatus: "inProgress" | "completed" | "skipped";
   sessionStatus: "active" | "paused" | "closed";
   checkpointId: CheckpointId | null;
   taskId: TaskId;
@@ -304,6 +324,29 @@ export type TeachingCommand = CommandCommon &
         }>;
       }
     | {
+        kind: "writingSelect";
+        scope: ProfileScope;
+        payload: Readonly<{
+          packageHash: PackageHash;
+          intent: SelectionIntent;
+          taskId: TaskId;
+          sessionId: SessionId | null;
+          barrier: WritingBarrier;
+        }>;
+      }
+    | {
+        kind: "writingNavigate";
+        scope: SessionScope;
+        payload: Readonly<{
+          packageHash: PackageHash;
+          sessionId: SessionId;
+          runId: RunId;
+          checkpointId: CheckpointId;
+          action: GraphAction;
+          barrier: WritingBarrier;
+        }>;
+      }
+    | {
         kind: "navigate";
         scope: SessionScope;
         payload: Readonly<{
@@ -347,6 +390,12 @@ export type AcceptingTransition = Readonly<
       occurrenceId: OccurrenceId | NodeId;
     }
   | {
+      kind: "skip";
+      after: WritingSkippedState;
+      occurrenceId: OccurrenceId;
+      skip: SkipProof;
+    }
+  | {
       kind: "completion";
       after: TeachingState;
       occurrenceId: OccurrenceId | NodeId;
@@ -368,7 +417,7 @@ export type StoredSession = Readonly<{
   lessonId: LessonId;
   taskId: TaskId;
   status: "active" | "paused" | "closed";
-  runStatus: "inProgress" | "completed";
+  runStatus: "inProgress" | "completed" | "skipped";
   state: TeachingState;
   activeAdvanceId: AdvanceId | null;
   nextAdvanceSeq: Counter;
@@ -377,7 +426,10 @@ export interface StoredContext {
   owner: Owner;
   profileRevision: Counter;
   undoRunId: RunId | null;
-  completedTaskIds: readonly TaskId[];
+  taskResults: readonly Readonly<{
+    taskId: TaskId;
+    outcome: "completed" | "skipped";
+  }>[];
   activePackageHash: PackageHash;
   selectionCounter: Counter;
   session: StoredSession | null;
@@ -412,6 +464,10 @@ export interface TeachingTransaction {
     command: TeachingCommand,
   ): Promise<{ payloadHash: PayloadHash; result: CommitReceipt } | null>;
   ensurePackage(content: DevelopmentPackage): Promise<void>;
+  writingBarrier?(input: {
+    session: StoredSession;
+    barrier: WritingBarrier;
+  }): Promise<boolean>;
   select(input: {
     command: TeachingCommand;
     context: StoredContext;
@@ -423,6 +479,9 @@ export interface TeachingTransaction {
 }
 export interface TeachingStore {
   current(): Promise<StoredContext>;
+  documents?(input: {
+    session: StoredSession;
+  }): Promise<readonly DocumentToken[]>;
   resolvePackage(packageHash: PackageHash): Promise<DevelopmentPackage>;
   transaction<T>(work: (tx: TeachingTransaction) => Promise<T>): Promise<T>;
 }
@@ -446,7 +505,7 @@ export type ControlTurnNode = ControlSource &
     route: "normal" | "support";
     parentRole: "model" | "together" | "listen";
     itemId: ItemId | null;
-    presentation: Readonly<{ kind: "oral" }>;
+    presentation: Readonly<{ kind: "oral" }> | WritingPresentation;
     next: Destination;
   }>;
 export type UntilFirmNode = ControlSource &
@@ -496,6 +555,7 @@ export type ControlTask = Readonly<{
 export type MixedTask = Readonly<
   | { kind: "printedGraphV1"; task: GraphTask }
   | { kind: "graphControls"; task: ControlTask }
+  | { kind: "soundWritingV1"; task: WritingTask }
 >;
 export type ControlDevelopmentBody = Omit<
   GraphDevelopmentBody,
@@ -503,13 +563,14 @@ export type ControlDevelopmentBody = Omit<
 > &
   Readonly<{
     coverage: "lesson1-sounds-oral-complete";
-    tasks: readonly MixedTask[];
+    tasks: readonly Exclude<MixedTask, { kind: "soundWritingV1" }>[];
   }>;
 export type ReviewChoice = Readonly<
   { kind: "none" } | { kind: "items"; itemIds: readonly ItemId[] }
 >;
 export type GraphAction =
   | PrintedGraphAction
+  | WritingAction
   | Readonly<
       | { kind: "parentReady"; policyId: PolicyId }
       | {
@@ -626,3 +687,100 @@ export type ControlSelectionProjection = Readonly<{
   guidance: readonly ParentSpan[];
   committedChoice: ReviewChoice | null;
 }>;
+
+export type TargetId = Id<"target">;
+export type DocumentId = Id<"document">;
+export type StrokeId = Id<"stroke">;
+export type WritingPhase =
+  "parentDemonstration" | "childTracing" | "childIndependentWriting";
+export type InkLayer = "model" | "tracing" | "independent";
+export type WritingObligation = Readonly<
+  | { kind: "soundResponse" }
+  | { kind: "modelAndSound" }
+  | {
+      kind: "phaseConfirmation";
+      phase: "childTracing" | "childIndependentWriting";
+      practice: { minimum: number; maximum: number; allowMore: true };
+    }
+>;
+export type WritingPresentation = Readonly<{
+  kind: "writing";
+  targetId: TargetId;
+  obligation: WritingObligation;
+}>;
+export type WritingNode = ControlSource &
+  Readonly<{
+    kind: "turn";
+    route: "normal";
+    parentRole: "model" | "listen";
+    presentation: WritingPresentation;
+    next: Destination;
+  }>;
+export type WritingTarget = Readonly<{
+  id: TargetId;
+  sourceRefs: readonly SourceRef[];
+  logicalWidth: number;
+  logicalHeight: number;
+  guides: { top: number; midline: number; baseline: number };
+  boardY: number;
+}>;
+export type WritingTask = Readonly<{
+  id: TaskId;
+  number: number;
+  title: Copy;
+  optional: true;
+  startNodeId: NodeId;
+  targets: readonly WritingTarget[];
+  nodes: readonly WritingNode[];
+}>;
+export type WritingAction = Readonly<
+  | {
+      kind: "confirmTracing";
+      targetId: TargetId;
+      nodeId: NodeId;
+      phase: "childTracing";
+    }
+  | {
+      kind: "confirmIndependent";
+      targetId: TargetId;
+      nodeId: NodeId;
+      phase: "childIndependentWriting";
+    }
+  | { kind: "skipWriting" }
+>;
+export type WritingSkippedState = Readonly<{
+  version: 1;
+  kind: "writingSkipped";
+  viewCheckpoint: number | null;
+  taskId: TaskId;
+  last: ControlTeachingState;
+}>;
+export type SkipProof = Readonly<{
+  taskId: TaskId;
+  packageHash: PackageHash;
+  sourceRefs: readonly SourceRef[];
+  outcome: "skipped";
+}>;
+export type DocumentToken = Owner &
+  Readonly<{
+    documentId: DocumentId;
+    runId: RunId;
+    courseId: CourseId;
+    packageHash: PackageHash;
+    lessonId: LessonId;
+    taskId: TaskId;
+    targetId: TargetId;
+    revision: Counter;
+    phase: WritingPhase;
+    inputEpoch: Counter;
+  }>;
+export type WritingBarrier = Readonly<{
+  kind: "writing";
+  documents: readonly DocumentToken[];
+}>;
+
+export type WritingDevelopmentBody = Omit<
+  ControlDevelopmentBody,
+  "coverage" | "tasks"
+> &
+  Readonly<{ coverage: "lesson1-complete"; tasks: readonly MixedTask[] }>;

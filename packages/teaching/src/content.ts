@@ -1,6 +1,22 @@
+import {
+  canonical,
+  parseId,
+  parseHash,
+  parseCounter,
+  increment,
+  deepFreeze,
+} from "./identity.ts";
+export {
+  canonical,
+  parseId,
+  parseHash,
+  parseCounter,
+  increment,
+  deepFreeze,
+} from "./identity.ts";
+import { parseDocumentToken } from "./ink.ts";
+import { compileWritingTask } from "./writing.ts";
 import { compileControlTask } from "./control-content.ts";
-import canonicalize from "canonicalize";
-import { unicodeLength } from "./unicode-length.ts";
 import type {
   DevelopmentBodyInput,
   Id,
@@ -30,57 +46,6 @@ import {
 } from "./generated-validators.js";
 export function canonicalContentBody(body: DevelopmentBodyInput): string {
   return canonical(body);
-}
-export function canonical(value: unknown): string {
-  const result = canonicalize(value);
-  if (typeof result !== "string")
-    throw new Error("Value cannot be canonically encoded");
-  return result;
-}
-export function parseId<Kind extends IdKind>({
-  kind,
-  value,
-}: {
-  kind: Kind;
-  value: unknown;
-}): Id<Kind> {
-  if (
-    typeof value !== "string" ||
-    unicodeLength(value) < 1 ||
-    unicodeLength(value) > 200
-  )
-    throw new Error(`Invalid ${kind} identity`);
-  return value as Id<Kind>;
-}
-export function parseHash<Kind extends HashKind>({
-  kind,
-  value,
-}: {
-  kind: Kind;
-  value: unknown;
-}): Hash<Kind> {
-  if (typeof value !== "string" || !/^[a-f0-9]{64}$/.test(value))
-    throw new Error(`Invalid ${kind} hash`);
-  return value as Hash<Kind>;
-}
-export function parseCounter(value: unknown): Counter {
-  if (
-    typeof value !== "string" ||
-    !/^(0|[1-9][0-9]{0,18})$/.test(value) ||
-    BigInt(value) > 9223372036854775807n
-  )
-    throw new Error("Invalid signed-64 counter");
-  return value as Counter;
-}
-export function increment(value: string): Counter {
-  return parseCounter((BigInt(parseCounter(value)) + 1n).toString());
-}
-export function deepFreeze<T>(value: T): T {
-  if (value !== null && typeof value === "object") {
-    Object.freeze(value);
-    for (const child of Object.values(value)) deepFreeze(child);
-  }
-  return value;
 }
 export async function parseDevelopmentPackage(
   input: unknown,
@@ -129,10 +94,23 @@ export async function parseDevelopmentPackage(
         canonical(entry.title) !== canonical(task.title)
       )
         throw new Error("Task metadata mismatch");
-      if (input.body.coverage === "lesson1-sounds-oral-complete") {
-        if ("kind" in entryTask && entryTask.kind === "graphControls")
+      if (
+        input.body.coverage === "lesson1-sounds-oral-complete" ||
+        input.body.coverage === "lesson1-complete"
+      ) {
+        if ("kind" in entryTask && entryTask.kind === "soundWritingV1") {
+          if (!entry.optional || input.body.coverage !== "lesson1-complete")
+            throw new Error("Writing metadata must be optional and explicit");
+          compileWritingTask(entryTask.task);
+        } else if ("kind" in entryTask && entryTask.kind === "graphControls") {
+          if (
+            entryTask.task.nodes.some(
+              (n) => n.kind === "turn" && n.presentation.kind !== "oral",
+            )
+          )
+            throw new Error("Writing requires an explicit writing task");
           compileControlTask(entryTask.task);
-        else if ("task" in entryTask) compileTask(entryTask.task);
+        } else if ("task" in entryTask) compileTask(entryTask.task);
       } else if (!("task" in entryTask)) compileTask(entryTask);
     }
   }
@@ -145,6 +123,10 @@ export function parseTeachingState(input: unknown): TeachingState {
     parseCounter(input.nextOccurrenceNumber);
     parseCounter(input.nextCheckpointNumber);
   }
+  if (input.kind === "writingSkipped") {
+    parseCounter(input.last.nextOccurrenceNumber);
+    parseCounter(input.last.nextCheckpointNumber);
+  }
   return deepFreeze(input);
 }
 export function parseCommand(input: unknown): TeachingCommand {
@@ -152,6 +134,9 @@ export function parseCommand(input: unknown): TeachingCommand {
   parseCounter(input.expectedRevision);
   parseCounter(input.owner.generation);
   parseCounter(input.scope.generation);
+  if (input.kind === "writingNavigate" || input.kind === "writingSelect")
+    for (const token of input.payload.barrier.documents)
+      parseDocumentToken(token);
   return deepFreeze(input);
 }
 export function parseReceipt(input: unknown): CommitReceipt {
@@ -172,6 +157,8 @@ export function parseProjection(
     if (input.kind !== "entry") {
       parseCounter(input.revision);
       parseCounter(input.selectionCounter);
+      if ("documents" in input)
+        for (const token of input.documents) parseDocumentToken(token);
     }
   }
   return deepFreeze(input);
@@ -282,7 +269,10 @@ export function graphTask(
   content: DevelopmentPackage,
   taskId: TaskId,
 ): CompiledTask {
-  if (content.body.coverage === "lesson1-sounds-oral-complete") {
+  if (
+    content.body.coverage === "lesson1-sounds-oral-complete" ||
+    content.body.coverage === "lesson1-complete"
+  ) {
     const entry = content.body.tasks.find((entry) => entry.task.id === taskId);
     if (!entry || entry.kind !== "printedGraphV1")
       throw new Error("Printed task is not available in exact package");
@@ -302,9 +292,17 @@ export function taskDefinition({
   content: DevelopmentPackage;
   taskId: TaskId;
 }) {
-  if (content.body.coverage === "lesson1-sounds-oral-complete") {
+  if (
+    content.body.coverage === "lesson1-sounds-oral-complete" ||
+    content.body.coverage === "lesson1-complete"
+  ) {
     const entry = content.body.tasks.find((entry) => entry.task.id === taskId);
     if (!entry) throw new Error("Task unavailable in exact package");
+    if (entry.kind === "soundWritingV1")
+      return {
+        kind: "graphControls",
+        graph: compileWritingTask(entry.task),
+      } as const;
     if (entry.kind === "graphControls")
       return {
         kind: "graphControls",

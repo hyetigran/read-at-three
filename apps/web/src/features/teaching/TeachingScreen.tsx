@@ -19,9 +19,13 @@ import { Button } from "@/components/ui/button";
 import { isTeachingViewport, subscribeViewport } from "@/platform/viewport";
 import { AddedText, CopyText } from "./CopyText";
 import { SoundGlyph } from "./SoundGlyph";
+import { WritingBoard } from "./WritingBoard";
+import { RecoveryScreen, WindowRecovery } from "./RecoveryScreen";
+import type { WritingController } from "@/platform/writing-controller";
 
 type TeachingScreenProps = {
   projection: CommittedProjection;
+  writingController: WritingController;
   correctionPreview: GraphNode | ControlTurnNode | null;
   busy: boolean;
   saveError: string | null;
@@ -53,7 +57,9 @@ function ProjectedAction({
   action,
   disabled,
   onAction,
-  primary = action.intent.kind === "continue",
+  primary = action.intent.kind === "continue" ||
+    action.intent.kind === "confirmTracing" ||
+    action.intent.kind === "confirmIndependent",
 }: ActionProps) {
   const direction =
     action.intent.kind === "back" ? "up" : primary ? "down" : null;
@@ -113,27 +119,6 @@ function ActionButton({
   );
 }
 
-function recoveryTitle(code: string) {
-  switch (code) {
-    case "missing-package":
-    case "content-missing":
-      return "Teaching content is missing";
-    case "storage-recovery":
-    case "unsupported-storage":
-    case "storage-unavailable":
-    case "storage-initialization-failed":
-      return "Saved storage is unavailable";
-    case "storage-busy":
-      return "Storage is open in another window";
-    case "worker-lost":
-      return "The storage connection was interrupted";
-    case "invalid-position":
-      return "Your saved place needs attention";
-    default:
-      return "Reading is paused";
-  }
-}
-
 function ScreenHeading({
   title,
   taskNumber,
@@ -155,23 +140,6 @@ function ScreenHeading({
       </h1>
       <div className="teaching-header-actions">{children}</div>
     </header>
-  );
-}
-
-function RecoveryPanel({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="teaching-recovery" aria-labelledby="recovery-heading">
-      <h1 id="recovery-heading">
-        <AddedText>{title}</AddedText>
-      </h1>
-      {children}
-    </section>
   );
 }
 
@@ -283,9 +251,11 @@ function TaskCatalog({
                         ? "Teaching content not installed"
                         : task.completed
                           ? "Completed"
-                          : task.savedSessionId
-                            ? "Saved activity"
-                            : "Available"}
+                          : task.skipped
+                            ? "Skipped"
+                            : task.savedSessionId
+                              ? "Saved activity"
+                              : "Available"}
                       {task.optional ? " · Optional" : ""}
                     </AddedText>
                   </p>
@@ -509,6 +479,11 @@ function OralTarget() {
 
 function mainAction(actions: readonly AvailableAction[]) {
   return (
+    actions.find(
+      (action) =>
+        action.intent.kind === "confirmTracing" ||
+        action.intent.kind === "confirmIndependent",
+    ) ??
     actions.find((action) => action.intent.kind === "parentReady") ??
     actions.find((action) => action.intent.kind === "confirmReviewItem") ??
     actions.find((action) => action.intent.kind === "continue")
@@ -656,6 +631,121 @@ function TeachingActivity({
   );
 }
 
+function WritingActivity({
+  projection,
+  controller,
+  disabled,
+  onAction,
+}: {
+  projection: Extract<
+    CommittedProjection,
+    { kind: "writing" | "writingResult" }
+  >;
+  controller: WritingController;
+  disabled: boolean;
+  onAction: TeachingScreenProps["onAction"];
+}) {
+  const guidance = useRef<HTMLDivElement>(null);
+  const turn = projection.kind === "writing" ? projection.turn : null;
+  useEffect(() => {
+    if (guidance.current) guidance.current.scrollTop = 0;
+  }, [turn?.id, projection.checkpointId]);
+  const primary = mainAction(projection.actions);
+  const phase =
+    turn?.presentation.kind === "writing" ? turn.presentation.obligation : null;
+  const heading =
+    projection.kind === "writingResult"
+      ? projection.outcome === "skipped"
+        ? "Optional writing skipped"
+        : "Writing task complete"
+      : phase?.kind === "modelAndSound"
+        ? "Parent demonstrates"
+        : phase?.kind === "phaseConfirmation"
+          ? phase.phase === "childTracing"
+            ? "Child traces · Parent confirms"
+            : "Child writes · Parent confirms"
+          : "Child responds";
+  return (
+    <>
+      <section className="teaching-parent-panel" aria-label="Parent guidance">
+        <div className="teaching-parent-heading">
+          <AddedText>{heading}</AddedText>
+          <AddedText>Parent only</AddedText>
+        </div>
+        <div
+          ref={guidance}
+          className="teaching-parent-content"
+          data-guidance="oral"
+          tabIndex={0}
+        >
+          {turn ? (
+            <TurnGuidance turn={turn} />
+          ) : (
+            <p>
+              <AddedText>
+                {projection.kind === "writingResult" &&
+                projection.outcome === "skipped"
+                  ? "Your drawings are kept. This optional task was skipped; it was not completed."
+                  : "The parent confirmed both tracing and independent practice for each sound. Your drawings are kept. Completion records the teaching delivered."}
+              </AddedText>
+            </p>
+          )}
+        </div>
+      </section>
+      <section
+        className="teaching-arena teaching-writing-arena"
+        aria-label="Sound writing"
+        data-presentation="writing"
+      >
+        <WritingBoard controller={controller} disabled={disabled} />
+        <nav className="teaching-parent-controls" aria-label="Parent controls">
+          <div className="teaching-navigation-actions">
+            {projection.actions
+              .filter(
+                (action) => action.intent.kind === "back" || action === primary,
+              )
+              .map((action) => (
+                <ProjectedAction
+                  key={actionKey(action)}
+                  action={action}
+                  disabled={disabled}
+                  primary={action === primary}
+                  onAction={onAction}
+                />
+              ))}
+          </div>
+          <div className="teaching-support-actions">
+            {projection.actions
+              .filter((action) => action.intent.kind === "repeat")
+              .map((action) => (
+                <ProjectedAction
+                  key={actionKey(action)}
+                  action={action}
+                  disabled={disabled}
+                  primary={false}
+                  onAction={onAction}
+                />
+              ))}
+          </div>
+        </nav>
+        <div className="teaching-writing-footer">
+          {projection.actions
+            .filter((action) => action.intent.kind === "skipWriting")
+            .map((action) => (
+              <ProjectedAction
+                key={actionKey(action)}
+                action={action}
+                disabled={disabled}
+                primary={false}
+                onAction={onAction}
+              />
+            ))}
+        </div>
+      </section>
+    </>
+  );
+}
+
 type ReviewProjection = Extract<
   CommittedProjection,
   { kind: "reviewSelection" }
@@ -784,6 +874,7 @@ function ReviewSelectionActivity({
 
 export function TeachingScreen({
   projection,
+  writingController,
   correctionPreview,
   busy,
   saveError,
@@ -808,36 +899,10 @@ export function TeachingScreen({
   const saveStatus = (
     <SaveStatus busy={busy} saveError={saveError} onRetry={onRetry} />
   );
-  if (!supportedWindow)
-    return (
-      <main className="teaching-screen teaching-centered">
-        <RecoveryPanel title="Make room for reading">
-          <p>
-            <AddedText>
-              Rotate your tablet to landscape or enlarge this window to
-              continue. Teaching and pointing cues are paused. Your saved place
-              is kept.
-            </AddedText>
-          </p>
-        </RecoveryPanel>
-      </main>
-    );
+  if (!supportedWindow) return <WindowRecovery busy={busy} />;
   if (projection.kind === "recovery")
     return (
-      <main className="teaching-screen teaching-centered">
-        <RecoveryPanel title={recoveryTitle(projection.code)}>
-          <p>
-            <AddedText>{projection.message}</AddedText>
-          </p>
-          <Button
-            className="teaching-button teaching-retry"
-            onClick={onOpenRetry}
-            disabled={busy}
-          >
-            <AddedText>{busy ? "Opening…" : "Retry opening"}</AddedText>
-          </Button>
-        </RecoveryPanel>
-      </main>
+      <RecoveryScreen recovery={projection} busy={busy} onRetry={onOpenRetry} />
     );
   const catalog = (
     <TaskCatalog
@@ -848,11 +913,14 @@ export function TeachingScreen({
     />
   );
   if (
-    (projection.kind === "teaching" || projection.kind === "reviewSelection") &&
+    (projection.kind === "teaching" ||
+      projection.kind === "reviewSelection" ||
+      projection.kind === "writing" ||
+      projection.kind === "writingResult") &&
     projection.sessionStatus !== "paused"
   ) {
     const displayedTurn =
-      projection.kind === "teaching"
+      projection.kind === "teaching" || projection.kind === "writing"
         ? (correctionPreview ?? projection.turn)
         : null;
     const pause = projection.actions.filter(
@@ -860,7 +928,7 @@ export function TeachingScreen({
     );
     return (
       <main
-        className="teaching-screen teaching-active"
+        className={`teaching-screen teaching-active${projection.kind === "writing" || projection.kind === "writingResult" ? " teaching-writing" : ""}`}
         aria-busy={busy}
         data-turn-id={
           displayedTurn?.id ??
@@ -869,9 +937,11 @@ export function TeachingScreen({
             : undefined)
         }
         data-committed-turn-id={
-          projection.kind === "teaching"
+          projection.kind === "teaching" || projection.kind === "writing"
             ? projection.turn.id
-            : projection.reviewId
+            : projection.kind === "reviewSelection"
+              ? projection.reviewId
+              : undefined
         }
         data-context={correctionPreview ? "uncommitted" : "committed"}
         data-checkpoint-id={projection.checkpointId ?? undefined}
@@ -894,6 +964,7 @@ export function TeachingScreen({
               className="teaching-button teaching-catalog-toggle"
               onClick={() => {
                 setCueGeneration((generation) => generation + 1);
+                void writingController.interrupt();
                 setCatalogOpen(true);
               }}
               disabled={disabled}
@@ -903,7 +974,15 @@ export function TeachingScreen({
             </Button>
           ) : null}
         </ScreenHeading>
-        {projection.kind === "teaching" && displayedTurn !== null ? (
+        {projection.kind === "writing" ||
+        projection.kind === "writingResult" ? (
+          <WritingActivity
+            projection={projection}
+            controller={writingController}
+            disabled={disabled || catalogOpen}
+            onAction={act}
+          />
+        ) : projection.kind === "teaching" && displayedTurn !== null ? (
           <TeachingActivity
             key={JSON.stringify([
               projection.owner.profileId,
@@ -965,11 +1044,13 @@ export function TeachingScreen({
         <section className="teaching-session-summary" aria-live="polite">
           <h2>
             <AddedText>
-              {projection.runStatus === "completed"
-                ? "Task complete"
-                : projection.sessionStatus === "paused"
-                  ? "Reading is paused"
-                  : "Your place is saved"}
+              {projection.runStatus === "skipped"
+                ? "Optional task skipped"
+                : projection.runStatus === "completed"
+                  ? "Task complete"
+                  : projection.sessionStatus === "paused"
+                    ? "Reading is paused"
+                    : "Your place is saved"}
             </AddedText>
           </h2>
           <p>

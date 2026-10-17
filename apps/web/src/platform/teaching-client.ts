@@ -1,23 +1,17 @@
-import { prepareCommand } from "@readatthree/teaching";
 import type {
-  AvailableAction,
-  Projection,
-  TeachingCommand,
-  ReviewSelectionAction,
-  ReviewChoice,
+  WritingApplication,
+  RecoveryOpening,
 } from "@readatthree/teaching";
-import { hashText } from "./hash.ts";
 import { parseResponse, parseWorkerRequestId } from "./protocol.ts";
 import type {
   WorkerRequest,
   WorkerResponse,
   WorkerRequestId,
 } from "./protocol.ts";
-import { isTeachingViewport } from "./viewport.ts";
 
 export function createBrowserTeachingClient() {
   let worker: Worker | undefined;
-  let opened: Promise<Projection> | undefined;
+  let lossListener = () => {};
   const pending = new Map<
     WorkerRequestId,
     {
@@ -29,12 +23,12 @@ export function createBrowserTeachingClient() {
   function dispose() {
     worker?.terminate();
     worker = undefined;
-    opened = undefined;
+    lossListener();
     for (const request of pending.values()) {
       clearTimeout(request.timeout);
       request.reject(
         new Error(
-          "The local store connection closed. Reopen it before retrying the same saved action.",
+          "The local store connection closed. Retry to recover the same saved work.",
         ),
       );
     }
@@ -45,41 +39,44 @@ export function createBrowserTeachingClient() {
     if (!active)
       return Promise.reject(new Error("The local store is unavailable."));
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => dispose(), 15000);
+      const timeout = setTimeout(dispose, 15000);
       pending.set(value.id, { resolve, reject, timeout });
       active.postMessage(value);
     });
   }
-  async function open(): Promise<Projection> {
-    if (opened) return opened;
-    opened = (async () => {
+  const id = () => parseWorkerRequestId(crypto.randomUUID());
+  return {
+    onLoss(listener: () => void) {
+      lossListener = listener;
+    },
+    async connect(opening: RecoveryOpening) {
+      dispose();
       if (
         !window.isSecureContext ||
         !navigator.storage?.getDirectory ||
         !navigator.locks ||
         typeof Worker === "undefined"
       )
-        return {
-          kind: "recovery",
-          code: "unsupported-storage",
-          message:
-            "This browser cannot save reading progress safely. Use a supported browser with local storage available, then retry.",
-        } satisfies Projection;
+        throw new Error(
+          "This browser cannot save reading progress safely. Use a supported browser with local storage available, then retry.",
+        );
       const contentResponse = await fetch("/curriculum/development.json", {
         cache: "no-store",
       });
       if (!contentResponse.ok)
-        return {
-          kind: "recovery",
-          code: "content-missing",
-          message:
-            "The supplied lesson content is unavailable. Keep saved work and install the required content before retrying.",
-        } satisfies Projection;
+        throw new Error(
+          "The required lesson content is unavailable. Keep saved work and retry.",
+        );
       const content: unknown = await contentResponse.json();
-      worker = new Worker(new URL("./teaching.worker.ts", import.meta.url), {
-        type: "module",
-      });
-      worker.addEventListener("message", (event: MessageEvent<unknown>) => {
+      const connection = new Worker(
+        new URL("./teaching.worker.ts", import.meta.url),
+        {
+          type: "module",
+        },
+      );
+      worker = connection;
+      connection.addEventListener("message", (event: MessageEvent<unknown>) => {
+        if (worker !== connection) return;
         try {
           const result = parseResponse(event.data);
           const waiting = pending.get(result.id);
@@ -93,100 +90,103 @@ export function createBrowserTeachingClient() {
           dispose();
         }
       });
-      worker.addEventListener("error", () => dispose());
-      worker.addEventListener("messageerror", () => dispose());
-      try {
-        const response = await request({
-          id: parseWorkerRequestId(crypto.randomUUID()),
-          kind: "open",
-          content,
-        });
-        if (response.kind !== "projection")
-          throw new Error("The local store returned an invalid opening state.");
-        return response.value;
-      } catch (error) {
-        dispose();
-        return {
-          kind: "recovery",
-          code: "storage-initialization-failed",
-          message:
-            error instanceof Error
-              ? error.message
-              : "The local store could not open. Keep saved work and retry.",
-        } satisfies Projection;
-      }
-    })();
-    try {
-      return await opened;
-    } catch {
-      dispose();
-      return {
-        kind: "recovery",
-        code: "content-missing",
-        message:
-          "The required lesson content could not be loaded. Keep saved work and retry.",
+      const lost = () => {
+        if (worker === connection) dispose();
       };
-    }
-  }
-  return {
-    open,
-    async read(): Promise<Projection> {
-      const initial = await open();
-      if (initial.kind === "recovery") return initial;
+      connection.addEventListener("error", lost);
+      connection.addEventListener("messageerror", lost);
       const response = await request({
-        id: parseWorkerRequestId(crypto.randomUUID()),
-        kind: "read",
+        id: id(),
+        kind: "openRecovery",
+        content,
+        opening,
       });
-      if (response.kind !== "projection")
+      if (response.kind !== "inventory")
         throw new Error(
-          "The local store returned an invalid reading position.",
+          "The local store returned an invalid recovery inventory.",
         );
       return response.value;
     },
-    prepare(projection: Projection, action: AvailableAction) {
-      return prepareCommand({
-        projection,
-        request: { kind: "action", action },
-        ids: () => crypto.randomUUID(),
-        hash: hashText,
-      });
+    async read() {
+      const response = await request({ id: id(), kind: "read" });
+      if (response.kind !== "projection")
+        throw new Error("The saved place could not be read.");
+      return { courseId: response.courseId, projection: response.value };
     },
-    prepareReview({
-      projection,
-      action,
-      choice,
-    }: {
-      projection: Projection;
-      action: ReviewSelectionAction;
-      choice: ReviewChoice;
-    }) {
-      return prepareCommand({
-        projection,
-        request: { kind: "review", action, choice },
-        ids: () => crypto.randomUUID(),
-        hash: hashText,
-      });
-    },
-    async dispatch(command: TeachingCommand) {
-      if (!isTeachingViewport() || document.visibilityState !== "visible")
-        throw new Error(
-          "Return to a supported landscape reading window before continuing.",
-        );
-      const current = await open();
-      if (current.kind === "recovery") throw new Error(current.message);
-      const response = await request({
-        id: parseWorkerRequestId(crypto.randomUUID()),
-        kind: "dispatch",
-        command,
-      });
+    async dispatch(command: Parameters<WritingApplication["dispatch"]>[0]) {
+      const response = await request({ id: id(), kind: "dispatch", command });
       if (response.kind !== "receipt")
         throw new Error("The local save could not be confirmed.");
       return response.value;
     },
-    async reopen() {
-      dispose();
-      return open();
+    async readInk({ token }: Parameters<WritingApplication["readInk"]>[0]) {
+      const response = await request({ id: id(), kind: "readInk", token });
+      if (response.kind !== "inkSnapshot")
+        throw new Error("The writing could not be restored.");
+      return response.value;
+    },
+    async dispatchInk(
+      command: Parameters<WritingApplication["dispatchInk"]>[0],
+    ) {
+      const response = await request({
+        id: id(),
+        kind: "dispatchInk",
+        command,
+      });
+      if (response.kind !== "inkReceipt")
+        throw new Error("The writing save could not be confirmed.");
+      return response.value;
+    },
+    async recoverInk({
+      recoveryId,
+      command,
+    }: Parameters<WritingApplication["recoverInk"]>[0]) {
+      const response = await request({
+        id: id(),
+        kind: "recoverInk",
+        recoveryId,
+        command,
+      });
+      if (response.kind !== "inkReceipt")
+        throw new Error("The writing recovery could not be confirmed.");
+      return response.value;
+    },
+    async recoverTeaching({
+      recoveryId,
+      command,
+    }: Parameters<WritingApplication["recoverTeaching"]>[0]) {
+      const response = await request({
+        id: id(),
+        kind: "recoverTeaching",
+        recoveryId,
+        command,
+      });
+      if (response.kind !== "receipt")
+        throw new Error("The teaching recovery could not be confirmed.");
+      return response.value;
+    },
+    async reconcileRecovery({
+      recoveryId,
+      choice,
+    }: Parameters<WritingApplication["reconcileRecovery"]>[0]) {
+      const response = await request({
+        id: id(),
+        kind: "reconcileRecovery",
+        recoveryId,
+        choice,
+      });
+      if (response.kind !== "projection")
+        throw new Error("The saved place could not reopen.");
+      return response.value;
     },
     close: dispose,
   };
 }
+export type BrowserTeachingClient = ReturnType<
+  typeof createBrowserTeachingClient
+>;
+
+export type InkLifecycleClient = Omit<
+  BrowserTeachingClient,
+  "read" | "dispatch" | "recoverTeaching"
+>;

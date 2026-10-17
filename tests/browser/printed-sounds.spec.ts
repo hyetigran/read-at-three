@@ -77,7 +77,7 @@ test("complete six source obligations with stable anchors, completed Back and ex
   await expect(page.locator('[data-task-number="1"]')).toContainText(
     "Completed",
   );
-  await expect(page.locator('[data-available="false"]')).toHaveCount(1);
+  await expect(page.locator('[data-available="false"]')).toHaveCount(0);
   await page.keyboard.press("Escape");
   await turn(page, "s01.model-m");
 });

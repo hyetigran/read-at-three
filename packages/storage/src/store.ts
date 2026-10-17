@@ -1,3 +1,4 @@
+import { createInkRepository } from "./ink.ts";
 import { and, eq, asc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/sqlite-proxy";
 import {
@@ -16,6 +17,12 @@ import {
   validatePosition,
   validateAcceptanceState,
   validateAcceptanceTransition,
+  writingTask,
+  writingPermission,
+  parseInkCommand,
+  parseRecoveryOpening,
+  parseRecoveryChoice,
+  parseRecoveryInventory,
 } from "../../teaching/src/index.ts";
 import type {
   AdvanceId,
@@ -35,6 +42,13 @@ import type {
   TeachingState,
   TeachingStore,
   TeachingTransaction,
+  WritingApplication,
+  RecoveryOpening,
+  RecoveryChoice,
+  RecoveryInventory,
+  RecoveryTeaching,
+  InkResult,
+  StrokeId,
 } from "../../teaching/src/index.ts";
 import { sqlValues } from "./executor.ts";
 import type { SqlExecutor } from "./executor.ts";
@@ -55,7 +69,8 @@ function isCumulativeOralExtension({
 }): boolean {
   if (
     previous.body.coverage !== "lesson1-sounds-oral-complete" ||
-    candidate.body.coverage !== "lesson1-sounds-oral-complete"
+    (candidate.body.coverage !== "lesson1-sounds-oral-complete" &&
+      candidate.body.coverage !== "lesson1-complete")
   )
     return false;
   const old = previous.body,
@@ -83,7 +98,7 @@ function durableReceipt({
 }: {
   run: RunRow;
   advance: AdvanceRow;
-  proof: CompletionProof;
+  proof: CompletionProof | import("../../teaching/src/index.ts").SkipProof;
 }) {
   return {
     version: 1,
@@ -91,14 +106,35 @@ function durableReceipt({
     terminalAdvanceId: advance.advanceId,
     runId: run.runId,
     runRevision: advance.acceptedRunRevision,
-    outcome: "completed",
+    outcome: "outcome" in proof ? proof.outcome : "completed",
     packageHash: run.packageHash,
     taskId: run.taskId,
-    requiredOccurrenceIds: proof.requiredOccurrenceIds,
+    ...("requiredOccurrenceIds" in proof
+      ? { requiredOccurrenceIds: proof.requiredOccurrenceIds }
+      : {}),
     sourceRefs: proof.sourceRefs,
   };
 }
-function acceptedId(state: TeachingState) {
+function skipProof(
+  content: DevelopmentPackage,
+  state: Extract<TeachingState, { kind: "writingSkipped" }>,
+): import("../../teaching/src/index.ts").SkipProof {
+  const task = writingTask({ content, taskId: state.taskId });
+  if (!task) throw new Error("Skip proof requires optional writing");
+  return {
+    taskId: state.taskId,
+    packageHash: content.packageHash,
+    outcome: "skipped",
+    sourceRefs: [...new Set(task.nodes.flatMap((n) => n.sourceRefs))],
+  };
+}
+function acceptedId(
+  state: TeachingState,
+):
+  | import("../../teaching/src/index.ts").OccurrenceId
+  | import("../../teaching/src/index.ts").NodeId
+  | undefined {
+  if (state.kind === "writingSkipped") return acceptedId(state.last);
   return state.kind === "graph" || state.kind === "graphControls"
     ? state.acceptedOccurrenceIds.at(-1)
     : state.acceptedNodeIds.at(-1);
@@ -113,7 +149,7 @@ export function createTeachingApplication({
   content: DevelopmentPackage;
   ids: IdFactory;
   hash: HashFunction;
-}): TeachingApplication {
+}): WritingApplication {
   const db = drizzle(async (sql, parameters, method) => {
     if (method === "get")
       throw new Error("Repository must use array-row reads");
@@ -246,12 +282,14 @@ export function createTeachingApplication({
           await ensurePackage(previous);
           const cumulative =
             previous.body.coverage === "lesson1-sounds-complete" &&
-            content.body.coverage === "lesson1-sounds-oral-complete" &&
+            (content.body.coverage === "lesson1-sounds-oral-complete" ||
+              content.body.coverage === "lesson1-complete") &&
             previous.body.courseId === content.body.courseId &&
             previous.body.lessonId === content.body.lessonId &&
             previous.body.tasks.every(
               (old) =>
-                content.body.coverage === "lesson1-sounds-oral-complete" &&
+                (content.body.coverage === "lesson1-sounds-oral-complete" ||
+                  content.body.coverage === "lesson1-complete") &&
                 content.body.tasks.some(
                   (entry) =>
                     entry.kind === "printedGraphV1" &&
@@ -262,7 +300,8 @@ export function createTeachingApplication({
               canonical(content.body.lessonTasks);
           const legacyCumulative =
             previous.body.coverage === "partial-first-m" &&
-            content.body.coverage === "lesson1-sounds-oral-complete" &&
+            (content.body.coverage === "lesson1-sounds-oral-complete" ||
+              content.body.coverage === "lesson1-complete") &&
             previous.body.lessonId === content.body.lessonId &&
             content.body.tasks.some(
               (entry) =>
@@ -332,9 +371,13 @@ export function createTeachingApplication({
     )
       throw new Error("Saved run ownership is invalid");
     if (run.status === "abandoned" && row.status === "closed") return null;
-    if (run.status !== "inProgress" && run.status !== "completed")
+    if (
+      run.status !== "inProgress" &&
+      run.status !== "completed" &&
+      run.status !== "skipped"
+    )
       throw new Error("Saved run status is unsupported");
-    if ((run.status === "completed") !== (row.status === "closed"))
+    if ((run.status !== "inProgress") !== (row.status === "closed"))
       throw new Error("Saved session terminal status is invalid");
     const value = pinned(run.packageHash);
     if (
@@ -402,7 +445,11 @@ export function createTeachingApplication({
           expectedRevision: "0",
           payloadHash: advance.payloadHash,
         });
-        if (command.kind !== "navigate" && command.kind !== "advance")
+        if (
+          command.kind !== "navigate" &&
+          command.kind !== "writingNavigate" &&
+          command.kind !== "advance"
+        )
           throw new Error("Invalid accepting command kind");
         if (
           command.payload.packageHash !== run.packageHash ||
@@ -410,7 +457,56 @@ export function createTeachingApplication({
           command.payload.runId !== run.runId
         )
           throw new Error("Accepting command ownership changed");
-        if (command.kind === "navigate") {
+        const writing = writingTask({ content: value, taskId: run.taskId });
+        if (writing) {
+          if (command.kind !== "writingNavigate")
+            throw new Error("Writing acceptance requires its document barrier");
+          const documents = await db
+            .select()
+            .from(schema.inkDocument)
+            .where(eq(schema.inkDocument.runId, run.runId))
+            .all();
+          if (
+            documents.length !== 2 ||
+            command.payload.barrier.documents.length !== 2 ||
+            new Set(command.payload.barrier.documents.map((t) => t.documentId))
+              .size !== 2
+          )
+            throw new Error("Writing acceptance document set changed");
+          for (const token of command.payload.barrier.documents) {
+            const document = documents.find(
+                (d) => d.documentId === token.documentId,
+              ),
+              target = writing.targets.find((t) => t.id === token.targetId);
+            if (
+              !document ||
+              !target ||
+              token.profileId !== run.profileId ||
+              token.generation !== run.generation ||
+              token.runId !== run.runId ||
+              token.courseId !== run.courseId ||
+              token.packageHash !== run.packageHash ||
+              token.lessonId !== run.lessonId ||
+              token.taskId !== run.taskId ||
+              document.targetId !== token.targetId ||
+              document.sourceRefs !== canonical(target.sourceRefs) ||
+              document.logicalWidth !== target.logicalWidth ||
+              document.logicalHeight !== target.logicalHeight ||
+              Number(document.codecVersion) !== 1 ||
+              token.phase !==
+                writingPermission({
+                  content: value,
+                  state: before,
+                  targetId: target.id,
+                }).phase ||
+              BigInt(token.revision) > BigInt(document.revision) ||
+              BigInt(token.inputEpoch) > BigInt(document.inputEpoch)
+            )
+              throw new Error("Writing acceptance document binding changed");
+          }
+        } else if (command.kind === "writingNavigate")
+          throw new Error("Ordinary acceptance cannot carry a writing command");
+        if (command.kind === "navigate" || command.kind === "writingNavigate") {
           if (
             (before.kind !== "graph" && before.kind !== "graphControls") ||
             command.payload.checkpointId !== currentCheckpoint(before).id
@@ -439,8 +535,18 @@ export function createTeachingApplication({
         occurrenceId,
         ...(action ? { action } : {}),
       });
-      const proof = completionProof(value, after);
-      if (advance.afterRunStatus !== (proof ? "completed" : "inProgress"))
+      const proof =
+        after.kind === "writingSkipped"
+          ? skipProof(value, after)
+          : completionProof(value, after);
+      if (
+        advance.afterRunStatus !==
+        (after.kind === "writingSkipped"
+          ? "skipped"
+          : proof
+            ? "completed"
+            : "inProgress")
+      )
         throw new Error("Saved acceptance outcome is invalid");
       if (proof) terminal = advance;
       baseline = after;
@@ -457,8 +563,11 @@ export function createTeachingApplication({
     if (
       previous !== run.activeAdvanceId ||
       nextSeq !== run.nextAdvanceSeq ||
-      Boolean(terminal) !== (run.status === "completed") ||
-      Boolean(completionProof(value, state)) !== (run.status === "completed")
+      Boolean(terminal) !== (run.status !== "inProgress") ||
+      (state.kind === "writingSkipped"
+        ? run.status !== "skipped"
+        : Boolean(completionProof(value, state)) !==
+          (run.status === "completed"))
     )
       throw new Error("Saved acceptance head is invalid");
     const credits = await db
@@ -467,14 +576,17 @@ export function createTeachingApplication({
       .where(eq(schema.taskCredit.runId, run.runId))
       .all();
     if (terminal) {
-      const proof = completionProof(value, baseline);
+      const proof =
+        baseline.kind === "writingSkipped"
+          ? skipProof(value, baseline)
+          : completionProof(value, baseline);
       const credit = credits[0];
       if (
         !proof ||
         credits.length !== 1 ||
         !credit ||
         credit.status !== "valid" ||
-        credit.outcome !== "completed" ||
+        credit.outcome !== run.status ||
         credit.terminalAdvanceId !== terminal.advanceId ||
         Number(credit.receiptVersion) !== 1 ||
         canonical(JSON.parse(credit.receipt)) !==
@@ -591,13 +703,19 @@ export function createTeachingApplication({
       if (
         !sessions.some(
           (session) =>
-            session.runId === credit.runId && session.runStatus === "completed",
+            session.runId === credit.runId &&
+            session.runStatus === credit.outcome,
         ) ||
         !results.some((result) => result.taskId === credit.taskId)
       )
         throw new Error("Completion credit has no verified run/result");
     for (const result of results)
       if (
+        (result.outcome === "skipped" &&
+          credits.some(
+            (credit) =>
+              credit.taskId === result.taskId && credit.outcome === "completed",
+          )) ||
         !credits.some(
           (credit) =>
             credit.creditId === result.acceptedCreditId &&
@@ -615,9 +733,7 @@ export function createTeachingApplication({
       session: selected ?? null,
       sessions,
       ownedSessionIds: rows.map((row) => row.sessionId),
-      completedTaskIds: results
-        .filter((result) => result.outcome === "completed")
-        .map((result) => result.taskId),
+      taskResults: results.map(({ taskId, outcome }) => ({ taskId, outcome })),
     };
   }
   async function receipt(command: TeachingCommand) {
@@ -717,7 +833,97 @@ export function createTeachingApplication({
       })
       .run();
   }
+  const ink = createInkRepository({
+    executor,
+    ids,
+    hash,
+    resolve: async ({ token }) => {
+      const owner = {
+        profileId: token.profileId,
+        generation: token.generation,
+      };
+      const profile = (
+        await db
+          .select()
+          .from(schema.profile)
+          .where(
+            and(
+              eq(schema.profile.id, owner.profileId),
+              eq(schema.profile.generation, owner.generation),
+            ),
+          )
+          .all()
+      )[0];
+      if (!profile) return null;
+      const run = (
+        await db
+          .select()
+          .from(schema.taskRun)
+          .where(eq(schema.taskRun.runId, token.runId))
+          .all()
+      )[0];
+      if (
+        !run ||
+        run.profileId !== token.profileId ||
+        run.generation !== token.generation ||
+        run.courseId !== token.courseId ||
+        run.packageHash !== token.packageHash ||
+        run.lessonId !== token.lessonId ||
+        run.taskId !== token.taskId
+      )
+        return null;
+      const row = (
+        await db
+          .select()
+          .from(schema.session)
+          .where(eq(schema.session.sessionId, run.sessionId))
+          .all()
+      )[0];
+      if (!row) return null;
+      if (run.status === "abandoned" && row.status === "closed") {
+        const state = parseTeachingState(JSON.parse(run.state));
+        validatePosition(pinned(run.packageHash), state, run.taskId);
+        return {
+          session: {
+            sessionId: row.sessionId,
+            runId: run.runId,
+            revision: row.revision,
+            runRevision: run.revision,
+            packageHash: run.packageHash,
+            lessonId: run.lessonId,
+            taskId: run.taskId,
+            status: row.status,
+            runStatus: run.status,
+            state,
+            activeAdvanceId: run.activeAdvanceId,
+            nextAdvanceSeq: run.nextAdvanceSeq,
+          },
+          content: pinned(run.packageHash),
+        };
+      }
+      const session = await loadSession(row, owner);
+      if (!session) return null;
+      if (session.status === "active") {
+        const cursor = (
+          await db
+            .select()
+            .from(schema.courseCursor)
+            .where(
+              and(
+                eq(schema.courseCursor.profileId, owner.profileId),
+                eq(schema.courseCursor.generation, owner.generation),
+                eq(schema.courseCursor.courseId, run.courseId),
+              ),
+            )
+            .all()
+        )[0];
+        if (cursor?.resumeSessionId !== session.sessionId) return null;
+      }
+      return { session, content: pinned(token.packageHash) };
+    },
+  });
   const repositories: TeachingTransaction = {
+    writingBarrier: ink.barrier,
     context,
     receipt,
     ensurePackage,
@@ -731,12 +937,17 @@ export function createTeachingApplication({
       const owner = command.owner;
       const nextSelection = increment(current.selectionCounter);
       for (const other of current.sessions)
-        if (other.status === "active")
+        if (other.status === "active") {
+          await ink.fence({
+            session: other,
+            content: pinned(other.packageHash),
+          });
           await db
             .update(schema.session)
             .set({ status: "paused", revision: increment(other.revision) })
             .where(eq(schema.session.sessionId, other.sessionId))
             .run();
+        }
       if (selection.kind === "new") {
         if (value.packageHash !== current.activePackageHash)
           throw new Error("New teaching requires the active package");
@@ -799,6 +1010,24 @@ export function createTeachingApplication({
             revision: parseCounter("0"),
           })
           .run();
+        await ink.create({
+          session: {
+            sessionId: selection.sessionId,
+            runId: selection.runId,
+            revision: parseCounter("0"),
+            runRevision: parseCounter("0"),
+            packageHash: value.packageHash,
+            lessonId: value.body.lessonId,
+            taskId: selection.taskId,
+            status: "active",
+            runStatus: "inProgress",
+            state: selection.state,
+            activeAdvanceId: null,
+            nextAdvanceSeq: parseCounter("1"),
+          },
+          content: value,
+          owner,
+        });
         await db
           .update(schema.profile)
           .set({ revision: result.revision, undoRunId: selection.runId })
@@ -812,10 +1041,13 @@ export function createTeachingApplication({
           .run();
       } else {
         const saved = selection.session;
+        for (const token of await ink.tokens({ session: saved }))
+          await ink.snapshot({ token });
+        await ink.fence({ session: saved, content: value });
         await db
           .update(schema.session)
           .set({
-            status: saved.runStatus === "completed" ? "closed" : "active",
+            status: saved.runStatus !== "inProgress" ? "closed" : "active",
             revision: increment(saved.revision),
             lastSelectedSeq: nextSelection,
           })
@@ -869,7 +1101,11 @@ export function createTeachingApplication({
             afterState: canonical(plan.after),
             beforeRunStatus: "inProgress",
             afterRunStatus:
-              plan.kind === "completion" ? "completed" : "inProgress",
+              plan.kind === "skip"
+                ? "skipped"
+                : plan.kind === "completion"
+                  ? "completed"
+                  : "inProgress",
             acceptedRunRevision: revision,
           })
           .run();
@@ -878,7 +1114,12 @@ export function createTeachingApplication({
         .update(schema.taskRun)
         .set({
           state: canonical(plan.after),
-          status: plan.kind === "completion" ? "completed" : saved.runStatus,
+          status:
+            plan.kind === "skip"
+              ? "skipped"
+              : plan.kind === "completion"
+                ? "completed"
+                : saved.runStatus,
           activeAdvanceId: advanceId ?? saved.activeAdvanceId,
           nextAdvanceSeq: advanceId
             ? increment(saved.nextAdvanceSeq)
@@ -892,7 +1133,9 @@ export function createTeachingApplication({
         .set({
           revision: result.revision,
           status:
-            plan.kind === "completion" || saved.runStatus === "completed"
+            plan.kind === "completion" ||
+            plan.kind === "skip" ||
+            saved.runStatus !== "inProgress"
               ? "closed"
               : plan.kind === "pause"
                 ? "paused"
@@ -900,7 +1143,10 @@ export function createTeachingApplication({
         })
         .where(eq(schema.session.sessionId, saved.sessionId))
         .run();
-      if (advanceId !== null && plan.kind === "completion") {
+      if (
+        advanceId !== null &&
+        (plan.kind === "completion" || plan.kind === "skip")
+      ) {
         const run = (
           await db
             .select()
@@ -931,11 +1177,15 @@ export function createTeachingApplication({
             runId: saved.runId,
             terminalAdvanceId: advanceId,
             packageHash: value.packageHash,
-            outcome: "completed",
+            outcome: plan.kind === "skip" ? "skipped" : "completed",
             status: "valid",
             receiptVersion: 1,
             receipt: canonical(
-              durableReceipt({ run, advance, proof: plan.completion }),
+              durableReceipt({
+                run,
+                advance,
+                proof: plan.kind === "skip" ? plan.skip : plan.completion,
+              }),
             ),
           })
           .run();
@@ -947,12 +1197,30 @@ export function createTeachingApplication({
             courseId: value.body.courseId,
             lessonId: value.body.lessonId,
             taskId: saved.taskId,
-            outcome: "completed",
+            outcome: plan.kind === "skip" ? "skipped" : "completed",
             acceptedCreditId: creditId,
           })
           .onConflictDoNothing()
           .run();
+        if (plan.kind === "completion")
+          await db
+            .update(schema.taskResult)
+            .set({ outcome: "completed", acceptedCreditId: creditId })
+            .where(
+              and(
+                eq(schema.taskResult.profileId, current.owner.profileId),
+                eq(schema.taskResult.generation, current.owner.generation),
+                eq(schema.taskResult.courseId, value.body.courseId),
+                eq(schema.taskResult.taskId, saved.taskId),
+                eq(schema.taskResult.outcome, "skipped"),
+              ),
+            )
+            .run();
       }
+      await ink.fence({
+        session: { ...saved, state: plan.after },
+        content: value,
+      });
       await updateCursor(
         current.owner,
         saved.sessionId,
@@ -962,6 +1230,11 @@ export function createTeachingApplication({
     },
   };
   const store: TeachingStore = {
+    documents: async (input) => {
+      const tokens = await ink.tokens(input);
+      for (const token of tokens) await ink.snapshot({ token });
+      return tokens;
+    },
     async current() {
       await warmPackages();
       const profile = (
@@ -1000,13 +1273,220 @@ export function createTeachingApplication({
       };
     }
   }
+  let recovery:
+    | { kind: "unopened" }
+    | { kind: "ready" }
+    | {
+        kind: "closed";
+        id: string;
+        opening: RecoveryOpening;
+        teaching:
+          | RecoveryTeaching
+          | {
+              kind: "resolved";
+              commandId: import("../../teaching/src/index.ts").CommandId;
+              payloadHash: import("../../teaching/src/index.ts").PayloadHash;
+            };
+      } = {
+    kind: "unopened",
+  };
+  const recoveryProjection = (): CommittedProjection => ({
+    kind: "recovery",
+    code: "ink-reconciliation-required",
+    message: "Writing recovery must finish before teaching opens.",
+  });
+  async function ready() {
+    await ensureInitialized();
+    if (recovery.kind === "unopened") {
+      if ((await db.select().from(schema.inkDocument).all()).length === 0)
+        recovery = { kind: "ready" };
+    }
+    return recovery.kind === "ready";
+  }
+  async function normalRead() {
+    try {
+      if (!(await ready())) return recoveryProjection();
+      return read();
+    } catch {
+      return {
+        kind: "recovery",
+        code: "storage-recovery",
+        message:
+          "Saved storage could not be verified. Recover this installation before continuing.",
+      } satisfies CommittedProjection;
+    }
+  }
   return {
-    open: () => exclusive(read),
-    read: () => exclusive(read),
+    open: () => exclusive(normalRead),
+    read: () => exclusive(normalRead),
     dispatch: (command) =>
       exclusive(async () => {
-        const coordinator = await ensureInitialized();
-        return coordinator.dispatch(command);
+        if (!(await ready()))
+          return {
+            kind: "rejected",
+            code: "ink-reconciliation-required",
+            message: "Writing recovery is closed.",
+          };
+        return (await ensureInitialized()).dispatch(command);
+      }),
+    readInk: (input) =>
+      exclusive(async () => {
+        if (!(await ready())) throw new Error("Writing recovery is closed");
+        return ink.snapshot(input);
+      }),
+    dispatchInk: (command) =>
+      exclusive(async () => {
+        if (!(await ready()))
+          return {
+            kind: "rejected",
+            code: "ink-reconciliation-required",
+            message: "Writing recovery is closed.",
+          };
+        return transaction(executor, () => ink.dispatch(command));
+      }),
+    openRecovery: (opening) =>
+      exclusive(async () => {
+        opening = parseRecoveryOpening(opening);
+        await ensureInitialized();
+        if (
+          opening.kind === "warm" &&
+          (opening.retainedStrokeIds.length > 64 ||
+            new Set(opening.retainedStrokeIds).size !==
+              opening.retainedStrokeIds.length)
+        )
+          throw new Error("Invalid retained capture declaration");
+        if (
+          recovery.kind === "closed" &&
+          recovery.opening.kind === "warm" &&
+          opening.kind === "cold"
+        )
+          throw new Error(
+            "Warm retained ink cannot be replaced by cold recovery",
+          );
+        if (
+          recovery.kind === "closed" &&
+          recovery.teaching.kind === "pending" &&
+          (opening.kind !== "warm" ||
+            opening.teaching.kind !== "pending" ||
+            opening.teaching.commandId !== recovery.teaching.commandId ||
+            opening.teaching.payloadHash !== recovery.teaching.payloadHash)
+        )
+          throw new Error("Pending teaching declaration changed");
+        const id = ids();
+        recovery = {
+          kind: "closed",
+          id,
+          opening,
+          teaching:
+            opening.kind === "warm" ? opening.teaching : { kind: "none" },
+        };
+        const captures = await ink.inventory();
+        return parseRecoveryInventory({
+          kind: "closed",
+          recoveryId: id,
+          captures,
+        });
+      }),
+    recoverInk: (input) =>
+      exclusive(async () => {
+        if (
+          recovery.kind !== "closed" ||
+          recovery.id !== input.recoveryId ||
+          recovery.opening.kind !== "warm"
+        )
+          return {
+            kind: "rejected",
+            code: "recovery-closed",
+            message: "Warm recovery is unavailable.",
+          };
+        const command = parseInkCommand(input.command);
+        if (!recovery.opening.retainedStrokeIds.includes(command.edit.strokeId))
+          return {
+            kind: "rejected",
+            code: "undeclared-capture",
+            message: "Capture was not retained by this client.",
+          };
+        return transaction(executor, () => ink.dispatch(command));
+      }),
+    recoverTeaching: (input) =>
+      exclusive(async () => {
+        if (
+          recovery.kind !== "closed" ||
+          recovery.id !== input.recoveryId ||
+          recovery.opening.kind !== "warm"
+        )
+          return {
+            kind: "rejected",
+            code: "recovery-closed",
+            message: "Warm recovery is unavailable.",
+          };
+        const command = parseCommand(input.command);
+        if (
+          recovery.teaching.kind === "none" ||
+          recovery.teaching.commandId !== command.commandId ||
+          recovery.teaching.payloadHash !== command.payloadHash
+        )
+          return {
+            kind: "rejected",
+            code: "undeclared-teaching",
+            message: "Teaching command was not retained by this client.",
+          };
+        const retained = recovery.opening.retainedStrokeIds;
+        if ((await ink.inventory()).some((c) => retained.includes(c.strokeId)))
+          return {
+            kind: "rejected",
+            code: "unsettled-capture",
+            message:
+              "Retained ink requires exact finalization before teaching.",
+          };
+        recovery.teaching = {
+          kind: "pending",
+          commandId: command.commandId,
+          payloadHash: command.payloadHash,
+        };
+        const result = await (await ensureInitialized()).dispatch(command);
+        recovery.teaching = {
+          kind: "resolved",
+          commandId: command.commandId,
+          payloadHash: command.payloadHash,
+        };
+        return result;
+      }),
+    reconcileRecovery: (input) =>
+      exclusive(async () => {
+        input = { ...input, choice: parseRecoveryChoice(input.choice) };
+        if (
+          recovery.kind !== "closed" ||
+          recovery.id !== input.recoveryId ||
+          recovery.opening.kind !== input.choice.kind
+        )
+          throw new Error("Recovery identity changed");
+        if (recovery.teaching.kind === "pending")
+          throw new Error(
+            "Retained teaching command still requires exact resolution",
+          );
+        if (input.choice.kind === "warm") {
+          if (
+            recovery.opening.kind !== "warm" ||
+            input.choice.settledStrokeIds.length > 64 ||
+            canonical([...input.choice.settledStrokeIds].sort()) !==
+              canonical([...recovery.opening.retainedStrokeIds].sort())
+          )
+            throw new Error("Retained captures are not settled");
+          const retained = recovery.opening.retainedStrokeIds;
+          if (
+            (await ink.inventory()).some((c) => retained.includes(c.strokeId))
+          )
+            throw new Error(
+              "Retained capture still requires exact finalization",
+            );
+        }
+        await transaction(executor, async () => {
+          await ink.recoverOrphans();
+          await ink.fenceAll();
+        });
+        recovery = { kind: "ready" };
+        return read();
       }),
   };
 }

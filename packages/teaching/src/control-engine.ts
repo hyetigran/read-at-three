@@ -1,3 +1,4 @@
+import { writingTask } from "./writing.ts";
 import {
   canonical,
   controlTask,
@@ -1005,7 +1006,7 @@ export function evaluateControls({
   content,
   state,
   status,
-  action,
+  action: requestedAction,
 }: {
   content: DevelopmentPackage;
   state: ControlTeachingState;
@@ -1020,6 +1021,77 @@ export function evaluateControls({
     throw new Error("Control run status does not match obligations");
   const graph = controlTask({ content, taskId: state.taskId }),
     checkpoint = controlCheckpoint(state);
+  const writing = writingTask({ content, taskId: state.taskId });
+  if (requestedAction.kind === "skipWriting") {
+    if (!writing || status !== "inProgress" || checkpoint.occurrenceId === null)
+      throw new Error("Skip requires optional writing");
+    return {
+      kind: "skip",
+      after: {
+        version: 1,
+        kind: "writingSkipped",
+        viewCheckpoint: null,
+        taskId: state.taskId,
+        last: state,
+      },
+      occurrenceId: checkpoint.occurrenceId,
+      skip: {
+        taskId: state.taskId,
+        packageHash: content.packageHash,
+        outcome: "skipped",
+        sourceRefs: [...new Set(writing.nodes.flatMap((n) => n.sourceRefs))],
+      },
+    };
+  }
+  let action: Exclude<GraphAction, import("./types.ts").WritingAction>;
+  if (
+    requestedAction.kind === "confirmTracing" ||
+    requestedAction.kind === "confirmIndependent"
+  ) {
+    const occurrence = state.occurrences.find(
+      (o) => o.id === checkpoint.occurrenceId,
+    );
+    const node =
+      occurrence?.target.kind === "node"
+        ? graph.nodes.get(occurrence.target.nodeId)
+        : undefined;
+    if (
+      !writing ||
+      node?.kind !== "turn" ||
+      node.presentation.kind !== "writing" ||
+      node.id !== requestedAction.nodeId ||
+      node.presentation.targetId !== requestedAction.targetId ||
+      node.presentation.obligation.kind !== "phaseConfirmation" ||
+      node.presentation.obligation.phase !== requestedAction.phase ||
+      (requestedAction.kind === "confirmTracing") !==
+        (requestedAction.phase === "childTracing") ||
+      (checkpoint.occurrenceId !== null &&
+        state.acceptedOccurrenceIds.includes(checkpoint.occurrenceId))
+    )
+      throw new Error("Exact writing phase confirmation unavailable");
+    action = { kind: "continue" };
+  } else {
+    action = requestedAction;
+    if (
+      action.kind === "continue" &&
+      checkpoint.occurrenceId !== null &&
+      !state.acceptedOccurrenceIds.includes(checkpoint.occurrenceId)
+    ) {
+      const occurrence = state.occurrences.find(
+        (o) => o.id === checkpoint.occurrenceId,
+      );
+      const node =
+        occurrence?.target.kind === "node"
+          ? graph.nodes.get(occurrence.target.nodeId)
+          : undefined;
+      if (
+        node?.kind === "turn" &&
+        node.presentation.kind === "writing" &&
+        node.presentation.obligation.kind === "phaseConfirmation"
+      )
+        throw new Error("Explicit writing phase confirmation required");
+    }
+  }
   if (action.kind === "pause") return { kind: "pause", after: state };
   if (action.kind === "back") {
     if (state.checkpointIndex === 0) throw new Error("Back unavailable");
@@ -1055,6 +1127,13 @@ export function evaluateControls({
   }
   if (status === "completed")
     throw new Error("Completed task is saved-context review only");
+  if (
+    action.kind === "repeat" &&
+    node.kind === "turn" &&
+    node.presentation.kind === "writing" &&
+    node.presentation.obligation.kind === "phaseConfirmation"
+  )
+    throw new Error("Writing phase practice remains open until confirmation");
   if (action.kind === "repeat" && checkpoint.context.kind === "correction")
     return evaluateControls({
       content,
@@ -1723,11 +1802,40 @@ export function controlActions({
           },
         });
       else add({ text: "Continue", intent: { kind: "continue" } });
+    } else if (
+      node.presentation.kind === "writing" &&
+      node.presentation.obligation.kind === "phaseConfirmation"
+    ) {
+      const phase = node.presentation.obligation.phase;
+      if (phase === "childTracing")
+        add({
+          text: "Confirm tracing",
+          intent: {
+            kind: "confirmTracing",
+            targetId: node.presentation.targetId,
+            nodeId: node.id,
+            phase,
+          },
+        });
+      else
+        add({
+          text: "Confirm independent writing",
+          intent: {
+            kind: "confirmIndependent",
+            targetId: node.presentation.targetId,
+            nodeId: node.id,
+            phase,
+          },
+        });
     } else add({ text: "Continue", intent: { kind: "continue" } });
   }
   if (status === "inProgress") {
     if (node.kind === "turn") {
-      add({ text: "Repeat", intent: { kind: "repeat" } });
+      if (
+        node.presentation.kind !== "writing" ||
+        node.presentation.obligation.kind !== "phaseConfirmation"
+      )
+        add({ text: "Repeat", intent: { kind: "repeat" } });
       const original =
         checkpoint.context.kind === "correction"
           ? nodeFor({
@@ -1761,6 +1869,8 @@ export function controlActions({
           });
         }
     }
+    if (writingTask({ content, taskId: state.taskId }))
+      add({ text: "Skip writing", intent: { kind: "skipWriting" } });
     add({ text: "Pause", intent: { kind: "pause" } });
   }
   return actions;

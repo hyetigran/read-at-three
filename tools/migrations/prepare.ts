@@ -60,7 +60,20 @@ const sql = await readFile(
   resolve(root, "packages/storage/migrations/0000_initial.sql"),
   "utf8",
 );
-const { taskCredit, taskResult, taskAdvanceV2, ...latestSchema } = schema;
+const {
+  taskCredit,
+  taskResult,
+  taskAdvanceV2,
+  commandReceiptV3,
+  commandReceipt,
+  inkDocument,
+  inkStroke,
+  inkPointChunk,
+  inkHistory,
+  inkOperation,
+  ...baseSchema
+} = schema;
+const latestSchema = { commandReceipt: commandReceiptV3, ...baseSchema };
 const initialSchema = { ...latestSchema, taskAdvance: taskAdvanceV2 };
 const v2Schema = { ...initialSchema, taskCredit, taskResult };
 const generatedSnapshot = await generateSQLiteDrizzleJson(initialSchema);
@@ -332,8 +345,50 @@ const finalStatements = [
   ...acceptanceStatements,
   "UPDATE installation SET database_version=3",
 ];
+const inkTables = {
+  inkDocument,
+  inkStroke,
+  inkPointChunk,
+  inkHistory,
+  inkOperation,
+};
+const inkStatements = await generateSQLiteMigration(
+  await generateSQLiteDrizzleJson({}),
+  await generateSQLiteDrizzleJson(inkTables),
+);
+const originalReceipt = statements.find((statement) =>
+  statement.startsWith("CREATE TABLE command_receipt "),
+);
+if (!originalReceipt) throw new Error("Missing original receipt schema");
+const receiptReplacement = originalReceipt.replace(
+  "('profile','session')",
+  "('profile','session','document')",
+);
+const writingStatements = [
+  "DROP INDEX receipt_owner_revision",
+  "ALTER TABLE command_receipt RENAME TO command_receipt_v3",
+  receiptReplacement,
+  "INSERT INTO command_receipt SELECT * FROM command_receipt_v3",
+  "DROP TABLE command_receipt_v3",
+  "CREATE INDEX receipt_owner_revision ON command_receipt(owner_profile_id,owner_generation,scope_kind,scope_id,resulting_revision)",
+  "CREATE UNIQUE INDEX ink_run_owner ON task_run(run_id,profile_id,generation,course_id,package_hash,lesson_id,task_id)",
+  ...inkStatements,
+  "UPDATE installation SET database_version=4",
+];
+const writingPath = resolve(
+  root,
+  "packages/storage/migrations/0003_canonical_ink.sql",
+);
+const writingSql =
+  writingStatements
+    .map((statement) => statement.replace(/;$/, ""))
+    .join(";\n--> statement-breakpoint\n") + ";\n";
+if (arguments_.includes("--check")) {
+  if ((await readFile(writingPath, "utf8")) !== writingSql)
+    throw new Error("Writing migration stale");
+} else await writeFile(writingPath, writingSql);
 const output = await format(
-  `// Generated from ordered Kit migrations plus reviewed deferred constraints.\n// Reproduce: node --import tsx tools/migrations/prepare.ts\nexport const migrationStatements = ${JSON.stringify(statements)} as const;\nexport const migrations = [{version:1, id:"issue-02-initial", statements:migrationStatements}, {version:2, id:"issue-03-sound-task-credits", statements:${JSON.stringify(upgrades)}}, {version:3,id:"issue-04-accepting-command",statements:${JSON.stringify(finalStatements)}}] as const;\n`,
+  `// Generated from ordered Kit migrations plus reviewed deferred constraints.\n// Reproduce: node --import tsx tools/migrations/prepare.ts\nexport const migrationStatements = ${JSON.stringify(statements)} as const;\nexport const migrations = [{version:1, id:"issue-02-initial", statements:migrationStatements}, {version:2, id:"issue-03-sound-task-credits", statements:${JSON.stringify(upgrades)}}, {version:3,id:"issue-04-accepting-command",statements:${JSON.stringify(finalStatements)}}, {version:4,id:"issue-06-canonical-ink",statements:${JSON.stringify(writingStatements)}}] as const;\n`,
   { parser: "typescript" },
 );
 const path = resolve(root, "packages/storage/src/generated-migration.ts");
