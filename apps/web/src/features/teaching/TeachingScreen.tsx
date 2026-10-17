@@ -842,6 +842,9 @@ export function TeachingScreen({
       projection.kind === "teaching" || projection.kind === "writing"
         ? (correctionPreview ?? projection.turn)
         : null;
+    const undo = projection.actions.find(
+      (action) => action.intent.kind === "undoAdvance",
+    );
     const pause = projection.actions.filter(
       (action) => action.intent.kind === "pause",
     );
@@ -871,6 +874,16 @@ export function TeachingScreen({
           taskNumber={projection.taskNumber}
           lessonNumber={lessonNumber}
         >
+          <div className="teaching-undo-slot">
+            {undo ? (
+              <ProjectedAction
+                action={undo}
+                disabled={disabled}
+                primary={false}
+                onAction={act}
+              />
+            ) : null}
+          </div>
           {pause.map((action) => (
             <ProjectedAction
               key={actionKey(action)}

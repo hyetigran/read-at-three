@@ -101,6 +101,7 @@ test("real SQLite restores selection, immutable source-order queue, correction/r
   const receipt = await first.app.dispatch(command);
   assert.equal(receipt.kind, "committed");
   const review = await first.app.read();
+  if (review.kind === "recovery") assert.fail(review.message);
   assert.deepEqual(await f.connect().app.open(), review);
   const selectionCount = accepted(first.db);
   await f.act(first.app, "back");
@@ -116,14 +117,31 @@ test("real SQLite restores selection, immutable source-order queue, correction/r
     /unavailable/,
   );
   await f.act(first.app, "continue");
+  const priorUndo = review.actions.find(
+    (action) => action.intent.kind === "undoAdvance",
+  );
+  assert.ok(priorUndo?.intent.kind === "undoAdvance");
+  assert.equal(priorUndo.intent.binding.runRevision, "8");
+  assert.equal(priorUndo.intent.binding.cursorRevision, "9");
   assert.deepEqual(await first.app.read(), {
     ...review,
+    actions: review.actions.map((action) =>
+      action.intent.kind === "undoAdvance"
+        ? {
+            ...action,
+            intent: {
+              ...action.intent,
+              binding: {
+                ...action.intent.binding,
+                runRevision: "10",
+                cursorRevision: "11",
+              },
+            },
+          }
+        : action,
+    ),
     revision: String(
-      BigInt(
-        review.kind !== "recovery" && review.kind !== "entry"
-          ? review.revision
-          : "0",
-      ) + 2n,
+      BigInt(review.kind !== "entry" ? review.revision : "0") + 2n,
     ),
   });
   assert.equal(accepted(first.db), selectionCount);

@@ -508,8 +508,19 @@ const graphAction = {
   ],
 };
 const selectionIntent = { enum: ["start", "resume", "replay", "restart"] };
+const undoBinding = {
+  packageHash: hashSchema,
+  sessionId: id,
+  runId: id,
+  advanceId: id,
+  runRevision: counter,
+  profileRevision: counter,
+  cursorRevision: counter,
+  selectionCounter: counter,
+};
 const semanticIntent = {
   oneOf: [
+    record({ kind: { const: "undoAdvance" }, binding: record(undoBinding) }),
     writingActionSchema,
     regularGraphAction,
     readyAction,
@@ -553,6 +564,18 @@ const sessionScope = record({
 const sessionPayload = { packageHash: hashSchema, sessionId: id, runId: id };
 const commandSchema = {
   oneOf: [
+    record({
+      ...commandCommon,
+      kind: { const: "undoAdvance" },
+      scope: sessionScope,
+      payload: record(undoBinding),
+    }),
+    record({
+      ...commandCommon,
+      kind: { const: "writingUndoAdvance" },
+      scope: sessionScope,
+      payload: record({ ...undoBinding, barrier: writingBarrierSchema }),
+    }),
     record({
       ...commandCommon,
       kind: { const: "start" },

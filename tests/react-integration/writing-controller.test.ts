@@ -334,3 +334,73 @@ test("blur and pagehide reject stale teaching callbacks while a lifecycle Pause 
   assert.equal(hidden.turn.id, "fixture.writing.turn.3");
   assert.deepEqual(savedPosition(), before);
 });
+
+test("teaching Undo drains a live child trace, fences old callbacks and publishes the restored phase through Query", async (t) => {
+  const f = await controllerFixture(t);
+  const origin = f.controller.committed.getSnapshot().visible.data?.projection;
+  if (!origin || origin.kind !== "writing")
+    assert.fail("Writing projection required");
+  const undo = origin.actions.find(
+    (action) => action.intent.kind === "undoAdvance",
+  );
+  assert.ok(undo);
+  const contact = f.controller.begin(
+    f.board.snapshot.token.documentId,
+    { x: 100, y: 100, elapsedMs: 0 },
+    performance.now(),
+  );
+  assert.ok(contact);
+  f.controller.append(contact, [{ x: 150, y: 110, elapsedMs: 20 }]);
+  const saving = f.controller.enter(undo);
+  assert.equal(f.controller.canWrite(), false);
+  assert.equal(await saving, true);
+  const restored =
+    f.controller.committed.getSnapshot().visible.data?.projection;
+  if (!restored || restored.kind !== "writing")
+    assert.fail("Restored writing required");
+  assert.equal(restored.turn.id, "fixture.writing.turn.2");
+  assert.equal(restored.runId, origin.runId);
+  assert.equal(restored.sessionId, origin.sessionId);
+  const delivered = f.teachingDeliveries.at(-1);
+  assert.equal(delivered?.kind, "writingUndoAdvance");
+  if (!delivered || delivered.kind !== "writingUndoAdvance")
+    assert.fail("Writing Undo command required");
+  assert.equal(delivered.payload.barrier.documents.length, 2);
+  const board = f.controller
+    .getBoard()
+    .find((value) => value.snapshot.token.targetId === "first");
+  assert.ok(board);
+  assert.equal(board.snapshot.token.phase, "parentDemonstration");
+  assert.equal(board.snapshot.writable, true);
+  assert.deepEqual(
+    board.strokes
+      .filter((stroke) => stroke.layer === "tracing")
+      .map((stroke) => stroke.points),
+    [
+      [
+        { x: 100, y: 100, elapsedMs: 0, pressure: 1 },
+        { x: 150, y: 110, elapsedMs: 20, pressure: 1 },
+      ],
+    ],
+  );
+  const beforeLate = board.strokes;
+  f.controller.append(contact, [{ x: 900, y: 170, elapsedMs: 50 }]);
+  f.controller.finish(contact, "finished");
+  assert.deepEqual(
+    f.controller
+      .getBoard()
+      .find((value) => value.snapshot.token.targetId === "first")?.strokes,
+    beforeLate,
+  );
+  const canonical = await f.current(f.app);
+  assert.equal(
+    canonical.snapshot.strokes.find((stroke) => stroke.layer === "tracing")
+      ?.status,
+    "interrupted",
+  );
+  assert.equal(
+    canonical.snapshot.strokes.find((stroke) => stroke.layer === "tracing")
+      ?.pointCount,
+    2,
+  );
+});

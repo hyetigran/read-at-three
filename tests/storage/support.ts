@@ -17,6 +17,7 @@ import type {
   RuntimePackage,
   TeachingApplication,
   TeachingIntent,
+  Owner,
 } from "../../packages/teaching/src/index.ts";
 export const hash = async (text: string) =>
   createHash("sha256").update(text).digest("hex");
@@ -63,10 +64,12 @@ export async function storageFixture(
       hash,
     ));
   t.after(async () => {
-    for (const db of connections) db.close();
+    for (const db of connections) if (db.isOpen) db.close();
     await rm(directory, { recursive: true, force: true });
   });
-  function connect(options: { content?: RuntimePackage; hook?: SqlHook } = {}) {
+  function connect(
+    options: { content?: RuntimePackage; hook?: SqlHook; owner?: Owner } = {},
+  ) {
     const db = new DatabaseSync(path);
     connections.push(db);
     db.exec("PRAGMA journal_mode=DELETE");
@@ -76,6 +79,7 @@ export async function storageFixture(
       db,
       executor,
       app: createTeachingApplication({
+        ...(options.owner ? { owner: options.owner } : {}),
         executor,
         content: options.content ?? content,
         ids,

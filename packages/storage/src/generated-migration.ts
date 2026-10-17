@@ -91,4 +91,15 @@ export const migrations = [
       "UPDATE installation SET database_version = 6",
     ],
   },
+  {
+    version: 7,
+    id: "issue-09-advance-withdrawal",
+    statements: [
+      "ALTER TABLE task_run ADD COLUMN legacy_acceptance_seq_limit INTEGER NOT NULL DEFAULT 0 CHECK(typeof(legacy_acceptance_seq_limit)='integer' AND legacy_acceptance_seq_limit>=0)",
+      "UPDATE task_run SET legacy_acceptance_seq_limit=next_advance_seq-1",
+      'CREATE TABLE `advance_withdrawal` (\n\t`advance_id` text PRIMARY KEY NOT NULL,\n\t`run_id` text NOT NULL,\n\t`profile_id` text NOT NULL,\n\t`generation` integer NOT NULL,\n\t`withdrawn_run_revision` integer NOT NULL,\n\t`command` text NOT NULL,\n\tFOREIGN KEY (`advance_id`,`run_id`) REFERENCES `task_advance`(`advance_id`,`run_id`) ON UPDATE no action ON DELETE no action,\n\tFOREIGN KEY (`run_id`,`profile_id`,`generation`) REFERENCES `task_run`(`run_id`,`profile_id`,`generation`) ON UPDATE no action ON DELETE no action,\n\tCONSTRAINT "generation_nonnegative" CHECK(typeof(generation)=\'integer\' AND generation>=0),\n\tCONSTRAINT "withdrawal_revision" CHECK(typeof(withdrawn_run_revision)=\'integer\' AND withdrawn_run_revision>0),\n\tCONSTRAINT "withdrawal_command_json" CHECK(json_valid(command))\n);\n',
+      "CREATE UNIQUE INDEX `advance_withdrawal_run_id_withdrawn_run_revision_unique` ON `advance_withdrawal` (`run_id`,`withdrawn_run_revision`);",
+      "UPDATE installation SET database_version = 7",
+    ],
+  },
 ] as const;

@@ -112,7 +112,25 @@ export async function prepareCommand({
   const intent = selected.intent;
   const common = { commandId: ids(), owner: projection.owner };
   let draft: unknown;
-  if (
+  if (intent.kind === "undoAdvance") {
+    if (
+      projection.kind === "entry" ||
+      projection.kind === "writing" ||
+      projection.kind === "writingResult"
+    )
+      throw new Error("Undo requires the current ordinary teaching view");
+    draft = {
+      ...common,
+      kind: "undoAdvance",
+      scope: {
+        kind: "session",
+        id: projection.sessionId,
+        generation: projection.owner.generation,
+      },
+      expectedRevision: projection.revision,
+      payload: intent.binding,
+    };
+  } else if (
     "taskId" in intent &&
     intent.kind === "start" &&
     projection.kind === "entry" &&
@@ -581,6 +599,28 @@ export function createCoordinator({
         if (session.state.viewCheckpoint !== null)
           actions.push(choice("Continue", { kind: "continue" }));
       }
+      if (
+        context.undoRunId === session.runId &&
+        session.activeAdvanceId &&
+        context.cursorRevision !== undefined &&
+        (context.cursorSession === undefined ||
+          context.cursorSession?.sessionId === session.sessionId)
+      )
+        actions.push(
+          choice("Undo advance", {
+            kind: "undoAdvance",
+            binding: {
+              packageHash: session.packageHash,
+              sessionId: session.sessionId,
+              runId: session.runId,
+              advanceId: session.activeAdvanceId,
+              runRevision: session.runRevision,
+              profileRevision: context.profileRevision,
+              cursorRevision: context.cursorRevision,
+              selectionCounter: context.selectionCounter,
+            },
+          }),
+        );
       const publishedEngine: import("./types.ts").EngineProjection =
         writing &&
         documents &&
@@ -869,6 +909,58 @@ export function createCoordinator({
             "Teaching changed before this command.",
           );
         if (
+          command.kind === "undoAdvance" ||
+          command.kind === "writingUndoAdvance"
+        ) {
+          const binding = command.payload;
+          if (
+            !tx.undoAdvance ||
+            context.undoRunId !== session.runId ||
+            session.activeAdvanceId !== binding.advanceId ||
+            session.runRevision !== binding.runRevision ||
+            context.profileRevision !== binding.profileRevision ||
+            context.cursorRevision !== binding.cursorRevision ||
+            context.selectionCounter !== binding.selectionCounter
+          )
+            return reject(
+              "stale-undo",
+              "The saved Undo advance window changed.",
+            );
+          const writing =
+            writingTask({ content, taskId: session.taskId }) !== null;
+          if (
+            writing
+              ? command.kind !== "writingUndoAdvance" ||
+                !tx.writingBarrier ||
+                !(await tx.writingBarrier({
+                  session,
+                  barrier: command.payload.barrier,
+                }))
+              : command.kind !== "undoAdvance"
+          )
+            return reject(
+              "writing-barrier",
+              "Undo requires the current committed writing documents.",
+            );
+          await tx.ensurePackage(content);
+          const receipt: CommitReceipt = {
+            kind: "committed",
+            commandId: command.commandId,
+            owner: context.owner,
+            sessionId: session.sessionId,
+            runId: session.runId,
+            revision: increment(session.revision),
+            packageHash: content.packageHash,
+          };
+          await tx.undoAdvance({
+            command,
+            context: { ...context, session },
+            content,
+            receipt,
+          });
+          return receipt;
+        }
+        if (
           session.status === "paused" ||
           (session.status === "closed" && context.undoRunId !== session.runId)
         )
@@ -1082,6 +1174,24 @@ export async function prepareWritingCommand({
       expectedRevision: projection.profileRevision,
       payload,
       payloadHash: await hash(canonical({ kind: "writingSelect", payload })),
+    });
+  }
+  if (intent.kind === "undoAdvance") {
+    const payload = { ...intent.binding, barrier };
+    return parseCommand({
+      kind: "writingUndoAdvance",
+      commandId: ids(),
+      owner: projection.owner,
+      scope: {
+        kind: "session",
+        id: projection.sessionId,
+        generation: projection.owner.generation,
+      },
+      expectedRevision: projection.revision,
+      payload,
+      payloadHash: await hash(
+        canonical({ kind: "writingUndoAdvance", payload }),
+      ),
     });
   }
   const payload = {

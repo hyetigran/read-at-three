@@ -104,7 +104,7 @@ async function seed({
   db.exec("PRAGMA foreign_keys=ON");
   return raw;
 }
-function sourceState(db: DatabaseSync) {
+function sourceState(db: DatabaseSync, migration: "none" | "toV7" = "none") {
   return canonical(
     [
       "profile",
@@ -118,7 +118,29 @@ function sourceState(db: DatabaseSync) {
       rows: db
         .prepare(`SELECT * FROM ${name}`)
         .all()
-        .map(({ accepting_command, ...row }) => row),
+        .map((row) => {
+          if (migration === "toV7" && name === "task_advance") {
+            assert.equal(Object.hasOwn(row, "accepting_command"), false);
+            return { ...row, accepting_command: null };
+          }
+          if (migration === "toV7" && name === "task_run") {
+            assert.equal(
+              Object.hasOwn(row, "legacy_acceptance_seq_limit"),
+              false,
+            );
+            const next = row.next_advance_seq;
+            if (
+              typeof next !== "number" ||
+              !Number.isSafeInteger(next) ||
+              next < 1
+            )
+              assert.fail(
+                "Captured sequence must be an exact positive integer",
+              );
+            return { ...row, legacy_acceptance_seq_limit: next - 1 };
+          }
+          return row;
+        }),
     })),
   );
 }
@@ -127,7 +149,7 @@ test("real captured V1 data upgrades without rebinding pinned bytes; full task r
   const f = await storageFixture(t);
   const first = f.connect();
   const capture = await seed({ db: first.db });
-  const before = sourceState(first.db);
+  const before = sourceState(first.db, "toV7");
   assert.equal(
     await hash(migrationStatements.join("\n")),
     "b720e50ce599b3abffbc4b3fc89b09c2a8f06ba2811a14b17e0c86af275292bc",
@@ -192,6 +214,7 @@ test("each failed V2 migration statement rolls back to exact V1 schema/data and 
     const first = f.connect();
     await seed({ db: first.db });
     const before = sourceState(first.db);
+    const upgraded = sourceState(first.db, "toV7");
     const executor: SqlExecutor = {
       execute: async (sql, parameters) => {
         if (sql === failing) throw new Error("Injected V2 interruption");
@@ -225,7 +248,7 @@ test("each failed V2 migration statement rolls back to exact V1 schema/data and 
       first.db.prepare("PRAGMA user_version").get()?.user_version,
       DATABASE_VERSION,
     );
-    assert.equal(sourceState(first.db), before);
+    assert.equal(sourceState(first.db), upgraded);
   }
 });
 
@@ -248,7 +271,7 @@ test("genuine main V2 capture upgrades in place; new oral catalog preserves exac
   const f = await storageFixture(t, oral.content);
   const first = f.connect();
   const capture = await seed({ db: first.db, version: 2 }),
-    before = sourceState(first.db);
+    before = sourceState(first.db, "toV7");
   const blob = first.db
     .prepare(
       "SELECT verified_manifest FROM installed_package WHERE package_hash=?",
@@ -324,6 +347,7 @@ test("every V3 migration write and pre-COMMIT interruption rolls back genuine V2
       first = f.connect();
     await seed({ db: first.db, version: 2 });
     const before = sourceState(first.db),
+      upgraded = sourceState(first.db, "toV7"),
       schemaBefore = canonical(
         first.db
           .prepare("SELECT name,sql FROM sqlite_master ORDER BY name")
@@ -364,7 +388,7 @@ test("every V3 migration write and pre-COMMIT interruption rolls back genuine V2
       first.db.prepare("PRAGMA user_version").get()?.user_version,
       DATABASE_VERSION,
     );
-    assert.equal(sourceState(first.db), before);
+    assert.equal(sourceState(first.db), upgraded);
   }
   const f = await storageFixture(t),
     first = f.connect();

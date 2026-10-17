@@ -1,3 +1,7 @@
+import {
+  durableReceipt,
+  validateAcceptanceHistory,
+} from "./acceptance-history.ts";
 import { createLessonProgress } from "./lesson-progress.ts";
 import { createInkRepository } from "./ink.ts";
 import { and, eq, asc } from "drizzle-orm";
@@ -11,35 +15,26 @@ import {
   parseHistoricalWork,
   summarizePractice,
   parsePracticeControlsBinding,
-  completionProof,
   createCoordinator,
-  initialState,
   increment,
   parseCounter,
   parseId,
   parseRuntimePackage,
   parseReceipt,
   parseCommand,
-  currentCheckpoint,
   parseTeachingState,
   validatePosition,
-  validateAcceptanceState,
-  validateAcceptanceTransition,
   writingTask,
-  writingPermission,
   parseInkCommand,
   parseRecoveryOpening,
   parseRecoveryChoice,
   parseRecoveryInventory,
 } from "../../teaching/src/index.ts";
 import type {
-  AdvanceId,
   CommitReceipt,
   CommittedProjection,
-  CompletionProof,
   RuntimePackage,
   HashFunction,
-  GraphAction,
   IdFactory,
   Owner,
   PackageHash,
@@ -47,7 +42,6 @@ import type {
   StoredSession,
   TeachingApplication,
   TeachingCommand,
-  TeachingState,
   TeachingStore,
   TeachingTransaction,
   WritingApplication,
@@ -102,62 +96,15 @@ function isCumulativeOralExtension({
   return canonical(retained) === canonical(old.tasks);
 }
 
-type AdvanceRow = typeof schema.taskAdvance.$inferSelect;
-type RunRow = typeof schema.taskRun.$inferSelect;
-function durableReceipt({
-  run,
-  advance,
-  proof,
-}: {
-  run: RunRow;
-  advance: AdvanceRow;
-  proof: CompletionProof | import("../../teaching/src/index.ts").SkipProof;
-}) {
-  return {
-    version: 1,
-    commandId: advance.commandId,
-    terminalAdvanceId: advance.advanceId,
-    runId: run.runId,
-    runRevision: advance.acceptedRunRevision,
-    outcome: "outcome" in proof ? proof.outcome : "completed",
-    packageHash: run.packageHash,
-    taskId: run.taskId,
-    ...("requiredOccurrenceIds" in proof
-      ? { requiredOccurrenceIds: proof.requiredOccurrenceIds }
-      : {}),
-    sourceRefs: proof.sourceRefs,
-  };
-}
-function skipProof(
-  content: RuntimePackage,
-  state: Extract<TeachingState, { kind: "writingSkipped" }>,
-): import("../../teaching/src/index.ts").SkipProof {
-  const task = writingTask({ content, taskId: state.taskId });
-  if (!task) throw new Error("Skip proof requires optional writing");
-  return {
-    taskId: state.taskId,
-    packageHash: content.packageHash,
-    outcome: "skipped",
-    sourceRefs: [...new Set(task.nodes.flatMap((n) => n.sourceRefs))],
-  };
-}
-function acceptedId(
-  state: TeachingState,
-):
-  | import("../../teaching/src/index.ts").OccurrenceId
-  | import("../../teaching/src/index.ts").NodeId
-  | undefined {
-  if (state.kind === "writingSkipped") return acceptedId(state.last);
-  return state.kind === "graph" || state.kind === "graphControls"
-    ? state.acceptedOccurrenceIds.at(-1)
-    : state.acceptedNodeIds.at(-1);
-}
+type RunRow = typeof schema.taskRunV6.$inferSelect;
 export function createTeachingApplication({
   executor,
   content,
   ids,
   hash,
+  owner: selectedOwner,
 }: {
+  owner?: Owner;
   executor: SqlExecutor;
   content: RuntimePackage;
   ids: IdFactory;
@@ -174,6 +121,10 @@ export function createTeachingApplication({
     tail = next.catch(() => undefined);
     return next;
   }
+  const matchesBoundOwner = (owner: Owner) =>
+    !selectedOwner ||
+    (owner.profileId === selectedOwner.profileId &&
+      owner.generation === selectedOwner.generation);
   const verified = new Map<PackageHash, RuntimePackage>();
   async function warmPackages() {
     verified.clear();
@@ -221,6 +172,7 @@ export function createTeachingApplication({
   }
   const lessonProgress = createLessonProgress({ executor, hash, ids, pinned });
   let legacyCursorRead = false;
+  let acceptanceMode: "v6" | "v7" = "v7";
   async function repairTerminalCursors(
     owner?: Owner,
     excludeCourse?: import("../../teaching/src/index.ts").CourseId,
@@ -287,7 +239,7 @@ export function createTeachingApplication({
     initialization ??= (async () => {
       content = await parseRuntimePackage(content, hash);
       await initializeDatabase(executor, hash, async (version) => {
-        if (version !== 6) return undefined;
+        if (version !== 6 && version !== 7) return undefined;
         await warmPackages();
         const prepared = [...verified.values()].sort((a, b) =>
           a.packageHash.localeCompare(b.packageHash),
@@ -309,6 +261,19 @@ export function createTeachingApplication({
           )
             throw new Error("Prepared package set changed before migration");
           for (const value of prepared) await ensurePackage(value);
+          if (version === 7) {
+            acceptanceMode = "v6";
+            try {
+              await validateOwners();
+              await ink.inventory();
+            } finally {
+              acceptanceMode = "v7";
+            }
+            await validateOwners();
+            await ink.inventory();
+            return;
+          }
+          acceptanceMode = "v6";
           legacyCursorRead = true;
           try {
             await validateOwners();
@@ -327,12 +292,32 @@ export function createTeachingApplication({
                 },
                 content: value,
               });
-          await validateOwners();
+          try {
+            await validateOwners();
+          } finally {
+            acceptanceMode = "v7";
+          }
         };
       });
       await warmPackages();
       await transaction(executor, async () => {
         const installations = await db.select().from(schema.installation).all();
+        if (selectedOwner) {
+          const existing = (
+            await db
+              .select()
+              .from(schema.profile)
+              .where(
+                and(
+                  eq(schema.profile.id, selectedOwner.profileId),
+                  eq(schema.profile.generation, selectedOwner.generation),
+                ),
+              )
+              .all()
+          )[0];
+          if (!existing)
+            throw new Error("Selected profile generation is unavailable");
+        }
         if (!installations.length) {
           await db
             .insert(schema.installation)
@@ -478,7 +463,7 @@ export function createTeachingApplication({
   ): Promise<StoredSession | null> {
     const rows = await db
       .select()
-      .from(schema.taskRun)
+      .from(schema.taskRunV6)
       .where(eq(schema.taskRun.runId, row.currentRunId))
       .all();
     const run = retainedRun ?? rows[0];
@@ -513,215 +498,56 @@ export function createTeachingApplication({
       throw new Error("Saved package ownership is invalid");
     const state = parseTeachingState(JSON.parse(run.state));
     validatePosition(value, state, run.taskId);
-    let baseline = initialState(value, run.taskId);
-    let previous: AdvanceId | null = null;
-    let nextSeq = parseCounter("1");
-    let acceptedRevision = parseCounter("0");
-    let terminal: AdvanceRow | undefined;
     const advances = await db
       .select()
       .from(schema.taskAdvance)
       .where(eq(schema.taskAdvance.runId, run.runId))
       .orderBy(asc(schema.taskAdvance.seq))
       .all();
-    for (const advance of advances) {
-      if (
-        terminal ||
-        advance.status !== "accepted" ||
-        advance.profileId !== owner.profileId ||
-        advance.generation !== owner.generation ||
-        advance.previousAdvanceId !== previous ||
-        advance.seq !== nextSeq ||
-        BigInt(advance.acceptedRunRevision) <= BigInt(acceptedRevision) ||
-        BigInt(advance.acceptedRunRevision) > BigInt(run.revision) ||
-        advance.beforeRunStatus !== "inProgress"
-      )
-        throw new Error("Saved acceptance chain is invalid");
-      const before = parseTeachingState(JSON.parse(advance.beforeState));
-      const after = parseTeachingState(JSON.parse(advance.afterState));
-      validateAcceptanceState({
-        content: value,
-        taskId: run.taskId,
-        baseline,
-        state: before,
-      });
-      let action: GraphAction | undefined;
-      if (advance.acceptingCommand !== null) {
-        const semantics: unknown = JSON.parse(advance.acceptingCommand);
-        if (
-          typeof semantics !== "object" ||
-          semantics === null ||
-          !("kind" in semantics) ||
-          !("payload" in semantics) ||
-          canonical(Object.keys(semantics).sort()) !==
-            canonical(["kind", "payload"])
-        )
-          throw new Error("Invalid accepting command preimage");
-        if ((await hash(canonical(semantics))) !== advance.payloadHash)
-          throw new Error("Accepting command payload hash changed");
-        const command = parseCommand({
-          ...semantics,
-          commandId: advance.commandId,
-          owner,
-          scope: {
-            kind: "session",
-            id: row.sessionId,
-            generation: owner.generation,
-          },
-          expectedRevision: "0",
-          payloadHash: advance.payloadHash,
-        });
-        if (
-          command.kind !== "navigate" &&
-          command.kind !== "writingNavigate" &&
-          command.kind !== "advance"
-        )
-          throw new Error("Invalid accepting command kind");
-        if (
-          command.payload.packageHash !== run.packageHash ||
-          command.payload.sessionId !== row.sessionId ||
-          command.payload.runId !== run.runId
-        )
-          throw new Error("Accepting command ownership changed");
-        const writing = writingTask({ content: value, taskId: run.taskId });
-        if (writing) {
-          if (command.kind !== "writingNavigate")
-            throw new Error("Writing acceptance requires its document barrier");
-          const documents = await db
-            .select()
-            .from(schema.inkDocument)
-            .where(eq(schema.inkDocument.runId, run.runId))
-            .all();
-          if (
-            documents.length !== 2 ||
-            command.payload.barrier.documents.length !== 2 ||
-            new Set(command.payload.barrier.documents.map((t) => t.documentId))
-              .size !== 2
-          )
-            throw new Error("Writing acceptance document set changed");
-          for (const token of command.payload.barrier.documents) {
-            const document = documents.find(
-                (d) => d.documentId === token.documentId,
-              ),
-              target = writing.targets.find((t) => t.id === token.targetId);
-            if (
-              !document ||
-              !target ||
-              token.profileId !== run.profileId ||
-              token.generation !== run.generation ||
-              token.runId !== run.runId ||
-              token.courseId !== run.courseId ||
-              token.packageHash !== run.packageHash ||
-              token.lessonId !== run.lessonId ||
-              token.taskId !== run.taskId ||
-              document.targetId !== token.targetId ||
-              document.sourceRefs !== canonical(target.sourceRefs) ||
-              document.logicalWidth !== target.logicalWidth ||
-              document.logicalHeight !== target.logicalHeight ||
-              Number(document.codecVersion) !== 1 ||
-              token.phase !==
-                writingPermission({
-                  content: value,
-                  state: before,
-                  targetId: target.id,
-                }).phase ||
-              BigInt(token.revision) > BigInt(document.revision) ||
-              BigInt(token.inputEpoch) > BigInt(document.inputEpoch)
-            )
-              throw new Error("Writing acceptance document binding changed");
-          }
-        } else if (command.kind === "writingNavigate")
-          throw new Error("Ordinary acceptance cannot carry a writing command");
-        if (command.kind === "navigate" || command.kind === "writingNavigate") {
-          if (
-            (before.kind !== "graph" && before.kind !== "graphControls") ||
-            command.payload.checkpointId !== currentCheckpoint(before).id
-          )
-            throw new Error("Accepting command checkpoint changed");
-          action = command.payload.action;
-          if (before.kind === "graph" && action.kind !== "continue")
-            throw new Error("Printed acceptance command changed");
-        } else if (
-          before.kind !== "teaching" ||
-          command.payload.nodeId !== before.nodeId
-        )
-          throw new Error("Legacy acceptance target changed");
-      } else if (before.kind === "graphControls")
-        throw new Error("Control acceptance requires explicit command");
-      const occurrenceId =
-        before.kind === "graphControls"
-          ? currentCheckpoint(before).occurrenceId
-          : acceptedId(after);
-      if (!occurrenceId) throw new Error("Accepted occurrence is missing");
-      validateAcceptanceTransition({
-        content: value,
-        taskId: run.taskId,
-        before,
-        after,
-        occurrenceId,
-        ...(action ? { action } : {}),
-      });
-      const proof =
-        after.kind === "writingSkipped"
-          ? skipProof(value, after)
-          : completionProof(value, after);
-      if (
-        advance.afterRunStatus !==
-        (after.kind === "writingSkipped"
-          ? "skipped"
-          : proof
-            ? "completed"
-            : "inProgress")
-      )
-        throw new Error("Saved acceptance outcome is invalid");
-      if (proof) terminal = advance;
-      baseline = after;
-      previous = advance.advanceId;
-      nextSeq = increment(nextSeq);
-      acceptedRevision = advance.acceptedRunRevision;
-    }
-    validateAcceptanceState({
-      content: value,
-      taskId: run.taskId,
-      baseline,
-      state,
-    });
-    if (
-      previous !== run.activeAdvanceId ||
-      nextSeq !== run.nextAdvanceSeq ||
-      Boolean(terminal) !==
-        (run.status === "completed" || run.status === "skipped") ||
-      (state.kind === "writingSkipped"
-        ? run.status !== "skipped"
-        : Boolean(completionProof(value, state)) !==
-          (run.status === "completed"))
-    )
-      throw new Error("Saved acceptance head is invalid");
     const credits = await db
       .select()
       .from(schema.taskCredit)
       .where(eq(schema.taskCredit.runId, run.runId))
       .all();
-    if (terminal) {
-      const proof =
-        baseline.kind === "writingSkipped"
-          ? skipProof(value, baseline)
-          : completionProof(value, baseline);
-      const credit = credits[0];
-      if (
-        !proof ||
-        credits.length !== 1 ||
-        !credit ||
-        credit.status !== "valid" ||
-        credit.outcome !== run.status ||
-        credit.terminalAdvanceId !== terminal.advanceId ||
-        Number(credit.receiptVersion) !== 1 ||
-        canonical(JSON.parse(credit.receipt)) !==
-          canonical(durableReceipt({ run, advance: terminal, proof }))
-      )
-        throw new Error("Durable task completion receipt is invalid");
-    } else if (credits.length)
-      throw new Error("Unfinished run has completion credit");
+    const documents = await db
+      .select()
+      .from(schema.inkDocument)
+      .where(eq(schema.inkDocument.runId, run.runId))
+      .all();
+    let legacyLimit = parseCounter(
+      (BigInt(run.nextAdvanceSeq) - 1n).toString(),
+    );
+    if (acceptanceMode === "v7") {
+      const limit = (
+        await db
+          .select({ limit: schema.taskRun.legacyAcceptanceSeqLimit })
+          .from(schema.taskRun)
+          .where(eq(schema.taskRun.runId, run.runId))
+          .all()
+      )[0];
+      if (!limit) throw new Error("Saved run acceptance limit is missing");
+      legacyLimit = limit.limit;
+    }
+    await validateAcceptanceHistory({
+      run,
+      session: row,
+      owner,
+      content: value,
+      hash,
+      advances,
+      credits,
+      documents,
+      legacyLimit,
+      linear: acceptanceMode === "v6",
+      withdrawals:
+        acceptanceMode === "v7"
+          ? await db
+              .select()
+              .from(schema.advanceWithdrawal)
+              .where(eq(schema.advanceWithdrawal.runId, run.runId))
+              .all()
+          : [],
+    });
     if (run.status === "abandoned") return null;
     return {
       sessionId: row.sessionId,
@@ -793,7 +619,7 @@ export function createTeachingApplication({
     }
     const retainedRuns = await db
       .select()
-      .from(schema.taskRun)
+      .from(schema.taskRunV6)
       .where(
         and(
           eq(schema.taskRun.profileId, owner.profileId),
@@ -1037,7 +863,7 @@ export function createTeachingApplication({
       const run = (
         await db
           .select()
-          .from(schema.taskRun)
+          .from(schema.taskRunV6)
           .where(eq(schema.taskRun.runId, token.runId))
           .all()
       )[0];
@@ -1104,7 +930,8 @@ export function createTeachingApplication({
   });
   const repositories: TeachingTransaction = {
     writingBarrier: ink.barrier,
-    context,
+    context: (owner) =>
+      matchesBoundOwner(owner) ? context(owner) : Promise.resolve(null),
     receipt,
     ensurePackage,
     async select({
@@ -1259,6 +1086,134 @@ export function createTeachingApplication({
       await updateCursor(owner, result.sessionId, nextSelection);
       await saveReceipt(command, result);
     },
+    async undoAdvance({
+      command,
+      context: current,
+      content: value,
+      receipt: result,
+    }) {
+      const saved = current.session;
+      const head = (
+        await db
+          .select()
+          .from(schema.taskAdvance)
+          .where(eq(schema.taskAdvance.advanceId, command.payload.advanceId))
+          .all()
+      )[0];
+      if (
+        !head ||
+        head.runId !== saved.runId ||
+        head.profileId !== current.owner.profileId ||
+        head.generation !== current.owner.generation ||
+        head.status !== "accepted" ||
+        saved.activeAdvanceId !== head.advanceId ||
+        current.undoRunId !== saved.runId
+      )
+        throw new Error("Undo acceptance head changed");
+      if (
+        current.sessions.some(
+          (session) =>
+            session.sessionId !== saved.sessionId &&
+            session.runStatus === "inProgress" &&
+            session.taskId === saved.taskId,
+        )
+      )
+        throw new Error("Undo would conflict with another live task scope");
+      const state = parseTeachingState(JSON.parse(head.beforeState));
+      const runRevision = increment(saved.runRevision);
+      await db
+        .insert(schema.advanceWithdrawal)
+        .values({
+          advanceId: head.advanceId,
+          runId: saved.runId,
+          profileId: current.owner.profileId,
+          generation: current.owner.generation,
+          withdrawnRunRevision: runRevision,
+          command: canonical(command),
+        })
+        .run();
+      await db
+        .update(schema.taskAdvance)
+        .set({ status: "withdrawn" })
+        .where(eq(schema.taskAdvance.advanceId, head.advanceId))
+        .run();
+      await db
+        .update(schema.taskRun)
+        .set({
+          state: canonical(state),
+          status: "inProgress",
+          activeAdvanceId: head.previousAdvanceId,
+          revision: runRevision,
+        })
+        .where(eq(schema.taskRun.runId, saved.runId))
+        .run();
+      await db
+        .update(schema.session)
+        .set({
+          status: saved.status === "paused" ? "paused" : "active",
+          revision: result.revision,
+        })
+        .where(eq(schema.session.sessionId, saved.sessionId))
+        .run();
+      const affectedPackages = new Set<PackageHash>([
+        value.packageHash,
+        current.activePackageHash,
+      ]);
+      const terminalCredit = (
+        await db
+          .select()
+          .from(schema.taskCredit)
+          .where(eq(schema.taskCredit.terminalAdvanceId, head.advanceId))
+          .all()
+      )[0];
+      if (terminalCredit) {
+        await db
+          .update(schema.taskCredit)
+          .set({ status: "withdrawn" })
+          .where(eq(schema.taskCredit.creditId, terminalCredit.creditId))
+          .run();
+        const dependent = await lessonProgress.withdrawDependentSupport({
+          owner: current.owner,
+          courseId: value.body.courseId,
+          taskCreditId: terminalCredit.creditId,
+        });
+        const lessons = await db
+          .select()
+          .from(schema.lessonCredit)
+          .where(
+            and(
+              eq(schema.lessonCredit.profileId, current.owner.profileId),
+              eq(schema.lessonCredit.generation, current.owner.generation),
+              eq(schema.lessonCredit.courseId, value.body.courseId),
+            ),
+          )
+          .all();
+        for (const lesson of lessons)
+          if (dependent.includes(lesson.lessonCreditId))
+            affectedPackages.add(lesson.packageHash);
+        for (const packageHash of affectedPackages)
+          await lessonProgress.derive({
+            owner: current.owner,
+            content: pinned(packageHash),
+          });
+      }
+      await ink.fence({
+        session: {
+          ...saved,
+          state,
+          runStatus: "inProgress",
+          status: saved.status === "paused" ? "paused" : "active",
+        },
+        content: value,
+      });
+      await updateCursor(
+        current.owner,
+        saved.sessionId,
+        current.selectionCounter,
+      );
+      await saveReceipt(command, result);
+      await context(current.owner);
+    },
     async applyWritingControl({ command, context: current, receipt: result }) {
       const token = command.payload.barrier.documents.find(
         (document) => document.documentId === command.payload.documentId,
@@ -1362,7 +1317,7 @@ export function createTeachingApplication({
         const run = (
           await db
             .select()
-            .from(schema.taskRun)
+            .from(schema.taskRunV6)
             .where(eq(schema.taskRun.runId, saved.runId))
             .all()
         )[0];
@@ -1466,6 +1421,14 @@ export function createTeachingApplication({
         await db
           .select()
           .from(schema.profile)
+          .where(
+            selectedOwner
+              ? and(
+                  eq(schema.profile.id, selectedOwner.profileId),
+                  eq(schema.profile.generation, selectedOwner.generation),
+                )
+              : undefined,
+          )
           .orderBy(asc(schema.profile.id))
           .all()
       )[0];
@@ -1626,6 +1589,10 @@ export function createTeachingApplication({
             generation: parseCounter(input.owner.generation),
           },
           runId = parseId({ kind: "run", value: input.runId });
+        if (!matchesBoundOwner(owner))
+          throw new Error(
+            "Historical work belongs to another selected profile",
+          );
         await warmPackages();
         const current = await context(owner);
         const summary = current?.history?.find((work) => work.runId === runId);
@@ -1641,7 +1608,7 @@ export function createTeachingApplication({
         const run = (
           await db
             .select()
-            .from(schema.taskRun)
+            .from(schema.taskRunV6)
             .where(eq(schema.taskRun.runId, runId))
             .all()
         )[0];
@@ -1716,6 +1683,8 @@ export function createTeachingApplication({
     readInk: (input) =>
       exclusive(async () => {
         if (!(await ready())) throw new Error("Writing recovery is closed");
+        if (!matchesBoundOwner(input.token))
+          throw new Error("Writing belongs to another selected profile");
         return ink.snapshot(input);
       }),
     dispatchInk: (command) =>
@@ -1725,6 +1694,12 @@ export function createTeachingApplication({
             kind: "rejected",
             code: "ink-reconciliation-required",
             message: "Writing recovery is closed.",
+          };
+        if (!matchesBoundOwner(command.token))
+          return {
+            kind: "rejected",
+            code: "stale-owner",
+            message: "Writing belongs to another selected profile.",
           };
         return transaction(executor, () => ink.dispatch(command));
       }),
@@ -1789,6 +1764,12 @@ export function createTeachingApplication({
             kind: "rejected",
             code: "undeclared-capture",
             message: "Capture was not retained by this client.",
+          };
+        if (!matchesBoundOwner(command.token))
+          return {
+            kind: "rejected",
+            code: "stale-owner",
+            message: "Writing belongs to another selected profile.",
           };
         return transaction(executor, () => ink.dispatch(command));
       }),

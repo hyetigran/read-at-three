@@ -61,6 +61,9 @@ const sql = await readFile(
   "utf8",
 );
 const {
+  taskRun,
+  taskRunV6,
+  advanceWithdrawal,
   taskCredit,
   taskResult,
   lessonCredit,
@@ -76,7 +79,11 @@ const {
   inkOperation,
   ...baseSchema
 } = schema;
-const latestSchema = { commandReceipt: commandReceiptV3, ...baseSchema };
+const latestSchema = {
+  commandReceipt: commandReceiptV3,
+  ...baseSchema,
+  taskRun: taskRunV6,
+};
 const initialSchema = { ...latestSchema, taskAdvance: taskAdvanceV2 };
 const v2Schema = { ...initialSchema, taskCredit, taskResult };
 const generatedSnapshot = await generateSQLiteDrizzleJson(initialSchema);
@@ -429,8 +436,66 @@ if (arguments_.includes("--check")) {
   if ((await readFile(lessonPath, "utf8")) !== lessonSql)
     throw new Error("Lesson support migration stale");
 } else await writeFile(lessonPath, lessonSql);
+const v6RunStatements = await generateSQLiteMigration(
+  await generateSQLiteDrizzleJson({}),
+  await generateSQLiteDrizzleJson({ taskRun: taskRunV6 }),
+);
+const v7RunStatements = await generateSQLiteMigration(
+  await generateSQLiteDrizzleJson({}),
+  await generateSQLiteDrizzleJson({ taskRun }),
+);
+const cutoffClauses = v7RunStatements.flatMap((statement) =>
+  statement
+    .split("\n")
+    .filter((line) => line.includes("legacy_acceptance_seq_limit"))
+    .map((line) => line.trim().replace(/,$/, "")),
+);
+if (
+  canonical(cutoffClauses) !==
+  canonical([
+    "`legacy_acceptance_seq_limit` integer DEFAULT 0 NOT NULL",
+    `CONSTRAINT "legacy_acceptance_seq_limit_nonnegative" CHECK(typeof(legacy_acceptance_seq_limit)='integer' AND legacy_acceptance_seq_limit>=0)`,
+  ])
+)
+  throw new Error(
+    "V7 Drizzle acceptance cutoff differs from the reviewed ALTER",
+  );
+if (
+  canonical(
+    v7RunStatements.map((statement) =>
+      statement
+        .split("\n")
+        .filter((line) => !line.includes("legacy_acceptance_seq_limit"))
+        .join("\n"),
+    ),
+  ) !== canonical(v6RunStatements)
+)
+  throw new Error(
+    "V7 Drizzle run changes more than the reviewed acceptance cutoff",
+  );
+const reversibleStatements = [
+  "ALTER TABLE task_run ADD COLUMN legacy_acceptance_seq_limit INTEGER NOT NULL DEFAULT 0 CHECK(typeof(legacy_acceptance_seq_limit)='integer' AND legacy_acceptance_seq_limit>=0)",
+  "UPDATE task_run SET legacy_acceptance_seq_limit=next_advance_seq-1",
+  ...(await generateSQLiteMigration(
+    await generateSQLiteDrizzleJson({}),
+    await generateSQLiteDrizzleJson({ advanceWithdrawal }),
+  )),
+  "UPDATE installation SET database_version = 7",
+];
+const reversiblePath = resolve(
+  root,
+  "packages/storage/migrations/0006_advance_withdrawal.sql",
+);
+const reversibleSql =
+  reversibleStatements
+    .map((statement) => statement.replace(/;$/, ""))
+    .join(";\n--> statement-breakpoint\n") + ";\n";
+if (arguments_.includes("--check")) {
+  if ((await readFile(reversiblePath, "utf8")) !== reversibleSql)
+    throw new Error("Advance withdrawal migration stale");
+} else await writeFile(reversiblePath, reversibleSql);
 const output = await format(
-  `// Generated from ordered Kit migrations plus reviewed deferred constraints.\n// Reproduce: node --import tsx tools/migrations/prepare.ts\nexport const migrationStatements = ${JSON.stringify(statements)} as const;\nexport const migrations = [{version:1, id:"issue-02-initial", statements:migrationStatements}, {version:2, id:"issue-03-sound-task-credits", statements:${JSON.stringify(upgrades)}}, {version:3,id:"issue-04-accepting-command",statements:${JSON.stringify(finalStatements)}}, {version:4,id:"issue-06-canonical-ink",statements:${JSON.stringify(writingStatements)}}, {version:5,id:"issue-07-ink-editing",statements:${JSON.stringify(editingStatements)}}, {version:6,id:"issue-08-lesson-support",statements:${JSON.stringify(lessonStatements)}}] as const;\n`,
+  `// Generated from ordered Kit migrations plus reviewed deferred constraints.\n// Reproduce: node --import tsx tools/migrations/prepare.ts\nexport const migrationStatements = ${JSON.stringify(statements)} as const;\nexport const migrations = [{version:1, id:"issue-02-initial", statements:migrationStatements}, {version:2, id:"issue-03-sound-task-credits", statements:${JSON.stringify(upgrades)}}, {version:3,id:"issue-04-accepting-command",statements:${JSON.stringify(finalStatements)}}, {version:4,id:"issue-06-canonical-ink",statements:${JSON.stringify(writingStatements)}}, {version:5,id:"issue-07-ink-editing",statements:${JSON.stringify(editingStatements)}}, {version:6,id:"issue-08-lesson-support",statements:${JSON.stringify(lessonStatements)}}, {version:7,id:"issue-09-advance-withdrawal",statements:${JSON.stringify(reversibleStatements)}}] as const;\n`,
   { parser: "typescript" },
 );
 const path = resolve(root, "packages/storage/src/generated-migration.ts");

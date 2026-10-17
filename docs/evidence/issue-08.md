@@ -20,7 +20,7 @@ Migration 6 adds durable lesson credits, ordered supporting task-credit edges an
 
 The migration validates retained work and canonical ink inside the existing checksummed transaction. A bounded repair clears only an older closed terminal cursor that no longer owns Undo. It preserves that terminal result, the newer Undo pointer and every paused destination. Future terminal publication follows the same rule.
 
-## Verification completed so far
+## Verification
 
 All 219 Node tests pass. Strict TypeScript, generated-validator, migration-packaging, import-boundary and whole-project default formatting checks pass. The tests use real SQLite, actual Query observers and the controller boundary. They cover coherent receipt publication, exact saved destinations, supported lesson progress, history without editing authority, failed transactions, repeated control recovery, malformed acknowledgement rejection and input suspension.
 
@@ -38,4 +38,10 @@ The independent legacy-validator comparison passed 11,675 frozen positive payloa
 
 Root independently verified all 45 reviewed navigation mappings, exact existing Lesson 1 definitions, absence of later executable teaching, unchanged ten earlier package files and absence of private authoring paths from the new runtime artifact. All seven course content checks pass after the explicit printed-review artwork refinement.
 
-Full browser-suite results, independent PR reviews, final production verification and exact-head CI must be recorded on the PR before merge. Browser evidence uses Chromium and actual OPFS; physical stylus behavior, Safari, native devices and release distribution require their later qualification. Source-bearing authoring and runtime artifacts remain private, and publication inputs remain pending.
+[PR #42](https://github.com/hyetigran/read-at-three/pull/42) merged as `236d814` and issue #8 is closed. [CI run 39020684799](https://github.com/hyetigran/read-at-three/actions/runs/39020684799) passes at exact head `d02b90e`, including 219 Node tests, 79 development browser cases and 77 production browser cases. Two production skips cover explicitly development-only consumer checks. The job limit increased from 15 to 20 minutes after GitHub's annotation confirmed the earlier job deadline cancelled the final suite. No test or check was removed.
+
+The [independent production verdict](https://github.com/hyetigran/read-at-three/pull/42#issuecomment-6232128123) qualifies the application at `43217a3`. It covers all six Lesson 1 tasks, reviewed navigation, retained history, terminal Replay and exact selections, control recovery, pending ink, lifecycle fences and genuine V5 upgrade/restart through actual Chromium workers and OPFS. A separate fresh comparison qualifies the later CI-only commit. It verifies both original immutable production builds and a new isolated build. All 14 files match byte for byte, with no build-noise exceptions. The existing application verdict therefore carries forward. The merged tree exactly matches that final qualified head.
+
+Final two-axis review reports no documented standards violations and no actionable Spec findings. Two nonblocking P3 maintenance findings identify duplicated activity-art CSS declarations and an unused test-helper argument. The earlier P3 saved-run comparator duplication also remains acknowledged. These are retained maintenance judgments, not resolved defects. Actual behavior and durability checks pass.
+
+The independent runs use fresh local agents and pinned local tools. External cloud and cross-model services were unavailable. Browser evidence uses Chromium and actual OPFS; physical stylus behavior, Safari, native devices and release distribution require their later qualification. Source-bearing authoring and runtime artifacts remain private, and publication inputs remain pending.
