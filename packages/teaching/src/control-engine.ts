@@ -36,6 +36,22 @@ import type {
 } from "./types.ts";
 const normalFlow = { kind: "normal" } as const;
 const sourceDelivery = { kind: "source" } as const;
+function cycleSuccessor({
+  cycles,
+  delivery,
+  owed,
+}: {
+  cycles: readonly CycleBinding[];
+  delivery: Extract<ControlResume["delivery"], { kind: "cycle" }>;
+  owed: OccurrenceId;
+}): OccurrenceId {
+  const binding = required(
+    cycles.find((cycle) => cycle.id === delivery.cycleId),
+  );
+  const index = binding.turnOccurrenceIds.indexOf(owed);
+  if (index < 0) throw new Error("Cycle response binding unavailable");
+  return required(binding.turnOccurrenceIds[index + 1]);
+}
 function required<T>(value: T | undefined): T {
   if (value === undefined) throw new Error("Control binding unavailable");
   return value;
@@ -525,9 +541,11 @@ function validateCheckpointRoute({
   const expectedContext = ({
     currentOccurrence,
     flow,
+    delivery = sourceDelivery,
   }: {
     currentOccurrence: ControlOccurrence;
     flow: ControlFlow;
+    delivery?: ControlResume["delivery"];
   }): Exclude<ControlContext, { kind: "terminal" }> => {
     const node = nodeFor({ graph, currentOccurrence });
     if (node.kind === "selectiveReview")
@@ -541,7 +559,7 @@ function validateCheckpointRoute({
         flow,
         delivery: cycleBinding
           ? { kind: "cycle", cycleId: cycleBinding.id }
-          : sourceDelivery,
+          : delivery,
       },
     };
   };
@@ -598,6 +616,20 @@ function validateCheckpointRoute({
       }
       if (!accepted.has(cycleBinding.gateOccurrenceId)) return false;
       routeExit = policy.id;
+    }
+    if (!policy && delivery.kind === "cycle") {
+      const currentOccurrence = occurrence({
+        state,
+        id: cycleSuccessor({ cycles: state.cycles, delivery, owed: owed.id }),
+      });
+      return same({
+        a: next,
+        b: {
+          id: next.id,
+          occurrenceId: currentOccurrence.id,
+          context: expectedContext({ currentOccurrence, flow, delivery }),
+        } satisfies ControlCheckpoint,
+      });
     }
     if (flow.kind === "review") {
       const reviewQueue = queue({ state, id: flow.queueId }),
@@ -1353,6 +1385,16 @@ export function evaluateControls({
     }
     if (action.kind === "parentReady")
       throw new Error("Readiness unavailable here");
+    if (delivery.kind === "cycle") {
+      if (action.kind !== "continue")
+        throw new Error("Response action unavailable");
+      return enter({
+        currentOccurrence: byId(
+          cycleSuccessor({ cycles, delivery, owed: owed.id }),
+        ),
+        resume,
+      });
+    }
     if (flow.kind === "review") {
       const reviewQueue = queue({ state, id: flow.queueId }),
         item = required(reviewQueue.items[flow.index]);
