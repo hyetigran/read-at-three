@@ -97,7 +97,12 @@ export async function storageFixture(
     );
     if (!action) throw new Error(`No ${kind} at ${projection.kind}`);
     return app.dispatch(
-      await prepareCommand({ projection, action, ids, hash }),
+      await prepareCommand({
+        projection,
+        request: { kind: "action", action },
+        ids,
+        hash,
+      }),
     );
   }
   return { content, connect, ids, act };

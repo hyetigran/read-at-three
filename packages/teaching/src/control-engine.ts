@@ -6,7 +6,10 @@ import {
   parseCounter,
   parseId,
 } from "./content.ts";
-import type { CompiledControlTask } from "./control-content.ts";
+import {
+  canonicalReviewChoice,
+  type CompiledControlTask,
+} from "./control-content.ts";
 import type {
   AvailableAction,
   CompletionProof,
@@ -18,12 +21,13 @@ import type {
   ControlResume,
   ControlTeachingState,
   CycleBinding,
+  CycleId,
   DevelopmentPackage,
   EngineProjection,
   GraphAction,
   NodeId,
   OccurrenceId,
-  ReviewChoice,
+  QueueId,
   ReviewQueue,
   TaskId,
   TransitionPlan,
@@ -38,19 +42,25 @@ function required<T>(
   if (value === undefined) throw new Error(message);
   return value;
 }
-export function controlCheckpoint(s: ControlTeachingState): ControlCheckpoint {
-  return required(s.checkpoints[s.checkpointIndex]);
+export function controlCheckpoint(
+  state: ControlTeachingState,
+): ControlCheckpoint {
+  return required(state.checkpoints[state.checkpointIndex]);
 }
-function occurrence(s: ControlTeachingState, id: OccurrenceId) {
-  return required(s.occurrences.find((o) => o.id === id));
+function occurrence(state: ControlTeachingState, id: OccurrenceId) {
+  return required(state.occurrences.find((o) => o.id === id));
 }
-function nodeFor(g: CompiledControlTask, o: ControlOccurrence): ControlNode {
-  if (o.target.kind !== "node") throw new Error("Not a source occurrence");
-  return required(g.nodes.get(o.target.nodeId));
+function nodeFor(
+  graph: CompiledControlTask,
+  currentOccurrence: ControlOccurrence,
+): ControlNode {
+  if (currentOccurrence.target.kind !== "node")
+    throw new Error("Not a source occurrence");
+  return required(graph.nodes.get(currentOccurrence.target.nodeId));
 }
-function normalOccurrence(s: ControlTeachingState, id: NodeId) {
+function normalOccurrence(state: ControlTeachingState, id: NodeId) {
   return required(
-    s.occurrences.find(
+    state.occurrences.find(
       (o) =>
         o.obligation === "required" &&
         o.target.kind === "node" &&
@@ -58,41 +68,41 @@ function normalOccurrence(s: ControlTeachingState, id: NodeId) {
     ),
   );
 }
-function queue(s: ControlTeachingState, id: string) {
-  return required(s.queues.find((q) => q.id === id));
+function queue(state: ControlTeachingState, id: QueueId) {
+  return required(state.queues.find((q) => q.id === id));
 }
-function cycle(s: ControlTeachingState, id: string) {
-  return required(s.cycles.find((c) => c.id === id));
+function cycle(state: ControlTeachingState, id: CycleId) {
+  return required(state.cycles.find((c) => c.id === id));
 }
 function policyAfter(
-  g: CompiledControlTask,
+  graph: CompiledControlTask,
   node: ControlNode,
 ): UntilFirmNode | undefined {
   if (node.kind !== "turn" || node.next.kind !== "node") return;
-  const next = g.nodes.get(node.next.nodeId);
+  const next = graph.nodes.get(node.next.nodeId);
   return next?.kind === "untilFirm" ? next : undefined;
 }
 function initialCycles(
-  g: CompiledControlTask,
+  graph: CompiledControlTask,
   occurrences: readonly ControlOccurrence[],
 ): CycleBinding[] {
-  return [...g.policies.values()]
+  return [...graph.policies.values()]
     .filter((p) =>
       occurrences.some(
         (o) => o.target.kind === "node" && o.target.nodeId === p.id,
       ),
     )
-    .map((p) => {
+    .map((policy) => {
       const gate = required(
         occurrences.find(
-          (o) => o.target.kind === "node" && o.target.nodeId === p.id,
+          (o) => o.target.kind === "node" && o.target.nodeId === policy.id,
         ),
       );
       return {
         id: parseId({ kind: "cycle", value: `cycle-${gate.id}` }),
-        policyId: p.policyId,
+        policyId: policy.policyId,
         gateOccurrenceId: gate.id,
-        turnOccurrenceIds: required(g.cycleRoutes.get(p.policyId)).map(
+        turnOccurrenceIds: required(graph.cycleRoutes.get(policy.policyId)).map(
           (id) =>
             required(
               occurrences.find(
@@ -107,17 +117,17 @@ export function initialControlState(
   content: DevelopmentPackage,
   taskId: TaskId,
 ): ControlTeachingState {
-  const g = controlTask(content, taskId);
-  const occurrences = g.normalNodeIds.map((id, i): ControlOccurrence => ({
+  const graph = controlTask(content, taskId);
+  const occurrences = graph.normalNodeIds.map((id, i): ControlOccurrence => ({
     id: parseId({ kind: "occurrence", value: `occurrence-${i + 1}` }),
     target: { kind: "node", nodeId: id },
     obligation: "required",
   }));
   const first = required(occurrences[0]);
-  const cycles = initialCycles(g, occurrences);
-  const c = cycles.find((c) => c.turnOccurrenceIds[0] === first.id);
-  const n = nodeFor(g, first);
-  if (n.kind !== "turn" && n.kind !== "selectiveReview")
+  const cycles = initialCycles(graph, occurrences);
+  const cycleBinding = cycles.find((c) => c.turnOccurrenceIds[0] === first.id);
+  const node = nodeFor(graph, first);
+  if (node.kind !== "turn" && node.kind !== "selectiveReview")
     throw new Error("Task must start with source turn or selection");
   return deepFreeze({
     version: 1,
@@ -133,14 +143,14 @@ export function initialControlState(
         id: parseId({ kind: "checkpoint", value: "checkpoint-1" }),
         occurrenceId: first.id,
         context:
-          n.kind === "selectiveReview"
-            ? { kind: "selection", reviewId: n.reviewId }
+          node.kind === "selectiveReview"
+            ? { kind: "selection", reviewId: node.reviewId }
             : {
                 kind: "delivering",
                 resume: {
                   flow: normalFlow,
-                  delivery: c
-                    ? { kind: "cycle", cycleId: c.id }
+                  delivery: cycleBinding
+                    ? { kind: "cycle", cycleId: cycleBinding.id }
                     : sourceDelivery,
                 },
               },
@@ -151,175 +161,170 @@ export function initialControlState(
     nextCheckpointNumber: parseCounter("2"),
   });
 }
-export function canonicalReviewChoice(
-  g: CompiledControlTask,
-  reviewId: string,
-  choice: ReviewChoice,
-): ReviewChoice {
-  const r = required(g.reviews.find((r) => r.reviewId === reviewId));
-  if (choice.kind === "none") return choice;
-  if (
-    choice.itemIds.length === 0 ||
-    new Set(choice.itemIds).size !== choice.itemIds.length ||
-    choice.itemIds.some((id) => !r.items.some((i) => i.itemId === id))
-  )
-    throw new Error("Invalid complete review choice");
-  return {
-    kind: "items",
-    itemIds: r.items
-      .filter((i) => choice.itemIds.includes(i.itemId))
-      .map((i) => i.itemId),
-  };
-}
 export function validateControlPosition(
   content: DevelopmentPackage,
-  s: ControlTeachingState,
+  state: ControlTeachingState,
   taskId?: TaskId,
 ): void {
-  if (taskId !== undefined && s.taskId !== taskId)
+  if (taskId !== undefined && state.taskId !== taskId)
     throw new Error("Control task changed");
-  const g = controlTask(content, s.taskId),
-    initial = initialControlState(content, s.taskId);
+  const graph = controlTask(content, state.taskId),
+    initial = initialControlState(content, state.taskId);
   if (
-    s.occurrences.length >= 10000 ||
-    s.nextOccurrenceNumber !== String(s.occurrences.length + 1) ||
-    canonical(s.occurrences.slice(0, initial.occurrences.length)) !==
+    state.occurrences.length >= 10000 ||
+    state.nextOccurrenceNumber !== String(state.occurrences.length + 1) ||
+    canonical(state.occurrences.slice(0, initial.occurrences.length)) !==
       canonical(initial.occurrences)
   )
     throw new Error("Control occurrence registry changed");
-  for (const [i, o] of s.occurrences.entries()) {
-    if (o.id !== `occurrence-${i + 1}`)
+  for (const [i, currentOccurrence] of state.occurrences.entries()) {
+    if (currentOccurrence.id !== `occurrence-${i + 1}`)
       throw new Error("Control occurrence identity invalid");
-    if (o.target.kind === "node") {
-      const n = g.nodes.get(o.target.nodeId);
+    if (currentOccurrence.target.kind === "node") {
+      const node = graph.nodes.get(currentOccurrence.target.nodeId);
       if (
-        !n ||
-        (o.obligation !== "support" &&
-          n.kind === "turn" &&
-          n.route === "support") ||
+        !node ||
+        (currentOccurrence.obligation !== "support" &&
+          node.kind === "turn" &&
+          node.route === "support") ||
         (i >= initial.occurrences.length &&
-          o.obligation === "required" &&
-          !s.queues.some((q) =>
-            q.items.some((item) => item.routeOccurrences.includes(o.id)),
+          currentOccurrence.obligation === "required" &&
+          !state.queues.some((q) =>
+            q.items.some((item) =>
+              item.routeOccurrences.includes(currentOccurrence.id),
+            ),
           ))
       )
         throw new Error("Control occurrence target invalid");
     } else {
-      const q = queue(s, o.target.queueId),
-        item = o.target.itemId;
+      const reviewQueue = queue(state, currentOccurrence.target.queueId),
+        item = currentOccurrence.target.itemId;
       if (
-        o.obligation !== "required" ||
-        !q.items.some(
-          (i) => i.itemId === item && i.confirmationOccurrenceId === o.id,
+        currentOccurrence.obligation !== "required" ||
+        !reviewQueue.items.some(
+          (i) =>
+            i.itemId === item &&
+            i.confirmationOccurrenceId === currentOccurrence.id,
         )
       )
         throw new Error("Review confirmation binding invalid");
     }
   }
-  const accepted = new Set(s.acceptedOccurrenceIds);
+  const accepted = new Set(state.acceptedOccurrenceIds);
   if (
-    accepted.size !== s.acceptedOccurrenceIds.length ||
-    s.acceptedOccurrenceIds.some(
-      (id) => !s.occurrences.some((o) => o.id === id),
+    accepted.size !== state.acceptedOccurrenceIds.length ||
+    state.acceptedOccurrenceIds.some(
+      (id) => !state.occurrences.some((o) => o.id === id),
     )
   )
     throw new Error("Invalid control acceptance membership");
   if (
-    canonical(s.cycles.slice(0, initial.cycles.length)) !==
+    canonical(state.cycles.slice(0, initial.cycles.length)) !==
       canonical(initial.cycles) ||
-    new Set(s.cycles.map((c) => c.id)).size !== s.cycles.length
+    new Set(state.cycles.map((c) => c.id)).size !== state.cycles.length
   )
     throw new Error("Cycle registry changed");
   const cycleTurns = new Set<OccurrenceId>();
-  for (const c of s.cycles) {
-    const p = required(g.policies.get(c.policyId)),
-      ids = required(g.cycleRoutes.get(p.policyId));
+  for (const cycleBinding of state.cycles) {
+    const policy = required(graph.policies.get(cycleBinding.policyId)),
+      ids = required(graph.cycleRoutes.get(policy.policyId));
     if (
-      c.turnOccurrenceIds.length !== ids.length ||
-      nodeFor(g, occurrence(s, c.gateOccurrenceId)).id !== p.id ||
-      (c.id !== `cycle-${c.gateOccurrenceId}` &&
-        c.id !== `cycle-${c.turnOccurrenceIds[0]}`)
+      cycleBinding.turnOccurrenceIds.length !== ids.length ||
+      nodeFor(graph, occurrence(state, cycleBinding.gateOccurrenceId)).id !==
+        policy.id ||
+      (cycleBinding.id !== `cycle-${cycleBinding.gateOccurrenceId}` &&
+        cycleBinding.id !== `cycle-${cycleBinding.turnOccurrenceIds[0]}`)
     )
       throw new Error("Cycle policy binding invalid");
-    c.turnOccurrenceIds.forEach((id, i) => {
-      if (cycleTurns.has(id) || nodeFor(g, occurrence(s, id)).id !== ids[i])
+    cycleBinding.turnOccurrenceIds.forEach((id, i) => {
+      if (
+        cycleTurns.has(id) ||
+        nodeFor(graph, occurrence(state, id)).id !== ids[i]
+      )
         throw new Error("Cycle turns changed");
       cycleTurns.add(id);
     });
   }
   if (
-    new Set(s.cycleOutcomes.map((o) => o.cycleId)).size !==
-    s.cycleOutcomes.length
+    new Set(state.cycleOutcomes.map((o) => o.cycleId)).size !==
+    state.cycleOutcomes.length
   )
     throw new Error("Duplicate cycle outcome");
-  for (const outcome of s.cycleOutcomes) {
-    const c = cycle(s, outcome.cycleId);
+  for (const outcome of state.cycleOutcomes) {
+    const cycleBinding = cycle(state, outcome.cycleId);
     if (
-      c.turnOccurrenceIds.some((id) => !accepted.has(id)) ||
+      cycleBinding.turnOccurrenceIds.some((id) => !accepted.has(id)) ||
       (outcome.kind === "independent" &&
-        c.turnOccurrenceIds.some(
-          (id) => occurrence(s, id).obligation === "support",
+        cycleBinding.turnOccurrenceIds.some(
+          (id) => occurrence(state, id).obligation === "support",
         ))
     )
       throw new Error(
         "Cycle outcome has unfinished response or false independence",
       );
   }
-  for (const p of g.policies.values())
-    for (const o of s.occurrences.filter(
-      (o) => o.target.kind === "node" && o.target.nodeId === p.id,
+  for (const policy of graph.policies.values())
+    for (const currentOccurrence of state.occurrences.filter(
+      (o) => o.target.kind === "node" && o.target.nodeId === policy.id,
     ))
       if (
-        accepted.has(o.id) &&
-        !s.cycles.some(
+        accepted.has(currentOccurrence.id) &&
+        !state.cycles.some(
           (c) =>
-            c.gateOccurrenceId === o.id &&
-            s.cycleOutcomes.some((outcome) => outcome.cycleId === c.id),
+            c.gateOccurrenceId === currentOccurrence.id &&
+            state.cycleOutcomes.some((outcome) => outcome.cycleId === c.id),
         )
       )
         throw new Error("Readiness has no completed current cycle");
   if (
-    new Set(s.queues.map((q) => q.id)).size !== s.queues.length ||
-    new Set(s.queues.map((q) => q.selectionOccurrenceId)).size !==
-      s.queues.length
+    new Set(state.queues.map((q) => q.id)).size !== state.queues.length ||
+    new Set(state.queues.map((q) => q.selectionOccurrenceId)).size !==
+      state.queues.length
   )
     throw new Error("Duplicate immutable queue");
-  for (const q of s.queues) {
-    const r = required(g.reviews.find((r) => r.reviewId === q.reviewId));
+  for (const reviewQueue of state.queues) {
+    const review = required(
+      graph.reviews.find((r) => r.reviewId === reviewQueue.reviewId),
+    );
     if (
-      q.id !== `queue-${q.selectionOccurrenceId}` ||
-      nodeFor(g, occurrence(s, q.selectionOccurrenceId)).id !== r.id ||
-      !accepted.has(q.selectionOccurrenceId) ||
-      q.returnNodeId !== r.returnNodeId ||
-      q.exitNodeId !== r.exitNodeId ||
-      q.exitOccurrenceId !== normalOccurrence(s, r.exitNodeId).id ||
-      canonical(q.choice) !==
-        canonical(canonicalReviewChoice(g, r.reviewId, q.choice))
+      reviewQueue.id !== `queue-${reviewQueue.selectionOccurrenceId}` ||
+      nodeFor(graph, occurrence(state, reviewQueue.selectionOccurrenceId))
+        .id !== review.id ||
+      !accepted.has(reviewQueue.selectionOccurrenceId) ||
+      reviewQueue.returnNodeId !== review.returnNodeId ||
+      reviewQueue.exitNodeId !== review.exitNodeId ||
+      reviewQueue.exitOccurrenceId !==
+        normalOccurrence(state, review.exitNodeId).id ||
+      canonical(reviewQueue.choice) !==
+        canonical(canonicalReviewChoice(review.items, reviewQueue.choice))
     )
       throw new Error("Immutable review queue invalid");
-    const selected = q.choice.kind === "none" ? [] : q.choice.itemIds;
-    if (canonical(q.items.map((i) => i.itemId)) !== canonical(selected))
+    const selected =
+      reviewQueue.choice.kind === "none" ? [] : reviewQueue.choice.itemIds;
+    if (
+      canonical(reviewQueue.items.map((i) => i.itemId)) !== canonical(selected)
+    )
       throw new Error("Review selected order changed");
     const bound = new Set<OccurrenceId>();
-    for (const item of q.items) {
-      const route = required(g.itemRoutes.get(item.itemId));
+    for (const item of reviewQueue.items) {
+      const route = required(graph.itemRoutes.get(item.itemId));
       if (item.routeOccurrences.length !== route.length)
         throw new Error("Review route incomplete");
       item.routeOccurrences.forEach((id, i) => {
-        const o = occurrence(s, id);
+        const o = occurrence(state, id);
         if (
           bound.has(id) ||
           initial.occurrences.some((n) => n.id === id) ||
           o.obligation !== "required" ||
-          nodeFor(g, o).id !== route[i]
+          nodeFor(graph, o).id !== route[i]
         )
           throw new Error("Review route binding changed");
         bound.add(id);
       });
-      const confirm = occurrence(s, item.confirmationOccurrenceId);
+      const confirm = occurrence(state, item.confirmationOccurrenceId);
       if (
         confirm.target.kind !== "reviewConfirmation" ||
-        confirm.target.queueId !== q.id ||
+        confirm.target.queueId !== reviewQueue.id ||
         confirm.target.itemId !== item.itemId
       )
         throw new Error("Review item confirmation invalid");
@@ -330,77 +335,84 @@ export function validateControlPosition(
         throw new Error("Review item confirmed before source obligations");
     }
     if (
-      accepted.has(q.exitOccurrenceId) &&
-      q.items.some((i) => !accepted.has(i.confirmationOccurrenceId))
+      accepted.has(reviewQueue.exitOccurrenceId) &&
+      reviewQueue.items.some((i) => !accepted.has(i.confirmationOccurrenceId))
     )
       throw new Error("Review exited before confirmations");
   }
   if (
-    s.checkpoints.length === 0 ||
-    s.checkpoints.length >= 10000 ||
-    !Number.isInteger(s.checkpointIndex) ||
-    s.checkpointIndex < 0 ||
-    s.checkpointIndex >= s.checkpoints.length
+    state.checkpoints.length === 0 ||
+    state.checkpoints.length >= 10000 ||
+    !Number.isInteger(state.checkpointIndex) ||
+    state.checkpointIndex < 0 ||
+    state.checkpointIndex >= state.checkpoints.length
   )
     throw new Error("Control checkpoint cursor invalid");
   let prior = 0n;
-  for (const [index, cp] of s.checkpoints.entries()) {
-    const number = /^checkpoint-([1-9][0-9]*)$/.exec(cp.id)?.[1];
+  for (const [index, checkpoint] of state.checkpoints.entries()) {
+    const number = /^checkpoint-([1-9][0-9]*)$/.exec(checkpoint.id)?.[1];
     if (
       !number ||
       BigInt(number) <= prior ||
-      BigInt(number) >= BigInt(s.nextCheckpointNumber)
+      BigInt(number) >= BigInt(state.nextCheckpointNumber)
     )
       throw new Error("Control checkpoint identity invalid");
     prior = BigInt(number);
-    if (cp.context.kind === "terminal") {
-      if (cp.occurrenceId !== null || !controlCompletionProof(content, s))
+    if (checkpoint.context.kind === "terminal") {
+      if (
+        checkpoint.occurrenceId !== null ||
+        !controlCompletionProof(content, state)
+      )
         throw new Error("Unproved control terminal");
       continue;
     }
-    const current = occurrence(s, required(cp.occurrenceId ?? undefined)),
-      n = nodeFor(g, current),
-      context = cp.context;
+    const current = occurrence(
+        state,
+        required(checkpoint.occurrenceId ?? undefined),
+      ),
+      node = nodeFor(graph, current),
+      context = checkpoint.context;
     if (context.kind === "selection") {
-      if (n.kind !== "selectiveReview" || n.reviewId !== context.reviewId)
+      if (node.kind !== "selectiveReview" || node.reviewId !== context.reviewId)
         throw new Error("Selection checkpoint invalid");
       continue;
     }
-    if (n.kind !== "turn") throw new Error("Control delivery is not a turn");
+    if (node.kind !== "turn") throw new Error("Control delivery is not a turn");
     const resume =
       context.kind === "correction" ? context.suspended : context.resume;
     if (resume.flow.kind === "review") {
-      const f = resume.flow;
-      const q = queue(s, f.queueId);
-      if (!q.items[f.index]) throw new Error("Review cursor invalid");
+      const flow = resume.flow;
+      const reviewQueue = queue(state, flow.queueId);
+      if (!reviewQueue.items[flow.index])
+        throw new Error("Review cursor invalid");
     }
     if (resume.delivery.kind === "cycle") {
-      const c = cycle(s, resume.delivery.cycleId);
+      const cycleBinding = cycle(state, resume.delivery.cycleId);
       const owed =
         context.kind === "correction" ? context.owedOccurrenceId : current.id;
-      if (!c.turnOccurrenceIds.includes(owed))
+      if (!cycleBinding.turnOccurrenceIds.includes(owed))
         throw new Error("Cycle checkpoint binding invalid");
     }
     if (resume.delivery.kind === "repeat") {
       const target = resume.delivery.returnCheckpointId;
-      const back = s.checkpoints.findIndex((c) => c.id === target);
+      const back = state.checkpoints.findIndex((c) => c.id === target);
       if (back < 0 || back >= index) throw new Error("Practice return invalid");
     }
     if (context.kind === "correction") {
-      const spec = required(
-        g.task.corrections.find((c) => c.id === context.correctionId),
+      const correctionSpec = required(
+        graph.task.corrections.find((c) => c.id === context.correctionId),
       );
-      const owed = occurrence(s, context.owedOccurrenceId),
-        trigger = occurrence(s, context.triggerOccurrenceId);
+      const owed = occurrence(state, context.owedOccurrenceId),
+        trigger = occurrence(state, context.triggerOccurrenceId);
       if (
-        !spec.eligibleNodeIds.includes(nodeFor(g, trigger).id) ||
-        nodeFor(g, owed).kind !== "turn"
+        !correctionSpec.eligibleNodeIds.includes(nodeFor(graph, trigger).id) ||
+        nodeFor(graph, owed).kind !== "turn"
       )
         throw new Error("Correction owed response invalid");
       const route =
         context.phase.kind === "instruction"
-          ? spec.instructionNodeIds
-          : spec.retestNodeIds;
+          ? correctionSpec.instructionNodeIds
+          : correctionSpec.retestNodeIds;
       const bindings =
         context.phase.kind === "instruction"
           ? context.instructionOccurrenceIds
@@ -409,173 +421,207 @@ export function validateControlPosition(
         bindings.length !== route.length ||
         bindings.some(
           (id, i) =>
-            nodeFor(g, occurrence(s, id)).id !== route[i] ||
-            occurrence(s, id).obligation !== "support",
+            nodeFor(graph, occurrence(state, id)).id !== route[i] ||
+            occurrence(state, id).obligation !== "support",
         ) ||
-        route[context.phase.index] !== n.id ||
+        route[context.phase.index] !== node.id ||
         bindings[context.phase.index] !== current.id ||
         current.obligation !== "support"
       )
         throw new Error("Correction route cursor invalid");
-    } else if (n.route !== "normal" || current.obligation === "support")
+    } else if (node.route !== "normal" || current.obligation === "support")
       throw new Error("Normal control turn invalid");
   }
-  validateCheckpointRoute(g, s);
+  validateCheckpointRoute(graph, state);
 }
 function validateCheckpointRoute(
-  g: CompiledControlTask,
-  s: ControlTeachingState,
+  graph: CompiledControlTask,
+  state: ControlTeachingState,
 ): void {
-  const accepted = new Set(s.acceptedOccurrenceIds);
+  const accepted = new Set(state.acceptedOccurrenceIds);
   const same = (a: unknown, b: unknown) => canonical(a) === canonical(b);
-  const get = (cp: ControlCheckpoint) =>
-    cp.occurrenceId === null ? null : occurrence(s, cp.occurrenceId);
+  const get = (checkpoint: ControlCheckpoint) =>
+    checkpoint.occurrenceId === null
+      ? null
+      : occurrence(state, checkpoint.occurrenceId);
   const expectedContext = (
-    o: ControlOccurrence,
+    currentOccurrence: ControlOccurrence,
     flow: ControlFlow,
   ): ControlContext => {
-    const n = nodeFor(g, o);
-    if (n.kind === "selectiveReview")
-      return { kind: "selection", reviewId: n.reviewId };
-    const c = s.cycles.find((c) => c.turnOccurrenceIds[0] === o.id);
+    const node = nodeFor(graph, currentOccurrence);
+    if (node.kind === "selectiveReview")
+      return { kind: "selection", reviewId: node.reviewId };
+    const cycleBinding = state.cycles.find(
+      (c) => c.turnOccurrenceIds[0] === currentOccurrence.id,
+    );
     return {
       kind: "delivering",
       resume: {
         flow,
-        delivery: c ? { kind: "cycle", cycleId: c.id } : sourceDelivery,
+        delivery: cycleBinding
+          ? { kind: "cycle", cycleId: cycleBinding.id }
+          : sourceDelivery,
       },
     };
   };
   const binding = (nodeId: NodeId, flow: ControlFlow) => {
-    if (flow.kind === "normal") return normalOccurrence(s, nodeId);
-    const item = required(queue(s, flow.queueId).items[flow.index]);
+    if (flow.kind === "normal") return normalOccurrence(state, nodeId);
+    const item = required(queue(state, flow.queueId).items[flow.index]);
     return required(
       item.routeOccurrences
-        .map((id) => occurrence(s, id))
+        .map((id) => occurrence(state, id))
         .find((o) => o.target.kind === "node" && o.target.nodeId === nodeId),
     );
   };
   const matches = (
     next: ControlCheckpoint,
-    o: ControlOccurrence | null,
+    currentOccurrence: ControlOccurrence | null,
     context: ControlContext,
-  ) => next.occurrenceId === (o?.id ?? null) && same(next.context, context);
+  ) =>
+    next.occurrenceId === (currentOccurrence?.id ?? null) &&
+    same(next.context, context);
   const following = (
     next: ControlCheckpoint,
     owed: ControlOccurrence,
     resume: ControlResume,
   ): boolean => {
-    const n = nodeFor(g, owed);
-    if (n.kind !== "turn" || !accepted.has(owed.id)) return false;
-    const d = resume.delivery,
-      f = resume.flow;
-    if (d.kind === "repeat") {
+    const node = nodeFor(graph, owed);
+    if (node.kind !== "turn" || !accepted.has(owed.id)) return false;
+    const delivery = resume.delivery,
+      flow = resume.flow;
+    if (delivery.kind === "repeat") {
       const back = required(
-        s.checkpoints.find((cp) => cp.id === d.returnCheckpointId),
+        state.checkpoints.find((cp) => cp.id === delivery.returnCheckpointId),
       );
       return matches(next, get(back), back.context);
     }
-    const p = policyAfter(g, n);
-    let routeExit: NodeId = n.id;
-    if (p) {
-      if (d.kind !== "cycle") return false;
-      const c = cycle(s, d.cycleId);
-      if (!s.cycleOutcomes.some((o) => o.cycleId === c.id)) return false;
+    const policy = policyAfter(graph, node);
+    let routeExit: NodeId = node.id;
+    if (policy) {
+      if (delivery.kind !== "cycle") return false;
+      const cycleBinding = cycle(state, delivery.cycleId);
+      if (!state.cycleOutcomes.some((o) => o.cycleId === cycleBinding.id))
+        return false;
       if (
         next.context.kind === "delivering" &&
         next.context.resume.delivery.kind === "cycle"
       ) {
-        const fresh = cycle(s, next.context.resume.delivery.cycleId);
+        const nextCycle = cycle(state, next.context.resume.delivery.cycleId);
         if (
-          fresh.id !== c.id &&
-          fresh.gateOccurrenceId === c.gateOccurrenceId &&
-          same(next.context.resume.flow, f) &&
-          next.occurrenceId === fresh.turnOccurrenceIds[0]
+          nextCycle.id !== cycleBinding.id &&
+          nextCycle.gateOccurrenceId === cycleBinding.gateOccurrenceId &&
+          same(next.context.resume.flow, flow) &&
+          next.occurrenceId === nextCycle.turnOccurrenceIds[0]
         )
           return true;
       }
-      if (!accepted.has(c.gateOccurrenceId)) return false;
-      routeExit = p.id;
+      if (!accepted.has(cycleBinding.gateOccurrenceId)) return false;
+      routeExit = policy.id;
     }
-    if (f.kind === "review") {
-      const q = queue(s, f.queueId),
-        item = required(q.items[f.index]);
+    if (flow.kind === "review") {
+      const reviewQueue = queue(state, flow.queueId),
+        item = required(reviewQueue.items[flow.index]);
       const exit = required(item.routeOccurrences.at(-1));
-      if (nodeFor(g, occurrence(s, exit)).id === routeExit) {
+      if (nodeFor(graph, occurrence(state, exit)).id === routeExit) {
         if (!accepted.has(item.confirmationOccurrenceId)) return false;
-        const following = q.items[f.index + 1];
+        const following = reviewQueue.items[flow.index + 1];
         if (following) {
-          const o = occurrence(s, required(following.routeOccurrences[0]));
+          const currentOccurrence = occurrence(
+            state,
+            required(following.routeOccurrences[0]),
+          );
           return matches(
             next,
-            o,
-            expectedContext(o, { ...f, index: f.index + 1 }),
+            currentOccurrence,
+            expectedContext(currentOccurrence, {
+              ...flow,
+              index: flow.index + 1,
+            }),
           );
         }
-        if (!accepted.has(q.exitOccurrenceId)) return false;
-        const end = required(g.nodes.get(q.exitNodeId));
+        if (!accepted.has(reviewQueue.exitOccurrenceId)) return false;
+        const end = required(graph.nodes.get(reviewQueue.exitNodeId));
         if (end.kind !== "reviewExit") return false;
         if (end.next.kind === "end")
           return matches(next, null, { kind: "terminal" });
-        const o = normalOccurrence(s, end.next.nodeId);
-        return matches(next, o, expectedContext(o, normalFlow));
+        const currentOccurrence = normalOccurrence(state, end.next.nodeId);
+        return matches(
+          next,
+          currentOccurrence,
+          expectedContext(currentOccurrence, normalFlow),
+        );
       }
     }
-    const end = required(g.nodes.get(routeExit));
+    const end = required(graph.nodes.get(routeExit));
     if (end.kind === "selectiveReview") return false;
     if (end.next.kind === "end")
       return matches(next, null, { kind: "terminal" });
-    const o = binding(end.next.nodeId, f);
-    return matches(next, o, expectedContext(o, f));
+    const currentOccurrence = binding(end.next.nodeId, flow);
+    return matches(
+      next,
+      currentOccurrence,
+      expectedContext(currentOccurrence, flow),
+    );
   };
-  const initial = initialControlCheckpoint(g, s);
-  if (!same(s.checkpoints[0], initial))
+  const initial = initialControlCheckpoint(graph, state);
+  if (!same(state.checkpoints[0], initial))
     throw new Error("Control checkpoint entry changed");
-  for (let i = 1; i < s.checkpoints.length; i++) {
-    const previous = required(s.checkpoints[i - 1]),
-      next = required(s.checkpoints[i]),
+  for (let i = 1; i < state.checkpoints.length; i++) {
+    const previous = required(state.checkpoints[i - 1]),
+      next = required(state.checkpoints[i]),
       current = get(previous),
       target = get(next),
-      old = previous.context,
-      fresh = next.context;
+      previousContext = previous.context,
+      nextContext = next.context;
     if (!current)
       throw new Error("Control terminal cannot start another route");
     if (
-      fresh.kind === "correction" &&
-      fresh.phase.kind === "instruction" &&
-      fresh.phase.index === 0
+      nextContext.kind === "correction" &&
+      nextContext.phase.kind === "instruction" &&
+      nextContext.phase.index === 0
     ) {
-      if (old.kind !== "delivering" && old.kind !== "correction")
+      if (
+        previousContext.kind !== "delivering" &&
+        previousContext.kind !== "correction"
+      )
         throw new Error("Correction suspension is unavailable");
       const owed =
-          old.kind === "correction" ? old.owedOccurrenceId : current.id,
-        suspended = old.kind === "correction" ? old.suspended : old.resume;
-      const spec = required(
-        g.task.corrections.find((c) => c.id === fresh.correctionId),
+          previousContext.kind === "correction"
+            ? previousContext.owedOccurrenceId
+            : current.id,
+        suspended =
+          previousContext.kind === "correction"
+            ? previousContext.suspended
+            : previousContext.resume;
+      const correctionSpec = required(
+        graph.task.corrections.find((c) => c.id === nextContext.correctionId),
       );
       if (
-        fresh.owedOccurrenceId !== owed ||
-        fresh.triggerOccurrenceId !== owed ||
-        !same(fresh.suspended, suspended) ||
-        !spec.eligibleNodeIds.includes(nodeFor(g, occurrence(s, owed)).id) ||
-        (spec.scope !== "any" && spec.scope !== suspended.flow.kind)
+        nextContext.owedOccurrenceId !== owed ||
+        nextContext.triggerOccurrenceId !== owed ||
+        !same(nextContext.suspended, suspended) ||
+        !correctionSpec.eligibleNodeIds.includes(
+          nodeFor(graph, occurrence(state, owed)).id,
+        ) ||
+        (correctionSpec.scope !== "any" &&
+          correctionSpec.scope !== suspended.flow.kind)
       )
         throw new Error("Correction rewrote suspended teaching");
       continue;
     }
     if (
-      fresh.kind === "delivering" &&
-      fresh.resume.delivery.kind === "repeat"
+      nextContext.kind === "delivering" &&
+      nextContext.resume.delivery.kind === "repeat"
     ) {
       if (
-        old.kind !== "delivering" ||
+        previousContext.kind !== "delivering" ||
         !target ||
-        nodeFor(g, target).id !== nodeFor(g, current).id ||
+        nodeFor(graph, target).id !== nodeFor(graph, current).id ||
         target.obligation !== "practice" ||
-        !same(fresh.resume.flow, old.resume.flow) ||
-        fresh.resume.delivery.returnCheckpointId !==
-          (old.resume.delivery.kind === "repeat"
-            ? old.resume.delivery.returnCheckpointId
+        !same(nextContext.resume.flow, previousContext.resume.flow) ||
+        nextContext.resume.delivery.returnCheckpointId !==
+          (previousContext.resume.delivery.kind === "repeat"
+            ? previousContext.resume.delivery.returnCheckpointId
             : previous.id)
       )
         throw new Error("Practice redirected its return");
@@ -583,23 +629,30 @@ function validateCheckpointRoute(
     }
     if (!accepted.has(current.id))
       throw new Error("Control checkpoint skipped an unaccepted turn");
-    if (old.kind === "selection") {
-      const q = required(
-          s.queues.find((q) => q.selectionOccurrenceId === current.id),
+    if (previousContext.kind === "selection") {
+      const reviewQueue = required(
+          state.queues.find((q) => q.selectionOccurrenceId === current.id),
         ),
-        first = q.items[0];
+        first = reviewQueue.items[0];
       if (first) {
-        const o = occurrence(s, required(first.routeOccurrences[0]));
+        const currentOccurrence = occurrence(
+          state,
+          required(first.routeOccurrences[0]),
+        );
         if (
           matches(
             next,
-            o,
-            expectedContext(o, { kind: "review", queueId: q.id, index: 0 }),
+            currentOccurrence,
+            expectedContext(currentOccurrence, {
+              kind: "review",
+              queueId: reviewQueue.id,
+              index: 0,
+            }),
           )
         )
           continue;
-      } else if (accepted.has(q.exitOccurrenceId)) {
-        const exit = required(g.nodes.get(q.exitNodeId));
+      } else if (accepted.has(reviewQueue.exitOccurrenceId)) {
+        const exit = required(graph.nodes.get(reviewQueue.exitNodeId));
         if (exit.kind !== "reviewExit") throw new Error("Review exit changed");
         if (
           exit.next.kind === "end" &&
@@ -607,80 +660,106 @@ function validateCheckpointRoute(
         )
           continue;
         if (exit.next.kind === "node") {
-          const o = normalOccurrence(s, exit.next.nodeId);
-          if (matches(next, o, expectedContext(o, normalFlow))) continue;
+          const currentOccurrence = normalOccurrence(state, exit.next.nodeId);
+          if (
+            matches(
+              next,
+              currentOccurrence,
+              expectedContext(currentOccurrence, normalFlow),
+            )
+          )
+            continue;
         }
       }
-    } else if (old.kind === "delivering") {
-      if (following(next, current, old.resume)) continue;
-    } else if (old.kind === "correction") {
+    } else if (previousContext.kind === "delivering") {
+      if (following(next, current, previousContext.resume)) continue;
+    } else if (previousContext.kind === "correction") {
       if (
-        fresh.kind === "correction" &&
-        fresh.correctionId === old.correctionId &&
-        fresh.owedOccurrenceId === old.owedOccurrenceId &&
-        fresh.triggerOccurrenceId === old.triggerOccurrenceId &&
-        same(fresh.suspended, old.suspended) &&
-        same(fresh.instructionOccurrenceIds, old.instructionOccurrenceIds)
+        nextContext.kind === "correction" &&
+        nextContext.correctionId === previousContext.correctionId &&
+        nextContext.owedOccurrenceId === previousContext.owedOccurrenceId &&
+        nextContext.triggerOccurrenceId ===
+          previousContext.triggerOccurrenceId &&
+        same(nextContext.suspended, previousContext.suspended) &&
+        same(
+          nextContext.instructionOccurrenceIds,
+          previousContext.instructionOccurrenceIds,
+        )
       ) {
-        const a = old.phase,
-          b = fresh.phase;
+        const a = previousContext.phase,
+          b = nextContext.phase;
         if (
           a.kind === "instruction" &&
-          same(old.retestOccurrenceIds, fresh.retestOccurrenceIds) &&
+          same(
+            previousContext.retestOccurrenceIds,
+            nextContext.retestOccurrenceIds,
+          ) &&
           ((b.kind === "instruction" && b.index === a.index + 1) ||
             (b.kind === "retest" &&
               b.index === 0 &&
-              a.index === old.instructionOccurrenceIds.length - 1))
+              a.index === previousContext.instructionOccurrenceIds.length - 1))
         )
           continue;
         if (a.kind === "retest" && b.kind === "retest") {
-          const nextId = old.retestOccurrenceIds[a.index + 1],
-            n = nextId ? nodeFor(g, occurrence(s, nextId)) : undefined;
+          const nextId = previousContext.retestOccurrenceIds[a.index + 1],
+            node = nextId
+              ? nodeFor(graph, occurrence(state, nextId))
+              : undefined;
           if (
-            same(old.retestOccurrenceIds, fresh.retestOccurrenceIds) &&
-            b.index === a.index + (n?.kind === "untilFirm" ? 2 : 1) &&
-            (n?.kind !== "untilFirm" || accepted.has(required(nextId)))
+            same(
+              previousContext.retestOccurrenceIds,
+              nextContext.retestOccurrenceIds,
+            ) &&
+            b.index === a.index + (node?.kind === "untilFirm" ? 2 : 1) &&
+            (node?.kind !== "untilFirm" || accepted.has(required(nextId)))
           )
             continue;
-          if (n?.kind === "untilFirm") {
-            const route = required(g.cycleRoutes.get(n.policyId)),
+          if (node?.kind === "untilFirm") {
+            const route = required(graph.cycleRoutes.get(node.policyId)),
               start = a.index - route.length + 1;
-            const c = s.cycles.find(
+            const cycleBinding = state.cycles.find(
               (c) =>
                 c.gateOccurrenceId === nextId &&
                 same(
                   c.turnOccurrenceIds,
-                  fresh.retestOccurrenceIds.slice(start, start + route.length),
+                  nextContext.retestOccurrenceIds.slice(
+                    start,
+                    start + route.length,
+                  ),
                 ),
             );
             if (
-              c &&
+              cycleBinding &&
               b.index === start &&
               same(
-                old.retestOccurrenceIds.slice(0, start),
-                fresh.retestOccurrenceIds.slice(0, start),
+                previousContext.retestOccurrenceIds.slice(0, start),
+                nextContext.retestOccurrenceIds.slice(0, start),
               ) &&
               same(
-                old.retestOccurrenceIds.slice(a.index + 1),
-                fresh.retestOccurrenceIds.slice(a.index + 1),
+                previousContext.retestOccurrenceIds.slice(a.index + 1),
+                nextContext.retestOccurrenceIds.slice(a.index + 1),
               )
             )
               continue;
           }
         }
       }
-      if (old.phase.kind === "retest") {
-        const index = old.phase.index,
-          nextId = old.retestOccurrenceIds[index + 1],
-          n = nextId ? nodeFor(g, occurrence(s, nextId)) : undefined;
+      if (previousContext.phase.kind === "retest") {
+        const index = previousContext.phase.index,
+          nextId = previousContext.retestOccurrenceIds[index + 1],
+          node = nextId ? nodeFor(graph, occurrence(state, nextId)) : undefined;
         const finished =
-          index === old.retestOccurrenceIds.length - 1 ||
-          (n?.kind === "untilFirm" &&
-            index === old.retestOccurrenceIds.length - 2 &&
+          index === previousContext.retestOccurrenceIds.length - 1 ||
+          (node?.kind === "untilFirm" &&
+            index === previousContext.retestOccurrenceIds.length - 2 &&
             accepted.has(required(nextId)));
         if (
           finished &&
-          following(next, occurrence(s, old.owedOccurrenceId), old.suspended)
+          following(
+            next,
+            occurrence(state, previousContext.owedOccurrenceId),
+            previousContext.suspended,
+          )
         )
           continue;
       }
@@ -689,23 +768,27 @@ function validateCheckpointRoute(
   }
 }
 function initialControlCheckpoint(
-  g: CompiledControlTask,
-  s: ControlTeachingState,
+  graph: CompiledControlTask,
+  state: ControlTeachingState,
 ): ControlCheckpoint {
-  const o = required(s.occurrences[0]),
-    n = nodeFor(g, o),
-    c = s.cycles.find((c) => c.turnOccurrenceIds[0] === o.id);
+  const currentOccurrence = required(state.occurrences[0]),
+    node = nodeFor(graph, currentOccurrence),
+    cycleBinding = state.cycles.find(
+      (c) => c.turnOccurrenceIds[0] === currentOccurrence.id,
+    );
   return {
     id: parseId({ kind: "checkpoint", value: "checkpoint-1" }),
-    occurrenceId: o.id,
+    occurrenceId: currentOccurrence.id,
     context:
-      n.kind === "selectiveReview"
-        ? { kind: "selection", reviewId: n.reviewId }
+      node.kind === "selectiveReview"
+        ? { kind: "selection", reviewId: node.reviewId }
         : {
             kind: "delivering",
             resume: {
               flow: normalFlow,
-              delivery: c ? { kind: "cycle", cycleId: c.id } : sourceDelivery,
+              delivery: cycleBinding
+                ? { kind: "cycle", cycleId: cycleBinding.id }
+                : sourceDelivery,
             },
           },
   };
@@ -713,29 +796,31 @@ function initialControlCheckpoint(
 
 export function controlCompletionProof(
   content: DevelopmentPackage,
-  s: ControlTeachingState,
+  state: ControlTeachingState,
 ): CompletionProof | null {
-  const g = controlTask(content, s.taskId);
-  const requiredIds = g.normalNodeIds.map((id) => normalOccurrence(s, id).id);
-  for (const r of g.reviews) {
-    const q = s.queues.find(
+  const graph = controlTask(content, state.taskId);
+  const requiredIds = graph.normalNodeIds.map(
+    (id) => normalOccurrence(state, id).id,
+  );
+  for (const review of graph.reviews) {
+    const reviewQueue = state.queues.find(
       (q) =>
-        q.reviewId === r.reviewId &&
-        q.selectionOccurrenceId === normalOccurrence(s, r.id).id,
+        q.reviewId === review.reviewId &&
+        q.selectionOccurrenceId === normalOccurrence(state, review.id).id,
     );
-    if (!q) return null;
-    for (const item of q.items)
+    if (!reviewQueue) return null;
+    for (const item of reviewQueue.items)
       requiredIds.push(...item.routeOccurrences, item.confirmationOccurrenceId);
   }
-  if (requiredIds.some((id) => !s.acceptedOccurrenceIds.includes(id)))
+  if (requiredIds.some((id) => !state.acceptedOccurrenceIds.includes(id)))
     return null;
   return {
-    taskId: s.taskId,
+    taskId: state.taskId,
     packageHash: content.packageHash,
     requiredOccurrenceIds: requiredIds,
     sourceRefs: [
       ...new Set(
-        g.task.nodes
+        graph.task.nodes
           .filter((n) => n.kind !== "turn" || n.route === "normal")
           .flatMap((n) => n.sourceRefs),
       ),
@@ -744,7 +829,7 @@ export function controlCompletionProof(
 }
 export function evaluateControls({
   content,
-  state: s,
+  state,
   status,
   action,
 }: {
@@ -753,24 +838,27 @@ export function evaluateControls({
   status: "inProgress" | "completed";
   action: GraphAction;
 }): TransitionPlan {
-  validateControlPosition(content, s);
+  validateControlPosition(content, state);
   if (
     (status === "completed") !==
-    (controlCompletionProof(content, s) !== null)
+    (controlCompletionProof(content, state) !== null)
   )
     throw new Error("Control run status does not match obligations");
-  const g = controlTask(content, s.taskId),
-    cp = controlCheckpoint(s);
-  if (action.kind === "pause") return { kind: "pause", after: s };
+  const graph = controlTask(content, state.taskId),
+    checkpoint = controlCheckpoint(state);
+  if (action.kind === "pause") return { kind: "pause", after: state };
   if (action.kind === "back") {
-    if (s.checkpointIndex === 0) throw new Error("Back unavailable");
+    if (state.checkpointIndex === 0) throw new Error("Back unavailable");
     return {
       kind: "navigation",
-      after: { ...s, checkpointIndex: s.checkpointIndex - 1 },
+      after: { ...state, checkpointIndex: state.checkpointIndex - 1 },
     };
   }
-  const current = occurrence(s, required(cp.occurrenceId ?? undefined)),
-    node = nodeFor(g, current);
+  const current = occurrence(
+      state,
+      required(checkpoint.occurrenceId ?? undefined),
+    ),
+    node = nodeFor(graph, current);
   if (
     action.kind === "continue" ||
     action.kind === "parentReady" ||
@@ -778,32 +866,32 @@ export function evaluateControls({
     action.kind === "commitReviewSelection"
   ) {
     if (
-      s.acceptedOccurrenceIds.includes(current.id) &&
-      s.checkpointIndex < s.checkpoints.length - 1
+      state.acceptedOccurrenceIds.includes(current.id) &&
+      state.checkpointIndex < state.checkpoints.length - 1
     ) {
       if (action.kind !== "continue")
         throw new Error("Saved context reconfirms with Continue");
       return {
         kind: "navigation",
-        after: { ...s, checkpointIndex: s.checkpointIndex + 1 },
+        after: { ...state, checkpointIndex: state.checkpointIndex + 1 },
       };
     }
   }
   if (status === "completed")
     throw new Error("Completed task is saved-context review only");
-  if (action.kind === "repeat" && cp.context.kind === "correction")
+  if (action.kind === "repeat" && checkpoint.context.kind === "correction")
     return evaluateControls({
       content,
-      state: s,
+      state,
       status,
-      action: { kind: "help", correctionId: cp.context.correctionId },
+      action: { kind: "help", correctionId: checkpoint.context.correctionId },
     });
-  let occurrences = [...s.occurrences],
-    accepted = [...s.acceptedOccurrenceIds],
-    cycles = [...s.cycles],
-    outcomes = [...s.cycleOutcomes],
-    queues = [...s.queues],
-    nextOccurrenceNumber = s.nextOccurrenceNumber;
+  let occurrences = [...state.occurrences],
+    accepted = [...state.acceptedOccurrenceIds],
+    cycles = [...state.cycles],
+    outcomes = [...state.cycleOutcomes],
+    queues = [...state.queues],
+    nextOccurrenceNumber = state.nextOccurrenceNumber;
   let target: ControlOccurrence | null = null,
     context: ControlContext = { kind: "terminal" },
     primary: OccurrenceId | null = null;
@@ -812,7 +900,7 @@ export function evaluateControls({
     obligation: ControlOccurrence["obligation"],
   ): ControlOccurrence => {
     if (occurrences.length >= 9999) throw new Error("Occurrence bound reached");
-    const o = {
+    const currentOccurrence = {
       id: parseId({
         kind: "occurrence",
         value: `occurrence-${nextOccurrenceNumber}`,
@@ -821,8 +909,8 @@ export function evaluateControls({
       obligation,
     };
     nextOccurrenceNumber = increment(nextOccurrenceNumber);
-    occurrences.push(o);
-    return o;
+    occurrences.push(currentOccurrence);
+    return currentOccurrence;
   };
   const allocNode = (id: NodeId, kind: ControlOccurrence["obligation"]) =>
     allocate({ kind: "node", nodeId: id }, kind);
@@ -832,49 +920,57 @@ export function evaluateControls({
   const byId = (id: OccurrenceId) =>
     required(occurrences.find((o) => o.id === id));
   const bound = (id: NodeId, flow: ControlFlow): ControlOccurrence => {
-    if (flow.kind === "normal") return normalOccurrence(s, id);
-    const item = required(queue(s, flow.queueId).items[flow.index]);
+    if (flow.kind === "normal") return normalOccurrence(state, id);
+    const item = required(queue(state, flow.queueId).items[flow.index]);
     return required(
       item.routeOccurrences
         .map(byId)
         .find((o) => o.target.kind === "node" && o.target.nodeId === id),
     );
   };
-  const enter = (o: ControlOccurrence, resume: ControlResume) => {
-    const n = nodeFor(g, o);
-    target = o;
-    if (n.kind === "selectiveReview") {
-      context = { kind: "selection", reviewId: n.reviewId };
+  const enter = (
+    currentOccurrence: ControlOccurrence,
+    resume: ControlResume,
+  ) => {
+    const node = nodeFor(graph, currentOccurrence);
+    target = currentOccurrence;
+    if (node.kind === "selectiveReview") {
+      context = { kind: "selection", reviewId: node.reviewId };
       return;
     }
-    if (n.kind !== "turn") throw new Error("Cannot present implicit control");
-    const c = cycles.find((c) => c.turnOccurrenceIds[0] === o.id);
+    if (node.kind !== "turn")
+      throw new Error("Cannot present implicit control");
+    const cycleBinding = cycles.find(
+      (c) => c.turnOccurrenceIds[0] === currentOccurrence.id,
+    );
     context = {
       kind: "delivering",
       resume: {
         ...resume,
-        delivery: c ? { kind: "cycle", cycleId: c.id } : resume.delivery,
+        delivery: cycleBinding
+          ? { kind: "cycle", cycleId: cycleBinding.id }
+          : resume.delivery,
       },
     };
   };
   const terminalAfter = (id: NodeId, flow: ControlFlow) => {
-    const n = required(g.nodes.get(id));
-    if (n.kind === "selectiveReview")
+    const node = required(graph.nodes.get(id));
+    if (node.kind === "selectiveReview")
       throw new Error("Selection requires explicit choice");
-    if (n.next.kind === "end") {
+    if (node.next.kind === "end") {
       target = null;
       context = { kind: "terminal" };
       return;
     }
-    enter(bound(n.next.nodeId, flow), { flow, delivery: sourceDelivery });
+    enter(bound(node.next.nodeId, flow), { flow, delivery: sourceDelivery });
   };
   const confirm = (flow: Extract<ControlFlow, { kind: "review" }>) => {
-    const q = queue(s, flow.queueId),
-      item = required(q.items[flow.index]);
+    const reviewQueue = queue(state, flow.queueId),
+      item = required(reviewQueue.items[flow.index]);
     if (item.routeOccurrences.some((id) => !accepted.includes(id)))
       throw new Error("Review item has unfinished responses");
     accept(item.confirmationOccurrenceId);
-    const next = q.items[flow.index + 1];
+    const next = reviewQueue.items[flow.index + 1];
     if (next) {
       enter(byId(required(next.routeOccurrences[0])), {
         flow: { ...flow, index: flow.index + 1 },
@@ -882,46 +978,48 @@ export function evaluateControls({
       });
       return;
     }
-    accept(q.exitOccurrenceId);
-    terminalAfter(q.exitNodeId, normalFlow);
+    accept(reviewQueue.exitOccurrenceId);
+    terminalAfter(reviewQueue.exitNodeId, normalFlow);
   };
   const proceed = (
     owed: ControlOccurrence,
     resume: ControlResume,
     supported: boolean,
   ) => {
-    const n = nodeFor(g, owed);
-    if (n.kind !== "turn") throw new Error("Expected oral source turn");
+    const node = nodeFor(graph, owed);
+    if (node.kind !== "turn") throw new Error("Expected oral source turn");
     const flow = resume.flow,
       delivery = resume.delivery;
     if (delivery.kind === "repeat") {
       const returnTo = required(
-        s.checkpoints.find((c) => c.id === delivery.returnCheckpointId),
+        state.checkpoints.find((c) => c.id === delivery.returnCheckpointId),
       );
       target =
         returnTo.occurrenceId === null ? null : byId(returnTo.occurrenceId);
       context = returnTo.context;
       return;
     }
-    const policy = policyAfter(g, n);
+    const policy = policyAfter(graph, node);
     if (policy) {
       if (delivery.kind !== "cycle")
         throw new Error("Readiness turn has no cycle");
-      const c = required(cycles.find((c) => c.id === delivery.cycleId));
-      if (c.turnOccurrenceIds.some((id) => !accepted.includes(id)))
+      const cycleBinding = required(
+        cycles.find((c) => c.id === delivery.cycleId),
+      );
+      if (cycleBinding.turnOccurrenceIds.some((id) => !accepted.includes(id)))
         throw new Error("Cycle has unfinished turns");
-      if (!outcomes.some((o) => o.cycleId === c.id))
+      if (!outcomes.some((o) => o.cycleId === cycleBinding.id))
         outcomes.push({
-          cycleId: c.id,
+          cycleId: cycleBinding.id,
           kind: supported ? "supported" : "independent",
         });
       if (action.kind === "parentReady") {
         if (action.policyId !== policy.policyId)
           throw new Error("Wrong readiness policy");
-        accept(c.gateOccurrenceId);
+        accept(cycleBinding.gateOccurrenceId);
         if (flow.kind === "review") {
-          const item = required(queue(s, flow.queueId).items[flow.index]);
-          if (item.routeOccurrences.at(-1) === c.gateOccurrenceId) {
+          const item = required(queue(state, flow.queueId).items[flow.index]);
+          if (item.routeOccurrences.at(-1) === cycleBinding.gateOccurrenceId) {
             confirm(flow);
             return;
           }
@@ -931,29 +1029,32 @@ export function evaluateControls({
       }
       if (action.kind !== "continue")
         throw new Error("Readiness needs explicit decision");
-      const turns = required(g.cycleRoutes.get(policy.policyId)).map((id) =>
+      const turns = required(graph.cycleRoutes.get(policy.policyId)).map((id) =>
         allocNode(id, "practice"),
       );
       const first = required(turns[0]);
-      const fresh = {
+      const nextCycle = {
         id: parseId({ kind: "cycle", value: `cycle-${first.id}` }),
         policyId: policy.policyId,
-        gateOccurrenceId: c.gateOccurrenceId,
+        gateOccurrenceId: cycleBinding.gateOccurrenceId,
         turnOccurrenceIds: turns.map((o) => o.id),
       };
-      cycles.push(fresh);
-      enter(first, { flow, delivery: { kind: "cycle", cycleId: fresh.id } });
+      cycles.push(nextCycle);
+      enter(first, {
+        flow,
+        delivery: { kind: "cycle", cycleId: nextCycle.id },
+      });
       return;
     }
     if (action.kind === "parentReady")
       throw new Error("Readiness unavailable here");
     if (flow.kind === "review") {
-      const q = queue(s, flow.queueId),
-        item = required(q.items[flow.index]);
+      const reviewQueue = queue(state, flow.queueId),
+        item = required(reviewQueue.items[flow.index]);
       if (item.routeOccurrences.at(-1) === owed.id) {
         if (
           action.kind !== "confirmReviewItem" ||
-          action.queueId !== q.id ||
+          action.queueId !== reviewQueue.id ||
           action.itemId !== item.itemId
         )
           throw new Error("Explicit review confirmation required");
@@ -969,77 +1070,85 @@ export function evaluateControls({
     }
     if (action.kind !== "continue")
       throw new Error("Response action unavailable");
-    if (n.next.kind === "end") {
+    if (node.next.kind === "end") {
       target = null;
       context = { kind: "terminal" };
       return;
     }
-    enter(bound(n.next.nodeId, flow), { flow, delivery: sourceDelivery });
+    enter(bound(node.next.nodeId, flow), { flow, delivery: sourceDelivery });
   };
   if (action.kind === "help") {
-    const old = cp.context;
-    if (old.kind !== "delivering" && old.kind !== "correction")
+    const previousContext = checkpoint.context;
+    if (
+      previousContext.kind !== "delivering" &&
+      previousContext.kind !== "correction"
+    )
       throw new Error("Help unavailable");
     const owed =
-        old.kind === "correction" ? byId(old.owedOccurrenceId) : current,
-      original = nodeFor(g, owed);
-    const spec = required(
-      g.task.corrections.find(
+        previousContext.kind === "correction"
+          ? byId(previousContext.owedOccurrenceId)
+          : current,
+      original = nodeFor(graph, owed);
+    const correctionSpec = required(
+      graph.task.corrections.find(
         (c) =>
           c.id === action.correctionId &&
           c.eligibleNodeIds.includes(original.id) &&
           (c.scope === "any" ||
             c.scope ===
-              (old.kind === "correction"
-                ? old.suspended.flow.kind
-                : old.resume.flow.kind)),
+              (previousContext.kind === "correction"
+                ? previousContext.suspended.flow.kind
+                : previousContext.resume.flow.kind)),
       ),
     );
-    const instructionOccurrenceIds = spec.instructionNodeIds.map(
+    const instructionOccurrenceIds = correctionSpec.instructionNodeIds.map(
         (id) => allocNode(id, "support").id,
       ),
-      retestOccurrenceIds = spec.retestNodeIds.map(
+      retestOccurrenceIds = correctionSpec.retestNodeIds.map(
         (id) => allocNode(id, "support").id,
       );
-    cycles.push(...initialCycles(g, retestOccurrenceIds.map(byId)));
+    cycles.push(...initialCycles(graph, retestOccurrenceIds.map(byId)));
     target = byId(required(instructionOccurrenceIds[0]));
     context = {
       kind: "correction",
-      correctionId: spec.id,
+      correctionId: correctionSpec.id,
       triggerOccurrenceId: owed.id,
       owedOccurrenceId: owed.id,
-      suspended: old.kind === "correction" ? old.suspended : old.resume,
+      suspended:
+        previousContext.kind === "correction"
+          ? previousContext.suspended
+          : previousContext.resume,
       instructionOccurrenceIds,
       retestOccurrenceIds,
       phase: { kind: "instruction", index: 0 },
     };
   } else if (action.kind === "repeat") {
     if (node.kind !== "turn") throw new Error("Repeat unavailable");
-    if (cp.context.kind === "correction") {
+    if (checkpoint.context.kind === "correction") {
       target = current;
-      context = cp.context;
-    } else if (cp.context.kind === "delivering") {
+      context = checkpoint.context;
+    } else if (checkpoint.context.kind === "delivering") {
       target = allocNode(node.id, "practice");
       context = {
         kind: "delivering",
         resume: {
-          flow: cp.context.resume.flow,
+          flow: checkpoint.context.resume.flow,
           delivery:
-            cp.context.resume.delivery.kind === "repeat"
-              ? cp.context.resume.delivery
-              : { kind: "repeat", returnCheckpointId: cp.id },
+            checkpoint.context.resume.delivery.kind === "repeat"
+              ? checkpoint.context.resume.delivery
+              : { kind: "repeat", returnCheckpointId: checkpoint.id },
         },
       };
     } else throw new Error("Repeat unavailable");
   } else if (action.kind === "commitReviewSelection") {
     if (
       node.kind !== "selectiveReview" ||
-      cp.context.kind !== "selection" ||
+      checkpoint.context.kind !== "selection" ||
       node.reviewId !== action.reviewId ||
       queues.some((q) => q.selectionOccurrenceId === current.id)
     )
       throw new Error("Review selection unavailable");
-    const selected = canonicalReviewChoice(g, node.reviewId, action.choice);
+    const selected = canonicalReviewChoice(node.items, action.choice);
     if (canonical(selected) !== canonical(action.choice))
       throw new Error("Review choice must be source ordered");
     primary = current.id;
@@ -1047,14 +1156,14 @@ export function evaluateControls({
     const queueId = parseId({ kind: "queue", value: `queue-${current.id}` });
     const items = (selected.kind === "none" ? [] : selected.itemIds).map(
       (itemId) => {
-        const route = required(g.itemRoutes.get(itemId)).map((id) =>
+        const route = required(graph.itemRoutes.get(itemId)).map((id) =>
           allocNode(id, "required"),
         );
         const confirmation = allocate(
           { kind: "reviewConfirmation", queueId, itemId },
           "required",
         );
-        const extra = initialCycles(g, route).filter((c) =>
+        const extra = initialCycles(graph, route).filter((c) =>
           route.some((o) => o.id === c.gateOccurrenceId),
         );
         cycles.push(...extra);
@@ -1065,7 +1174,7 @@ export function evaluateControls({
         };
       },
     );
-    const q: ReviewQueue = {
+    const reviewQueue: ReviewQueue = {
       id: queueId,
       reviewId: node.reviewId,
       selectionOccurrenceId: current.id,
@@ -1073,66 +1182,82 @@ export function evaluateControls({
       items,
       returnNodeId: node.returnNodeId,
       exitNodeId: node.exitNodeId,
-      exitOccurrenceId: normalOccurrence(s, node.exitNodeId).id,
+      exitOccurrenceId: normalOccurrence(state, node.exitNodeId).id,
     };
-    queues.push(q);
+    queues.push(reviewQueue);
     const first = items[0];
     if (first) {
-      const o = byId(required(first.routeOccurrences[0]));
-      const c = cycles.find((c) => c.turnOccurrenceIds[0] === o.id);
-      target = o;
+      const currentOccurrence = byId(required(first.routeOccurrences[0]));
+      const cycleBinding = cycles.find(
+        (c) => c.turnOccurrenceIds[0] === currentOccurrence.id,
+      );
+      target = currentOccurrence;
       context = {
         kind: "delivering",
         resume: {
           flow: { kind: "review", queueId, index: 0 },
-          delivery: c ? { kind: "cycle", cycleId: c.id } : sourceDelivery,
+          delivery: cycleBinding
+            ? { kind: "cycle", cycleId: cycleBinding.id }
+            : sourceDelivery,
         },
       };
     } else {
-      accept(q.exitOccurrenceId);
-      terminalAfter(q.exitNodeId, normalFlow);
+      accept(reviewQueue.exitOccurrenceId);
+      terminalAfter(reviewQueue.exitNodeId, normalFlow);
     }
-  } else {
-    if (cp.context.kind !== "delivering" && cp.context.kind !== "correction")
+  } else if (
+    action.kind === "continue" ||
+    action.kind === "parentReady" ||
+    action.kind === "confirmReviewItem"
+  ) {
+    if (
+      checkpoint.context.kind !== "delivering" &&
+      checkpoint.context.kind !== "correction"
+    )
       throw new Error("Response unavailable");
     primary = current.id;
     accept(current.id);
-    if (cp.context.kind === "delivering")
-      proceed(current, cp.context.resume, false);
+    if (checkpoint.context.kind === "delivering")
+      proceed(current, checkpoint.context.resume, false);
     else {
-      const c = cp.context,
-        spec = required(
-          g.task.corrections.find((s) => s.id === c.correctionId),
+      const correctionContext = checkpoint.context,
+        correctionSpec = required(
+          graph.task.corrections.find(
+            (s) => s.id === correctionContext.correctionId,
+          ),
         );
       const bindings =
-        c.phase.kind === "instruction"
-          ? c.instructionOccurrenceIds
-          : c.retestOccurrenceIds;
+        correctionContext.phase.kind === "instruction"
+          ? correctionContext.instructionOccurrenceIds
+          : correctionContext.retestOccurrenceIds;
       const advanceRetest = (index: number) => {
-        const next = c.retestOccurrenceIds[index];
+        const next = correctionContext.retestOccurrenceIds[index];
         if (next) {
           target = byId(next);
-          context = { ...c, phase: { kind: "retest", index } };
+          context = { ...correctionContext, phase: { kind: "retest", index } };
           return;
         }
-        const owed = byId(c.owedOccurrenceId);
+        const owed = byId(correctionContext.owedOccurrenceId);
         accept(owed.id);
-        proceed(owed, c.suspended, true);
+        proceed(owed, correctionContext.suspended, true);
       };
-      if (c.phase.kind === "instruction") {
+      if (correctionContext.phase.kind === "instruction") {
         if (action.kind !== "continue")
           throw new Error("Decision requires retest");
-        const next = bindings[c.phase.index + 1];
+        const next = bindings[correctionContext.phase.index + 1];
         if (next) {
           target = byId(next);
           context = {
-            ...c,
-            phase: { kind: "instruction", index: c.phase.index + 1 },
+            ...correctionContext,
+            phase: {
+              kind: "instruction",
+              index: correctionContext.phase.index + 1,
+            },
           };
         } else advanceRetest(0);
       } else {
-        const nextId = bindings[c.phase.index + 1],
-          nextNode = nextId ? nodeFor(g, byId(nextId)) : undefined;
+        const nextId = bindings[correctionContext.phase.index + 1],
+          nextNode = nextId ? nodeFor(graph, byId(nextId)) : undefined;
         if (nextNode?.kind === "untilFirm") {
           const binding = required(
             cycles.find(
@@ -1149,24 +1274,24 @@ export function evaluateControls({
             if (action.policyId !== nextNode.policyId)
               throw new Error("Wrong support readiness");
             accept(required(nextId));
-            advanceRetest(c.phase.index + 2);
+            advanceRetest(correctionContext.phase.index + 2);
           } else if (action.kind === "continue") {
-            const route = required(g.cycleRoutes.get(nextNode.policyId)),
-              fresh = route.map((id) => allocNode(id, "support")),
-              freshIds = fresh.map((o) => o.id);
-            const first = required(fresh[0]);
+            const route = required(graph.cycleRoutes.get(nextNode.policyId)),
+              freshOccurrences = route.map((id) => allocNode(id, "support")),
+              freshIds = freshOccurrences.map((o) => o.id);
+            const first = required(freshOccurrences[0]);
             cycles.push({
               id: parseId({ kind: "cycle", value: `cycle-${first.id}` }),
               policyId: nextNode.policyId,
               gateOccurrenceId: required(nextId),
               turnOccurrenceIds: freshIds,
             });
-            const start = c.phase.index - route.length + 1,
-              retestOccurrenceIds = [...c.retestOccurrenceIds];
+            const start = correctionContext.phase.index - route.length + 1,
+              retestOccurrenceIds = [...correctionContext.retestOccurrenceIds];
             retestOccurrenceIds.splice(start, route.length, ...freshIds);
             target = first;
             context = {
-              ...c,
+              ...correctionContext,
               retestOccurrenceIds,
               phase: { kind: "retest", index: start },
             };
@@ -1175,24 +1300,27 @@ export function evaluateControls({
           if (nextId) {
             if (action.kind !== "continue")
               throw new Error("Decision unavailable before retest exit");
-            advanceRetest(c.phase.index + 1);
-          } else advanceRetest(c.phase.index + 1);
+            advanceRetest(correctionContext.phase.index + 1);
+          } else advanceRetest(correctionContext.phase.index + 1);
         }
       }
     }
+  } else {
+    const _exhaustive: never = action.kind;
+    return _exhaustive;
   }
-  const checkpoints = s.checkpoints.slice(0, s.checkpointIndex + 1);
+  const checkpoints = state.checkpoints.slice(0, state.checkpointIndex + 1);
   if (checkpoints.length >= 9999) throw new Error("Checkpoint bound reached");
   checkpoints.push({
     id: parseId({
       kind: "checkpoint",
-      value: `checkpoint-${s.nextCheckpointNumber}`,
+      value: `checkpoint-${state.nextCheckpointNumber}`,
     }),
     occurrenceId: target?.id ?? null,
     context,
   });
   const after: ControlTeachingState = {
-    ...s,
+    ...state,
     occurrences,
     acceptedOccurrenceIds: accepted,
     cycles,
@@ -1201,7 +1329,7 @@ export function evaluateControls({
     checkpoints,
     checkpointIndex: checkpoints.length - 1,
     nextOccurrenceNumber,
-    nextCheckpointNumber: increment(s.nextCheckpointNumber),
+    nextCheckpointNumber: increment(state.nextCheckpointNumber),
   };
   validateControlPosition(content, after);
   if (primary === null) return deepFreeze({ kind: "navigation", after });
@@ -1214,118 +1342,129 @@ export function evaluateControls({
 }
 export function projectControls(
   content: DevelopmentPackage,
-  s: ControlTeachingState,
+  state: ControlTeachingState,
 ): EngineProjection {
-  const g = controlTask(content, s.taskId),
-    cp = controlCheckpoint(s);
-  if (cp.occurrenceId === null) return { kind: "completed" };
-  const o = occurrence(s, cp.occurrenceId),
-    n = nodeFor(g, o);
-  if (n.kind === "selectiveReview") {
-    const items = n.items.map((i) => ({
+  const graph = controlTask(content, state.taskId),
+    checkpoint = controlCheckpoint(state);
+  if (checkpoint.occurrenceId === null) return { kind: "completed" };
+  const currentOccurrence = occurrence(state, checkpoint.occurrenceId),
+    node = nodeFor(graph, currentOccurrence);
+  if (node.kind === "selectiveReview") {
+    const items = node.items.map((i) => ({
       itemId: i.itemId,
       label: i.parentLabel,
     }));
     return {
       kind: "reviewSelection",
-      reviewId: n.reviewId,
+      reviewId: node.reviewId,
       items,
       selectionAction: {
         kind: "reviewSelection",
-        reviewId: n.reviewId,
+        reviewId: node.reviewId,
         eligibleItems: items,
         selectLabel: { kind: "added", text: "Review" },
         emptyLabel: { kind: "added", text: "No review" },
       },
       presentation: { kind: "oral" },
-      guidance: n.guidance,
+      guidance: node.guidance,
       committedChoice:
-        s.queues.find((q) => q.selectionOccurrenceId === o.id)?.choice ?? null,
+        state.queues.find(
+          (q) => q.selectionOccurrenceId === currentOccurrence.id,
+        )?.choice ?? null,
     };
   }
   if (
-    n.kind !== "turn" ||
-    (cp.context.kind !== "delivering" && cp.context.kind !== "correction")
+    node.kind !== "turn" ||
+    (checkpoint.context.kind !== "delivering" &&
+      checkpoint.context.kind !== "correction")
   )
     throw new Error("Control presentation unavailable");
   const retestNext =
-    cp.context.kind === "correction" && cp.context.phase.kind === "retest"
-      ? cp.context.retestOccurrenceIds[cp.context.phase.index + 1]
+    checkpoint.context.kind === "correction" &&
+    checkpoint.context.phase.kind === "retest"
+      ? checkpoint.context.retestOccurrenceIds[
+          checkpoint.context.phase.index + 1
+        ]
       : undefined;
   const nextNode = retestNext
-    ? nodeFor(g, occurrence(s, retestNext))
+    ? nodeFor(graph, occurrence(state, retestNext))
     : undefined;
   const gate =
     nextNode?.kind === "untilFirm"
       ? nextNode
-      : cp.context.kind === "delivering" &&
-          cp.context.resume.delivery.kind !== "repeat"
-        ? policyAfter(g, n)
+      : checkpoint.context.kind === "delivering" &&
+          checkpoint.context.resume.delivery.kind !== "repeat"
+        ? policyAfter(graph, node)
         : undefined;
   return {
     kind: "teaching",
     turn: {
-      ...n,
-      guidance: gate ? [...n.guidance, ...gate.guidance] : n.guidance,
-      extraPractice: o.obligation !== "required",
-      routeKind: cp.context.kind,
-      occurrenceId: o.id,
-      checkpointId: cp.id,
+      ...node,
+      guidance: gate ? [...node.guidance, ...gate.guidance] : node.guidance,
+      extraPractice: currentOccurrence.obligation !== "required",
+      routeKind: checkpoint.context.kind,
+      occurrenceId: currentOccurrence.id,
+      checkpointId: checkpoint.id,
     },
   };
 }
 export function controlActions(
   content: DevelopmentPackage,
-  s: ControlTeachingState,
+  state: ControlTeachingState,
   status: "inProgress" | "completed",
 ): AvailableAction[] {
-  const g = controlTask(content, s.taskId),
-    cp = controlCheckpoint(s),
+  const graph = controlTask(content, state.taskId),
+    checkpoint = controlCheckpoint(state),
     actions: AvailableAction[] = [];
   const add = (text: string, intent: Exclude<GraphAction, { kind: "help" }>) =>
     actions.push({ label: { kind: "added", text }, intent });
-  if (s.checkpointIndex > 0) add("Back", { kind: "back" });
-  if (cp.occurrenceId === null) return actions;
-  const o = occurrence(s, cp.occurrenceId),
-    n = nodeFor(g, o);
+  if (state.checkpointIndex > 0) add("Back", { kind: "back" });
+  if (checkpoint.occurrenceId === null) return actions;
+  const currentOccurrence = occurrence(state, checkpoint.occurrenceId),
+    node = nodeFor(graph, currentOccurrence);
   if (
-    s.acceptedOccurrenceIds.includes(o.id) &&
-    s.checkpointIndex < s.checkpoints.length - 1
+    state.acceptedOccurrenceIds.includes(currentOccurrence.id) &&
+    state.checkpointIndex < state.checkpoints.length - 1
   ) {
     add("Continue", { kind: "continue" });
     if (status === "completed") return actions;
   } else if (status === "completed") return actions;
-  else if (n.kind === "turn") {
-    const c = cp.context;
-    const spec =
-      c.kind === "correction"
-        ? required(g.task.corrections.find((s) => s.id === c.correctionId))
+  else if (node.kind === "turn") {
+    const context = checkpoint.context;
+    const correctionSpec =
+      context.kind === "correction"
+        ? required(
+            graph.task.corrections.find((s) => s.id === context.correctionId),
+          )
         : undefined;
     const resolves =
-      c.kind !== "correction" ||
-      (c.phase.kind === "retest" &&
-        c.phase.index === required(spec).retestNodeIds.length - 1);
+      context.kind !== "correction" ||
+      (context.phase.kind === "retest" &&
+        context.phase.index ===
+          required(correctionSpec).retestNodeIds.length - 1);
     const owed =
-      c.kind === "correction" ? occurrence(s, c.owedOccurrenceId) : o;
-    const source = nodeFor(g, owed),
+      context.kind === "correction"
+        ? occurrence(state, context.owedOccurrenceId)
+        : currentOccurrence;
+    const source = nodeFor(graph, owed),
       resume =
-        c.kind === "correction"
-          ? c.suspended
-          : c.kind === "delivering"
-            ? c.resume
+        context.kind === "correction"
+          ? context.suspended
+          : context.kind === "delivering"
+            ? context.resume
             : undefined;
     const retestNext =
-      c.kind === "correction" && c.phase.kind === "retest"
-        ? c.retestOccurrenceIds[c.phase.index + 1]
+      context.kind === "correction" && context.phase.kind === "retest"
+        ? context.retestOccurrenceIds[context.phase.index + 1]
         : undefined;
     const retestNextNode = retestNext
-      ? nodeFor(g, occurrence(s, retestNext))
+      ? nodeFor(graph, occurrence(state, retestNext))
       : undefined;
     const policy =
       retestNextNode?.kind === "untilFirm"
         ? retestNextNode
         : resolves && resume?.delivery.kind !== "repeat"
-          ? policyAfter(g, source)
+          ? policyAfter(graph, source)
           : undefined;
     if (policy) {
       add("Practice again", { kind: "continue" });
@@ -1335,43 +1474,46 @@ export function controlActions(
       resume?.flow.kind === "review" &&
       resume.delivery.kind !== "repeat"
     ) {
-      const q = queue(s, resume.flow.queueId),
-        item = required(q.items[resume.flow.index]);
+      const reviewQueue = queue(state, resume.flow.queueId),
+        item = required(reviewQueue.items[resume.flow.index]);
       if (item.routeOccurrences.at(-1) === owed.id)
         add("Next word", {
           kind: "confirmReviewItem",
-          queueId: q.id,
+          queueId: reviewQueue.id,
           itemId: item.itemId,
         });
       else add("Continue", { kind: "continue" });
     } else add("Continue", { kind: "continue" });
   }
   if (status === "inProgress") {
-    if (n.kind === "turn") {
+    if (node.kind === "turn") {
       add("Repeat", { kind: "repeat" });
       const original =
-        cp.context.kind === "correction"
-          ? nodeFor(g, occurrence(s, cp.context.owedOccurrenceId))
-          : n;
-      for (const c of g.task.corrections)
+        checkpoint.context.kind === "correction"
+          ? nodeFor(
+              graph,
+              occurrence(state, checkpoint.context.owedOccurrenceId),
+            )
+          : node;
+      for (const correction of graph.task.corrections)
         if (
-          c.eligibleNodeIds.includes(original.id) &&
-          (c.scope === "any" ||
-            c.scope ===
-              (cp.context.kind === "correction"
-                ? cp.context.suspended.flow.kind
-                : cp.context.kind === "delivering"
-                  ? cp.context.resume.flow.kind
+          correction.eligibleNodeIds.includes(original.id) &&
+          (correction.scope === "any" ||
+            correction.scope ===
+              (checkpoint.context.kind === "correction"
+                ? checkpoint.context.suspended.flow.kind
+                : checkpoint.context.kind === "delivering"
+                  ? checkpoint.context.resume.flow.kind
                   : "normal"))
         ) {
           const preview = required(
-            g.nodes.get(required(c.instructionNodeIds[0])),
+            graph.nodes.get(required(correction.instructionNodeIds[0])),
           );
           if (preview.kind !== "turn")
             throw new Error("Correction preview is not a turn");
           actions.push({
-            label: c.label,
-            intent: { kind: "help", correctionId: c.id },
+            label: correction.label,
+            intent: { kind: "help", correctionId: correction.id },
             correctionPreview: preview,
           });
         }

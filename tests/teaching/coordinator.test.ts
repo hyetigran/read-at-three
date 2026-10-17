@@ -153,7 +153,12 @@ async function prepared(
   view: CommittedProjection,
   choice: AvailableAction,
 ) {
-  return prepareCommand({ projection: view, action: choice, ids: h.ids, hash });
+  return prepareCommand({
+    projection: view,
+    request: { kind: "action", action: choice },
+    ids: h.ids,
+    hash,
+  });
 }
 async function rehash(command: TeachingCommand) {
   return parseCommand({

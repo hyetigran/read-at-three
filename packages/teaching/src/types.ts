@@ -619,9 +619,3 @@ export type ControlSelectionProjection = Readonly<{
   guidance: readonly ParentSpan[];
   committedChoice: ReviewChoice | null;
 }>;
-export type AcceptingCommand = {
-  [Kind in TeachingCommand["kind"]]: Pick<
-    Extract<TeachingCommand, { kind: Kind }>,
-    "kind" | "payload"
-  >;
-}[TeachingCommand["kind"]];

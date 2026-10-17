@@ -1,4 +1,5 @@
 import { controlActions } from "./control-engine.ts";
+import { canonicalReviewChoice } from "./control-content.ts";
 import {
   canonical,
   deepFreeze,
@@ -48,47 +49,33 @@ const choice = (
 
 export async function prepareCommand({
   projection,
-  action,
   request,
   ids,
   hash,
 }: {
   projection: CommittedProjection;
-  action?: AvailableAction;
-  request?: Readonly<{ action: ReviewSelectionAction; choice: ReviewChoice }>;
+  request?: Readonly<
+    | { kind: "action"; action: AvailableAction }
+    | { kind: "review"; action: ReviewSelectionAction; choice: ReviewChoice }
+  >;
   ids: IdFactory;
   hash: HashFunction;
 }): Promise<TeachingCommand> {
   if (projection.kind === "recovery")
     throw new Error("No command is available");
   let requested: AvailableAction | undefined;
-  if (request) {
+  if (request?.kind === "review") {
     if (
-      action ||
       projection.kind !== "reviewSelection" ||
       projection.committedChoice !== null ||
       canonical(request.action) !== canonical(projection.selectionAction)
     )
       throw new Error("Review selection capability unavailable");
-    const choice = request.choice;
-    if (
-      choice.kind === "items" &&
-      (choice.itemIds.length === 0 ||
-        new Set(choice.itemIds).size !== choice.itemIds.length ||
-        choice.itemIds.some(
-          (id) => !projection.items.some((item) => item.itemId === id),
-        ))
-    )
-      throw new Error("Complete explicit review choice invalid");
-    const ordered: ReviewChoice =
-      choice.kind === "none"
-        ? choice
-        : {
-            kind: "items",
-            itemIds: projection.items
-              .filter((item) => choice.itemIds.includes(item.itemId))
-              .map((item) => item.itemId),
-          };
+    const ordered = canonicalReviewChoice(
+      projection.items,
+      request.choice,
+      "Complete explicit review choice invalid",
+    );
     requested = {
       label: request.action.selectLabel,
       intent: {
@@ -100,7 +87,7 @@ export async function prepareCommand({
   }
   const selected =
     requested ??
-    action ??
+    (request?.kind === "action" ? request.action : undefined) ??
     projection.actions.find((entry) => entry.intent.kind === "continue") ??
     projection.actions.find(
       (entry) => "taskId" in entry.intent && entry.intent.kind === "start",

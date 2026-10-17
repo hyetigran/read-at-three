@@ -142,7 +142,7 @@ test("Task4 s correction restarts whole review; stale Resume cannot take selecti
   assert.ok(resume);
   const stale = await prepareCommand({
     projection: paused,
-    action: resume,
+    request: { kind: "action", action: resume },
     ids: f.ids,
     hash,
   });

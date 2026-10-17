@@ -146,7 +146,7 @@ export function createBrowserTeachingClient() {
     prepare(projection: Projection, action: AvailableAction) {
       return prepareCommand({
         projection,
-        action,
+        request: { kind: "action", action },
         ids: () => crypto.randomUUID(),
         hash: hashText,
       });
@@ -158,7 +158,7 @@ export function createBrowserTeachingClient() {
     ) {
       return prepareCommand({
         projection,
-        request: { action, choice },
+        request: { kind: "review", action, choice },
         ids: () => crypto.randomUUID(),
         hash: hashText,
       });

@@ -7,7 +7,29 @@ import type {
   SelectiveReviewNode,
   ItemId,
   PolicyId,
+  ReviewChoice,
 } from "./types.ts";
+
+export function canonicalReviewChoice(
+  items: readonly Pick<SelectiveReviewNode["items"][number], "itemId">[],
+  choice: ReviewChoice,
+  invalidMessage = "Invalid complete review choice",
+): ReviewChoice {
+  if (choice.kind === "none") return choice;
+  if (
+    choice.itemIds.length === 0 ||
+    new Set(choice.itemIds).size !== choice.itemIds.length ||
+    choice.itemIds.some((id) => !items.some((item) => item.itemId === id))
+  )
+    throw new Error(invalidMessage);
+  return {
+    kind: "items",
+    itemIds: items
+      .filter((item) => choice.itemIds.includes(item.itemId))
+      .map((item) => item.itemId),
+  };
+}
+
 export type CompiledControlTask = Readonly<{
   task: ControlTask;
   nodes: ReadonlyMap<NodeId, ControlNode>;

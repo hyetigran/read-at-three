@@ -48,7 +48,7 @@ async function select(
     throw new Error("Selection missing");
   return prepareCommand({
     projection,
-    request: { action: projection.selectionAction, choice },
+    request: { kind: "review", action: projection.selectionAction, choice },
     ids: f.ids,
     hash,
   });
@@ -175,7 +175,7 @@ test("selection and readiness failure roll back; same immutable retry and lost C
       assert.ok(action);
       command = await prepareCommand({
         projection: p,
-        action,
+        request: { kind: "action", action },
         ids: f.ids,
         hash,
       });
