@@ -162,14 +162,17 @@ for (const fault of [
     expect(await childIds(page)).toHaveLength(1);
     const controls = (await requests(page)).filter(
       (request) =>
-        (request.kind === "dispatch" || request.kind === "recoverTeaching") &&
-        request.command.kind === "writingControl",
+        (request.kind === "execute" || request.kind === "recoverTeaching") &&
+        request.operation.kind === "teaching" &&
+        request.operation.command.kind === "writingControl",
     );
     expect(controls.length).toBeGreaterThanOrEqual(2);
     expect(
       new Set(
         controls.map((request) =>
-          "command" in request ? JSON.stringify(request.command) : "invalid",
+          "operation" in request
+            ? JSON.stringify(request.operation)
+            : "invalid",
         ),
       ).size,
     ).toBe(1);
@@ -194,8 +197,9 @@ test("a held Query summary does not delay the next contact and exact acknowledge
   ).toBeDisabled();
   const before = (await requests(page)).filter(
     (request) =>
-      request.kind === "dispatchInk" &&
-      request.command.edit.kind === "finalize",
+      request.kind === "execute" &&
+      request.operation.kind === "ink" &&
+      request.operation.command.edit.kind === "finalize",
   ).length;
   await drawStroke(page, [
     { x: 260, y: 110 },
@@ -206,8 +210,9 @@ test("a held Query summary does not delay the next contact and exact acknowledge
       async () =>
         (await requests(page)).filter(
           (request) =>
-            request.kind === "dispatchInk" &&
-            request.command.edit.kind === "finalize",
+            request.kind === "execute" &&
+            request.operation.kind === "ink" &&
+            request.operation.command.edit.kind === "finalize",
         ).length,
     )
     .toBe(before + 1);
@@ -270,8 +275,9 @@ test("known control rejection stays fenced until canonical reload without reexec
   const controls = async () =>
     (await requests(page)).filter(
       (request) =>
-        request.kind === "dispatch" &&
-        request.command.kind === "writingControl",
+        request.kind === "execute" &&
+        request.operation.kind === "teaching" &&
+        request.operation.command.kind === "writingControl",
     ).length;
   expect(await controls()).toBe(1);
   await writingAction(page, "Retry save");

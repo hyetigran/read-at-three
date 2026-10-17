@@ -1,3 +1,9 @@
+import {
+  executeTeaching,
+  prepareSelectedTeaching,
+  selectedProjection,
+} from "./selected-support.ts";
+
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -6,8 +12,8 @@ import {
 } from "../../packages/teaching/src/index.ts";
 import type {
   ReviewChoice,
-  TeachingApplication,
-  TeachingCommand,
+  SelectedApplication,
+  SelectedTeachingOperation,
 } from "../../packages/teaching/src/index.ts";
 import { controlFixture } from "../teaching/control-fixture.ts";
 import { hash, storageFixture } from "./support.ts";
@@ -21,9 +27,9 @@ async function start({
   app,
 }: {
   fixture: Awaited<ReturnType<typeof setup>>;
-  app: TeachingApplication;
+  app: SelectedApplication;
 }) {
-  await app.open();
+  await selectedProjection(app);
   await f.act(
     app,
     "start",
@@ -35,12 +41,12 @@ async function toSelection({
   app,
 }: {
   fixture: Awaited<ReturnType<typeof setup>>;
-  app: TeachingApplication;
+  app: SelectedApplication;
 }) {
   await f.act(app, "continue");
   await f.act(app, "parentReady");
   for (let i = 0; i < 5; i++) await f.act(app, "continue");
-  const p = await app.read();
+  const p = await selectedProjection(app);
   assert.equal(p.kind, "reviewSelection");
   return p;
 }
@@ -50,18 +56,20 @@ async function select({
   choice,
 }: {
   fixture: Awaited<ReturnType<typeof setup>>;
-  app: TeachingApplication;
+  app: SelectedApplication;
   choice: ReviewChoice;
 }) {
-  const projection = await app.read();
+  const projection = await selectedProjection(app);
   if (projection.kind !== "reviewSelection")
     throw new Error("Selection missing");
-  return prepareCommand({
-    projection,
-    request: { kind: "review", action: projection.selectionAction, choice },
-    ids: f.ids,
-    hash,
-  });
+  return prepareSelectedTeaching(app, async () =>
+    prepareCommand({
+      projection,
+      request: { kind: "review", action: projection.selectionAction, choice },
+      ids: f.ids,
+      hash,
+    }),
+  );
 }
 function accepted(
   db: ReturnType<Awaited<ReturnType<typeof setup>>["connect"]>["db"],
@@ -70,11 +78,14 @@ function accepted(
 }
 test("real SQLite restores selection, immutable source-order queue, correction/retest, Back and terminal proof", async (t) => {
   const f = await setup(t),
-    first = f.connect();
+    first = await f.connectReady();
   await start({ fixture: f, app: first.app });
   await toSelection({ fixture: f, app: first.app });
-  const selection = await first.app.read();
-  assert.deepEqual(await f.connect().app.open(), selection);
+  const selection = await selectedProjection(first.app);
+  assert.deepEqual(
+    await selectedProjection((await f.connectReady()).app),
+    selection,
+  );
   if (selection.kind !== "reviewSelection")
     throw new Error("Missing selection");
   const a = selection.items[0],
@@ -89,23 +100,26 @@ test("real SQLite restores selection, immutable source-order queue, correction/r
     },
   });
   if (
-    command.kind !== "navigate" ||
-    command.payload.action.kind !== "commitReviewSelection"
+    command.command.kind !== "navigate" ||
+    command.command.payload.action.kind !== "commitReviewSelection"
   )
     throw new Error("Wrong command");
-  assert.deepEqual(command.payload.action.choice, {
+  assert.deepEqual(command.command.payload.action.choice, {
     kind: "items",
     itemIds: [a.itemId, c.itemId],
   });
-  assert.ok(Object.isFrozen(command.payload.action));
-  const receipt = await first.app.dispatch(command);
+  assert.ok(Object.isFrozen(command.command.payload.action));
+  const receipt = await executeTeaching(first.app, command);
   assert.equal(receipt.kind, "committed");
-  const review = await first.app.read();
+  const review = await selectedProjection(first.app);
   if (review.kind === "recovery") assert.fail(review.message);
-  assert.deepEqual(await f.connect().app.open(), review);
+  assert.deepEqual(
+    await selectedProjection((await f.connectReady()).app),
+    review,
+  );
   const selectionCount = accepted(first.db);
   await f.act(first.app, "back");
-  const restoredSelection = await first.app.read();
+  const restoredSelection = await selectedProjection(first.app);
   assert.equal(restoredSelection.kind, "reviewSelection");
   if (restoredSelection.kind === "reviewSelection")
     assert.deepEqual(restoredSelection.committedChoice, {
@@ -123,7 +137,7 @@ test("real SQLite restores selection, immutable source-order queue, correction/r
   assert.ok(priorUndo?.intent.kind === "undoAdvance");
   assert.equal(priorUndo.intent.binding.runRevision, "8");
   assert.equal(priorUndo.intent.binding.cursorRevision, "9");
-  assert.deepEqual(await first.app.read(), {
+  assert.deepEqual(await selectedProjection(first.app), {
     ...review,
     actions: review.actions.map((action) =>
       action.intent.kind === "undoAdvance"
@@ -148,19 +162,22 @@ test("real SQLite restores selection, immutable source-order queue, correction/r
   await f.act(first.app, "parentReady");
   await f.act(first.app, "help");
   await f.act(first.app, "pause");
-  const paused = await first.app.read();
-  const restart = f.connect();
-  assert.deepEqual(await restart.app.open(), paused);
+  const paused = await selectedProjection(first.app);
+  const restart = await f.connectReady();
+  assert.deepEqual(await selectedProjection(restart.app), paused);
   await f.act(restart.app, "resume");
   await f.act(restart.app, "continue");
-  const retest = await restart.app.read();
-  assert.deepEqual(await f.connect().app.open(), retest);
+  const retest = await selectedProjection(restart.app);
+  assert.deepEqual(
+    await selectedProjection((await f.connectReady()).app),
+    retest,
+  );
   if (retest.kind !== "teaching") throw new Error("Missing retest");
   assert.match(retest.turn.id, /response-03$/);
   assert.equal("glyph" in retest.turn, false);
   assert.equal("cue" in retest.turn, false);
   await f.act(restart.app, "confirmReviewItem");
-  assert.equal((await restart.app.read()).kind, "completed");
+  assert.equal((await selectedProjection(restart.app)).kind, "completed");
   assert.equal(
     first.db.prepare("SELECT count(*) AS n FROM task_credit").get()?.n,
     1,
@@ -169,9 +186,15 @@ test("real SQLite restores selection, immutable source-order queue, correction/r
   await f.act(restart.app, "back");
   await f.act(restart.app, "continue");
   assert.equal(accepted(first.db), count);
-  assert.equal((await f.connect().app.open()).kind, "completed");
+  assert.equal(
+    (await selectedProjection((await f.connectReady()).app)).kind,
+    "completed",
+  );
   first.db.prepare("DELETE FROM command_receipt").run();
-  assert.equal((await f.connect().app.open()).kind, "completed");
+  assert.equal(
+    (await selectedProjection((await f.connectReady()).app)).kind,
+    "completed",
+  );
   const row = first.db
     .prepare(
       "SELECT accepting_command FROM task_advance ORDER BY seq DESC LIMIT 1",
@@ -186,7 +209,7 @@ test("selection and readiness failure roll back; same immutable retry and lost C
   for (const stage of ["selection", "ready", "terminal"]) {
     const f = await setup(t);
     let failure: "write" | "reply" | null = null;
-    const first = f.connect({
+    const first = await f.connectReady({
       hook: async (sql, work) => {
         if (failure === "write" && sql.includes('insert into "task_advance"')) {
           failure = null;
@@ -201,19 +224,21 @@ test("selection and readiness failure roll back; same immutable retry and lost C
       },
     });
     await start({ fixture: f, app: first.app });
-    let command: TeachingCommand;
+    let command: SelectedTeachingOperation;
     if (stage === "ready") {
       await f.act(first.app, "continue");
-      const p = await first.app.read();
+      const p = await selectedProjection(first.app);
       if (p.kind === "recovery") throw new Error("Recovery");
       const action = p.actions.find((a) => a.intent.kind === "parentReady");
       assert.ok(action);
-      command = await prepareCommand({
-        projection: p,
-        request: { kind: "action", action },
-        ids: f.ids,
-        hash,
-      });
+      command = await prepareSelectedTeaching(first.app, async () =>
+        prepareCommand({
+          projection: p,
+          request: { kind: "action", action },
+          ids: f.ids,
+          hash,
+        }),
+      );
     } else {
       await toSelection({ fixture: f, app: first.app });
       const item = f.oral.graph.reviews[0]?.items[2];
@@ -227,33 +252,36 @@ test("selection and readiness failure roll back; same immutable retry and lost C
             : { kind: "none" },
       });
     }
-    const before = await first.app.read(),
+    const before = await selectedProjection(first.app),
       count = accepted(first.db);
     failure = "write";
     await assert.rejects(
-      first.app.dispatch(command),
+      executeTeaching(first.app, command),
       (error: unknown) =>
         error instanceof Error &&
         error.cause instanceof Error &&
         error.cause.message === "Injected decision write failure",
     );
-    assert.deepEqual(await first.app.read(), before);
+    assert.deepEqual(await selectedProjection(first.app), before);
     assert.equal(accepted(first.db), count);
     failure = "reply";
-    await assert.rejects(first.app.dispatch(command), /Lost/);
-    const receipt = await first.app.dispatch(command);
+    await assert.rejects(executeTeaching(first.app, command), /Lost/);
+    const receipt = await executeTeaching(first.app, command);
     assert.equal(receipt.kind, "committed");
     assert.equal(accepted(first.db), Number(count) + 1);
-    assert.deepEqual(await f.connect().app.open(), await first.app.read());
-    assert.deepEqual(await first.app.dispatch(command), receipt);
+    assert.deepEqual(
+      await selectedProjection((await f.connectReady()).app),
+      await selectedProjection(first.app),
+    );
+    assert.deepEqual(await executeTeaching(first.app, command), receipt);
   }
 });
 test("receipt pruning cannot replay stale complete choice or replace a committed queue", async (t) => {
   const f = await setup(t),
-    first = f.connect();
+    first = await f.connectReady();
   await start({ fixture: f, app: first.app });
   await toSelection({ fixture: f, app: first.app });
-  const view = await first.app.read();
+  const view = await selectedProjection(first.app);
   if (view.kind !== "reviewSelection") throw new Error("Selection missing");
   const item = view.items[2];
   assert.ok(item);
@@ -265,15 +293,18 @@ test("receipt pruning cannot replay stale complete choice or replace a committed
       itemIds: [item.itemId],
     },
   });
-  await first.app.dispatch(command);
+  await executeTeaching(first.app, command);
   first.db.prepare("DELETE FROM command_receipt").run();
-  const before = await first.app.read(),
+  const before = await selectedProjection(first.app),
     count = accepted(first.db);
-  const stale = await first.app.dispatch(command);
+  const stale = await executeTeaching(first.app, command);
   assert.equal(stale.kind, "rejected");
-  assert.deepEqual(await first.app.read(), before);
+  assert.deepEqual(await selectedProjection(first.app), before);
   assert.equal(accepted(first.db), count);
-  assert.deepEqual(await f.connect().app.open(), before);
+  assert.deepEqual(
+    await selectedProjection((await f.connectReady()).app),
+    before,
+  );
 });
 test("reopen rejects missing, changed semantic action, changed hash, wrong checkpoint/run/package and queue bytes", async (t) => {
   for (const tamper of [
@@ -286,7 +317,7 @@ test("reopen rejects missing, changed semantic action, changed hash, wrong check
     "queue",
   ]) {
     const f = await setup(t),
-      first = f.connect();
+      first = await f.connectReady();
     await start({ fixture: f, app: first.app });
     await toSelection({ fixture: f, app: first.app });
     const command = await select({
@@ -294,7 +325,7 @@ test("reopen rejects missing, changed semantic action, changed hash, wrong check
       app: first.app,
       choice: { kind: "none" },
     });
-    await first.app.dispatch(command);
+    await executeTeaching(first.app, command);
     const row = first.db
       .prepare(
         "SELECT advance_id,accepting_command,after_state,payload_hash FROM task_advance ORDER BY seq DESC LIMIT 1",
@@ -334,7 +365,11 @@ test("reopen rejects missing, changed semantic action, changed hash, wrong check
         )
         .run(json, payloadHash, advanceId);
     }
-    assert.equal((await f.connect().app.open()).kind, "recovery", tamper);
+    assert.equal(
+      (await selectedProjection(f.connect().app)).kind,
+      "recovery",
+      tamper,
+    );
     assert.equal(accepted(first.db), 8);
     assert.equal(
       first.db.prepare("SELECT count(*) AS n FROM profile").get()?.n,

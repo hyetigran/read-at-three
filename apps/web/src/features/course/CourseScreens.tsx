@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, Settings } from "lucide-react";
@@ -12,12 +12,14 @@ import type {
   CourseAction,
   CourseTask,
   HistoricalWork,
-  Owner,
   SavedWork,
+  SelectedOwnerWitness,
+  ProfileSummary,
 } from "@readatthree/teaching";
 import { Button } from "@/components/ui/button";
 import { AddedText, CopyText } from "@/features/teaching/CopyText";
 import type { BrowserTeachingClient } from "@/platform/teaching-client";
+import { ProfileButton } from "../parent/AnimalPortrait.tsx";
 import meadow from "@/assets/meadow.svg";
 
 type Ready = Extract<ApplicationRead, { kind: "ready" }>;
@@ -34,7 +36,11 @@ export function CourseHeader({
   title,
   back = "/",
   children,
+  profile,
+  onParents,
 }: {
+  profile?: ProfileSummary | undefined;
+  onParents?: ((kind: "settings" | "profiles") => void) | undefined;
   title: React.ReactNode;
   back?: string;
   children?: React.ReactNode;
@@ -51,9 +57,22 @@ export function CourseHeader({
       <h1>{title}</h1>
       <div className="course-header-actions">
         {children}
+        {profile && onParents ? (
+          <ProfileButton
+            profile={profile}
+            onClick={() => onParents("profiles")}
+          />
+        ) : null}
         <Link
           className="course-icon-button"
+          id="parent-settings"
           to="/parent/gate"
+          onClick={(event) => {
+            if (onParents) {
+              event.preventDefault();
+              onParents("settings");
+            }
+          }}
           aria-label="For parents"
         >
           <Settings aria-hidden="true" />
@@ -107,10 +126,14 @@ export function LessonMap({
   read,
   onEntry,
   busy,
+  profile,
+  onParents,
 }: {
   read: Ready;
   onEntry: Entry;
   busy: boolean;
+  profile?: ProfileSummary | undefined;
+  onParents?: ((kind: "settings" | "profiles") => void) | undefined;
 }) {
   return (
     <main
@@ -125,7 +148,21 @@ export function LessonMap({
           </span>
           <AddedText>read at three</AddedText>
         </h1>
+        {profile && onParents ? (
+          <ProfileButton
+            profile={profile}
+            disabled={busy}
+            onClick={() => onParents("profiles")}
+          />
+        ) : null}
         <Link
+          id="parent-settings"
+          onClick={(event) => {
+            if (onParents) {
+              event.preventDefault();
+              onParents("settings");
+            }
+          }}
           className="course-icon-button"
           to="/parent/gate"
           aria-label="For parents"
@@ -142,6 +179,7 @@ export function LessonMap({
           return (
             <Link
               key={lesson.lessonId}
+              id={`lesson-${lesson.lessonId}`}
               to={`/lessons/${lesson.lessonId}`}
               className="course-pedestal"
               data-lesson-number={lesson.number}
@@ -343,7 +381,7 @@ function WorkLinks({
       <ul>
         {works.map((work, index) => (
           <li key={work.runId}>
-            <Link to={`/work/${work.runId}`}>
+            <Link id={`work-${work.runId}`} to={`/work/${work.runId}`}>
               <AddedText>{`Task ${taskNumber} · ${work.status === "inProgress" ? "Unfinished" : work.status === "abandoned" ? "Earlier run" : work.status === "skipped" ? "Skipped" : "Completed"} · ${index + 1} · View read-only`}</AddedText>
             </Link>
           </li>
@@ -356,10 +394,16 @@ export function LessonMenu({
   read,
   onEntry,
   busy,
+  profile,
+  onParents,
+  navigationLifetime,
 }: {
   read: Ready;
   onEntry: Entry;
   busy: boolean;
+  profile?: ProfileSummary | undefined;
+  onParents?: ((kind: "settings" | "profiles") => void) | undefined;
+  navigationLifetime?: string;
 }) {
   const { lessonId } = useParams();
   const location = useLocation();
@@ -370,6 +414,7 @@ export function LessonMenu({
   const entryKey = menuEntryKey(location);
   const identity = canonical([
     entryKey,
+    navigationLifetime,
     lessonId,
     read.witness.owner,
     read.witness.activePackageHash,
@@ -412,7 +457,11 @@ export function LessonMenu({
   }
   return (
     <main className="course-screen course-menu" aria-busy={busy}>
-      <CourseHeader title={<CopyText copy={lesson.title} />} />
+      <CourseHeader
+        title={<CopyText copy={lesson.title} />}
+        profile={profile}
+        onParents={onParents}
+      />
       <div className="course-menu-scroll" ref={scroll} data-menu-scroll>
         <div className="course-menu-intro">
           <p>
@@ -469,7 +518,7 @@ export function LessonMenu({
                   ) : (
                     task.actions.map((action) => (
                       <Button
-                        id={`task-${task.number}-${action.intent.kind}-${action.intent.sessionId ?? "new"}`}
+                        id={`task-${task.id}-${action.intent.kind}-${action.intent.sessionId ?? "new"}`}
                         key={canonical(action.intent)}
                         data-action={action.intent.kind}
                         className={`course-entry-button${task.actions.length === 1 ? " course-entry-single" : ""}`}
@@ -628,10 +677,17 @@ function Drawing({
 export function SavedWorkScreen({
   read,
   client,
+  selection,
+  profile,
+  onParents,
 }: {
   read: Ready;
   client: BrowserTeachingClient;
+  selection: SelectedOwnerWitness;
+  profile?: ProfileSummary | undefined;
+  onParents?: ((kind: "settings" | "profiles") => void) | undefined;
 }) {
+  const connection = client.connectionTicket();
   const { runId } = useParams();
   const work = read.course.lessons
     .flatMap((lesson) => lesson.tasks.flatMap((task) => task.history))
@@ -639,15 +695,24 @@ export function SavedWorkScreen({
   const result = useQuery({
     queryKey: [
       "historical-work",
+      selection.installationId,
+      selection.revision,
+      connection,
       read.witness.owner.profileId,
       read.witness.owner.generation,
       read.courseId,
       work?.packageHash,
       runId,
     ],
-    queryFn: () => {
+    queryFn: async () => {
       if (!work) throw new Error("Saved work is unavailable.");
-      return client.readWork({ owner: read.witness.owner, runId: work.runId });
+      const saved = await client.readWork({ selection, runId: work.runId });
+      if (
+        connection !== client.connectionTicket() ||
+        canonical(saved.selection) !== canonical(selection)
+      )
+        throw new Error("Saved-work reading lifetime changed.");
+      return saved.value;
     },
     enabled: !!work,
     networkMode: "always",
@@ -660,6 +725,8 @@ export function SavedWorkScreen({
       <CourseHeader
         title={<AddedText>Saved work · Read-only</AddedText>}
         back={`/lessons/${work.lessonId}`}
+        profile={profile}
+        onParents={onParents}
       />
       <section className="course-saved-content">
         {result.data ? (
@@ -711,115 +778,6 @@ export function SavedWorkScreen({
             <AddedText>Opening saved work…</AddedText>
           </p>
         )}
-      </section>
-    </main>
-  );
-}
-export function ParentGate({
-  owner,
-  onGrant,
-}: {
-  owner: Owner;
-  onGrant: (owner: Owner) => void;
-}) {
-  const [answer, setAnswer] = useState("");
-  const [error, setError] = useState(false);
-  useEffect(() => {
-    setAnswer("");
-    setError(false);
-  }, [owner.profileId, owner.generation]);
-  return (
-    <main className="course-screen course-parent">
-      <CourseHeader title={<AddedText>For parents</AddedText>} />
-      <form
-        className="course-gate"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (answer.trim().toLowerCase() !== "meadow") {
-            setError(true);
-            return;
-          }
-          onGrant(owner);
-        }}
-      >
-        <div className="course-parent-symbol" aria-hidden="true">
-          <Settings />
-        </div>
-        <h2>
-          <AddedText>A moment for the grown-up</AddedText>
-        </h2>
-        <p>
-          <AddedText>To open parent settings, type the word meadow.</AddedText>
-        </p>
-        <label htmlFor="parent-word">
-          <AddedText>Type the word</AddedText>
-        </label>
-        <input
-          autoFocus
-          id="parent-word"
-          autoComplete="off"
-          autoCapitalize="none"
-          spellCheck={false}
-          value={answer}
-          onChange={(event) => setAnswer(event.currentTarget.value)}
-          aria-invalid={error}
-          aria-describedby={error ? "parent-word-error" : undefined}
-        />
-        {error ? (
-          <p id="parent-word-error" role="alert">
-            <AddedText>
-              That word does not match. Read the word above and try again.
-            </AddedText>
-          </p>
-        ) : null}
-        <div className="course-gate-actions">
-          <Link className="course-secondary" to="/">
-            <AddedText>Cancel</AddedText>
-          </Link>
-          <Button className="course-primary" type="submit">
-            <AddedText>Continue to parent settings</AddedText>
-          </Button>
-        </div>
-      </form>
-    </main>
-  );
-}
-export function ParentSettings() {
-  return (
-    <main className="course-screen course-parent">
-      <CourseHeader title={<AddedText>Parent settings</AddedText>} />
-      <section className="course-settings">
-        <h2>
-          <AddedText>Reading together</AddedText>
-        </h2>
-        <p>
-          <AddedText>
-            Read the top guidance, model the sounds, listen and choose when to
-            continue. Touch and handwriting do not automatically pass an
-            activity.
-          </AddedText>
-        </p>
-        <h2>
-          <AddedText>Saved on this device</AddedText>
-        </h2>
-        <p>
-          <AddedText>
-            Your current reading place, completed activities and acknowledged
-            handwriting saves are stored locally.
-          </AddedText>
-        </p>
-        <h2>
-          <AddedText>Coming in later application updates</AddedText>
-        </h2>
-        <p>
-          <AddedText>
-            Profile management, animal selection, protected backup and restore,
-            preparation and personal-data cleanup are not available yet.
-          </AddedText>
-        </p>
-        <Link className="course-primary" to="/">
-          <AddedText>Return to lesson map</AddedText>
-        </Link>
       </section>
     </main>
   );

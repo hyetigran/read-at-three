@@ -1,3 +1,9 @@
+import {
+  executeTeaching,
+  prepareSelectedTeaching,
+  selectedProjection,
+} from "./selected-support.ts";
+
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
@@ -9,7 +15,7 @@ import {
 } from "../../packages/teaching/src/index.ts";
 import type {
   CommittedProjection,
-  TeachingApplication,
+  SelectedApplication,
   TeachingIntent,
 } from "../../packages/teaching/src/index.ts";
 import { continuousFixture } from "../teaching/continuous-fixture.ts";
@@ -21,9 +27,9 @@ async function setup(t: Parameters<typeof storageFixture>[0]) {
 }
 async function start(input: {
   fixture: Awaited<ReturnType<typeof setup>>;
-  app: TeachingApplication;
+  app: SelectedApplication;
 }) {
-  await input.app.open();
+  await selectedProjection(input.app);
   await input.fixture.act(
     input.app,
     "start",
@@ -34,9 +40,9 @@ async function start(input: {
 }
 async function advance(input: {
   fixture: Awaited<ReturnType<typeof setup>>;
-  app: TeachingApplication;
+  app: SelectedApplication;
 }) {
-  const p = await input.app.read();
+  const p = await selectedProjection(input.app);
   if (p.kind !== "teaching") throw new Error("Expected continuous teaching");
   return input.fixture.act(
     input.app,
@@ -47,11 +53,11 @@ async function advance(input: {
 }
 async function to(input: {
   fixture: Awaited<ReturnType<typeof setup>>;
-  app: TeachingApplication;
+  app: SelectedApplication;
   suffix: string;
 }) {
   for (let count = 0; count < 15; count++) {
-    const p = await input.app.read();
+    const p = await selectedProjection(input.app);
     if (p.kind === "teaching" && p.turn.id.endsWith(`.${input.suffix}`))
       return p;
     await advance(input);
@@ -60,19 +66,21 @@ async function to(input: {
 }
 async function command(input: {
   fixture: Awaited<ReturnType<typeof setup>>;
-  app: TeachingApplication;
+  app: SelectedApplication;
   kind: TeachingIntent["kind"];
 }) {
-  const p = await input.app.read();
+  const p = await selectedProjection(input.app);
   if (p.kind === "recovery") throw new Error("Unexpected recovery");
   const action = p.actions.find((action) => action.intent.kind === input.kind);
   if (!action) throw new Error("Continuous action missing");
-  return prepareCommand({
-    projection: p,
-    request: { kind: "action", action },
-    ids: input.fixture.ids,
-    hash,
-  });
+  return prepareSelectedTeaching(input.app, async () =>
+    prepareCommand({
+      projection: p,
+      request: { kind: "action", action },
+      ids: input.fixture.ids,
+      hash,
+    }),
+  );
 }
 function position(projection: CommittedProjection) {
   if (projection.kind !== "teaching")
@@ -97,38 +105,38 @@ function savedState(
 }
 test("real SQLite reopens instruction practice, Ready, independent test, every later-item restart boundary, Back and terminal after pruning receipts", async (t) => {
   const fixture = await setup(t);
-  let connection = fixture.connect();
+  let connection = await fixture.connectReady();
   await start({ fixture, app: connection.app });
   await to({ fixture, app: connection.app, suffix: "if-independent" });
   await fixture.act(connection.app, "help");
   await fixture.act(connection.app, "continue");
-  const before = await connection.app.read();
+  const before = await selectedProjection(connection.app);
   assert.equal(position(before), "together");
   await fixture.act(connection.app, "continue");
-  assert.equal(position(await connection.app.read()), "together");
+  assert.equal(position(await selectedProjection(connection.app)), "together");
   connection.db.prepare("DELETE FROM command_receipt").run();
-  let snapshot = await connection.app.read();
-  connection = fixture.connect();
-  assert.deepEqual(await connection.app.open(), snapshot);
+  let snapshot = await selectedProjection(connection.app);
+  connection = await fixture.connectReady();
+  assert.deepEqual(await selectedProjection(connection.app), snapshot);
   await fixture.act(connection.app, "pause");
-  snapshot = await connection.app.read();
-  connection = fixture.connect();
-  assert.deepEqual(await connection.app.open(), snapshot);
+  snapshot = await selectedProjection(connection.app);
+  connection = await fixture.connectReady();
+  assert.deepEqual(await selectedProjection(connection.app), snapshot);
   await fixture.act(connection.app, "resume");
   await fixture.act(connection.app, "parentReady");
-  assert.equal(position(await connection.app.read()), "test");
-  snapshot = await connection.app.read();
-  connection = fixture.connect();
-  assert.deepEqual(await connection.app.open(), snapshot);
+  assert.equal(position(await selectedProjection(connection.app)), "test");
+  snapshot = await selectedProjection(connection.app);
+  connection = await fixture.connectReady();
+  assert.deepEqual(await selectedProjection(connection.app), snapshot);
   await fixture.act(connection.app, "continue");
   const replay = [];
   for (let index = 0; index < 7; index++) {
-    const p = await connection.app.read();
+    const p = await selectedProjection(connection.app);
     replay.push(position(p));
     snapshot = p;
     connection.db.prepare("DELETE FROM command_receipt").run();
-    connection = fixture.connect();
-    assert.deepEqual(await connection.app.open(), snapshot);
+    connection = await fixture.connectReady();
+    assert.deepEqual(await selectedProjection(connection.app), snapshot);
     await advance({ fixture, app: connection.app });
   }
   assert.deepEqual(replay, [
@@ -140,7 +148,10 @@ test("real SQLite reopens instruction practice, Ready, independent test, every l
     "if-again",
     "if-independent",
   ]);
-  assert.equal(position(await connection.app.read()), "in-together");
+  assert.equal(
+    position(await selectedProjection(connection.app)),
+    "in-together",
+  );
   await fixture.act(connection.app, "back");
   const acceptances = count({ db: connection.db, table: "task_advance" });
   await fixture.act(connection.app, "continue");
@@ -150,15 +161,15 @@ test("real SQLite reopens instruction practice, Ready, independent test, every l
   );
   await to({ fixture, app: connection.app, suffix: "in-independent" });
   await fixture.act(connection.app, "continue");
-  assert.equal((await connection.app.read()).kind, "completed");
+  assert.equal((await selectedProjection(connection.app)).kind, "completed");
   assert.equal(count({ db: connection.db, table: "task_credit" }), 1);
   connection.db.prepare("DELETE FROM command_receipt").run();
-  snapshot = await connection.app.read();
-  connection = fixture.connect();
-  assert.deepEqual(await connection.app.open(), snapshot);
+  snapshot = await selectedProjection(connection.app);
+  connection = await fixture.connectReady();
+  assert.deepEqual(await selectedProjection(connection.app), snapshot);
   await fixture.act(connection.app, "back");
   await fixture.act(connection.app, "continue");
-  assert.equal((await connection.app.read()).kind, "completed");
+  assert.equal((await selectedProjection(connection.app)).kind, "completed");
   assert.equal(count({ db: connection.db, table: "task_credit" }), 1);
 });
 for (const stage of ["instructionReady", "terminal"])
@@ -166,7 +177,7 @@ for (const stage of ["instructionReady", "terminal"])
     test(`${stage} ${failure} failure preserves atomic state and exact Retry converges once`, async (t) => {
       const fixture = await setup(t);
       let armed = false;
-      const connection = fixture.connect({
+      const connection = await fixture.connectReady({
         hook: async (sql, work) => {
           if (
             armed &&
@@ -191,7 +202,7 @@ for (const stage of ["instructionReady", "terminal"])
         await fixture.act(connection.app, "continue");
       } else
         await to({ fixture, app: connection.app, suffix: "in-independent" });
-      const before = await connection.app.read(),
+      const before = await selectedProjection(connection.app),
         advances = Number(count({ db: connection.db, table: "task_advance" })),
         receipts = Number(
           count({ db: connection.db, table: "command_receipt" }),
@@ -205,12 +216,12 @@ for (const stage of ["instructionReady", "terminal"])
         stateBefore = savedState(connection.db);
       armed = true;
       await assert.rejects(
-        connection.app.dispatch(immutable),
+        executeTeaching(connection.app, immutable),
         failure === "write" ? /Failed query/ : /Lost continuous/,
       );
       assert.equal(canonical(immutable), bytes);
       if (failure === "write") {
-        assert.deepEqual(await connection.app.read(), before);
+        assert.deepEqual(await selectedProjection(connection.app), before);
         assert.deepEqual(savedState(connection.db), stateBefore);
         assert.equal(
           Number(count({ db: connection.db, table: "task_advance" })),
@@ -231,9 +242,12 @@ for (const stage of ["instructionReady", "terminal"])
           receipts + 1,
         );
       }
-      const receipt = await connection.app.dispatch(immutable);
+      const receipt = await executeTeaching(connection.app, immutable);
       assert.equal(receipt.kind, "committed");
-      assert.deepEqual(await connection.app.dispatch(immutable), receipt);
+      assert.deepEqual(
+        await executeTeaching(connection.app, immutable),
+        receipt,
+      );
       assert.equal(
         Number(count({ db: connection.db, table: "task_advance" })),
         advances + 1,
@@ -242,7 +256,7 @@ for (const stage of ["instructionReady", "terminal"])
         Number(count({ db: connection.db, table: "command_receipt" })),
         receipts + 1,
       );
-      const after = await connection.app.read();
+      const after = await selectedProjection(connection.app);
       if (stage === "instructionReady") {
         assert.equal(position(after), "test");
         assert.equal(count({ db: connection.db, table: "task_credit" }), 0);
@@ -260,8 +274,14 @@ for (const stage of ["instructionReady", "terminal"])
         ["supported", "supported", "supported"],
       );
       connection.db.prepare("DELETE FROM command_receipt").run();
-      assert.deepEqual(await fixture.connect().app.open(), after);
-      const stale = await fixture.connect().app.dispatch(immutable);
+      assert.deepEqual(
+        await selectedProjection((await fixture.connectReady()).app),
+        after,
+      );
+      const stale = await executeTeaching(
+        (await fixture.connectReady()).app,
+        immutable,
+      );
       assert.equal(stale.kind, "rejected");
       assert.equal(
         Number(count({ db: connection.db, table: "task_advance" })),
@@ -299,8 +319,8 @@ test("strict oral expansion activates once, retains exact old blobs and pins, an
   const old = await oldContent(),
     continuous = await continuousFixture();
   const fixture = await storageFixture(t, old);
-  const first = fixture.connect();
-  await first.app.open();
+  const first = await fixture.connectReady();
+  await selectedProjection(first.app);
   await fixture.act(
     first.app,
     "start",
@@ -309,15 +329,15 @@ test("strict oral expansion activates once, retains exact old blobs and pins, an
       action.intent.taskId === "fixture.graph.l01.t02",
   );
   await fixture.act(first.app, "continue");
-  const before = await first.app.read();
+  const before = await selectedProjection(first.app);
   const run = first.db.prepare("SELECT * FROM task_run").all();
   const blob = first.db
     .prepare(
       "SELECT verified_manifest FROM installed_package WHERE package_hash=?",
     )
     .get(old.packageHash)?.verified_manifest;
-  const expanded = fixture.connect({ content: continuous.content });
-  const p = await expanded.app.open();
+  const expanded = await fixture.connectReady({ content: continuous.content });
+  const p = await selectedProjection(expanded.app);
   assert.equal(p.kind, "teaching");
   if (p.kind !== "teaching" || before.kind !== "teaching")
     throw new Error("Old pinned turn missing");
@@ -345,7 +365,9 @@ test("strict oral expansion activates once, retains exact old blobs and pins, an
     blob,
   );
   assert.deepEqual(
-    await fixture.connect({ content: continuous.content }).app.open(),
+    await selectedProjection(
+      (await fixture.connectReady({ content: continuous.content })).app,
+    ),
     p,
   );
   assert.deepEqual(activation(first.db), {
@@ -353,7 +375,7 @@ test("strict oral expansion activates once, retains exact old blobs and pins, an
     fallback_package_hash: old.packageHash,
     revision: 1,
   });
-  await fixture.connect({ content: old }).app.open();
+  await selectedProjection((await fixture.connectReady({ content: old })).app);
   assert.equal(
     activation(first.db)?.active_package_hash,
     continuous.content.packageHash,
@@ -364,7 +386,7 @@ test("strict oral expansion activates once, retains exact old blobs and pins, an
     (action) =>
       "taskId" in action.intent && action.intent.taskId === continuous.taskId,
   );
-  const next = await expanded.app.read();
+  const next = await selectedProjection(expanded.app);
   assert.equal(next.kind, "teaching");
   if (next.kind !== "teaching") throw new Error("New task missing");
   assert.equal(next.packageHash, continuous.content.packageHash);
@@ -434,10 +456,12 @@ test("equal, reordered, changed and shrinking oral packages cannot replace activ
   ];
   for (const variant of variants) {
     const fixture = await storageFixture(t, old),
-      first = fixture.connect();
-    await first.app.open();
+      first = await fixture.connectReady();
+    await selectedProjection(first.app);
     const candidate = await packageFor(variant);
-    await fixture.connect({ content: candidate }).app.open();
+    await selectedProjection(
+      (await fixture.connectReady({ content: candidate })).app,
+    );
     assert.deepEqual(activation(first.db), {
       active_package_hash: old.packageHash,
       fallback_package_hash: null,
@@ -445,9 +469,9 @@ test("equal, reordered, changed and shrinking oral packages cannot replace activ
     });
   }
   const fixture = await setup(t),
-    first = fixture.connect();
-  await first.app.open();
-  await fixture.connect({ content: old }).app.open();
+    first = await fixture.connectReady();
+  await selectedProjection(first.app);
+  await selectedProjection((await fixture.connectReady({ content: old })).app);
   assert.equal(
     activation(first.db)?.active_package_hash,
     fixture.content.packageHash,
@@ -459,8 +483,8 @@ for (const point of ["update", "commit", "reply"])
     const old = await oldContent(),
       continuous = await continuousFixture(),
       fixture = await storageFixture(t, old),
-      first = fixture.connect();
-    await first.app.open();
+      first = await fixture.connectReady();
+    await selectedProjection(first.app);
     let armed = true;
     const broken = fixture.connect({
       content: continuous.content,
@@ -482,7 +506,14 @@ for (const point of ["update", "commit", "reply"])
         return result;
       },
     });
-    assert.equal((await broken.app.open()).kind, "recovery");
+    await assert.rejects(
+      broken.app.readDirectory(),
+      point === "update"
+        ? /Failed query/
+        : point === "reply"
+          ? /Lost activation acknowledgement/
+          : /Injected activation interruption/,
+    );
     if (point !== "reply") {
       assert.deepEqual(activation(first.db), {
         active_package_hash: old.packageHash,
@@ -495,13 +526,17 @@ for (const point of ["update", "commit", "reply"])
         1,
       );
     }
-    await fixture.connect({ content: continuous.content }).app.open();
+    await selectedProjection(
+      (await fixture.connectReady({ content: continuous.content })).app,
+    );
     assert.deepEqual(activation(first.db), {
       active_package_hash: continuous.content.packageHash,
       fallback_package_hash: old.packageHash,
       revision: 1,
     });
-    await fixture.connect({ content: continuous.content }).app.open();
+    await selectedProjection(
+      (await fixture.connectReady({ content: continuous.content })).app,
+    );
     assert.equal(activation(first.db)?.revision, 1);
     assert.equal(
       first.db.prepare("SELECT count(*) AS n FROM installed_package").get()?.n,

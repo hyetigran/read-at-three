@@ -1,3 +1,12 @@
+import {
+  executeInk,
+  executeTeaching,
+  prepareSelectedInk,
+  prepareSelectedTeaching,
+  selectedInk,
+  selectedProjection,
+} from "./selected-support.ts";
+
 import { readFile } from "node:fs/promises";
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -17,9 +26,9 @@ import {
 } from "../../packages/teaching/src/index.ts";
 import type {
   DocumentToken,
-  InkCommand,
+  SelectedInkOperation,
   InkEdit,
-  WritingApplication,
+  SelectedApplication,
   TeachingIntent,
   InkChunk,
 } from "../../packages/teaching/src/index.ts";
@@ -30,30 +39,34 @@ async function act({
   kind,
   ids,
 }: {
-  app: WritingApplication;
+  app: SelectedApplication;
   kind: TeachingIntent["kind"];
   ids: () => string;
 }) {
-  const projection = await app.read();
+  const projection = await selectedProjection(app);
   if (projection.kind === "recovery") throw Error(projection.message);
   const action = projection.actions.find((a) => a.intent.kind === kind);
   if (!action) throw Error(`Missing ${kind} at ${projection.kind}`);
   const command =
     projection.kind === "writing" || projection.kind === "writingResult"
-      ? await prepareWritingCommand({
-          projection,
-          action,
-          barrier: { kind: "writing", documents: projection.documents },
-          ids,
-          hash,
-        })
-      : await prepareCommand({
-          projection,
-          request: { kind: "action", action },
-          ids,
-          hash,
-        });
-  return app.dispatch(command);
+      ? await prepareSelectedTeaching(app, async () =>
+          prepareWritingCommand({
+            projection,
+            action,
+            barrier: { kind: "writing", documents: projection.documents },
+            ids,
+            hash,
+          }),
+        )
+      : await prepareSelectedTeaching(app, async () =>
+          prepareCommand({
+            projection,
+            request: { kind: "action", action },
+            ids,
+            hash,
+          }),
+        );
+  return executeTeaching(app, command);
 }
 function chunk({
   x = 10,
@@ -80,15 +93,17 @@ function chunk({
   };
 }
 async function inkCommand({
+  app,
   token,
   edit,
   ids,
 }: {
+  app: SelectedApplication;
   token: DocumentToken;
   edit: InkEdit;
   ids: () => string;
-}): Promise<InkCommand> {
-  return {
+}): Promise<SelectedInkOperation> {
+  return prepareSelectedInk(app, async () => ({
     kind: "ink",
     commandId: parseId({ kind: "command", value: ids() }),
     token,
@@ -97,7 +112,7 @@ async function inkCommand({
       kind: "payload",
       value: await hash(canonical({ kind: "ink", token, edit })),
     }),
-  };
+  }));
 }
 const brush = {
   kind: "round",
@@ -109,16 +124,17 @@ const brush = {
 
 test("real writing SQL enforces frontier, barriers, epochs, atomic capture and exact Retry", async (t) => {
   const f = await storageFixture(t, await writingFixture()),
-    first = f.connect(),
+    first = await f.connectReady(),
     app = first.app;
-  await app.open();
+  await selectedProjection(app);
   await act({ app, kind: "start", ids: f.ids });
-  let p = await app.read();
+  let p = await selectedProjection(app);
   if (p.kind !== "writing") throw Error("writing missing");
   assert.equal(p.documents.length, 2);
   const token = p.documents.find((d) => d.targetId === "first");
   if (!token) throw Error();
   const begin = await inkCommand({
+    app,
     token,
     edit: {
       kind: "begin",
@@ -129,42 +145,44 @@ test("real writing SQL enforces frontier, barriers, epochs, atomic capture and e
     },
     ids: f.ids,
   });
-  assert.equal((await app.dispatchInk(begin)).kind, "rejected");
+  assert.equal((await executeInk(app, begin)).kind, "rejected");
   await act({ app, kind: "continue", ids: f.ids });
-  p = await app.read();
+  p = await selectedProjection(app);
   if (p.kind !== "writing") throw Error();
   const active = p.documents.find((d) => d.targetId === "first");
   if (!active) throw Error();
   const command = await inkCommand({
+    app,
     token: active,
-    edit: begin.edit,
+    edit: begin.command.edit,
     ids: f.ids,
   });
-  const receipt = await app.dispatchInk(command);
+  const receipt = await executeInk(app, command);
   assert.equal(receipt.kind, "inkCommitted");
-  assert.deepEqual(await app.dispatchInk(command), receipt);
+  assert.deepEqual(await executeInk(app, command), receipt);
   assert.equal(
     (await act({ app, kind: "continue", ids: f.ids })).kind,
     "rejected",
   );
   if (receipt.kind !== "inkCommitted") throw Error();
   const finish = await inkCommand({
+    app,
     token: receipt.token,
     edit: {
       kind: "finalize",
-      strokeId: begin.edit.strokeId,
+      strokeId: begin.command.edit.strokeId,
       layer: "model",
       chunks: [],
       status: "finished",
     },
     ids: f.ids,
   });
-  assert.equal((await app.dispatchInk(finish)).kind, "inkCommitted");
+  assert.equal((await executeInk(app, finish)).kind, "inkCommitted");
   assert.equal(
     (await act({ app, kind: "continue", ids: f.ids })).kind,
     "committed",
   );
-  p = await app.read();
+  p = await selectedProjection(app);
   if (p.kind !== "writing") throw Error();
   assert.equal(p.turn.presentation.kind, "writing");
   assert.equal(
@@ -176,14 +194,16 @@ test("real writing SQL enforces frontier, barriers, epochs, atomic capture and e
   const advanced = p.documents.find((d) => d.targetId === "first");
   if (!advanced) throw Error();
   assert.equal(advanced.phase, "childTracing");
-  const snapshot = await app.readInk({ token: advanced });
+  const snapshot = await selectedInk(app, { token: advanced });
   assert.equal(snapshot.strokes[0]?.layer, "model");
   assert.deepEqual(snapshot.guides, { top: 10, midline: 90, baseline: 170 });
   assert.equal(snapshot.boardY, 0);
   assert.equal(
     (
-      await app.dispatchInk(
+      await executeInk(
+        app,
         await inkCommand({
+          app,
           token: advanced,
           edit: {
             kind: "begin",
@@ -199,11 +219,11 @@ test("real writing SQL enforces frontier, barriers, epochs, atomic capture and e
     "rejected",
   );
   await act({ app, kind: "back", ids: f.ids });
-  p = await app.read();
+  p = await selectedProjection(app);
   if (p.kind !== "writing") throw Error();
   const earlier = p.documents.find((d) => d.targetId === "first");
   if (!earlier) throw Error();
-  assert.equal((await app.readInk({ token: earlier })).writable, false);
+  assert.equal((await selectedInk(app, { token: earlier })).writable, false);
   assert.equal(
     first.db.prepare("SELECT count(*) AS n FROM task_advance").get()?.n,
     2,
@@ -211,27 +231,28 @@ test("real writing SQL enforces frontier, barriers, epochs, atomic capture and e
   await act({ app, kind: "continue", ids: f.ids });
   await act({ app, kind: "pause", ids: f.ids });
   const reopened = f.connect();
-  assert.equal((await reopened.app.open()).kind, "recovery");
+  assert.equal((await selectedProjection(reopened.app)).kind, "recovery");
   const inv = await reopened.app.openRecovery({ kind: "cold" });
   await reopened.app.reconcileRecovery({
     recoveryId: inv.recoveryId,
     choice: { kind: "cold" },
   });
-  assert.equal((await reopened.app.read()).kind, "writing");
+  assert.equal((await selectedProjection(reopened.app)).kind, "writing");
 });
 
 test("lost checkpoint and tail-finalize acknowledgements survive two warm replacements with one origin", async (t) => {
   const f = await storageFixture(t, await writingFixture()),
-    first = f.connect();
-  await first.app.open();
+    first = await f.connectReady();
+  await selectedProjection(first.app);
   await act({ app: first.app, kind: "start", ids: f.ids });
   await act({ app: first.app, kind: "continue", ids: f.ids });
-  const p = await first.app.read();
+  const p = await selectedProjection(first.app);
   if (p.kind !== "writing") throw Error();
   const token = p.documents.find((d) => d.targetId === "first");
   if (!token) throw Error();
   const strokeId = parseId({ kind: "stroke", value: f.ids() }),
     begin = await inkCommand({
+      app: first.app,
       token,
       edit: {
         kind: "begin",
@@ -255,28 +276,35 @@ test("lost checkpoint and tail-finalize acknowledgements survive two warm replac
   });
   const opened = await second.app.openRecovery({
     kind: "warm",
+    selection: begin.selection,
     retainedStrokeIds: [strokeId],
-    teaching: { kind: "none" },
+    teaching: null,
+    administration: null,
   });
   lose = true;
   await assert.rejects(
-    second.app.recoverInk({ recoveryId: opened.recoveryId, command: begin }),
+    second.app.recoverInk({ recoveryId: opened.recoveryId, operation: begin }),
     /Lost reply/,
   );
   const third = f.connect();
   const thirdOpen = await third.app.openRecovery({
     kind: "warm",
+    selection: begin.selection,
     retainedStrokeIds: [strokeId],
-    teaching: { kind: "none" },
+    teaching: null,
+    administration: null,
   });
-  assert.equal((await third.app.read()).kind, "recovery");
+  assert.equal((await selectedProjection(third.app)).kind, "recovery");
   const recovered = await third.app.recoverInk({
     recoveryId: thirdOpen.recoveryId,
-    command: begin,
+    operation: begin,
   });
-  if (recovered.kind !== "inkCommitted") throw Error();
+  assert.equal(recovered.resolution, "applied");
+  if (recovered.resolution !== "applied")
+    throw Error("Missing recovered checkpoint");
   const tail = await inkCommand({
-    token: recovered.token,
+    app: third.app,
+    token: recovered.result.token,
     edit: {
       kind: "finalize",
       strokeId,
@@ -299,38 +327,44 @@ test("lost checkpoint and tail-finalize acknowledgements survive two warm replac
   });
   const fourthOpen = await fourth.app.openRecovery({
     kind: "warm",
+    selection: begin.selection,
     retainedStrokeIds: [strokeId],
-    teaching: { kind: "none" },
+    teaching: null,
+    administration: null,
   });
   loseTail = true;
   await assert.rejects(
-    fourth.app.recoverInk({ recoveryId: fourthOpen.recoveryId, command: tail }),
+    fourth.app.recoverInk({
+      recoveryId: fourthOpen.recoveryId,
+      operation: tail,
+    }),
     /Lost tail reply/,
   );
   const fifth = f.connect();
   const fifthOpen = await fifth.app.openRecovery({
     kind: "warm",
+    selection: begin.selection,
     retainedStrokeIds: [strokeId],
-    teaching: { kind: "none" },
+    teaching: null,
+    administration: null,
   });
-  assert.equal(
-    (
-      await fifth.app.recoverInk({
-        recoveryId: fifthOpen.recoveryId,
-        command: tail,
-      })
-    ).kind,
-    "inkCommitted",
-  );
+  const finalized = await fifth.app.recoverInk({
+    recoveryId: fifthOpen.recoveryId,
+    operation: tail,
+  });
+  assert.equal(finalized.resolution, "applied");
+  if (finalized.resolution !== "applied")
+    throw Error("Missing recovered finalization");
+  assert.equal(finalized.result.kind, "inkCommitted");
   await fifth.app.reconcileRecovery({
     recoveryId: fifthOpen.recoveryId,
     choice: { kind: "warm", settledStrokeIds: [strokeId] },
   });
-  const final = await fifth.app.read();
+  const final = await selectedProjection(fifth.app);
   if (final.kind !== "writing") throw Error();
   const finalToken = final.documents.find((d) => d.targetId === "first");
   if (!finalToken) throw Error();
-  const snapshot = await fifth.app.readInk({ token: finalToken });
+  const snapshot = await selectedInk(fifth.app, { token: finalToken });
   assert.equal(snapshot.strokes.length, 1);
   assert.equal(snapshot.strokes[0]?.pointCount, 2);
   assert.equal(snapshot.strokes[0]?.status, "interrupted");
@@ -342,27 +376,23 @@ test("lost checkpoint and tail-finalize acknowledgements survive two warm replac
 
 test("Skip is a terminal acceptance, retained drawings survive, and completion dominates skipped replay", async (t) => {
   const f = await storageFixture(t, await writingFixture()),
-    first = f.connect(),
+    first = await f.connectReady(),
     app = first.app;
-  await app.open();
+  await selectedProjection(app);
   await act({ app, kind: "start", ids: f.ids });
   await act({ app, kind: "skipWriting", ids: f.ids });
-  assert.equal((await app.read()).kind, "writingResult");
+  assert.equal((await selectedProjection(app)).kind, "writingResult");
   assert.equal(
     first.db.prepare("SELECT outcome FROM task_result").get()?.outcome,
     "skipped",
   );
   const reopened = f.connect();
   const inv = await reopened.app.openRecovery({ kind: "cold" });
-  assert.equal(
-    (
-      await reopened.app.reconcileRecovery({
-        recoveryId: inv.recoveryId,
-        choice: { kind: "cold" },
-      })
-    ).kind,
-    "writingResult",
-  );
+  await reopened.app.reconcileRecovery({
+    recoveryId: inv.recoveryId,
+    choice: { kind: "cold" },
+  });
+  assert.equal((await selectedProjection(reopened.app)).kind, "writingResult");
   await act({ app: reopened.app, kind: "replay", ids: f.ids });
   for (const kind of [
     "continue",
@@ -377,7 +407,7 @@ test("Skip is a terminal acceptance, retained drawings survive, and completion d
       (await act({ app: reopened.app, kind, ids: f.ids })).kind,
       "committed",
     );
-  assert.equal((await reopened.app.read()).kind, "writingResult");
+  assert.equal((await selectedProjection(reopened.app)).kind, "writingResult");
   assert.equal(
     first.db.prepare("SELECT outcome FROM task_result").get()?.outcome,
     "completed",
@@ -397,23 +427,24 @@ test("Skip is a terminal acceptance, retained drawings survive, and completion d
       "UPDATE task_result SET outcome='skipped',accepted_credit_id=(SELECT credit_id FROM task_credit WHERE outcome='skipped' ORDER BY credit_id LIMIT 1)",
     )
     .run();
-  assert.equal((await reopened.app.read()).kind, "recovery");
+  assert.equal((await selectedProjection(reopened.app)).kind, "recovery");
 });
 
 test("partial ink survives Skip and cold reopen; Resume retains documents and replay allocates new documents", async (t) => {
   const f = await storageFixture(t, await writingFixture()),
-    first = f.connect(),
+    first = await f.connectReady(),
     app = first.app;
-  await app.open();
+  await selectedProjection(app);
   await act({ app, kind: "start", ids: f.ids });
   await act({ app, kind: "continue", ids: f.ids });
-  let p = await app.read();
+  let p = await selectedProjection(app);
   if (p.kind !== "writing") throw Error();
   const originalIds = p.documents.map((d) => d.documentId),
     token = p.documents.find((d) => d.targetId === "first");
   if (!token) throw Error();
   const strokeId = parseId({ kind: "stroke", value: f.ids() }),
     begin = await inkCommand({
+      app,
       token,
       edit: {
         kind: "begin",
@@ -424,10 +455,12 @@ test("partial ink survives Skip and cold reopen; Resume retains documents and re
       },
       ids: f.ids,
     });
-  const begun = await app.dispatchInk(begin);
+  const begun = await executeInk(app, begin);
   if (begun.kind !== "inkCommitted") throw Error();
-  await app.dispatchInk(
+  await executeInk(
+    app,
     await inkCommand({
+      app,
       token: begun.token,
       edit: {
         kind: "finalize",
@@ -441,29 +474,30 @@ test("partial ink survives Skip and cold reopen; Resume retains documents and re
   );
   await act({ app, kind: "pause", ids: f.ids });
   await act({ app, kind: "resume", ids: f.ids });
-  p = await app.read();
+  p = await selectedProjection(app);
   if (p.kind !== "writing") throw Error();
   assert.deepEqual(
     p.documents.map((d) => d.documentId),
     originalIds,
   );
-  assert.deepEqual(await app.dispatchInk(begin), begun);
+  assert.deepEqual(await executeInk(app, begin), begun);
   await act({ app, kind: "skipWriting", ids: f.ids });
   const reopened = f.connect(),
     inventory = await reopened.app.openRecovery({ kind: "cold" });
-  const terminal = await reopened.app.reconcileRecovery({
+  await reopened.app.reconcileRecovery({
     recoveryId: inventory.recoveryId,
     choice: { kind: "cold" },
   });
+  const terminal = await selectedProjection(reopened.app);
   if (terminal.kind !== "writingResult") throw Error();
   assert.equal(terminal.outcome, "skipped");
   const old = terminal.documents.find((d) => d.targetId === "first");
   if (!old) throw Error();
-  const retained = await reopened.app.readInk({ token: old });
+  const retained = await selectedInk(reopened.app, { token: old });
   assert.equal(retained.strokes[0]?.pointCount, 1);
   assert.equal(retained.writable, false);
   await act({ app: reopened.app, kind: "replay", ids: f.ids });
-  const replay = await reopened.app.read();
+  const replay = await selectedProjection(reopened.app);
   if (replay.kind !== "writing") throw Error();
   assert.equal(
     replay.documents.some((d) => originalIds.includes(d.documentId)),
@@ -477,16 +511,18 @@ test("partial ink survives Skip and cold reopen; Resume retains documents and re
 
 test("cold recovery removes empty captures, interrupts committed points once, and rejects corrupt bytes", async (t) => {
   const f = await storageFixture(t, await writingFixture()),
-    first = f.connect();
-  await first.app.open();
+    first = await f.connectReady();
+  await selectedProjection(first.app);
   await act({ app: first.app, kind: "start", ids: f.ids });
   await act({ app: first.app, kind: "continue", ids: f.ids });
-  let p = await first.app.read();
+  let p = await selectedProjection(first.app);
   if (p.kind !== "writing") throw Error();
   let token = p.documents.find((d) => d.targetId === "first");
   if (!token) throw Error();
-  await first.app.dispatchInk(
+  await executeInk(
+    first.app,
     await inkCommand({
+      app: first.app,
       token,
       edit: {
         kind: "begin",
@@ -509,13 +545,15 @@ test("cold recovery removes empty captures, interrupts committed points once, an
     first.db.prepare("SELECT count(*) AS n FROM ink_stroke").get()?.n,
     0,
   );
-  p = await second.app.read();
+  p = await selectedProjection(second.app);
   if (p.kind !== "writing") throw Error();
   token = p.documents.find((d) => d.targetId === "first");
   if (!token) throw Error();
   const strokeId = parseId({ kind: "stroke", value: f.ids() });
-  await second.app.dispatchInk(
+  await executeInk(
+    second.app,
     await inkCommand({
+      app: second.app,
       token,
       edit: {
         kind: "begin",
@@ -548,7 +586,7 @@ test("cold recovery removes empty captures, interrupts committed points once, an
   first.db.prepare("UPDATE ink_point_chunk SET payload=?").run(corrupt);
   const failed = f.connect();
   await assert.rejects(failed.app.openRecovery({ kind: "cold" }));
-  assert.equal((await failed.app.read()).kind, "recovery");
+  assert.equal((await selectedProjection(failed.app)).kind, "recovery");
   assert.equal(
     first.db.prepare("SELECT count(*) AS n FROM ink_stroke").get()?.n,
     1,
@@ -557,12 +595,12 @@ test("cold recovery removes empty captures, interrupts committed points once, an
 
 test("cross binding, layer, chunk order and unclosed recovery reject without writes", async (t) => {
   const f = await storageFixture(t, await writingFixture()),
-    first = f.connect(),
+    first = await f.connectReady(),
     app = first.app;
-  await app.open();
+  await selectedProjection(app);
   await act({ app, kind: "start", ids: f.ids });
   await act({ app, kind: "continue", ids: f.ids });
-  const p = await app.read();
+  const p = await selectedProjection(app);
   if (p.kind !== "writing") throw Error();
   const token = p.documents.find((d) => d.targetId === "first"),
     inactive = p.documents.find((d) => d.targetId === "second");
@@ -580,13 +618,20 @@ test("cross binding, layer, chunk order and unclosed recovery reject without wri
     { ...token, runId: parseId({ kind: "run", value: "other" }) },
     { ...token, targetId: inactive.targetId },
   ]) {
-    const candidate = await inkCommand({ token: changed, edit, ids: f.ids });
-    assert.equal((await app.dispatchInk(candidate)).kind, "rejected");
+    const candidate = await inkCommand({
+      app,
+      token: changed,
+      edit,
+      ids: f.ids,
+    });
+    assert.equal((await executeInk(app, candidate)).kind, "rejected");
   }
   assert.equal(
     (
-      await app.dispatchInk(
+      await executeInk(
+        app,
         await inkCommand({
+          app,
           token: { ...token, inputEpoch: parseCounter("99") },
           edit,
           ids: f.ids,
@@ -597,16 +642,19 @@ test("cross binding, layer, chunk order and unclosed recovery reject without wri
   );
   assert.equal(
     (
-      await app.dispatchInk(
-        await inkCommand({ token: inactive, edit, ids: f.ids }),
+      await executeInk(
+        app,
+        await inkCommand({ app, token: inactive, edit, ids: f.ids }),
       )
     ).kind,
     "rejected",
   );
   assert.equal(
     (
-      await app.dispatchInk(
+      await executeInk(
+        app,
         await inkCommand({
+          app,
           token,
           edit: { ...edit, layer: "tracing" },
           ids: f.ids,
@@ -617,8 +665,10 @@ test("cross binding, layer, chunk order and unclosed recovery reject without wri
   );
   assert.equal(
     (
-      await app.dispatchInk(
+      await executeInk(
+        app,
         await inkCommand({
+          app,
           token,
           edit: { ...edit, chunks: [chunk({ index: 1 })] },
           ids: f.ids,
@@ -631,16 +681,20 @@ test("cross binding, layer, chunk order and unclosed recovery reject without wri
     first.db.prepare("SELECT count(*) AS n FROM ink_stroke").get()?.n,
     0,
   );
+  const selection = (await app.readDirectory()).selection;
   const inventory = await app.openRecovery({
     kind: "warm",
+    selection,
     retainedStrokeIds: [strokeId],
-    teaching: { kind: "none" },
+    teaching: null,
+    administration: null,
   });
   assert.equal(
-    (await app.dispatchInk(await inkCommand({ token, edit, ids: f.ids }))).kind,
+    (await executeInk(app, await inkCommand({ app, token, edit, ids: f.ids })))
+      .kind,
     "rejected",
   );
-  assert.equal((await app.read()).kind, "recovery");
+  assert.equal((await selectedProjection(app)).kind, "recovery");
   await assert.rejects(
     app.reconcileRecovery({
       recoveryId: inventory.recoveryId,
@@ -649,9 +703,10 @@ test("cross binding, layer, chunk order and unclosed recovery reject without wri
   );
   const begun = await app.recoverInk({
     recoveryId: inventory.recoveryId,
-    command: await inkCommand({ token, edit, ids: f.ids }),
+    operation: await inkCommand({ app, token, edit, ids: f.ids }),
   });
-  if (begun.kind !== "inkCommitted") throw Error();
+  assert.equal(begun.resolution, "applied");
+  if (begun.resolution !== "applied") throw Error("Missing recovered capture");
   await assert.rejects(
     app.reconcileRecovery({
       recoveryId: inventory.recoveryId,
@@ -659,10 +714,11 @@ test("cross binding, layer, chunk order and unclosed recovery reject without wri
     }),
     /still requires/,
   );
-  await app.recoverInk({
+  const finalized = await app.recoverInk({
     recoveryId: inventory.recoveryId,
-    command: await inkCommand({
-      token: begun.token,
+    operation: await inkCommand({
+      app,
+      token: begun.result.token,
       edit: {
         kind: "finalize",
         strokeId,
@@ -673,6 +729,10 @@ test("cross binding, layer, chunk order and unclosed recovery reject without wri
       ids: f.ids,
     }),
   });
+  assert.equal(finalized.resolution, "applied");
+  if (finalized.resolution !== "applied")
+    throw Error("Missing settled capture");
+  assert.equal(finalized.result.kind, "inkCommitted");
   await app.reconcileRecovery({
     recoveryId: inventory.recoveryId,
     choice: { kind: "warm", settledStrokeIds: [strokeId] },
@@ -682,7 +742,7 @@ test("cross binding, layer, chunk order and unclosed recovery reject without wri
 test("real checkpoint and finalization write faults roll back; immutable Retry converges", async (t) => {
   const f = await storageFixture(t, await writingFixture());
   let failPattern: RegExp | null = null;
-  const first = f.connect({
+  const first = await f.connectReady({
       hook: async (sql, work) => {
         if (failPattern?.test(sql)) {
           failPattern = null;
@@ -692,16 +752,18 @@ test("real checkpoint and finalization write faults roll back; immutable Retry c
       },
     }),
     app = first.app;
-  await app.open();
+  await selectedProjection(app);
   await act({ app, kind: "start", ids: f.ids });
   await act({ app, kind: "continue", ids: f.ids });
-  const p = await app.read();
+  const p = await selectedProjection(app);
   if (p.kind !== "writing") throw Error();
   const token = p.documents.find((d) => d.targetId === "first");
   if (!token) throw Error();
   const strokeId = parseId({ kind: "stroke", value: f.ids() }),
-    begin = await app.dispatchInk(
+    begin = await executeInk(
+      app,
       await inkCommand({
+        app,
         token,
         edit: {
           kind: "begin",
@@ -715,6 +777,7 @@ test("real checkpoint and finalization write faults roll back; immutable Retry c
     );
   if (begin.kind !== "inkCommitted") throw Error();
   const checkpoint = await inkCommand({
+    app,
     token: begin.token,
     edit: {
       kind: "checkpoint",
@@ -725,14 +788,15 @@ test("real checkpoint and finalization write faults roll back; immutable Retry c
     ids: f.ids,
   });
   failPattern = /insert into "ink_point_chunk"/;
-  await assert.rejects(app.dispatchInk(checkpoint), /Failed query/);
+  await assert.rejects(executeInk(app, checkpoint), /Failed query/);
   assert.equal(
     first.db.prepare("SELECT point_count FROM ink_stroke").get()?.point_count,
     1,
   );
-  const checkpointReceipt = await app.dispatchInk(checkpoint);
+  const checkpointReceipt = await executeInk(app, checkpoint);
   if (checkpointReceipt.kind !== "inkCommitted") throw Error();
   const final = await inkCommand({
+    app,
     token: checkpointReceipt.token,
     edit: {
       kind: "finalize",
@@ -744,7 +808,7 @@ test("real checkpoint and finalization write faults roll back; immutable Retry c
     ids: f.ids,
   });
   failPattern = /insert into "ink_operation"/;
-  await assert.rejects(app.dispatchInk(final), /Failed query/);
+  await assert.rejects(executeInk(app, final), /Failed query/);
   assert.equal(
     first.db.prepare("SELECT status FROM ink_stroke").get()?.status,
     "capturing",
@@ -753,7 +817,7 @@ test("real checkpoint and finalization write faults roll back; immutable Retry c
     first.db.prepare("SELECT count(*) AS n FROM ink_operation").get()?.n,
     0,
   );
-  assert.equal((await app.dispatchInk(final)).kind, "inkCommitted");
+  assert.equal((await executeInk(app, final)).kind, "inkCommitted");
   assert.equal(
     first.db.prepare("SELECT count(*) AS n FROM ink_operation").get()?.n,
     1,
@@ -762,19 +826,20 @@ test("real checkpoint and finalization write faults roll back; immutable Retry c
 
 test("130 real finalized strokes compact oldest applied origins and prune stale command receipts", async (t) => {
   const f = await storageFixture(t, await writingFixture()),
-    first = f.connect(),
+    first = await f.connectReady(),
     app = first.app;
-  await app.open();
+  await selectedProjection(app);
   await act({ app, kind: "start", ids: f.ids });
   await act({ app, kind: "continue", ids: f.ids });
-  const p = await app.read();
+  const p = await selectedProjection(app);
   if (p.kind !== "writing") throw Error();
   let token = p.documents.find((d) => d.targetId === "first");
   if (!token) throw Error();
-  let firstCommand: InkCommand | undefined;
+  let firstCommand: SelectedInkOperation | undefined;
   for (let i = 0; i < 130; i++) {
     const strokeId = parseId({ kind: "stroke", value: f.ids() }),
       command = await inkCommand({
+        app,
         token,
         edit: {
           kind: "begin",
@@ -786,10 +851,12 @@ test("130 real finalized strokes compact oldest applied origins and prune stale 
         ids: f.ids,
       });
     firstCommand ??= command;
-    const begin = await app.dispatchInk(command);
+    const begin = await executeInk(app, command);
     if (begin.kind !== "inkCommitted") throw Error();
-    const end = await app.dispatchInk(
+    const end = await executeInk(
+      app,
       await inkCommand({
+        app,
         token: begin.token,
         edit: {
           kind: "finalize",
@@ -804,7 +871,7 @@ test("130 real finalized strokes compact oldest applied origins and prune stale 
     if (end.kind !== "inkCommitted") throw Error();
     token = end.token;
   }
-  const snapshot = await app.readInk({ token });
+  const snapshot = await selectedInk(app, { token });
   assert.equal(snapshot.strokes.length, 130);
   const history = snapshot.histories.find((h) => h.layer === "model");
   if (!history) throw Error();
@@ -821,7 +888,7 @@ test("130 real finalized strokes compact oldest applied origins and prune stale 
     256,
   );
   if (!firstCommand) throw Error();
-  assert.equal((await app.dispatchInk(firstCommand)).kind, "rejected");
+  assert.equal((await executeInk(app, firstCommand)).kind, "rejected");
 });
 
 test("new writing activation changes only Task6 availability while preserving five bodies, pins and action kinds", async (t) => {
@@ -857,10 +924,10 @@ test("new writing activation changes only Task6 availability while preserving fi
     hash,
   );
   const f = await storageFixture(t, previous),
-    first = f.connect();
-  await first.app.open();
+    first = await f.connectReady();
+  await selectedProjection(first.app);
   await act({ app: first.app, kind: "start", ids: f.ids });
-  const before = await first.app.read();
+  const before = await selectedProjection(first.app);
   if (before.kind !== "teaching") throw Error();
   const bytes = first.db
     .prepare(
@@ -868,7 +935,7 @@ test("new writing activation changes only Task6 availability while preserving fi
     )
     .get(previous.packageHash)?.verified_manifest;
   const upgraded = f.connect({ content: candidate }),
-    after = await upgraded.app.open();
+    after = await selectedProjection(upgraded.app);
   if (after.kind !== "teaching") throw Error();
   assert.equal(after.packageHash, previous.packageHash);
   assert.equal(after.runId, before.runId);
@@ -902,10 +969,10 @@ test("new writing activation changes only Task6 availability while preserving fi
 
 test("all nested wire counters enforce signed64 before use", async (t) => {
   const f = await storageFixture(t, await writingFixture()),
-    first = f.connect();
-  await first.app.open();
+    first = await f.connectReady();
+  await selectedProjection(first.app);
   await act({ app: first.app, kind: "start", ids: f.ids });
-  const p = await first.app.read();
+  const p = await selectedProjection(first.app);
   if (p.kind !== "writing") throw Error();
   const token = p.documents[0];
   if (!token) throw Error();
@@ -918,7 +985,7 @@ test("all nested wire counters enforce signed64 before use", async (t) => {
       }),
     /signed-64/,
   );
-  const snapshot = await first.app.readInk({ token });
+  const snapshot = await selectedInk(first.app, { token });
   assert.throws(
     () => parseInkSnapshot({ ...snapshot, nextStrokeOrder: bad }),
     /signed-64/,
@@ -950,23 +1017,26 @@ test("all nested wire counters enforce signed64 before use", async (t) => {
   );
   const action = p.actions.find((a) => a.intent.kind === "continue");
   if (!action) throw Error();
-  const command = await prepareWritingCommand({
-    projection: p,
-    action,
-    barrier: { kind: "writing", documents: p.documents },
-    ids: f.ids,
-    hash,
-  });
-  if (command.kind !== "writingNavigate") throw Error();
+  const command = await prepareSelectedTeaching(first.app, async () =>
+    prepareWritingCommand({
+      projection: p,
+      action,
+      barrier: { kind: "writing", documents: p.documents },
+      ids: f.ids,
+      hash,
+    }),
+  );
+  const inner = command.command;
+  if (inner.kind !== "writingNavigate") throw Error();
   assert.throws(
     () =>
       parseCommand({
-        ...command,
+        ...inner,
         payload: {
-          ...command.payload,
+          ...inner.payload,
           barrier: {
             kind: "writing",
-            documents: command.payload.barrier.documents.map((d) => ({
+            documents: inner.payload.barrier.documents.map((d) => ({
               ...d,
               revision: bad,
             })),
@@ -979,9 +1049,9 @@ test("all nested wire counters enforce signed64 before use", async (t) => {
 
 test("completed writing retains all six target-owned layers through cold reopen and Back reconfirmation", async (t) => {
   const f = await storageFixture(t, await writingFixture()),
-    first = f.connect(),
+    first = await f.connectReady(),
     app = first.app;
-  await app.open();
+  await selectedProjection(app);
   await act({ app, kind: "start", ids: f.ids });
   await act({ app, kind: "continue", ids: f.ids });
   for (const kind of [
@@ -992,11 +1062,11 @@ test("completed writing retains all six target-owned layers through cold reopen 
     "confirmTracing",
     "confirmIndependent",
   ] satisfies TeachingIntent["kind"][]) {
-    const p = await app.read();
+    const p = await selectedProjection(app);
     if (p.kind !== "writing") throw Error();
     let writable: DocumentToken | undefined;
     for (const token of p.documents)
-      if ((await app.readInk({ token })).writable) writable = token;
+      if ((await selectedInk(app, { token })).writable) writable = token;
     if (!writable) throw Error();
     const layer =
         writable.phase === "parentDemonstration"
@@ -1005,8 +1075,10 @@ test("completed writing retains all six target-owned layers through cold reopen 
             ? "tracing"
             : "independent",
       strokeId = parseId({ kind: "stroke", value: f.ids() }),
-      begin = await app.dispatchInk(
+      begin = await executeInk(
+        app,
         await inkCommand({
+          app,
           token: writable,
           edit: {
             kind: "begin",
@@ -1022,8 +1094,10 @@ test("completed writing retains all six target-owned layers through cold reopen 
         }),
       );
     if (begin.kind !== "inkCommitted") throw Error();
-    await app.dispatchInk(
+    await executeInk(
+      app,
       await inkCommand({
+        app,
         token: begin.token,
         edit: {
           kind: "finalize",
@@ -1038,15 +1112,16 @@ test("completed writing retains all six target-owned layers through cold reopen 
     assert.equal((await act({ app, kind, ids: f.ids })).kind, "committed");
   }
   const reopened = f.connect(),
-    opening = await reopened.app.openRecovery({ kind: "cold" }),
-    terminal = await reopened.app.reconcileRecovery({
-      recoveryId: opening.recoveryId,
-      choice: { kind: "cold" },
-    });
+    opening = await reopened.app.openRecovery({ kind: "cold" });
+  await reopened.app.reconcileRecovery({
+    recoveryId: opening.recoveryId,
+    choice: { kind: "cold" },
+  });
+  const terminal = await selectedProjection(reopened.app);
   if (terminal.kind !== "writingResult") throw Error();
   assert.equal(terminal.outcome, "completed");
   for (const token of terminal.documents) {
-    const snapshot = await reopened.app.readInk({ token });
+    const snapshot = await selectedInk(reopened.app, { token });
     assert.deepEqual(
       snapshot.strokes.map((s) => s.layer),
       ["model", "tracing", "independent"],
@@ -1054,10 +1129,10 @@ test("completed writing retains all six target-owned layers through cold reopen 
     assert.equal(snapshot.writable, false);
   }
   await act({ app: reopened.app, kind: "back", ids: f.ids });
-  const review = await reopened.app.read();
+  const review = await selectedProjection(reopened.app);
   if (review.kind !== "writing") throw Error();
   for (const token of review.documents)
-    assert.equal((await reopened.app.readInk({ token })).writable, false);
+    assert.equal((await selectedInk(reopened.app, { token })).writable, false);
   await act({ app: reopened.app, kind: "continue", ids: f.ids });
   assert.equal(
     first.db.prepare("SELECT count(*) AS n FROM task_advance").get()?.n,
@@ -1067,20 +1142,20 @@ test("completed writing retains all six target-owned layers through cold reopen 
 
 test("skipped Back inspects preserved practice without accepting or reopening input", async (t) => {
   const f = await storageFixture(t, await writingFixture()),
-    first = f.connect(),
+    first = await f.connectReady(),
     app = first.app;
-  await app.open();
+  await selectedProjection(app);
   await act({ app, kind: "start", ids: f.ids });
   await act({ app, kind: "continue", ids: f.ids });
   await act({ app, kind: "skipWriting", ids: f.ids });
   await act({ app, kind: "back", ids: f.ids });
-  const p = await app.read();
+  const p = await selectedProjection(app);
   if (p.kind !== "writing") throw Error();
   assert.equal(p.runStatus, "skipped");
   for (const token of p.documents)
-    assert.equal((await app.readInk({ token })).writable, false);
+    assert.equal((await selectedInk(app, { token })).writable, false);
   await act({ app, kind: "continue", ids: f.ids });
-  const terminal = await app.read();
+  const terminal = await selectedProjection(app);
   if (terminal.kind !== "writingResult") throw Error();
   assert.equal(terminal.outcome, "skipped");
   assert.equal(
@@ -1089,23 +1164,19 @@ test("skipped Back inspects preserved practice without accepting or reopening in
   );
   const reopened = f.connect(),
     opening = await reopened.app.openRecovery({ kind: "cold" });
-  assert.equal(
-    (
-      await reopened.app.reconcileRecovery({
-        recoveryId: opening.recoveryId,
-        choice: { kind: "cold" },
-      })
-    ).kind,
-    "writingResult",
-  );
+  await reopened.app.reconcileRecovery({
+    recoveryId: opening.recoveryId,
+    choice: { kind: "cold" },
+  });
+  assert.equal((await selectedProjection(reopened.app)).kind, "writingResult");
 });
 
 test("reopen rejects rehashed writing acceptance that drops its writing tag or crosses document bindings", async (t) => {
   for (const mutation of ["ordinary", "cross-document"]) {
     const f = await storageFixture(t, await writingFixture()),
-      first = f.connect(),
+      first = await f.connectReady(),
       app = first.app;
-    await app.open();
+    await selectedProjection(app);
     await act({ app, kind: "start", ids: f.ids });
     await act({ app, kind: "continue", ids: f.ids });
     const row = first.db
@@ -1125,7 +1196,7 @@ test("reopen rejects rehashed writing acceptance that drops its writing tag or c
       !("kind" in semantics)
     )
       throw Error();
-    const projection = await app.read();
+    const projection = await selectedProjection(app);
     if (projection.kind !== "writing") throw Error();
     const initial = projection.documents;
     const original = parseCommand({
@@ -1167,7 +1238,7 @@ test("reopen rejects rehashed writing acceptance that drops its writing tag or c
       )
       .run(canonical(source), await hash(canonical(source)), row.advance_id);
     const reopened = f.connect();
-    assert.equal((await reopened.app.open()).kind, "recovery");
+    assert.equal((await selectedProjection(reopened.app)).kind, "recovery");
     await assert.rejects(reopened.app.openRecovery({ kind: "cold" }));
     assert.equal(
       first.db.prepare("SELECT count(*) AS n FROM task_advance").get()?.n,

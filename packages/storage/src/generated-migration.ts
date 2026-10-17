@@ -1,5 +1,3 @@
-// Generated from ordered Kit migrations plus reviewed deferred constraints.
-// Reproduce: node --import tsx tools/migrations/prepare.ts
 export const migrationStatements = [
   "CREATE TABLE schema_migration (version INTEGER PRIMARY KEY CHECK(version>0), migration_id TEXT NOT NULL UNIQUE, checksum TEXT NOT NULL CHECK(length(checksum)=64 AND checksum NOT GLOB '*[^a-f0-9]*'))",
   "CREATE TABLE installation (installation_id TEXT PRIMARY KEY NOT NULL, revision INTEGER NOT NULL CHECK(typeof(revision)='integer' AND revision>=0), database_version INTEGER NOT NULL CHECK(database_version>0), singleton INTEGER NOT NULL UNIQUE CHECK(singleton=1))",
@@ -100,6 +98,16 @@ export const migrations = [
       'CREATE TABLE `advance_withdrawal` (\n\t`advance_id` text PRIMARY KEY NOT NULL,\n\t`run_id` text NOT NULL,\n\t`profile_id` text NOT NULL,\n\t`generation` integer NOT NULL,\n\t`withdrawn_run_revision` integer NOT NULL,\n\t`command` text NOT NULL,\n\tFOREIGN KEY (`advance_id`,`run_id`) REFERENCES `task_advance`(`advance_id`,`run_id`) ON UPDATE no action ON DELETE no action,\n\tFOREIGN KEY (`run_id`,`profile_id`,`generation`) REFERENCES `task_run`(`run_id`,`profile_id`,`generation`) ON UPDATE no action ON DELETE no action,\n\tCONSTRAINT "generation_nonnegative" CHECK(typeof(generation)=\'integer\' AND generation>=0),\n\tCONSTRAINT "withdrawal_revision" CHECK(typeof(withdrawn_run_revision)=\'integer\' AND withdrawn_run_revision>0),\n\tCONSTRAINT "withdrawal_command_json" CHECK(json_valid(command))\n);\n',
       "CREATE UNIQUE INDEX `advance_withdrawal_run_id_withdrawn_run_revision_unique` ON `advance_withdrawal` (`run_id`,`withdrawn_run_revision`);",
       "UPDATE installation SET database_version = 7",
+    ],
+  },
+  {
+    version: 8,
+    id: "issue-10-child-profiles",
+    statements: [
+      "CREATE TABLE `installation_profile_state` (\n\t`installation_id` text PRIMARY KEY NOT NULL,\n\t`profile_id` text NOT NULL,\n\t`generation` integer NOT NULL,\n\t`selection_revision` integer NOT NULL,\n\t`preparation_hash` text,\n\t`initial_setup_mode` text NOT NULL,\n\tFOREIGN KEY (`installation_id`) REFERENCES `installation`(`installation_id`) ON UPDATE no action ON DELETE no action,\n\tFOREIGN KEY (`profile_id`,`generation`) REFERENCES `profile`(`profile_id`,`generation`) ON UPDATE no action ON DELETE no action,\n\tCONSTRAINT \"generation_nonnegative\" CHECK(typeof(generation)='integer' AND generation>=0),\n\tCONSTRAINT \"selection_revision_nonnegative\" CHECK(typeof(selection_revision)='integer' AND selection_revision>=0),\n\tCONSTRAINT \"preparation_hash_hash\" CHECK(length(preparation_hash)=64 AND preparation_hash NOT GLOB '*[^a-f0-9]*'),\n\tCONSTRAINT \"initial_setup_mode_supported\" CHECK(initial_setup_mode IN ('firstLaunch','existingFamily','complete'))\n);\n",
+      'CREATE TABLE `profile_administration_receipt` (\n\t`installation_id` text NOT NULL,\n\t`command_id` text NOT NULL,\n\t`command_version` integer NOT NULL,\n\t`command` text NOT NULL,\n\t`expected_revision` integer NOT NULL,\n\t`resulting_revision` integer NOT NULL,\n\t`payload_hash` text NOT NULL,\n\t`result_version` integer NOT NULL,\n\t`result` text NOT NULL,\n\tPRIMARY KEY(`installation_id`, `command_id`),\n\tFOREIGN KEY (`installation_id`) REFERENCES `installation`(`installation_id`) ON UPDATE no action ON DELETE no action,\n\tCONSTRAINT "expected_revision_nonnegative" CHECK(typeof(expected_revision)=\'integer\' AND expected_revision>=0),\n\tCONSTRAINT "resulting_revision_nonnegative" CHECK(typeof(resulting_revision)=\'integer\' AND resulting_revision>=0),\n\tCONSTRAINT "payload_hash_hash" CHECK(length(payload_hash)=64 AND payload_hash NOT GLOB \'*[^a-f0-9]*\'),\n\tCONSTRAINT "administration_command_version" CHECK(command_version=1),\n\tCONSTRAINT "administration_result_version" CHECK(result_version=1),\n\tCONSTRAINT "administration_command_json" CHECK(json_valid(command)),\n\tCONSTRAINT "administration_result_json" CHECK(json_valid(result)),\n\tCONSTRAINT "administration_revision_step" CHECK(resulting_revision=expected_revision+1)\n);\n',
+      "CREATE UNIQUE INDEX `profile_administration_receipt_installation_id_resulting_revision_unique` ON `profile_administration_receipt` (`installation_id`,`resulting_revision`);",
+      "UPDATE installation SET database_version = 8",
     ],
   },
 ] as const;

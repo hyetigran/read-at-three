@@ -1,3 +1,10 @@
+import { readEnvelope } from "./support.ts";
+import {
+  executeTeaching,
+  selectedCourse,
+  selectedProjection,
+} from "../storage/selected-support.ts";
+
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
@@ -10,7 +17,7 @@ import {
 import type {
   AvailableAction,
   CourseReadTarget,
-  TeachingCommand,
+  SelectedTeachingOperation,
 } from "@readatthree/teaching";
 import {
   createCommittedTeaching,
@@ -30,8 +37,8 @@ for (const retry of ["normal", "closedRecovery"]) {
       hash,
     );
     const f = await storageFixture(t, content);
-    let { app } = f.connect();
-    await app.open();
+    let { app } = await f.connectReady();
+    await selectedProjection(app);
     const queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false, gcTime: Infinity },
@@ -39,25 +46,32 @@ for (const retry of ["normal", "closedRecovery"]) {
       },
     });
     let lose = false;
-    const commands: TeachingCommand[] = [];
+    const commands: SelectedTeachingOperation[] = [];
     const targets: CourseReadTarget[] = [];
     const runtime = createCommittedTeaching({
       queryClient,
       repository: {
-        async read(target = { kind: "cursor" }) {
+        async read(input) {
+          const target = input.target;
           targets.push(target);
-          const application = await app.readApplication(target);
-          if (application.kind === "recovery")
-            throw new TeachingRecoveryError(application);
+          const envelope = await readEnvelope(
+            app,
+            input,
+            content.body.courseId,
+          );
+          const application = envelope.application;
+          if (!application) throw new Error("Application required");
           return {
+            directory: envelope.directory,
             courseId: application.courseId,
             projection: application.projection,
             application,
           };
         },
-        async dispatch(command) {
+        async execute(operation) {
+          const command = operation;
           commands.push(command);
-          const result = await app.dispatch(command);
+          const result = await app.execute(operation);
           if (lose) {
             lose = false;
             throw new Error("Committed acknowledgement lost");
@@ -65,7 +79,7 @@ for (const retry of ["normal", "closedRecovery"]) {
           return result;
         },
         async recoverTeaching(input) {
-          commands.push(input.command);
+          commands.push(input.operation);
           return app.recoverTeaching(input);
         },
       },
@@ -77,8 +91,16 @@ for (const retry of ["normal", "closedRecovery"]) {
       onlineManager.setOnline(true);
     });
     onlineManager.setOnline(false);
-    await runtime.read({ expectation: { kind: "opening" } });
-    async function prepare(kind: string, task?: number) {
+    await runtime.read({
+      expectation: {
+        kind: "opening",
+        selection: (await app.readDirectory()).selection,
+      },
+    });
+    async function prepare(
+      kind: string,
+      task?: number,
+    ): Promise<import("@readatthree/react-integration").PreparedAction> {
       const projection = runtime.current()?.projection;
       if (!projection || projection.kind === "recovery")
         throw new Error("Missing projection");
@@ -97,12 +119,16 @@ for (const retry of ["normal", "closedRecovery"]) {
       assert.ok(action, `Missing ${kind}`);
       return {
         origin: projection,
-        command: await prepareCommand({
-          projection,
-          request: { kind: "action", action },
-          ids: f.ids,
-          hash,
-        }),
+        operation: {
+          kind: "teaching",
+          selection: (await app.readDirectory()).selection,
+          command: await prepareCommand({
+            projection,
+            request: { kind: "action", action },
+            ids: f.ids,
+            hash,
+          }),
+        },
       };
     }
     async function act(kind: string, task?: number) {
@@ -131,15 +157,13 @@ for (const retry of ["normal", "closedRecovery"]) {
       await runtime.execute({ kind: "normal", prepared: terminal });
     } else {
       runtime.connectionLost();
-      ({ app } = f.connect());
+      ({ app } = await f.connectReady());
       const inventory = await app.openRecovery({
         kind: "warm",
         retainedStrokeIds: [],
-        teaching: {
-          kind: "pending",
-          commandId: terminal.command.commandId,
-          payloadHash: terminal.command.payloadHash,
-        },
+        selection: terminal.operation.selection,
+        teaching: terminal.operation,
+        administration: null,
       });
       const recovered = await runtime.execute({
         kind: "closedRecovery",
@@ -151,10 +175,11 @@ for (const retry of ["normal", "closedRecovery"]) {
         recovered.result.kind !== "committed"
       )
         throw new Error("Committed terminal recovery required");
-      const projection = await app.reconcileRecovery({
+      await app.reconcileRecovery({
         recoveryId: inventory.recoveryId,
         choice: { kind: "warm", settledStrokeIds: [] },
       });
+      const projection = await selectedProjection(app);
       assert.equal(projection.kind, "entry");
       await runtime.read({
         expectation: {
@@ -177,14 +202,15 @@ for (const retry of ["normal", "closedRecovery"]) {
       visible?.application?.course.lessons[0]?.tasks[1]?.unfinished.length,
       1,
     );
-    assert.equal((await app.readApplication({ kind: "cursor" })).kind, "ready");
-    const ordinary = await app.readApplication({ kind: "cursor" });
+    assert.equal((await selectedCourse(app, { kind: "cursor" })).kind, "ready");
+    const ordinary = await selectedCourse(app, { kind: "cursor" });
     assert.equal(
       ordinary.kind === "ready" ? ordinary.projection.kind : "recovery",
       "entry",
     );
     const deliveries = commands.filter(
-      (command) => command.commandId === terminal.command.commandId,
+      (command) =>
+        command.command.commandId === terminal.operation.command.commandId,
     );
     assert.equal(deliveries.length, 2);
     assert.equal(canonical(deliveries[0]), canonical(deliveries[1]));

@@ -1,3 +1,7 @@
+import {
+  installInitialSetupObservation,
+  completeInitialSetup,
+} from "./parent-setup.ts";
 import { chromium, expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -46,7 +50,9 @@ async function act({ page, name = "Continue" }: { page: Page; name?: string }) {
   );
 }
 async function start({ page, task = 2 }: { page: Page; task?: number }) {
+  await installInitialSetupObservation(page);
   await page.goto(base);
+  await completeInitialSetup({ page });
   await page.getByRole("link", { name: "Lesson 1", exact: true }).click();
   await page
     .getByRole("button", { name: `Start Task ${task}`, exact: true })
@@ -201,8 +207,8 @@ test("a failed review selection retains the immutable complete choice for identi
     window.readSelectionAttempts=()=>attempts.slice();
     window.Worker=class extends NativeWorker {
       postMessage(message,options){
-        if(message?.kind==='dispatch'&&message.command?.kind==='navigate'&&message.command.payload.action.kind==='commitReviewSelection'){
-          attempts.push(JSON.stringify(message.command));
+        if((message?.kind === 'execute' && message.operation.kind === 'teaching')&&message.operation.command?.kind==='navigate'&&message.operation.command.payload.action.kind==='commitReviewSelection'){
+          attempts.push(JSON.stringify(message.operation));
           if(!held){held=true;window.failHeldSelection=()=>this.dispatchEvent(new MessageEvent('message',{data:{id:message.id,kind:'failed',message:'Injected selection save failure'}}));return;}
         }
         super.postMessage(message,options);
@@ -323,8 +329,8 @@ test("oral Help retains its uncommitted answer-free preview through delayed and 
     window.readOralHelpAttempts=()=>attempts.slice();
     window.Worker=class extends NativeWorker {
       postMessage(message,options){
-        if(message?.kind==='dispatch'&&message.command?.kind==='navigate'&&message.command.payload.action.kind==='help'){
-          attempts.push(JSON.stringify(message.command));
+        if((message?.kind === 'execute' && message.operation.kind === 'teaching')&&message.operation.command?.kind==='navigate'&&message.operation.command.payload.action.kind==='help'){
+          attempts.push(JSON.stringify(message.operation));
           if(!held){held=true;window.failOralHelp=()=>this.dispatchEvent(new MessageEvent('message',{data:{id:message.id,kind:'failed',message:'Injected oral Help save failure'}}));return;}
         }
         super.postMessage(message,options);

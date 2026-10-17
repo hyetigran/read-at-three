@@ -1,3 +1,7 @@
+import {
+  installInitialSetupObservation,
+  completeInitialSetup,
+} from "./parent-setup.ts";
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { reloadSavedTurn } from "./reload-saved-turn.ts";
@@ -32,7 +36,9 @@ for (const viewport of [
     page,
   }) => {
     await page.setViewportSize(viewport);
+    await installInitialSetupObservation(page);
     await page.goto("/");
+    await completeInitialSetup({ page });
     await page.getByRole("link", { name: "Lesson 1", exact: true }).click();
     await page
       .locator('[data-task-number="1"]')
@@ -136,9 +142,10 @@ test("writing Undo keeps child ink through a lost commit reply and repeats the e
   expect(restored?.strokes).toEqual(before.strokes);
   expect(restored?.histories).toEqual(before.histories);
   const deliveries = (await requests(page)).flatMap((request) =>
-    (request.kind === "dispatch" || request.kind === "recoverTeaching") &&
-    request.command.kind === "writingUndoAdvance"
-      ? [request.command]
+    (request.kind === "execute" || request.kind === "recoverTeaching") &&
+    request.operation.kind === "teaching" &&
+    request.operation.command.kind === "writingUndoAdvance"
+      ? [request.operation]
       : [],
   );
   expect(deliveries).toHaveLength(2);

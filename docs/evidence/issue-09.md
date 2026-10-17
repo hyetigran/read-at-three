@@ -18,6 +18,10 @@ Root independently compares 28 genuine V6 databases through 56 cold opens and 56
 
 Separate probes reconstruct real SQLite databases from the existing genuine V1/V2 captured rows and original SQL. Public migration and Undo retract their one and two legacy acceptances, respectively. Reacceptance allocates a fresh sequence with an explicit preimage, preserves the legacy limit and reopens exactly. Removing the new preimage is refused without writes. These are captured-row reconstructions, distinct from the physical V6 corpus.
 
-## Remaining gates and limits
+## Delivery and limits
 
-All 82 development browser tests pass. The complete production browser suite, independent Standards/Spec reviews, independent production qualification, exact-head CI, PR and merge remain pending. Fresh local agents and pinned local tools provide the verification fallback because the configured external runners are unavailable. No cross-model, cloud, physical stylus, Safari, Expo or store-distribution qualification is claimed. Supplied Lessons 1–6 remain the curriculum scope. Source-bearing authoring inputs, runtime packages and drawings remain private.
+All 82 development browser tests and 80 production cases pass. Two explicit production skips cover development-only consumer checks that pass in development. Standards review has zero documented breaches and one acknowledged nonblocking duplication judgment. Spec review has zero actionable findings.
+
+[PR #43](https://github.com/hyetigran/read-at-three/pull/43) merged as `b251a02` after [exact-head CI](https://github.com/hyetigran/read-at-three/actions/runs/39026330941) passed all named checks. An earlier run passed every test step but exceeded its 20-minute job deadline; the final workflow permits 25 minutes. The merged tree equals the qualified final head. Issue #9 is closed. The separate verifier comment remains withheld while its posting permission is unresolved; that report is not reproduced here.
+
+Fresh local agents and pinned local tools provide the verification fallback because the configured external runners are unavailable. No cross-model, cloud, physical stylus, Safari, Expo or store-distribution qualification is claimed. The full SPA and native release gates remain outstanding. Supplied Lessons 1–6 remain the curriculum scope. Source-bearing authoring inputs, runtime packages and drawings remain private.

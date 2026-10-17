@@ -1,3 +1,7 @@
+import {
+  installInitialSetupObservation,
+  completeInitialSetup,
+} from "./parent-setup.ts";
 import { expect, test } from "@playwright/test";
 import {
   atWriting,
@@ -16,7 +20,9 @@ test("six source-ordered lesson menus expose all 45 truthful modules without sta
   page,
 }) => {
   await probe(page);
+  await installInitialSetupObservation(page);
   await page.goto("/");
+  await completeInitialSetup({ page });
   await expect(page.locator(".course-pedestal")).toHaveCount(6);
   for (const [index, count] of [6, 7, 8, 7, 9, 8].entries()) {
     await page
@@ -43,11 +49,15 @@ test("six source-ordered lesson menus expose all 45 truthful modules without sta
       .click();
   }
   expect(
-    (await requests(page)).filter((request) => request.kind === "dispatch"),
+    (await requests(page)).filter(
+      (request) =>
+        request.kind === "execute" && request.operation.kind === "teaching",
+    ),
   ).toHaveLength(0);
   const reads = (await responses(page)).filter(
     (response) =>
-      response.kind === "application" && response.value.kind === "ready",
+      response.kind === "application" &&
+      response.value.application.kind === "ready",
   );
   expect(reads).toHaveLength(1);
 });
@@ -59,7 +69,9 @@ for (const viewport of [
     page,
   }) => {
     await page.setViewportSize(viewport);
+    await installInitialSetupObservation(page);
     await page.goto("/");
+    await completeInitialSetup({ page });
     await expect(page.locator(".course-pedestal")).toHaveCount(6);
     const mapGeometry = await page.evaluate(() => {
       const nodes = [...document.querySelectorAll(".course-pedestal")];
@@ -163,9 +175,10 @@ test("real browser Back waits for ink and Pause, rejects drawing through the clo
   await expect(page).toHaveURL(/\/lessons\//);
   const paused = (await requests(page)).filter(
     (request) =>
-      request.kind === "dispatch" &&
-      "action" in request.command.payload &&
-      request.command.payload.action.kind === "pause",
+      request.kind === "execute" &&
+      request.operation.kind === "teaching" &&
+      "action" in request.operation.command.payload &&
+      request.operation.command.payload.action.kind === "pause",
   );
   expect(paused).toHaveLength(1);
   await page
@@ -205,16 +218,21 @@ test("failed route Pause and repeated exact Retry keep the destination blocked u
   await expect(page).toHaveURL(/\/lessons\//);
   const pauses = (await requests(page)).filter(
     (request) =>
-      (request.kind === "dispatch" || request.kind === "recoverTeaching") &&
-      "action" in request.command.payload &&
-      request.command.payload.action.kind === "pause",
+      (request.kind === "execute" || request.kind === "recoverTeaching") &&
+      request.operation.kind === "teaching" &&
+      "action" in request.operation.command.payload &&
+      request.operation.command.payload.action.kind === "pause",
   );
   expect(pauses).toHaveLength(3);
-  if (pauses[0]?.kind !== "dispatch") throw new Error("Pause command missing");
+  if (pauses[0]?.kind !== "execute" || pauses[0].operation.kind !== "teaching")
+    throw new Error("Pause command missing");
   for (const retry of pauses) {
-    if (retry.kind !== "dispatch" && retry.kind !== "recoverTeaching")
+    if (
+      (retry.kind !== "execute" || retry.operation.kind !== "teaching") &&
+      retry.kind !== "recoverTeaching"
+    )
       throw new Error("Pause retry missing");
-    expect(retry.command).toEqual(pauses[0].command);
+    expect(retry.operation).toEqual(pauses[0].operation);
   }
 });
 test("earlier handwriting opens read-only without selecting work or changing the current run", async ({
@@ -235,14 +253,18 @@ test("earlier handwriting opens read-only without selecting work or changing the
   const task = page.locator('[data-task-number="6"]');
   await task.locator("summary").click();
   const before = (await requests(page)).filter(
-    (request) => request.kind === "dispatch",
+    (request) =>
+      request.kind === "execute" && request.operation.kind === "teaching",
   ).length;
   await task.getByRole("link", { name: /View read-only/ }).click();
   await expect(page.locator(".course-saved-drawing")).toHaveCount(2);
   await expect(page.locator(".course-saved-drawing polyline")).toHaveCount(1);
   await expect(page.locator("canvas")).toHaveCount(0);
   expect(
-    (await requests(page)).filter((request) => request.kind === "dispatch"),
+    (await requests(page)).filter(
+      (request) =>
+        request.kind === "execute" && request.operation.kind === "teaching",
+    ),
   ).toHaveLength(before);
   await page.goBack();
   await task.getByRole("button", { name: "Replay task", exact: true }).click();
@@ -254,6 +276,9 @@ test("earlier handwriting opens read-only without selecting work or changing the
 test("the adult word gate expires on exit and reload, and direct settings URLs cannot grant access", async ({
   page,
 }) => {
+  await installInitialSetupObservation(page);
+  await page.goto("/");
+  await completeInitialSetup({ page });
   await page.goto("/parent/settings?approved=true");
   await expect(page).toHaveURL(/\/parent\/gate$/);
   await expect(
@@ -325,7 +350,9 @@ test("late explicit selection cannot navigate or reopen an outdated menu", async
   page,
 }) => {
   await probe(page);
+  await installInitialSetupObservation(page);
   await page.goto("/");
+  await completeInitialSetup({ page });
   await page.getByRole("link", { name: "Lesson 1", exact: true }).click();
   await page.evaluate("window.armWritingFault('hold-teaching')");
   await page.getByRole("button", { name: "Start Task 6", exact: true }).click();

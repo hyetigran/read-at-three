@@ -8,6 +8,15 @@ import type {
 } from "@tanstack/react-query";
 import type {
   ApplicationRead,
+  SelectedOwnerWitness,
+  SelectedTeachingOperation,
+  SelectedReadTarget,
+  SelectedApplication,
+  ExecutionResult,
+  ProfileDirectory,
+  CurrentResult,
+  RecoveryResult,
+  Counter,
   CourseReadTarget,
   CommandResult,
   CommitReceipt,
@@ -21,10 +30,11 @@ import type {
 } from "@readatthree/teaching";
 
 export type PreparedAction = Readonly<{
-  command: TeachingCommand;
+  operation: SelectedTeachingOperation;
   origin: CommittedProjection;
 }>;
 export type ReadEnvelope = Readonly<{
+  directory: ProfileDirectory;
   courseId: CourseId;
   projection: CommittedProjection;
   application?: Extract<ApplicationRead, { kind: "ready" }>;
@@ -43,28 +53,34 @@ export class TeachingRecoveryError extends Error {
   }
 }
 export interface TeachingRepository {
-  read(target?: CourseReadTarget): Promise<ReadEnvelope>;
+  read(input: SelectedReadTarget): Promise<ReadEnvelope>;
   readPracticeControls?(
-    binding: PracticeControlsBinding,
-  ): Promise<PracticeControlsSummary>;
-  dispatch(command: TeachingCommand): Promise<CommandResult>;
+    input: Parameters<SelectedApplication["readPracticeControls"]>[0],
+  ): Promise<CurrentResult<PracticeControlsSummary>>;
+  execute(operation: SelectedTeachingOperation): Promise<ExecutionResult>;
   recoverTeaching(
-    input: Readonly<{ recoveryId: string; command: TeachingCommand }>,
-  ): Promise<CommandResult>;
+    input: Parameters<SelectedApplication["recoverTeaching"]>[0],
+  ): Promise<RecoveryResult<CommitReceipt>>;
 }
-export type ReadExpectation =
-  | Readonly<{ kind: "opening" }>
-  | Readonly<{ kind: "refresh"; owner: Owner; courseId: CourseId }>
-  | Readonly<{
-      kind: "receipt";
-      courseId: CourseId;
-      prepared: PreparedAction;
-      receipt: CommitReceipt;
-      restoreBinding: Readonly<
-        | { kind: "normal" }
-        | { kind: "reconciled"; projection: CommittedProjection }
-      >;
-    }>;
+export type ReadExpectation = Readonly<{ minimumAdministration?: Counter }> &
+  (
+    | Readonly<{ kind: "opening"; selection: SelectedOwnerWitness }>
+    | Readonly<{
+        kind: "refresh";
+        selection: SelectedOwnerWitness;
+        courseId: CourseId;
+      }>
+    | Readonly<{
+        kind: "receipt";
+        courseId: CourseId;
+        prepared: PreparedAction;
+        receipt: CommitReceipt;
+        restoreBinding: Readonly<
+          | { kind: "normal" }
+          | { kind: "reconciled"; projection: CommittedProjection }
+        >;
+      }>
+  );
 export type Attempt =
   | Readonly<{ kind: "normal"; prepared: PreparedAction }>
   | Readonly<{
@@ -94,10 +110,12 @@ export interface CommittedTeachingView {
   subscribe(listener: () => void): () => void;
   getSnapshot(): QuerySnapshot;
 }
-export type RestoreTeaching = (
-  projection: CommittedProjection,
-) => Promise<
-  Readonly<{ activate(): void; practiceControls?: PracticeControlsSummary }>
+export type RestoreTeaching = (read: ReadEnvelope) => Promise<
+  Readonly<{
+    activate(): void;
+    publish?(): void;
+    practiceControls?: PracticeControlsSummary;
+  }>
 >;
 export interface PracticeControlsView {
   subscribe(listener: () => void): () => void;
@@ -112,6 +130,8 @@ export interface CommittedTeachingExecution {
   ): Promise<ReadEnvelope>;
   execute(attempt: Attempt): Promise<AttemptResult>;
   connectionLost(): void;
+  retire(): void;
+  adoptDirectory(directory: ProfileDirectory): boolean;
   captureFinalized(input: Readonly<{ token: DocumentToken }>): void;
   inkCommitted(input: Readonly<{ token: DocumentToken }>): void;
   close(): void;
@@ -121,6 +141,9 @@ function keyFor(read: ReadEnvelope): readonly string[] {
   if (view.kind === "recovery") throw new TeachingRecoveryError(view);
   return [
     "teaching",
+    read.directory.selection.installationId,
+    read.directory.selection.revision,
+    read.directory.administration.revision,
     view.owner.profileId,
     view.owner.generation,
     read.courseId,
@@ -175,16 +198,25 @@ function matchesReceipt({
       : projection.revision) === receipt.revision
   );
 }
-function targetFor(expectation: ReadExpectation): CourseReadTarget {
-  if (expectation.kind !== "receipt") return { kind: "cursor" };
+function expectedSelection(expectation: ReadExpectation): SelectedOwnerWitness {
+  return expectation.kind === "receipt"
+    ? expectation.prepared.operation.selection
+    : expectation.selection;
+}
+function targetFor(expectation: ReadExpectation): SelectedReadTarget {
+  if (expectation.kind !== "receipt")
+    return { selection: expectation.selection, target: { kind: "cursor" } };
   if (
     !matchesCommandReceipt({
-      command: expectation.prepared.command,
+      command: expectation.prepared.operation.command,
       receipt: expectation.receipt,
     })
   )
     throw new Error("The saved reading place did not match this save.");
-  return { kind: "accepted", receipt: expectation.receipt };
+  return {
+    selection: expectation.prepared.operation.selection,
+    target: { kind: "accepted", receipt: expectation.receipt },
+  };
 }
 const readOnlyControls: PracticeControlsSummary = Object.freeze({
   kind: "readOnly",
@@ -233,15 +265,26 @@ export function createCommittedTeaching({
     },
   );
   const controlListeners = new Set<() => void>();
+  let publishing = false;
+  let controlsChanged = false;
   const detachControls = controls.subscribe(() => {
+    if (publishing) {
+      controlsChanged = true;
+      return;
+    }
     for (const listener of controlListeners) listener();
   });
-  function publishControls(summary: PracticeControlsSummary) {
+  function publishControls(
+    summary: PracticeControlsSummary,
+    publishingSelection: SelectedOwnerWitness,
+  ) {
     const previousKey = controls.getCurrentQuery().queryKey;
     const queryKey =
       summary.kind === "editable"
         ? [
             "practice-controls",
+            publishingSelection.installationId,
+            publishingSelection.revision,
             summary.binding.owner.profileId,
             summary.binding.owner.generation,
             summary.token.courseId,
@@ -262,7 +305,13 @@ export function createCommittedTeaching({
         if (summary.kind === "readOnly") return summary;
         if (!repository.readPracticeControls)
           throw new Error("Practice repository unavailable");
-        const next = await repository.readPracticeControls(summary.binding);
+        const read = await repository.readPracticeControls({
+          selection: publishingSelection,
+          binding: summary.binding,
+        });
+        if (canonical(read.selection) !== canonical(publishingSelection))
+          throw new Error("Selected controls lifetime changed");
+        const next = read.value;
         checkLease(publishingLease);
         if (canonical(next) !== canonical(summary))
           throw new Error(
@@ -311,17 +360,27 @@ export function createCommittedTeaching({
             queryKey,
             queryFn: () =>
               repository.readPracticeControls
-                ? repository.readPracticeControls(binding)
-                : Promise.resolve<PracticeControlsSummary>({
-                    kind: "readOnly",
+                ? repository.readPracticeControls({
+                    selection: selectedRead.directory.selection,
+                    binding,
+                  })
+                : Promise.resolve<CurrentResult<PracticeControlsSummary>>({
+                    selection: selectedRead.directory.selection,
+                    value: { kind: "readOnly" },
                   }),
           });
           checkLease(readingLease);
           if (
             wanted === summaryWanted &&
             selected.getCurrentResult().data === selectedRead
-          )
-            publishControls(summary);
+          ) {
+            if (
+              canonical(summary.selection) !==
+              canonical(selectedRead.directory.selection)
+            )
+              throw new Error("Selected controls lifetime changed");
+            publishControls(summary.value, selectedRead.directory.selection);
+          }
         } finally {
           queryClient.removeQueries({ queryKey, exact: true });
         }
@@ -341,11 +400,24 @@ export function createCommittedTeaching({
   function verify(read: ReadEnvelope, expectation: ReadExpectation) {
     const view = read.projection;
     if (view.kind === "recovery") throw new TeachingRecoveryError(view);
+    if (
+      canonical(read.directory.selection) !==
+      canonical(expectedSelection(expectation))
+    )
+      throw new Error(
+        "The selected child lifetime changed before publication.",
+      );
+    if (
+      expectation.minimumAdministration !== undefined &&
+      BigInt(read.directory.administration.revision) <
+        BigInt(expectation.minimumAdministration)
+    )
+      throw new Error("A newer committed profile directory is required.");
     if (expectation.kind === "opening") return;
     const owner =
       expectation.kind === "refresh"
-        ? expectation.owner
-        : expectation.prepared.command.owner;
+        ? expectation.selection.owner
+        : expectation.prepared.operation.command.owner;
     if (
       read.courseId !== expectation.courseId ||
       view.owner.profileId !== owner.profileId ||
@@ -356,7 +428,7 @@ export function createCommittedTeaching({
       expectation.kind === "receipt" &&
       !matchesReceipt({
         projection: view,
-        command: expectation.prepared.command,
+        command: expectation.prepared.operation.command,
         receipt: expectation.receipt,
       })
     )
@@ -365,14 +437,16 @@ export function createCommittedTeaching({
       if (
         expectation.restoreBinding.kind === "reconciled" &&
         (!read.application ||
-          expectation.prepared.command.kind === "writingControl")
+          expectation.prepared.operation.command.kind === "writingControl")
       ) {
         if (
           canonical(view) !== canonical(expectation.restoreBinding.projection)
         )
           throw new Error("The reconciled reading binding changed.");
-      } else if (expectation.prepared.command.kind === "writingControl") {
-        const command = expectation.prepared.command;
+      } else if (
+        expectation.prepared.operation.command.kind === "writingControl"
+      ) {
+        const command = expectation.prepared.operation.command;
         if (view.kind !== "writing")
           throw new Error("The practice control left its writing context.");
         const expected = command.payload.barrier.documents.map((token) =>
@@ -430,7 +504,7 @@ export function createCommittedTeaching({
           throw new TeachingRecoveryError(value.projection);
         checkRead();
         verify(value, expectation);
-        staged = await stageRestore(value.projection);
+        staged = await stageRestore(value);
         checkRead();
         return value;
       },
@@ -463,12 +537,26 @@ export function createCommittedTeaching({
         },
       };
       summaryWanted++;
-      staged.activate();
-      publishControls(staged.practiceControls ?? { kind: "readOnly" });
-      queryClient.setQueryData(canonicalKey, value);
-      selected.setOptions(canonicalOptions);
-      recovery = null;
+      publishing = true;
+      try {
+        staged.activate();
+        queryClient.setQueryData(canonicalKey, value);
+        selected.setOptions(canonicalOptions);
+        publishControls(
+          staged.practiceControls ?? { kind: "readOnly" },
+          value.directory.selection,
+        );
+        recovery = null;
+        currentSnapshot = snapshot();
+        staged.publish?.();
+      } finally {
+        publishing = false;
+      }
       changed();
+      if (controlsChanged) {
+        controlsChanged = false;
+        for (const listener of controlListeners) listener();
+      }
       return value;
     } catch (error) {
       if (
@@ -496,16 +584,34 @@ export function createCommittedTeaching({
           case "closedRecovery": {
             const result = await repository.recoverTeaching({
               recoveryId: attempt.recoveryId,
-              command: attempt.prepared.command,
+              operation: attempt.prepared.operation,
             });
             checkLease(executingLease);
-            return { kind: "resolved", result };
+            return { kind: "resolved", result: result.result };
           }
           case "normal": {
             const origin = selected.getCurrentResult().data;
             if (!origin)
               throw new Error("The saved reading place is unavailable.");
-            const result = await repository.dispatch(attempt.prepared.command);
+            if (
+              canonical(origin.directory.selection) !==
+              canonical(attempt.prepared.operation.selection)
+            )
+              throw new Error(
+                "This teaching operation belongs to a retired selection.",
+              );
+            const response = await repository.execute(
+              attempt.prepared.operation,
+            );
+            if (response.kind !== "teaching")
+              throw new Error("Teaching result required");
+            const result = response.result;
+            if (
+              result.kind === "committed" &&
+              canonical(response.selection) !==
+                canonical(attempt.prepared.operation.selection)
+            )
+              throw new Error("Committed teaching selection changed.");
             checkLease(executingLease);
             if (result.kind === "rejected") return { kind: "resolved", result };
             await read({
@@ -521,6 +627,9 @@ export function createCommittedTeaching({
             await queryClient.invalidateQueries({
               queryKey: [
                 "teaching",
+                attempt.prepared.operation.selection.installationId,
+                attempt.prepared.operation.selection.revision,
+                origin.directory.administration.revision,
                 result.owner.profileId,
                 result.owner.generation,
                 origin.courseId,
@@ -565,6 +674,7 @@ export function createCommittedTeaching({
   }
   let currentSnapshot = snapshot();
   function changed() {
+    if (publishing) return;
     currentSnapshot = snapshot();
     for (const listener of listeners) listener();
   }
@@ -598,6 +708,53 @@ export function createCommittedTeaching({
     connectionLost() {
       lease++;
     },
+    retire() {
+      lease++;
+      attemptSerial++;
+      const current = selected.getCurrentResult().data;
+      if (current)
+        publishControls({ kind: "readOnly" }, current.directory.selection);
+    },
+    adoptDirectory(directory) {
+      const current = selected.getCurrentResult().data;
+      if (
+        !current ||
+        closed ||
+        canonical(current.directory.selection) !==
+          canonical(directory.selection) ||
+        BigInt(directory.administration.revision) <
+          BigInt(current.directory.administration.revision)
+      )
+        return false;
+      const active = (value: ProfileDirectory) =>
+        value.profiles.find(
+          (profile) =>
+            canonical(profile.edit.owner) === canonical(value.selection.owner),
+        );
+      if (canonical(active(current.directory)) !== canonical(active(directory)))
+        return false;
+      const next = { ...current, directory };
+      const publishingLease = lease;
+      const queryKey = keyFor(next);
+      queryClient.setQueryData(queryKey, next);
+      selected.setOptions({
+        ...inactive,
+        queryKey,
+        queryFn: async () => {
+          checkLease(publishingLease);
+          const read = await repository.read({
+            selection: directory.selection,
+            target: { kind: "cursor" },
+          });
+          checkLease(publishingLease);
+          if (canonical(read) !== canonical(next))
+            throw new Error("Changed committed data requires a guarded read.");
+          return read;
+        },
+      });
+      changed();
+      return true;
+    },
     captureFinalized() {
       summaryWanted++;
       void refreshControls();
@@ -606,8 +763,8 @@ export function createCommittedTeaching({
       void queryClient.invalidateQueries({
         predicate: (query) =>
           query.queryKey[0] === "teaching" &&
-          query.queryKey[1] === token.profileId &&
-          query.queryKey[2] === token.generation &&
+          query.queryKey[4] === token.profileId &&
+          query.queryKey[5] === token.generation &&
           query.queryKey.includes(token.documentId),
         refetchType: "none",
       });

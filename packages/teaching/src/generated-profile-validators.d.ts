@@ -1,0 +1,13 @@
+import type { ValidateFunction } from "ajv";
+import type {
+  RawPreferences,
+  RawPreparationPolicy,
+  RawProfileDirectory,
+  RawProfileAdministrationCommand,
+  RawProfileAdministrationReceipt,
+} from "./profile-schemas.ts";
+export declare const validateLocalPreferences: ValidateFunction<RawPreferences>;
+export declare const validatePreparationPolicy: ValidateFunction<RawPreparationPolicy>;
+export declare const validateProfileDirectory: ValidateFunction<RawProfileDirectory>;
+export declare const validateProfileAdministrationCommand: ValidateFunction<RawProfileAdministrationCommand>;
+export declare const validateProfileAdministrationReceipt: ValidateFunction<RawProfileAdministrationReceipt>;

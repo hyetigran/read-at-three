@@ -15,10 +15,11 @@ import {
 } from "@readatthree/teaching";
 import { practiceFixture } from "../storage/practice-support.ts";
 import { hash } from "../storage/support.ts";
+import { executeTeaching } from "../storage/selected-support.ts";
 
 test("actual canonical encoders bound escaped IDs, maximum counters and frozen checkpoint segments before hashing", async (t) => {
   const f = await practiceFixture(t),
-    { app } = f.connect();
+    { app } = await f.connectReady();
   await f.start(app);
   const { snapshot, token } = await f.current(app);
   const strokeId = parseId({ kind: "stroke", value: "\u0000".repeat(200) }),
@@ -131,14 +132,17 @@ test("actual canonical encoders bound escaped IDs, maximum counters and frozen c
 });
 test("hidden retained geometry stays in the admission anchor after Undo and Clear", async (t) => {
   const f = await practiceFixture(t),
-    { app } = f.connect();
+    { app } = await f.connectReady();
   await f.start(app);
   await f.draw(app, 100);
   await f.draw(app, 200);
-  await app.dispatch(await f.prepareControl(app, { kind: "inkUndo" }));
+  await executeTeaching(app, await f.prepareControl(app, { kind: "inkUndo" }));
   const undone = (await f.current(app)).snapshot;
   assert.equal(inkAdmissionAnchor(undone).pointCount, 3);
-  await app.dispatch(await f.prepareControl(app, { kind: "clearPractice" }));
+  await executeTeaching(
+    app,
+    await f.prepareControl(app, { kind: "clearPractice" }),
+  );
   const cleared = (await f.current(app)).snapshot;
   assert.deepEqual(await f.visible(app), []);
   assert.equal(inkAdmissionAnchor(cleared).pointCount, 2);

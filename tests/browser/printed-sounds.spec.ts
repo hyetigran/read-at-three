@@ -1,3 +1,7 @@
+import {
+  installInitialSetupObservation,
+  completeInitialSetup,
+} from "./parent-setup.ts";
 import { test, expect, chromium } from "@playwright/test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -18,7 +22,9 @@ async function turn(page: Page, suffix: string) {
   ).toBeEnabled();
 }
 async function start(page: Page, task = 1) {
+  await installInitialSetupObservation(page);
   await page.goto(base);
+  await completeInitialSetup({ page });
   await page.getByRole("link", { name: "Lesson 1", exact: true }).click();
   await page
     .getByRole("button", { name: `Start Task ${task}`, exact: true })
@@ -253,8 +259,8 @@ test("Help shows an uncommitted source preview through delayed and failed save, 
   window.readHelpAttempts=()=>attempts.slice();
   window.Worker=class extends NativeWorker {
    postMessage(message,options){
-    if(message?.kind==='dispatch'&&message.command?.kind==='navigate'&&message.command.payload.action.kind==='help'){
-     attempts.push(JSON.stringify(message.command));
+    if((message?.kind === 'execute' && message.operation.kind === 'teaching')&&message.operation.command?.kind==='navigate'&&message.operation.command.payload.action.kind==='help'){
+     attempts.push(JSON.stringify(message.operation));
      if(!held){held=true;window.failHeldHelp=()=>this.dispatchEvent(new MessageEvent('message',{data:{id:message.id,kind:'failed',message:'Injected Help save failure'}}));return;}
     }
     super.postMessage(message,options);

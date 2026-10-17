@@ -77,6 +77,8 @@ const {
   inkPointChunk,
   inkHistory,
   inkOperation,
+  installationProfileState,
+  profileAdministrationReceipt,
   ...baseSchema
 } = schema;
 const latestSchema = {
@@ -145,8 +147,6 @@ const tables = new Map<
 >();
 const indexes = new Map<string, string>();
 
-// This deliberately accepts only Kit's reviewed SQLite CREATE grammar. A Kit
-// upgrade or new DDL form must fail here instead of silently changing v1.
 for (const statement of sqlStatements) {
   const table = /^CREATE TABLE `([a-z_]+)` \(\n([\s\S]+)\n\);$/.exec(statement);
   if (table?.[1] && table[2]) {
@@ -494,8 +494,30 @@ if (arguments_.includes("--check")) {
   if ((await readFile(reversiblePath, "utf8")) !== reversibleSql)
     throw new Error("Advance withdrawal migration stale");
 } else await writeFile(reversiblePath, reversibleSql);
+const profileStatements = [
+  ...(await generateSQLiteMigration(
+    await generateSQLiteDrizzleJson({}),
+    await generateSQLiteDrizzleJson({
+      installationProfileState,
+      profileAdministrationReceipt,
+    }),
+  )),
+  "UPDATE installation SET database_version = 8",
+];
+const profilePath = resolve(
+  root,
+  "packages/storage/migrations/0007_child_profiles.sql",
+);
+const profileSql =
+  profileStatements
+    .map((statement) => statement.trim().replace(/;$/, ""))
+    .join(";\n--> statement-breakpoint\n") + ";\n";
+if (arguments_.includes("--check")) {
+  if ((await readFile(profilePath, "utf8")) !== profileSql)
+    throw new Error("Child profile migration stale");
+} else await writeFile(profilePath, profileSql);
 const output = await format(
-  `// Generated from ordered Kit migrations plus reviewed deferred constraints.\n// Reproduce: node --import tsx tools/migrations/prepare.ts\nexport const migrationStatements = ${JSON.stringify(statements)} as const;\nexport const migrations = [{version:1, id:"issue-02-initial", statements:migrationStatements}, {version:2, id:"issue-03-sound-task-credits", statements:${JSON.stringify(upgrades)}}, {version:3,id:"issue-04-accepting-command",statements:${JSON.stringify(finalStatements)}}, {version:4,id:"issue-06-canonical-ink",statements:${JSON.stringify(writingStatements)}}, {version:5,id:"issue-07-ink-editing",statements:${JSON.stringify(editingStatements)}}, {version:6,id:"issue-08-lesson-support",statements:${JSON.stringify(lessonStatements)}}, {version:7,id:"issue-09-advance-withdrawal",statements:${JSON.stringify(reversibleStatements)}}] as const;\n`,
+  `export const migrationStatements = ${JSON.stringify(statements)} as const;\nexport const migrations = [{version:1, id:"issue-02-initial", statements:migrationStatements}, {version:2, id:"issue-03-sound-task-credits", statements:${JSON.stringify(upgrades)}}, {version:3,id:"issue-04-accepting-command",statements:${JSON.stringify(finalStatements)}}, {version:4,id:"issue-06-canonical-ink",statements:${JSON.stringify(writingStatements)}}, {version:5,id:"issue-07-ink-editing",statements:${JSON.stringify(editingStatements)}}, {version:6,id:"issue-08-lesson-support",statements:${JSON.stringify(lessonStatements)}}, {version:7,id:"issue-09-advance-withdrawal",statements:${JSON.stringify(reversibleStatements)}}, {version:8,id:"issue-10-child-profiles",statements:${JSON.stringify(profileStatements)}}] as const;\n`,
   { parser: "typescript" },
 );
 const path = resolve(root, "packages/storage/src/generated-migration.ts");

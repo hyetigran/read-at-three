@@ -1,3 +1,14 @@
+import { readEnvelope } from "./support.ts";
+import {
+  executeInk,
+  executeTeaching,
+  prepareSelectedInk,
+  prepareSelectedTeaching,
+  selectedCourse,
+  selectedInk,
+  selectedProjection,
+} from "../storage/selected-support.ts";
+
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
@@ -17,7 +28,7 @@ import type {
   DocumentToken,
   InkCommand,
   InkEdit,
-  TeachingCommand,
+  SelectedTeachingOperation,
   TeachingIntent,
 } from "@readatthree/teaching";
 import {
@@ -39,8 +50,8 @@ async function fixture(t: Parameters<typeof storageFixture>[0]) {
     hash,
   );
   const store = await storageFixture(t, content);
-  const { app, db } = store.connect();
-  await app.open();
+  const { app, db } = await store.connectReady();
+  await selectedProjection(app);
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false, gcTime: Infinity },
@@ -48,40 +59,43 @@ async function fixture(t: Parameters<typeof storageFixture>[0]) {
     },
   });
   let fault: "none" | "before" | "after" = "none";
-  const deliveries: TeachingCommand[] = [];
+  const deliveries: SelectedTeachingOperation[] = [];
   const targets: CourseReadTarget["kind"][] = [];
   const runtime = createCommittedTeaching({
     queryClient,
     repository: {
-      async read(target = { kind: "cursor" }) {
+      async read(input) {
+        const target = input.target;
         targets.push(target.kind);
-        const application = await app.readApplication(target);
-        if (application.kind === "recovery")
-          throw new TeachingRecoveryError(application);
+        const envelope = await readEnvelope(app, input, content.body.courseId);
+        const application = envelope.application;
+        if (!application) throw new Error("Application required");
         return {
+          directory: envelope.directory,
           courseId: application.courseId,
           projection: application.projection,
           application,
         };
       },
-      async dispatch(command) {
+      async execute(operation) {
+        const command = operation;
         deliveries.push(command);
         const failure = fault;
         fault = "none";
         if (failure === "before") throw new Error("Lost before dispatch");
-        const result = await app.dispatch(command);
+        const result = await app.execute(operation);
         if (failure === "after") throw new Error("Lost after COMMIT");
         return result;
       },
       recoverTeaching: (input) => app.recoverTeaching(input),
     },
-    async stageRestore(projection) {
+    async stageRestore({ projection }) {
       if (
         projection.kind === "writing" ||
         projection.kind === "writingResult"
       ) {
         for (const token of projection.documents) {
-          const snapshot = await app.readInk({ token });
+          const snapshot = await selectedInk(app, { token });
           assert.deepEqual(snapshot.token, token);
           if (projection.runStatus !== "inProgress")
             assert.equal(snapshot.writable, false);
@@ -94,7 +108,12 @@ async function fixture(t: Parameters<typeof storageFixture>[0]) {
     runtime.close();
     queryClient.clear();
   });
-  await runtime.read({ expectation: { kind: "opening" } });
+  await runtime.read({
+    expectation: {
+      kind: "opening",
+      selection: (await app.readDirectory()).selection,
+    },
+  });
   function current() {
     const projection = runtime.current()?.projection;
     assert.ok(projection && projection.kind !== "recovery");
@@ -127,7 +146,14 @@ async function fixture(t: Parameters<typeof storageFixture>[0]) {
             ids: store.ids,
             hash,
           });
-    return { origin, command };
+    return {
+      origin,
+      operation: {
+        kind: "teaching",
+        selection: (await app.readDirectory()).selection,
+        command,
+      },
+    };
   }
   async function act(kind: TeachingIntent["kind"], taskId?: string) {
     const prepared = await prepare(kind, taskId);
@@ -141,7 +167,7 @@ async function fixture(t: Parameters<typeof storageFixture>[0]) {
     await runtime.read({
       expectation: {
         kind: "refresh",
-        owner: current().owner,
+        selection: (await app.readDirectory()).selection,
         courseId: content.body.courseId,
       },
     });
@@ -157,7 +183,10 @@ async function fixture(t: Parameters<typeof storageFixture>[0]) {
         value: await hash(canonical({ kind: "ink", token, edit })),
       }),
     };
-    const result = await app.dispatchInk(command);
+    const result = await executeInk(
+      app,
+      await prepareSelectedInk(app, () => command),
+    );
     assert.ok(result.kind === "inkCommitted");
     return result.token;
   }
@@ -166,7 +195,7 @@ async function fixture(t: Parameters<typeof storageFixture>[0]) {
     assert.ok(projection.kind === "writing");
     let writable: DocumentToken | undefined;
     for (const token of projection.documents)
-      if ((await app.readInk({ token })).writable) writable = token;
+      if ((await selectedInk(app, { token })).writable) writable = token;
     assert.ok(writable);
     assert.equal(writable.phase, "parentDemonstration");
     const strokeId = parseId({ kind: "stroke", value: store.ids() });
@@ -224,8 +253,11 @@ async function fixture(t: Parameters<typeof storageFixture>[0]) {
   function creditRows() {
     return db.prepare("SELECT * FROM task_credit ORDER BY credit_id").all();
   }
-  async function assertRejected(command: TeachingCommand, code: string) {
-    const result = await app.dispatch(command);
+  async function assertRejected(
+    operation: SelectedTeachingOperation,
+    code: string,
+  ) {
+    const result = await executeTeaching(app, operation);
     assert.ok(result.kind === "rejected");
     assert.equal(result.code, code);
   }
@@ -291,7 +323,7 @@ async function terminal(
   assert.ok(view.kind === "writingResult");
   assert.equal(view.outcome, outcome);
   assert.equal(view.runStatus, outcome);
-  const cursor = await f.app.readApplication({ kind: "cursor" });
+  const cursor = await selectedCourse(f.app, { kind: "cursor" });
   assert.ok(cursor.kind === "ready");
   assert.equal(cursor.projection.kind, superseded ? "entry" : "writingResult");
   assert.equal(
@@ -300,7 +332,7 @@ async function terminal(
   );
   assert.equal(f.targets.at(-1), "accepted");
   const snapshots = await Promise.all(
-    view.documents.map((token) => f.app.readInk({ token })),
+    view.documents.map((token) => selectedInk(f.app, { token })),
   );
   assert.equal(
     snapshots.some((snapshot) => snapshot.strokes.length === 1),
@@ -324,7 +356,7 @@ for (const outcome of ["completed", "skipped"] satisfies readonly (
             ? unseenTask
             : pausedTask;
       const prepared = await f.prepare(next, task);
-      const command = prepared.command;
+      const command = prepared.operation.command;
       const before = f.counts();
       const credits = f.creditRows();
       const result = await f.runtime.execute({ kind: "normal", prepared });
@@ -366,14 +398,14 @@ for (const outcome of ["completed", "skipped"] satisfies readonly (
             f.view.documents.some((old) => old.documentId === token.documentId),
             false,
           );
-          const snapshot = await f.app.readInk({ token });
+          const snapshot = await selectedInk(f.app, { token });
           assert.deepEqual(snapshot.strokes, []);
         }
         assert.equal(f.counts().documents, before.documents + 2);
       }
       assert.deepEqual(
         await Promise.all(
-          f.view.documents.map((token) => f.app.readInk({ token })),
+          f.view.documents.map((token) => selectedInk(f.app, { token })),
         ),
         f.snapshots,
       );
@@ -386,19 +418,22 @@ for (const outcome of ["completed", "skipped"] satisfies readonly (
     const f = await terminal(t, outcome, false);
     const before = f.counts();
     const back = await f.prepare("back");
-    assert.ok(back.command.kind === "writingNavigate");
-    assert.deepEqual(back.command.payload.barrier.documents, f.view.documents);
+    assert.ok(back.operation.command.kind === "writingNavigate");
+    assert.deepEqual(
+      back.operation.command.payload.barrier.documents,
+      f.view.documents,
+    );
     const result = await f.runtime.execute({ kind: "normal", prepared: back });
     assert.equal(result.kind, "visible");
     const reviewed = f.current();
     assert.ok(reviewed.kind === "writing");
     assert.equal(reviewed.runStatus, outcome);
     for (const token of reviewed.documents)
-      assert.equal((await f.app.readInk({ token })).writable, false);
+      assert.equal((await selectedInk(f.app, { token })).writable, false);
     const forward = await f.prepare("continue");
-    assert.ok(forward.command.kind === "writingNavigate");
+    assert.ok(forward.operation.command.kind === "writingNavigate");
     assert.deepEqual(
-      forward.command.payload.barrier.documents,
+      forward.operation.command.payload.barrier.documents,
       reviewed.documents,
     );
     assert.equal(
@@ -413,11 +448,11 @@ for (const outcome of ["completed", "skipped"] satisfies readonly (
     assert.ok(readonly.kind === "writing");
     assert.equal(readonly.runStatus, outcome);
     const snapshots = await Promise.all(
-      readonly.documents.map((token) => f.app.readInk({ token })),
+      readonly.documents.map((token) => selectedInk(f.app, { token })),
     );
     const credits = f.creditRows();
     const replay = await f.prepare("replay", writingTask);
-    assert.equal(replay.command.kind, "select");
+    assert.equal(replay.operation.command.kind, "select");
     assert.equal(
       (await f.runtime.execute({ kind: "normal", prepared: replay })).kind,
       "visible",
@@ -432,11 +467,11 @@ for (const outcome of ["completed", "skipped"] satisfies readonly (
         readonly.documents.some((old) => old.documentId === token.documentId),
         false,
       );
-      assert.deepEqual((await f.app.readInk({ token })).strokes, []);
+      assert.deepEqual((await selectedInk(f.app, { token })).strokes, []);
     }
     assert.deepEqual(
       await Promise.all(
-        readonly.documents.map((token) => f.app.readInk({ token })),
+        readonly.documents.map((token) => selectedInk(f.app, { token })),
       ),
       snapshots,
     );
@@ -453,14 +488,14 @@ test("active and paused unfinished selections require settled exact document bar
   await f.act("continue");
   const capture = await f.draw(false);
   const pending = await f.prepare("start", pausedTask);
-  assert.ok(pending.command.kind === "writingSelect");
-  assert.equal(pending.command.payload.barrier.documents.length, 2);
-  await f.assertRejected(pending.command, "writing-barrier");
+  assert.ok(pending.operation.command.kind === "writingSelect");
+  assert.equal(pending.operation.command.payload.barrier.documents.length, 2);
+  await f.assertRejected(pending.operation, "writing-barrier");
   await f.ink(capture.token, capture.end);
   await f.refresh();
-  await f.assertRejected(pending.command, "writing-barrier");
+  await f.assertRejected(pending.operation, "writing-barrier");
   const active = await f.prepare("start", pausedTask);
-  assert.ok(active.command.kind === "writingSelect");
+  assert.ok(active.operation.command.kind === "writingSelect");
   assert.ok(active.origin.kind !== "recovery");
   const action = active.origin.actions.find(
     (candidate) =>
@@ -474,11 +509,14 @@ test("active and paused unfinished selections require settled exact document bar
     ids: f.ids,
     hash,
   });
-  await f.assertRejected(ordinary, "writing-fence");
+  await f.assertRejected(
+    await prepareSelectedTeaching(f.app, () => ordinary),
+    "writing-fence",
+  );
   await f.act("pause");
   const paused = await f.prepare("start", pausedTask);
-  assert.ok(paused.command.kind === "writingSelect");
-  assert.equal(paused.command.payload.barrier.documents.length, 2);
+  assert.ok(paused.operation.command.kind === "writingSelect");
+  assert.equal(paused.operation.command.payload.barrier.documents.length, 2);
   assert.equal(
     (await f.runtime.execute({ kind: "normal", prepared: paused })).kind,
     "visible",
@@ -510,8 +548,8 @@ for (const boundary of ["before", "after"] satisfies readonly (
       "visible",
     );
     assert.deepEqual(f.deliveries.slice(delivered), [
-      prepared.command,
-      prepared.command,
+      prepared.operation,
+      prepared.operation,
     ]);
     assert.equal(f.counts().runs, before.runs + 1);
     assert.equal(f.counts().documents, before.documents + 2);
@@ -519,7 +557,7 @@ for (const boundary of ["before", "after"] satisfies readonly (
     assert.deepEqual(f.creditRows(), credits);
     assert.deepEqual(
       await Promise.all(
-        f.view.documents.map((token) => f.app.readInk({ token })),
+        f.view.documents.map((token) => selectedInk(f.app, { token })),
       ),
       f.snapshots,
     );
@@ -528,7 +566,8 @@ for (const boundary of ["before", "after"] satisfies readonly (
 
 test("terminal selection retains hash, profile revision, owner and capability guards", async (t) => {
   const f = await terminal(t, "skipped");
-  const { command } = await f.prepare("replay", writingTask);
+  const { operation } = await f.prepare("replay", writingTask);
+  const command = operation.command;
   assert.ok(command.kind === "select" || command.kind === "writingSelect");
   const before = f.counts();
   const wrongHash = {
@@ -536,19 +575,22 @@ test("terminal selection retains hash, profile revision, owner and capability gu
     commandId: parseId({ kind: "command", value: f.ids() }),
     payloadHash: parseHash({ kind: "payload", value: "0".repeat(64) }),
   };
-  await f.assertRejected(wrongHash, "payload-hash");
+  await f.assertRejected({ ...operation, command: wrongHash }, "payload-hash");
   const staleRevision = {
     ...command,
     commandId: parseId({ kind: "command", value: f.ids() }),
     expectedRevision: parseCounter("0"),
   };
-  await f.assertRejected(staleRevision, "stale-revision");
+  await f.assertRejected(
+    { ...operation, command: staleRevision },
+    "stale-revision",
+  );
   const staleOwner = {
     ...command,
     commandId: parseId({ kind: "command", value: f.ids() }),
     owner: { ...command.owner, generation: parseCounter("999") },
   };
-  await f.assertRejected(staleOwner, "stale-owner");
+  await f.assertRejected({ ...operation, command: staleOwner }, "stale-owner");
   const wrongScope = {
     ...command,
     commandId: parseId({ kind: "command", value: f.ids() }),
@@ -557,7 +599,7 @@ test("terminal selection retains hash, profile revision, owner and capability gu
       id: parseId({ kind: "profile", value: "other-profile" }),
     },
   };
-  await f.assertRejected(wrongScope, "wrong-scope");
+  await f.assertRejected({ ...operation, command: wrongScope }, "wrong-scope");
   await assert.rejects(
     prepareWritingCommand({
       projection: f.view,
@@ -582,11 +624,19 @@ test("terminal selection retains hash, profile revision, owner and capability gu
     ids: f.ids,
     hash,
   });
-  assert.equal((await f.app.dispatch(active)).kind, "committed");
-  const cursor = await f.app.readApplication({ kind: "cursor" });
+  assert.equal(
+    (
+      await executeTeaching(
+        f.app,
+        await prepareSelectedTeaching(f.app, () => active),
+      )
+    ).kind,
+    "committed",
+  );
+  const cursor = await selectedCourse(f.app, { kind: "cursor" });
   assert.ok(cursor.kind === "ready" && cursor.projection.kind === "writing");
   assert.equal(cursor.projection.runStatus, "inProgress");
   const activeCounts = f.counts();
-  await f.assertRejected(command, "writing-fence");
+  await f.assertRejected(operation, "writing-fence");
   assert.deepEqual(f.counts(), activeCounts);
 });

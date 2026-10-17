@@ -1,3 +1,11 @@
+import {
+  executeTeaching,
+  prepareSelectedTeaching,
+  selectedCourse,
+  selectedProjection,
+  selectedWork,
+} from "./selected-support.ts";
+
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
@@ -11,10 +19,9 @@ import {
 import type {
   AvailableAction,
   CommittedProjection,
-  CourseApplication,
+  SelectedApplication,
   RuntimePackage,
   TeachingIntent,
-  WritingApplication,
 } from "../../packages/teaching/src/index.ts";
 import { hash, storageFixture } from "./support.ts";
 async function sourceFixture() {
@@ -79,33 +86,37 @@ async function commandFor({
   ids,
   matches = () => true,
 }: {
-  app: WritingApplication;
+  app: SelectedApplication;
   kind: TeachingIntent["kind"];
   ids: () => string;
   matches?: (action: AvailableAction) => boolean;
 }) {
-  const projection = ready(await app.read()),
+  const projection = ready(await selectedProjection(app)),
     action = projection.actions.find(
       (action) => action.intent.kind === kind && matches(action),
     );
   assert.ok(action, `Missing ${kind} at ${projection.kind}`);
   return projection.kind === "writing" || projection.kind === "writingResult"
-    ? prepareWritingCommand({
-        projection,
-        action,
-        barrier: { kind: "writing", documents: projection.documents },
-        ids,
-        hash,
-      })
-    : prepareCommand({
-        projection,
-        request: { kind: "action", action },
-        ids,
-        hash,
-      });
+    ? prepareSelectedTeaching(app, async () =>
+        prepareWritingCommand({
+          projection,
+          action,
+          barrier: { kind: "writing", documents: projection.documents },
+          ids,
+          hash,
+        }),
+      )
+    : prepareSelectedTeaching(app, async () =>
+        prepareCommand({
+          projection,
+          request: { kind: "action", action },
+          ids,
+          hash,
+        }),
+      );
 }
 async function act(
-  app: WritingApplication,
+  app: SelectedApplication,
   ids: () => string,
   kind: TeachingIntent["kind"],
   matches?: (action: AvailableAction) => boolean,
@@ -116,13 +127,13 @@ async function act(
       kind,
       ...(matches ? { matches } : {}),
     }),
-    result = await app.dispatch(command);
+    result = await executeTeaching(app, command);
   assert.equal(result.kind, "committed");
   return result;
 }
-async function finish(app: WritingApplication, ids: () => string) {
+async function finish(app: SelectedApplication, ids: () => string) {
   for (let i = 0; i < 250; i++) {
-    const projection = ready(await app.read());
+    const projection = ready(await selectedProjection(app));
     if ("runStatus" in projection && projection.runStatus !== "inProgress")
       return projection;
     if (
@@ -131,17 +142,20 @@ async function finish(app: WritingApplication, ids: () => string) {
     ) {
       assert.equal(
         (
-          await app.dispatch(
-            await prepareCommand({
-              projection,
-              request: {
-                kind: "review",
-                action: projection.selectionAction,
-                choice: { kind: "none" },
-              },
-              ids,
-              hash,
-            }),
+          await executeTeaching(
+            app,
+            await prepareSelectedTeaching(app, async () =>
+              prepareCommand({
+                projection,
+                request: {
+                  kind: "review",
+                  action: projection.selectionAction,
+                  choice: { kind: "none" },
+                },
+                ids,
+                hash,
+              }),
+            ),
           )
         ).kind,
         "committed",
@@ -164,10 +178,10 @@ async function finish(app: WritingApplication, ids: () => string) {
   throw new Error("Teaching did not finish");
 }
 async function replayWriting(
-  app: WritingApplication & CourseApplication,
+  app: SelectedApplication & SelectedApplication,
   ids: () => string,
 ) {
-  const view = await app.readApplication({ kind: "cursor" });
+  const view = await selectedCourse(app, { kind: "cursor" });
   assert.equal(view.kind, "ready");
   if (view.kind !== "ready") throw new Error("Course unavailable");
   const task = view.course.lessons[0]?.tasks.find((task) => task.optional);
@@ -180,11 +194,11 @@ async function replayWriting(
   );
 }
 async function completeCore(
-  app: WritingApplication & CourseApplication,
+  app: SelectedApplication & SelectedApplication,
   ids: () => string,
   content: RuntimePackage,
 ) {
-  const view = await app.readApplication({ kind: "cursor" });
+  const view = await selectedCourse(app, { kind: "cursor" });
   assert.equal(view.kind, "ready");
   if (view.kind !== "ready") throw new Error("Course unavailable");
   for (const task of view.course.lessons[0]?.tasks ?? []) {
@@ -208,9 +222,9 @@ function count(
 test("coherent course reads preserve source order, exact saved work and full supported optional Skip across physical cold open", async (t) => {
   const content = await courseFixture(),
     f = await storageFixture(t, content),
-    { app, db } = f.connect();
-  await app.open();
-  let view = await app.readApplication({ kind: "cursor" });
+    { app, db } = await f.connectReady();
+  await selectedProjection(app);
+  let view = await selectedCourse(app, { kind: "cursor" });
   assert.equal(view.kind, "ready");
   if (view.kind !== "ready") return;
   assert.equal(view.course.lessons.length, 6);
@@ -233,7 +247,7 @@ test("coherent course reads preserve source order, exact saved work and full sup
   );
   const receipt = await act(app, f.ids, "skipWriting");
   if (receipt.kind !== "committed") return;
-  const accepted = await app.readApplication({ kind: "accepted", receipt });
+  const accepted = await selectedCourse(app, { kind: "accepted", receipt });
   assert.equal(accepted.kind, "ready");
   if (accepted.kind !== "ready") return;
   assert.equal(accepted.projection.kind, "writingResult");
@@ -250,7 +264,7 @@ test("coherent course reads preserve source order, exact saved work and full sup
   assert.equal(savedReceipt, canonical(JSON.parse(savedReceipt)));
   const before = db.prepare("SELECT * FROM course_cursor").all(),
     runCount = count(db, "task_run"),
-    history = await app.readWork({
+    history = await selectedWork(app, {
       owner: accepted.witness.owner,
       runId: receipt.runId,
     });
@@ -267,15 +281,15 @@ test("coherent course reads preserve source order, exact saved work and full sup
   assert.equal(count(db, "task_run"), runCount);
   await replayWriting(app, f.ids);
   assert.equal(count(db, "lesson_credit"), 1);
-  const replay = ready(await app.read());
+  const replay = ready(await selectedProjection(app));
   assert.ok("runId" in replay && replay.runId !== receipt.runId);
-  const reopened = f.connect();
+  const reopened = await f.connectReady();
   const recovery = await reopened.app.openRecovery({ kind: "cold" });
   await reopened.app.reconcileRecovery({
     recoveryId: recovery.recoveryId,
     choice: { kind: "cold" },
   });
-  const cold = await reopened.app.readApplication({ kind: "cursor" });
+  const cold = await selectedCourse(reopened.app, { kind: "cursor" });
   assert.equal(cold.kind, "ready");
   if (cold.kind !== "ready") return;
   assert.equal(cold.course.lessons[0]?.progress, "satisfied");
@@ -285,9 +299,9 @@ test("coherent course reads preserve source order, exact saved work and full sup
 
 test("an older resumed run completes with a cleared cursor and receipt-targeted terminal publication while other paused work stays explicit", async (t) => {
   const f = await storageFixture(t, await courseFixture()),
-    { app, db } = f.connect();
-  await app.open();
-  let view = await app.readApplication({ kind: "cursor" });
+    { app, db } = await f.connectReady();
+  await selectedProjection(app);
+  let view = await selectedCourse(app, { kind: "cursor" });
   assert.equal(view.kind, "ready");
   if (view.kind !== "ready") return;
   const first = view.course.lessons[0]?.tasks[0],
@@ -300,7 +314,7 @@ test("an older resumed run completes with a cleared cursor and receipt-targeted 
     "start",
     (action) => "taskId" in action.intent && action.intent.taskId === first.id,
   );
-  const older = ready(await app.read());
+  const older = ready(await selectedProjection(app));
   assert.ok("sessionId" in older);
   await act(app, f.ids, "pause");
   await act(
@@ -325,17 +339,17 @@ test("an older resumed run completes with a cleared cursor and receipt-targeted 
       "sessionId" in action.intent &&
       action.intent.sessionId === older.sessionId,
   );
-  let terminal: Awaited<ReturnType<typeof app.dispatch>> | undefined;
+  let terminal: Awaited<ReturnType<typeof executeTeaching>> | undefined;
   for (let i = 0; i < 6; i++) terminal = await act(app, f.ids, "continue");
   assert.equal(terminal?.kind, "committed");
   if (terminal?.kind !== "committed") return;
-  assert.equal((await app.read()).kind, "entry");
+  assert.equal((await selectedProjection(app)).kind, "entry");
   assert.equal(
     db.prepare("SELECT resume_session_id FROM course_cursor").get()
       ?.resume_session_id,
     null,
   );
-  const accepted = await app.readApplication({
+  const accepted = await selectedCourse(app, {
     kind: "accepted",
     receipt: terminal,
   });
@@ -352,20 +366,20 @@ test("an older resumed run completes with a cleared cursor and receipt-targeted 
   assert.equal(accepted.course.resume.kind, "none");
   assert.equal(accepted.course.lessons[0]?.tasks[2]?.unfinished.length, 1);
   const before = db.prepare("SELECT * FROM course_cursor").all();
-  await app.readWork({ owner: terminal.owner, runId: terminal.runId });
+  await selectedWork(app, { owner: terminal.owner, runId: terminal.runId });
   assert.deepEqual(db.prepare("SELECT * FROM course_cursor").all(), before);
-  const reopened = f.connect();
-  assert.equal((await reopened.app.open()).kind, "entry");
+  const reopened = await f.connectReady();
+  assert.equal((await selectedProjection(reopened.app)).kind, "entry");
   await act(
     app,
     f.ids,
     "replay",
     (action) => "taskId" in action.intent && action.intent.taskId === fourth.id,
   );
-  const newer = ready(await app.read());
+  const newer = ready(await selectedProjection(app));
   assert.ok("runId" in newer);
   const newerCursor = db.prepare("SELECT * FROM course_cursor").all();
-  const earlierReceipt = await app.readApplication({
+  const earlierReceipt = await selectedCourse(app, {
     kind: "accepted",
     receipt: terminal,
   });
@@ -386,7 +400,7 @@ for (const boundary of ["beforeCommit", "afterCommit"] as const)
   test(`lesson support ${boundary} fault rolls back or retries exactly once`, async (t) => {
     const f = await storageFixture(t, await courseFixture());
     let armed = false;
-    const connection = f.connect({
+    const connection = await f.connectReady({
         hook: async (sql, work) => {
           if (armed && sql === "COMMIT") {
             armed = false;
@@ -397,9 +411,9 @@ for (const boundary of ["beforeCommit", "afterCommit"] as const)
         },
       }),
       { app, db } = connection;
-    await app.open();
+    await selectedProjection(app);
     await completeCore(app, f.ids, f.content);
-    const view = await app.readApplication({ kind: "cursor" });
+    const view = await selectedCourse(app, { kind: "cursor" });
     assert.equal(view.kind, "ready");
     if (view.kind !== "ready") return;
     const writing = view.course.lessons[0]?.tasks.find((task) => task.optional);
@@ -413,12 +427,12 @@ for (const boundary of ["beforeCommit", "afterCommit"] as const)
     );
     const command = await commandFor({ app, ids: f.ids, kind: "skipWriting" });
     armed = true;
-    await assert.rejects(app.dispatch(command));
+    await assert.rejects(executeTeaching(app, command));
     assert.equal(
       count(db, "lesson_credit"),
       boundary === "beforeCommit" ? 0 : 1,
     );
-    const receipt = await app.dispatch(command);
+    const receipt = await executeTeaching(app, command);
     assert.equal(receipt.kind, "committed");
     assert.equal(count(db, "lesson_credit"), 1);
     assert.equal(count(db, "lesson_credit_support"), 6);
@@ -427,19 +441,19 @@ for (const boundary of ["beforeCommit", "afterCommit"] as const)
     assert.equal(
       db
         .prepare("SELECT count(*) AS n FROM command_receipt WHERE command_id=?")
-        .get(command.commandId)?.n,
+        .get(command.command.commandId)?.n,
       1,
     );
   });
 
 async function satisfy(
   f: Awaited<ReturnType<typeof storageFixture>>,
-  app: WritingApplication & CourseApplication,
+  app: SelectedApplication & SelectedApplication,
   writing: "completed" | "skipped",
 ) {
-  await app.open();
+  await selectedProjection(app);
   await completeCore(app, f.ids, f.content);
-  const view = await app.readApplication({ kind: "cursor" });
+  const view = await selectedCourse(app, { kind: "cursor" });
   assert.equal(view.kind, "ready");
   if (view.kind !== "ready") throw new Error("Course unavailable");
   const task = view.course.lessons[0]?.tasks.find((task) => task.optional);
@@ -501,18 +515,18 @@ async function release(content: RuntimePackage, additional = false) {
 
 test("completed writing dominates skipped replay, and unfinished Replay retains accepted historical lesson support", async (t) => {
   const f = await storageFixture(t, await courseFixture()),
-    { app, db } = f.connect();
+    { app, db } = await f.connectReady();
   await satisfy(f, app, "completed");
   const selected = db.prepare("SELECT * FROM lesson_result").all(),
     receipts = db
       .prepare("SELECT receipt FROM task_credit ORDER BY credit_id")
       .all();
   await replayWriting(app, f.ids);
-  const replay = ready(await app.read());
+  const replay = ready(await selectedProjection(app));
   assert.equal(replay.kind, "writing");
   assert.deepEqual(db.prepare("SELECT * FROM lesson_result").all(), selected);
   await act(app, f.ids, "skipWriting");
-  const view = await app.readApplication({ kind: "cursor" });
+  const view = await selectedCourse(app, { kind: "cursor" });
   assert.equal(view.kind, "ready");
   if (view.kind !== "ready") return;
   assert.equal(view.course.lessons[0]?.tasks[5]?.outcome, "completed");
@@ -531,12 +545,12 @@ test("completed writing dominates skipped replay, and unfinished Replay retains 
 test("release-only packages share canonical support while editorial tasks preserve the historical accepted task set", async (t) => {
   const content = await courseFixture(),
     f = await storageFixture(t, content),
-    first = f.connect();
+    first = await f.connectReady();
   await satisfy(f, first.app, "skipped");
   const original = first.db.prepare("SELECT * FROM lesson_credit").all(),
     selected = first.db.prepare("SELECT * FROM lesson_result").all();
   const next = await release(content),
-    same = f.connect({ content: next });
+    same = await f.connectReady({ content: next });
   const recovery = await same.app.openRecovery({ kind: "cold" });
   await same.app.reconcileRecovery({
     recoveryId: recovery.recoveryId,
@@ -552,13 +566,15 @@ test("release-only packages share canonical support while editorial tasks preser
     same.db.prepare("SELECT * FROM lesson_result").all(),
     selected,
   );
-  const editorial = f.connect({ content: await release(next, true) }),
+  const editorial = await f.connectReady({
+      content: await release(next, true),
+    }),
     inventory = await editorial.app.openRecovery({ kind: "cold" });
   await editorial.app.reconcileRecovery({
     recoveryId: inventory.recoveryId,
     choice: { kind: "cold" },
   });
-  const view = await editorial.app.readApplication({ kind: "cursor" });
+  const view = await selectedCourse(editorial.app, { kind: "cursor" });
   assert.equal(view.kind, "ready");
   if (view.kind !== "ready") return;
   assert.equal(view.course.lessons[0]?.tasks.length, 7);
@@ -574,7 +590,7 @@ test("release-only packages share canonical support while editorial tasks preser
 for (const corruption of ["order", "hash", "receipt"] as const)
   test(`corrupt ${corruption} lesson support enters preserved recovery`, async (t) => {
     const f = await storageFixture(t, await courseFixture()),
-      { app, db } = f.connect();
+      { app, db } = await f.connectReady();
     await satisfy(f, app, "skipped");
     const protectedReceipts = db
       .prepare("SELECT receipt FROM task_credit ORDER BY credit_id")
@@ -591,7 +607,7 @@ for (const corruption of ["order", "hash", "receipt"] as const)
       );
     const before = db.prepare("SELECT * FROM lesson_credit").all(),
       cold = f.connect();
-    assert.equal((await cold.app.open()).kind, "recovery");
+    assert.equal((await selectedProjection(cold.app)).kind, "recovery");
     assert.deepEqual(
       cold.db.prepare("SELECT * FROM lesson_credit").all(),
       before,
@@ -607,7 +623,7 @@ for (const corruption of ["order", "hash", "receipt"] as const)
 
 test("normalized lesson support rejects a cross-owner edge using the actual SQLite composite FKs", async (t) => {
   const f = await storageFixture(t, await courseFixture()),
-    { app, db } = f.connect();
+    { app, db } = await f.connectReady();
   await satisfy(f, app, "skipped");
   const edge = db
     .prepare("SELECT * FROM lesson_credit_support WHERE ordinal=0")
@@ -645,15 +661,15 @@ test("actual offline Query reads publish profile Start and Resume receipts with 
     });
   t.after(() => client.clear());
   const f = await storageFixture(t, await courseFixture()),
-    { app } = f.connect();
-  await app.open();
+    { app } = await f.connectReady();
+  await selectedProjection(app);
   const start = await act(app, f.ids, "start");
   assert.equal(start.kind, "committed");
   if (start.kind !== "committed") return;
   const started = await client.query({
     queryKey: ["course", "started", start.commandId],
     networkMode: "always",
-    queryFn: () => app.readApplication({ kind: "accepted", receipt: start }),
+    queryFn: () => selectedCourse(app, { kind: "accepted", receipt: start }),
   });
   assert.equal(started.kind, "ready");
   if (started.kind !== "ready" || started.projection.kind === "entry") return;
@@ -672,7 +688,7 @@ test("actual offline Query reads publish profile Start and Resume receipts with 
   const resumed = await client.query({
     queryKey: ["course", "resumed", resume.commandId],
     networkMode: "always",
-    queryFn: () => app.readApplication({ kind: "accepted", receipt: resume }),
+    queryFn: () => selectedCourse(app, { kind: "accepted", receipt: resume }),
   });
   assert.equal(resumed.kind, "ready");
   if (resumed.kind !== "ready" || resumed.projection.kind === "entry") return;
@@ -715,8 +731,8 @@ test("migration 6 data-hook failure rolls back new tables, ledger and version be
     0,
   );
   await initializeDatabase(executor, hash);
-  assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 7);
-  assert.equal(count(db, "schema_migration"), 7);
+  assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 8);
+  assert.equal(count(db, "schema_migration"), 8);
   assert.equal(count(db, "lesson_credit"), 0);
 });
 
@@ -725,9 +741,9 @@ test("strict committed and historical parsers reject forged witnesses, capabilit
       await import("../../packages/teaching/src/index.ts"),
     { practiceFixture } = await import("./practice-support.ts"),
     f = await practiceFixture(t),
-    { app } = f.connect();
+    { app } = await f.connectReady();
   await f.start(app);
-  const current = await app.readApplication({ kind: "cursor" });
+  const current = await selectedCourse(app, { kind: "cursor" });
   assert.equal(current.kind, "ready");
   if (current.kind !== "ready" || current.projection.kind === "entry") return;
   assert.deepEqual(parseApplicationRead(structuredClone(current)), current);
@@ -743,7 +759,7 @@ test("strict committed and historical parsers reject forged witnesses, capabilit
     () => parseApplicationRead({ ...current, unknown: true }),
     /envelope/,
   );
-  const historical = await app.readWork({
+  const historical = await selectedWork(app, {
     owner: current.witness.owner,
     runId: current.projection.runId,
   });
@@ -806,12 +822,12 @@ test("internal dependent-support recomputation retains prior Skip support and ro
     { parseId } = await import("../../packages/teaching/src/index.ts");
   const content = await courseFixture(),
     f = await storageFixture(t, content),
-    { app, db, executor } = f.connect();
+    { app, db, executor } = await f.connectReady();
   await satisfy(f, app, "skipped");
   const originalResult = db.prepare("SELECT * FROM lesson_result").all();
   await replayWriting(app, f.ids);
   await finish(app, f.ids);
-  const view = await app.readApplication({ kind: "cursor" });
+  const view = await selectedCourse(app, { kind: "cursor" });
   assert.equal(view.kind, "ready");
   if (view.kind !== "ready") return;
   const writing = view.course.lessons[0]?.tasks.find((task) => task.optional);
@@ -875,15 +891,15 @@ test("internal dependent-support recomputation retains prior Skip support and ro
     db.prepare("SELECT * FROM lesson_credit ORDER BY lesson_credit_id").all(),
     lessonsBefore,
   );
-  assert.equal((await app.readApplication({ kind: "cursor" })).kind, "ready");
+  assert.equal((await selectedCourse(app, { kind: "cursor" })).kind, "ready");
 });
 
 test("abandoned acceptance corruption is validated while the newer delivery and original geometry remain preserved", async (t) => {
   const { practiceFixture } = await import("./practice-support.ts"),
     f = await practiceFixture(t),
-    { app, db } = f.connect();
+    { app, db } = await f.connectReady();
   await f.start(app);
-  const old = ready(await app.read());
+  const old = ready(await selectedProjection(app));
   assert.ok("runId" in old);
   const geometry = db
     .prepare(
@@ -897,7 +913,7 @@ test("abandoned acceptance corruption is validated while the newer delivery and 
   );
   const records = db.prepare("SELECT * FROM task_run ORDER BY run_id").all(),
     cold = f.connect();
-  assert.equal((await cold.app.open()).kind, "recovery");
+  assert.equal((await selectedProjection(cold.app)).kind, "recovery");
   assert.deepEqual(
     cold.db.prepare("SELECT * FROM task_run ORDER BY run_id").all(),
     records,
@@ -920,15 +936,15 @@ test("noncurrent legacy preview offers exact Resume or explicit full Restart and
       hash,
     ),
     f = await storageFixture(t, legacy),
-    initial = f.connect();
-  await initial.app.open();
+    initial = await f.connectReady();
+  await selectedProjection(initial.app);
   await act(initial.app, f.ids, "start");
   await act(initial.app, f.ids, "continue");
-  const old = ready(await initial.app.read());
+  const old = ready(await selectedProjection(initial.app));
   assert.ok("sessionId" in old);
-  const full = f.connect({ content: await courseFixture() });
-  await full.app.open();
-  const before = await full.app.readApplication({ kind: "cursor" });
+  const full = await f.connectReady({ content: await courseFixture() });
+  await selectedProjection(full.app);
+  const before = await selectedCourse(full.app, { kind: "cursor" });
   assert.equal(before.kind, "ready");
   if (before.kind !== "ready") return;
   const other = before.course.lessons[0]?.tasks[3];
@@ -939,7 +955,7 @@ test("noncurrent legacy preview offers exact Resume or explicit full Restart and
     "start",
     (action) => "taskId" in action.intent && action.intent.taskId === other.id,
   );
-  const view = await full.app.readApplication({ kind: "cursor" });
+  const view = await selectedCourse(full.app, { kind: "cursor" });
   assert.equal(view.kind, "ready");
   if (view.kind !== "ready") return;
   const task = view.course.lessons[0]?.tasks[0];
@@ -948,16 +964,22 @@ test("noncurrent legacy preview offers exact Resume or explicit full Restart and
   assert.equal(unsafe, undefined);
   const { parseCommand } = await import("../../packages/teaching/src/index.ts");
   const valid = await commandFor({ app: full.app, ids: f.ids, kind: "start" });
-  assert.equal(valid.kind, "select");
-  if (valid.kind !== "select") throw new Error("Selection command required");
-  const payload = { ...valid.payload, taskId: task.id },
-    forged = parseCommand({
+  assert.equal(valid.command.kind, "select");
+  if (valid.command.kind !== "select")
+    throw new Error("Selection command required");
+  const payload = { ...valid.command.payload, taskId: task.id },
+    forged = {
       ...valid,
-      commandId: f.ids(),
-      payload,
-      payloadHash: await hash(canonical({ kind: valid.kind, payload })),
-    });
-  const rejected = await full.app.dispatch(forged);
+      command: parseCommand({
+        ...valid.command,
+        commandId: f.ids(),
+        payload,
+        payloadHash: await hash(
+          canonical({ kind: valid.command.kind, payload }),
+        ),
+      }),
+    };
+  const rejected = await executeTeaching(full.app, forged);
   assert.equal(rejected.kind, "rejected");
   if (rejected.kind === "rejected")
     assert.equal(rejected.code, "saved-run-exists");
@@ -980,7 +1002,7 @@ test("noncurrent legacy preview offers exact Resume or explicit full Restart and
     "restart",
     (action) => canonical(action) === canonical(restart),
   );
-  const current = ready(await full.app.read());
+  const current = ready(await selectedProjection(full.app));
   assert.ok("runId" in current && current.runId !== old.runId);
   assert.equal(current.packageHash, view.witness.activePackageHash);
   assert.equal(

@@ -43,13 +43,14 @@ export type OccurrenceId = Id<"occurrence">;
 export type CheckpointId = Id<"checkpoint">;
 export type CorrectionId = Id<"correction">;
 export type CreditId = Id<"credit">;
-export type HashKind = "package" | "payload" | "migration";
+export type HashKind = "package" | "payload" | "migration" | "preparation";
 export type Hash<Kind extends HashKind> = string & {
   readonly __brand: `${Kind}Hash`;
 };
 export type PackageHash = Hash<"package">;
 export type PayloadHash = Hash<"payload">;
 export type MigrationHash = Hash<"migration">;
+export type PreparationHash = Hash<"preparation">;
 export type Serialized<Value> = Value extends { readonly __brand: string }
   ? string
   : Value extends object

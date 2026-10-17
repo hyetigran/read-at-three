@@ -1,3 +1,11 @@
+import { readEnvelope } from "./support.ts";
+import {
+  executeTeaching,
+  selectedCourse,
+  selectedInk,
+  selectedProjection,
+} from "../storage/selected-support.ts";
+
 import assert from "node:assert/strict";
 import test from "node:test";
 import { QueryClient } from "@tanstack/react-query";
@@ -14,7 +22,7 @@ import type {
   CourseReadTarget,
   InkSnapshot,
   PracticeControlsSummary,
-  TeachingCommand,
+  SelectedTeachingOperation,
 } from "@readatthree/teaching";
 import {
   createCommittedTeaching,
@@ -25,7 +33,7 @@ import { practiceFixture } from "../storage/practice-support.ts";
 
 async function fixture(t: Parameters<typeof practiceFixture>[0]) {
   const storage = await practiceFixture(t);
-  let { app } = storage.connect();
+  let { app } = await storage.connectReady();
   const model = await storage.start(app);
   const first = await storage.draw(app, 100),
     second = await storage.draw(app, 200);
@@ -37,7 +45,7 @@ async function fixture(t: Parameters<typeof practiceFixture>[0]) {
     },
   });
   const targets: CourseReadTarget[] = [];
-  const deliveries: TeachingCommand[] = [];
+  const deliveries: SelectedTeachingOperation[] = [];
   let fault: "none" | "before" | "after" | "wrongCommand" = "none";
   let loseRecoveredReply = false;
   let activated: readonly InkSnapshot[] = [];
@@ -46,47 +54,61 @@ async function fixture(t: Parameters<typeof practiceFixture>[0]) {
   const runtime = createCommittedTeaching({
     queryClient,
     repository: {
-      async read(target = { kind: "cursor" }) {
+      async read(input) {
+        const target = input.target;
         targets.push(target);
-        const application = await app.readApplication(target);
-        if (application.kind === "recovery")
-          throw new TeachingRecoveryError(application);
+        const envelope = await readEnvelope(
+          app,
+          input,
+          storage.content.body.courseId,
+        );
+        const application = envelope.application;
+        if (!application) throw new Error("Application required");
         return {
+          directory: envelope.directory,
           courseId: application.courseId,
           projection: application.projection,
           application,
         };
       },
-      async dispatch(command) {
+      async execute(operation) {
+        const command = operation;
         deliveries.push(command);
         const current = fault;
         fault = "none";
         if (current === "before") throw Error("Lost before dispatch");
-        const result = await app.dispatch(command);
+        const result = await app.execute(operation);
         if (current === "after") throw Error("Lost after COMMIT");
-        return current === "wrongCommand" && result.kind === "committed"
+        return current === "wrongCommand" &&
+          result.kind === "teaching" &&
+          result.result.kind === "committed"
           ? {
               ...result,
-              commandId: parseId({ kind: "command", value: "wrong-command" }),
+              result: {
+                ...result.result,
+                commandId: parseId({ kind: "command", value: "wrong-command" }),
+              },
             }
           : result;
       },
       async recoverTeaching(input) {
-        deliveries.push(input.command);
+        deliveries.push(input.operation);
         const result = await app.recoverTeaching(input);
         if (loseRecoveredReply) {
           loseRecoveredReply = false;
           throw Error("Lost recovered receipt");
         }
-        return result.kind === "committed" ? recoveryReceipt(result) : result;
+        return result.resolution === "rejected"
+          ? result
+          : { ...result, result: recoveryReceipt(result.result) };
       },
     },
-    async stageRestore(projection) {
+    async stageRestore({ projection }) {
       const snapshots: InkSnapshot[] = [];
       let practiceControls: PracticeControlsSummary = { kind: "readOnly" };
       if (projection.kind === "writing" || projection.kind === "writingResult")
         for (const token of projection.documents) {
-          const snapshot = await app.readInk({ token });
+          const snapshot = await selectedInk(app, { token });
           assert.equal(canonical(snapshot.token), canonical(token));
           snapshots.push(snapshot);
           const summary = summarizePractice({
@@ -113,24 +135,27 @@ async function fixture(t: Parameters<typeof practiceFixture>[0]) {
     runtime.close();
     queryClient.clear();
   });
-  await runtime.read({ expectation: { kind: "opening" } });
+  await runtime.read({
+    expectation: {
+      kind: "opening",
+      selection: (await app.readDirectory()).selection,
+    },
+  });
   const origin = runtime.current()?.projection;
   if (!origin || origin.kind !== "writing") throw Error("Writing required");
   const prepared: PreparedAction = {
     origin,
-    command: await storage.prepareControl(app, { kind: "inkUndo" }),
+    operation: await storage.prepareControl(app, { kind: "inkUndo" }),
   };
   async function replace() {
     runtime.connectionLost();
-    ({ app } = storage.connect());
+    ({ app } = await storage.connectReady());
     return app.openRecovery({
       kind: "warm",
       retainedStrokeIds: [],
-      teaching: {
-        kind: "pending",
-        commandId: prepared.command.commandId,
-        payloadHash: prepared.command.payloadHash,
-      },
+      selection: prepared.operation.selection,
+      teaching: prepared.operation,
+      administration: null,
     });
   }
   function assertRestored() {
@@ -223,10 +248,11 @@ for (const boundary of ["recovered-receipt", "reconciliation-reply"]) {
     assert.equal(result.kind, "resolved");
     if (result.kind !== "resolved" || result.result.kind !== "committed")
       throw Error("Committed recovery required");
-    const projection = await f.app.reconcileRecovery({
+    await f.app.reconcileRecovery({
       recoveryId: second.recoveryId,
       choice: { kind: "warm", settledStrokeIds: [] },
     });
+    const projection = await selectedProjection(f.app);
     const current = f.runtime.current();
     assert.ok(current);
     await f.runtime.read({
@@ -291,7 +317,7 @@ test("uncorrelated committed acknowledgement stays an exact save Retry without r
 
 test("direct receipt reads reject uncorrelated acknowledgements before touching the accepted repository target", async (t) => {
   const f = await fixture(t);
-  const receipt = await f.app.dispatch(f.prepared.command);
+  const receipt = await executeTeaching(f.app, f.prepared.operation);
   if (receipt.kind !== "committed") throw Error("Committed control required");
   const selected = f.runtime.current();
   assert.ok(selected);
@@ -407,10 +433,11 @@ test("a closed recovery acknowledgement must correlate before its public receipt
   });
   if (result.kind !== "resolved" || result.result.kind !== "committed")
     throw Error("Recovered committed control required");
-  const projection = await f.app.reconcileRecovery({
+  await f.app.reconcileRecovery({
     recoveryId: recovery.recoveryId,
     choice: { kind: "warm", settledStrokeIds: [] },
   });
+  const projection = await selectedProjection(f.app);
   const selected = f.runtime.current();
   assert.ok(selected);
   const reads = f.targets.length,

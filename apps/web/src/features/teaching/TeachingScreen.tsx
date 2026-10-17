@@ -37,6 +37,7 @@ type TeachingScreenProps = {
   onLessonMenu?: () => void;
   lessonNumber?: number;
   inputSuspended?: boolean;
+  parentAccess?: ReactNode;
 };
 
 type ActionProps = {
@@ -810,6 +811,7 @@ export function TeachingScreen({
   onLessonMenu,
   lessonNumber = 1,
   inputSuspended = false,
+  parentAccess,
 }: TeachingScreenProps) {
   const supportedWindow = useSyncExternalStore(
     subscribeViewport,
@@ -874,6 +876,7 @@ export function TeachingScreen({
           taskNumber={projection.taskNumber}
           lessonNumber={lessonNumber}
         >
+          {parentAccess}
           <div className="teaching-undo-slot">
             {undo ? (
               <ProjectedAction
@@ -966,7 +969,9 @@ export function TeachingScreen({
         title={projection.title}
         taskNumber={projection.kind === "entry" ? null : projection.taskNumber}
         lessonNumber={lessonNumber}
-      />
+      >
+        {parentAccess}
+      </ScreenHeading>
       {projection.kind !== "entry" ? (
         <section className="teaching-session-summary" aria-live="polite">
           <h2>
