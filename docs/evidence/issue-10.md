@@ -1,6 +1,6 @@
 # Issue 10 implementation evidence
 
-Issue #10 is in progress on `issue-10-child-profiles`, based on merged main `b251a02`. Commits `3ca6538`, `2e4ead5` and `75b678a` implement the directory foundation, profile administration and original portrait assets. The current checkpoint implements selected-owner operations and controller adoption. Preparation screens and avatar UI remain pending.
+Issue #10 is in progress on `issue-10-child-profiles`, based on merged main `b251a02`. Commits `3ca6538`, `2e4ead5` and `75b678a` implement the directory foundation, profile administration and original portrait assets. Commit `dbc5daa` implements selected-owner operations and controller adoption. Preparation screens and avatar UI remain pending.
 
 ## Directory foundation
 
@@ -24,7 +24,9 @@ The compatibility corpus contains 36 genuine V7 databases, including qualified o
 
 Three injected failures reach V8's ledger and selection writes immediately before migration COMMIT. Each restores the entire V7 file byte for byte. A clean Retry produces exactly the independently qualified V8 database bytes. Three probes using the actual archived V7 initializer refuse actual V8 copies before attempting any writer statement and leave their whole files unchanged.
 
-The independent corpus comparison covers migration and directory reads. Full teaching cold-recovery and historical-projection comparison still require a committed current-port checkpoint. Browser flows, independent final reviews, production qualification, exact-head CI, PR and merge remain pending. No native, physical-device or release qualification is claimed. Supplied Lessons 1–6 remain the curriculum scope; book-bearing source and runtime packages remain private.
+The foundation comparison covers migration and directory reads. A subsequent full current-port comparison at committed `dbc5daa` passes all 35 genuine V7 inputs with old-reader observations. It checks 70 cold opens, 70 additional physical view reopens and 204 historical-work reads. Complete selected application/recovery/work/ink envelopes match the frozen old results plus explicitly derived directory metadata. Canonical geometry, visibility/history, full SQL schema and every raw row match the old observations plus reviewed additive V8 SQL. Historical views cause no writes. Old expectations are neither regenerated nor stripped of document-token fields. Input and source hashes remain exact before and after execution. This is single-owner compatibility; the new multi-profile behavior has its separate constructed and public-command tests.
+
+Browser flows, independent final reviews, production qualification, exact-head CI, PR and merge remain pending. No native, physical-device or release qualification is claimed. Supplied Lessons 1–6 remain the curriculum scope; book-bearing source and runtime packages remain private.
 
 ## Selected operations and controller adoption
 
