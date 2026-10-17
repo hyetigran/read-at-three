@@ -2,9 +2,11 @@ import { and, asc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/sqlite-proxy";
 import {
   canonical,
+  assertInkReferences,
+  changeInkHistory,
+  inkSnapshotUsage,
   decodeInkPoints,
   increment,
-  INK_LIMITS,
   layerForPhase,
   parseCounter,
   parseId,
@@ -16,7 +18,6 @@ import {
   parseInkStrokeIds,
   validateInkChunks,
   validateInkDocumentUsage,
-  visibleInkStrokes,
   writingPermission,
   writingTask,
 } from "../../teaching/src/index.ts";
@@ -36,11 +37,13 @@ import type {
   StrokeId,
   WritingBarrier,
   Owner,
+  HistoryChange,
+  PracticeControl,
+  ChildPracticeLayer,
 } from "../../teaching/src/index.ts";
 import type { SqlExecutor } from "./executor.ts";
 import { sqlValues } from "./executor.ts";
 import * as schema from "./schema.ts";
-import { utf8 } from "./utf8.ts";
 
 const layers: readonly InkLayer[] = ["model", "tracing", "independent"];
 export type InkRunContext = Omit<StoredSession, "runStatus"> & {
@@ -279,10 +282,12 @@ export function createInkRepository({
       ).map((op) => {
         const value = parseInkOperation(JSON.parse(op.payload));
         if (
-          op.kind !== "AddStroke" ||
+          op.kind !== value.kind ||
           Number(op.payloadVersion) !== 1 ||
           value.seq !== op.seq ||
-          value.strokeId !== op.originStrokeId
+          (value.kind === "AddStroke"
+            ? value.strokeId !== op.originStrokeId
+            : op.originStrokeId !== null)
         )
           throw new Error("Invalid committed operation");
         return value;
@@ -298,23 +303,9 @@ export function createInkRepository({
         nextOpSeq: history.nextOpSeq,
         operations,
       };
-      visibleInkStrokes({ history: value, strokes });
       histories.push(value);
     }
-    if (
-      histories.length !== 3 ||
-      layers.some((layer) => !histories.some((h) => h.layer === layer)) ||
-      strokes.some(
-        (s) =>
-          s.status !== "capturing" &&
-          !histories.some(
-            (h) =>
-              h.layer === s.layer &&
-              visibleInkStrokes({ history: h, strokes }).includes(s.strokeId),
-          ),
-      )
-    )
-      throw new Error("Incomplete canonical ink history");
+    assertInkReferences({ histories, strokes });
     const value = {
       token: token(row),
       sourceRefs: target.sourceRefs,
@@ -337,111 +328,161 @@ export function createInkRepository({
     return parseInkSnapshot(value);
   }
   function checkBounds(value: InkSnapshot) {
-    const points = value.strokes.reduce((n, s) => n + s.pointCount, 0);
-    const payloadBytes = value.strokes.reduce(
-      (n, s) => n + s.chunks.reduce((sum, c) => sum + c.payload.length, 0),
-      0,
-    );
-    const metadata = {
-      ...value,
-      strokes: value.strokes.map((s) => ({
-        ...s,
-        chunks: s.chunks.map(({ payload, ...chunk }) => chunk),
-      })),
-    };
-    validateInkDocumentUsage({
-      pointCount: points,
-      canonicalByteLength: payloadBytes + utf8(canonical(metadata)).length,
-    });
+    validateInkDocumentUsage(inkSnapshotUsage(value));
   }
-  async function addOrigin({
-    documentId,
+  function changedDocument({
+    value,
     layer,
-    strokeId,
+    change,
   }: {
-    documentId: DocumentToken["documentId"];
+    value: InkSnapshot;
     layer: InkLayer;
-    strokeId: StrokeId;
+    change: HistoryChange;
   }) {
-    const row = (
-      await db
-        .select()
-        .from(schema.inkHistory)
-        .where(
-          and(
-            eq(schema.inkHistory.documentId, documentId),
-            eq(schema.inkHistory.layer, layer),
-          ),
-        )
-        .all()
-    )[0];
-    if (!row) throw new Error("History missing");
-    if (row.cursorSeq !== row.tipSeq)
-      throw new Error("History branching unsupported");
-    const operations = await db
-      .select()
-      .from(schema.inkOperation)
-      .where(
-        and(
-          eq(schema.inkOperation.documentId, documentId),
-          eq(schema.inkOperation.layer, layer),
-        ),
-      )
-      .orderBy(asc(schema.inkOperation.seq))
-      .all();
-    let baseline = parseInkStrokeIds(JSON.parse(row.baseline)),
-      baseSeq = row.baseSeq;
-    if (operations.length >= INK_LIMITS.retainedOperations) {
-      const oldest = operations[0];
-      if (!oldest || BigInt(oldest.seq) > BigInt(row.cursorSeq))
-        throw new Error("Applied prefix unavailable");
-      const operation = parseInkOperation(JSON.parse(oldest.payload));
-      baseline = [...baseline, operation.strokeId];
-      baseSeq = oldest.seq;
-      await db
-        .delete(schema.inkOperation)
-        .where(
-          and(
-            eq(schema.inkOperation.documentId, documentId),
-            eq(schema.inkOperation.layer, layer),
-            eq(schema.inkOperation.seq, oldest.seq),
-          ),
-        )
-        .run();
+    const history = value.histories.find((h) => h.layer === layer);
+    if (!history) throw new Error("History missing");
+    const next = changeInkHistory({ history, strokes: value.strokes, change });
+    const histories = value.histories.map((h) =>
+      h.layer === layer ? next : h,
+    );
+    const references = new Set<StrokeId>();
+    for (const h of histories) {
+      for (const id of h.baseline) references.add(id);
+      for (const op of h.operations)
+        if (op.kind === "AddStroke") references.add(op.strokeId);
+        else for (const id of op.strokeIds) references.add(id);
     }
-    const operation = {
-      seq: row.nextOpSeq,
-      kind: "AddStroke",
-      strokeId,
-    } satisfies import("../../teaching/src/index.ts").InkOperation;
-    await db
-      .insert(schema.inkOperation)
-      .values({
-        documentId,
-        layer,
-        seq: row.nextOpSeq,
-        kind: "AddStroke",
-        payloadVersion: 1,
-        payload: canonical(operation),
-        originStrokeId: strokeId,
-      })
-      .run();
+    const strokes = value.strokes.filter(
+      (stroke) =>
+        stroke.status === "capturing" || references.has(stroke.strokeId),
+    );
+    assertInkReferences({ histories, strokes });
+    const result = { ...value, histories, strokes };
+    checkBounds(result);
+    return result;
+  }
+  async function persistHistory(input: {
+    value: InkSnapshot;
+    layer: InkLayer;
+    change: HistoryChange;
+  }) {
+    const { value, layer } = input;
+    const changed = changedDocument(input);
+    const next = changed.histories.find((history) => history.layer === layer);
+    if (!next) throw new Error("History missing");
+    const references = new Set(
+      changed.strokes.map((stroke) => stroke.strokeId),
+    );
+    const previous = value.histories.find((history) => history.layer === layer);
+    if (!previous) throw new Error("History missing");
+    const retainedSequences = new Set(
+      next.operations.map((operation) => operation.seq),
+    );
+    const previousSequences = new Set(
+      previous.operations.map((operation) => operation.seq),
+    );
+    for (const operation of previous.operations)
+      if (!retainedSequences.has(operation.seq))
+        await db
+          .delete(schema.inkOperation)
+          .where(
+            and(
+              eq(schema.inkOperation.documentId, value.token.documentId),
+              eq(schema.inkOperation.layer, layer),
+              eq(schema.inkOperation.seq, operation.seq),
+            ),
+          )
+          .run();
+    for (const operation of next.operations)
+      if (!previousSequences.has(operation.seq))
+        await db
+          .insert(schema.inkOperation)
+          .values({
+            documentId: value.token.documentId,
+            layer,
+            seq: operation.seq,
+            kind: operation.kind,
+            payloadVersion: 1,
+            payload: canonical(operation),
+            originStrokeId:
+              operation.kind === "AddStroke" ? operation.strokeId : null,
+          })
+          .run();
     await db
       .update(schema.inkHistory)
       .set({
-        baseline: canonical(baseline),
-        baseSeq,
-        cursorSeq: row.nextOpSeq,
-        tipSeq: row.nextOpSeq,
-        nextOpSeq: increment(row.nextOpSeq),
+        baseline: canonical(next.baseline),
+        baseSeq: next.baseSeq,
+        cursorSeq: next.cursorSeq,
+        tipSeq: next.tipSeq,
+        nextOpSeq: next.nextOpSeq,
       })
       .where(
         and(
-          eq(schema.inkHistory.documentId, documentId),
+          eq(schema.inkHistory.documentId, value.token.documentId),
           eq(schema.inkHistory.layer, layer),
         ),
       )
       .run();
+    for (const stroke of value.strokes)
+      if (stroke.status !== "capturing" && !references.has(stroke.strokeId)) {
+        await db
+          .delete(schema.inkPointChunk)
+          .where(eq(schema.inkPointChunk.strokeId, stroke.strokeId))
+          .run();
+        await db
+          .delete(schema.inkStroke)
+          .where(eq(schema.inkStroke.strokeId, stroke.strokeId))
+          .run();
+      }
+  }
+  async function applyPracticeControl({
+    token: expected,
+    layer,
+    control,
+  }: {
+    token: DocumentToken;
+    layer: ChildPracticeLayer;
+    control: PracticeControl;
+  }) {
+    const value = await snapshot({ token: expected });
+    if (
+      !value.writable ||
+      layerForPhase(expected.phase) !== layer ||
+      value.strokes.some((s) => s.status === "capturing")
+    )
+      throw new Error("Practice control input fenced");
+    const history = value.histories.find((h) => h.layer === layer);
+    if (!history) throw new Error("History missing");
+    try {
+      changedDocument({
+        value: {
+          ...value,
+          token: {
+            ...expected,
+            revision: increment(expected.revision),
+            inputEpoch: increment(expected.inputEpoch),
+          },
+        },
+        layer,
+        change: control,
+      });
+    } catch {
+      return false;
+    }
+    await persistHistory({ value, layer, change: control });
+    const next = {
+      ...expected,
+      revision: increment(expected.revision),
+      inputEpoch: increment(expected.inputEpoch),
+    };
+    await db
+      .update(schema.inkDocument)
+      .set({ revision: next.revision, inputEpoch: next.inputEpoch })
+      .where(eq(schema.inkDocument.documentId, expected.documentId))
+      .run();
+    await snapshot({ token: next });
+    return true;
   }
   const reject = (code: string, message: string): InkResult => ({
     kind: "rejected",
@@ -568,13 +609,38 @@ export function createInkRepository({
         pointCount: appended.pointCount,
         chunks: [...stroke.chunks, ...edit.chunks],
       };
-      checkBounds({
+      let prospective: InkSnapshot = {
         ...before,
+        token: { ...expected, revision: increment(expected.revision) },
+        nextStrokeOrder:
+          edit.kind === "begin"
+            ? increment(before.nextStrokeOrder)
+            : before.nextStrokeOrder,
         strokes: [
           ...before.strokes.filter((s) => s.strokeId !== stroke.strokeId),
           proposed,
         ],
-      });
+      };
+      if (existing.pointCount === 0 && appended.pointCount > 0)
+        prospective = changedDocument({
+          value: prospective,
+          layer: edit.layer,
+          change: { kind: "beginNonemptyCapture" },
+        });
+      if (edit.kind === "finalize" && appended.pointCount > 0)
+        prospective = changedDocument({
+          value: {
+            ...prospective,
+            strokes: prospective.strokes.map((s) =>
+              s.strokeId === stroke.strokeId
+                ? { ...s, status: edit.status }
+                : s,
+            ),
+          },
+          layer: edit.layer,
+          change: { kind: "finalizeStroke", strokeId: stroke.strokeId },
+        });
+      checkBounds(prospective);
     } catch (error) {
       return reject(
         error instanceof Error && /bound/.test(error.message)
@@ -598,6 +664,18 @@ export function createInkRepository({
           pointCount: 0,
         })
         .run();
+    if (existing.pointCount === 0 && appended.pointCount > 0)
+      await persistHistory({
+        value: {
+          ...before,
+          strokes: [
+            ...before.strokes.filter((s) => s.strokeId !== stroke.strokeId),
+            stroke,
+          ],
+        },
+        layer: edit.layer,
+        change: { kind: "beginNonemptyCapture" },
+      });
     for (const chunk of edit.chunks)
       await db
         .insert(schema.inkPointChunk)
@@ -622,10 +700,21 @@ export function createInkRepository({
         .where(eq(schema.inkStroke.strokeId, edit.strokeId))
         .run();
       if (edit.kind === "finalize")
-        await addOrigin({
-          documentId: row.documentId,
+        await persistHistory({
+          value: {
+            ...before,
+            strokes: [
+              ...before.strokes.filter((s) => s.strokeId !== stroke.strokeId),
+              {
+                ...stroke,
+                chunks: [...stroke.chunks, ...edit.chunks],
+                pointCount: appended.pointCount,
+                status: edit.status,
+              },
+            ],
+          },
           layer: edit.layer,
-          strokeId: edit.strokeId,
+          change: { kind: "finalizeStroke", strokeId: edit.strokeId },
         });
     }
     const next = { ...expected, revision: increment(row.revision) };
@@ -761,10 +850,17 @@ export function createInkRepository({
             .set({ status: "interrupted" })
             .where(eq(schema.inkStroke.strokeId, stroke.strokeId))
             .run();
-          await addOrigin({
-            documentId: row.documentId,
+          await persistHistory({
+            value: {
+              ...value,
+              strokes: value.strokes.map((s) =>
+                s.strokeId === stroke.strokeId
+                  ? { ...s, status: "interrupted" }
+                  : s,
+              ),
+            },
             layer: stroke.layer,
-            strokeId: stroke.strokeId,
+            change: { kind: "finalizeStroke", strokeId: stroke.strokeId },
           });
         }
       }
@@ -795,6 +891,7 @@ export function createInkRepository({
     create,
     snapshot,
     dispatch,
+    applyPracticeControl,
     barrier,
     fence,
     inventory,

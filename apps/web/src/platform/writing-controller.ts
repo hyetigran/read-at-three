@@ -1,5 +1,11 @@
 import {
   canonical,
+  prepareWritingControl,
+  summarizePractice,
+  inkAdmissionAnchor,
+  inkStrokeMetadataReservation,
+  inkChunkMetadataReservation,
+  inkTailWriteReservation,
   createInkBuffer,
   createInkCommandQueue,
   decodeInkPoints,
@@ -28,6 +34,10 @@ import type {
   ReviewChoice,
   ReviewSelectionAction,
   StrokeId,
+  PracticeControl,
+  RetainedInkUsage,
+  BrushSpec,
+  TeachingCommand,
 } from "@readatthree/teaching";
 import type { InkLifecycleClient } from "./teaching-client.ts";
 import type {
@@ -40,6 +50,7 @@ import { hashText } from "./hash.ts";
 import { isTeachingViewport } from "./viewport.ts";
 
 export type ActionRequest =
+  | Readonly<{ kind: "practice"; control: PracticeControl }>
   | AvailableAction
   | Readonly<{ action: ReviewSelectionAction; choice: ReviewChoice }>;
 type InkRetry =
@@ -56,6 +67,7 @@ export type Operation =
 export type ControllerState = Readonly<{
   operation: Operation;
   correctionPreview: GraphNode | ControlTurnNode | null;
+  practiceControlsReady: boolean;
 }>;
 export type RenderStroke = Readonly<{
   strokeId: StrokeId;
@@ -63,13 +75,32 @@ export type RenderStroke = Readonly<{
   width: number;
   points: readonly InkPoint[];
 }>;
-type DocumentView = { snapshot: InkSnapshot; strokes: readonly RenderStroke[] };
+type DocumentView = {
+  snapshot: InkSnapshot;
+  strokes: readonly RenderStroke[];
+  usage: RetainedInkUsage;
+};
+export type InkContact = Readonly<{
+  strokeId: StrokeId;
+  originalToken: DocumentToken;
+  fenceSerial: number;
+}>;
+const brushFor = (layer: RenderStroke["layer"]): BrushSpec => ({
+  kind: "round",
+  width: 5,
+  colorRole: layer === "model" ? "model" : "child",
+  cap: "round",
+  join: "round",
+});
 type PendingInk = Readonly<{
   command: InkCommand;
   through: number;
   chunks: readonly InkChunk[];
 }>;
 type Capture = {
+  contact: InkContact;
+  reserved: Readonly<{ bytes: number; through: number }> | null;
+  segmentStart: number;
   strokeId: StrokeId;
   documentId: DocumentToken["documentId"];
   layer: RenderStroke["layer"];
@@ -79,7 +110,6 @@ type Capture = {
   chunkIndex: number;
   began: boolean;
   pending: PendingInk | null;
-  chunks: readonly InkChunk[];
 };
 const ids = () => crypto.randomUUID();
 const saveMessage =
@@ -100,6 +130,7 @@ export function createWritingController({
   let state: ControllerState = {
     operation: { kind: "opening" },
     correctionPreview: null,
+    practiceControlsReady: false,
   };
   const subscribers = new Set<() => void>();
   const painters = new Set<() => void>();
@@ -108,6 +139,10 @@ export function createWritingController({
   let spool: Capture[] = [];
   let active: Capture | null = null;
   let fenced = true;
+  let fenceSerial = 0;
+  let operationSerial = 0;
+  let closed = false;
+  let semanticReservation = 0;
   let connected = false;
   let opening: Promise<void> | null = null;
   let started = false;
@@ -128,10 +163,40 @@ export function createWritingController({
     state = { ...state, ...next };
     for (const listener of subscribers) listener();
   }
+  function updateReadiness() {
+    const summary = teaching.practiceControls.getSnapshot();
+    const current = teaching.current()?.projection;
+    const bindingMatches =
+      summary.kind === "editable" &&
+      current?.kind === "writing" &&
+      canonical(summary.binding) ===
+        canonical({
+          owner: current.owner,
+          packageHash: current.packageHash,
+          sessionId: current.sessionId,
+          runId: current.runId,
+        });
+    const ready =
+      bindingMatches &&
+      !fenced &&
+      connected &&
+      state.operation.kind === "idle" &&
+      spool.length === 0 &&
+      active === null &&
+      summary.kind === "editable" &&
+      canonical(
+        documents.get(summary.token.documentId)?.snapshot.token ?? null,
+      ) === canonical(summary.token);
+    if (state.practiceControlsReady !== ready)
+      publish({ practiceControlsReady: ready });
+  }
+  const detachControls = teaching.practiceControls.subscribe(updateReadiness);
   function paint() {
+    updateReadiness();
     for (const listener of painters) listener();
   }
   function fence() {
+    fenceSerial++;
     fenced = true;
     if (active) {
       active.status = "interrupted";
@@ -164,6 +229,8 @@ export function createWritingController({
   });
   async function stageRestore(projection: Projection) {
     const next = new Map<DocumentToken["documentId"], DocumentView>();
+    let practiceControls: import("@readatthree/teaching").PracticeControlsSummary =
+      { kind: "readOnly" };
     if (writing(projection)) {
       for (const token of projection.documents) {
         const snapshot = await client.readInk({ token });
@@ -190,10 +257,25 @@ export function createWritingController({
               }),
             ),
           }));
-        next.set(token.documentId, { snapshot, strokes });
+        next.set(token.documentId, {
+          snapshot,
+          strokes,
+          usage: inkAdmissionAnchor(snapshot),
+        });
+        const summary = summarizePractice({
+          binding: {
+            owner: projection.owner,
+            sessionId: projection.sessionId,
+            runId: projection.runId,
+            packageHash: projection.packageHash,
+          },
+          snapshot,
+        });
+        if (summary.kind === "editable") practiceControls = summary;
       }
     }
     return {
+      practiceControls,
       activate() {
         documents.clear();
         for (const [key, value] of next) documents.set(key, value);
@@ -228,6 +310,52 @@ export function createWritingController({
       });
     }
     return chunks;
+  }
+  function writeReservation(
+    input: Readonly<
+      | { kind: "current" }
+      | { kind: "samples"; capture: Capture; pointCount: number }
+      | {
+          kind: "prepared";
+          capture: Capture;
+          reservation: Exclude<Capture["reserved"], null>;
+        }
+    > = { kind: "current" },
+  ) {
+    return (
+      semanticReservation +
+      spool.reduce((sum, capture) => {
+        const view = documents.get(capture.documentId);
+        if (!view) throw new Error("Writing reservation binding missing");
+        const reservation =
+          input.kind === "prepared" && input.capture === capture
+            ? input.reservation
+            : capture.reserved;
+        const count =
+          input.kind === "samples" && input.capture === capture
+            ? input.pointCount
+            : capture.buffer.snapshot().length;
+        const tail = count - (reservation?.through ?? capture.sent);
+        return (
+          sum +
+          (reservation?.bytes ?? 0) +
+          ((tail > 0 || !capture.began || capture.status !== "capturing") &&
+          !(reservation && tail === 0)
+            ? inkTailWriteReservation({
+                token: view.snapshot.token,
+                strokeId: capture.strokeId,
+                layer: capture.layer,
+                brush: brushFor(capture.layer),
+                pointCount: tail,
+              })
+            : 0)
+        );
+      }, 0)
+    );
+  }
+  function checkOperation(ticket: number) {
+    if (closed || operationSerial !== ticket)
+      throw new Error("A newer writing operation replaced this attempt.");
   }
   async function prepare(capture: Capture) {
     if (capture.pending) return capture.pending;
@@ -268,6 +396,16 @@ export function createWritingController({
       edit,
       ids,
       hash: hashText,
+      reserve(bytes) {
+        const reservation = { bytes, through: points.length };
+        if (
+          writeReservation({ kind: "prepared", capture, reservation }) >
+          INK_LIMITS.queuedBytes
+        )
+          throw new Error("Writing queue reservation full");
+        capture.reserved = reservation;
+        capture.segmentStart = points.length;
+      },
     });
     const pending = { command, through: points.length, chunks };
     capture.pending = pending;
@@ -290,9 +428,9 @@ export function createWritingController({
     view.snapshot = { ...view.snapshot, token: receipt.token };
     capture.sent = pending.through;
     capture.chunkIndex += pending.chunks.length;
-    capture.chunks = [...capture.chunks, ...pending.chunks];
     capture.began = true;
     capture.pending = null;
+    capture.reserved = null;
     if (pending.command.edit.kind === "finalize") {
       view.strokes = [
         ...view.strokes,
@@ -304,6 +442,7 @@ export function createWritingController({
         },
       ];
       spool = spool.filter((item) => item !== capture);
+      teaching.captureFinalized({ token: receipt.token });
     }
     paint();
   }
@@ -378,7 +517,7 @@ export function createWritingController({
       : null;
     if (attempt && attempt.kind !== "resolved")
       throw new Error("Closed recovery cannot publish teaching.");
-    await client.reconcileRecovery({
+    const projection = await client.reconcileRecovery({
       recoveryId: inventory.recoveryId,
       choice:
         retained.length || prepared
@@ -386,20 +525,24 @@ export function createWritingController({
           : { kind: "cold" },
     });
     connected = true;
-    return attempt?.result ?? null;
+    return { result: attempt?.result ?? null, projection };
   }
   async function open(): Promise<void> {
     if (opening) return opening;
     if (started) return;
     started = true;
+    const ticket = ++operationSerial;
     publish({ operation: { kind: "opening" } });
     opening = (async () => {
       try {
         await reconcile();
+        checkOperation(ticket);
         await teaching.read({ expectation: refreshExpectation() });
+        checkOperation(ticket);
         publish({ operation: { kind: "idle" }, correctionPreview: null });
         reopenInput();
       } catch (error) {
+        if (closed || operationSerial !== ticket) return;
         fence();
         publish({
           operation: {
@@ -416,12 +559,15 @@ export function createWritingController({
     })();
     return opening;
   }
-  async function commit(prepared: PreparedAction) {
+  async function commit(prepared: PreparedAction, ticket = operationSerial) {
+    checkOperation(ticket);
     publish({ operation: { kind: "pending", prepared } });
     try {
       if (!isTeachingViewport() || document.visibilityState !== "visible")
         throw new Error("Return to the reading window to save this action.");
       const result = await teaching.execute({ kind: "normal", prepared });
+      checkOperation(ticket);
+      semanticReservation = 0;
       if (result.kind === "resolved") {
         publish({
           operation: {
@@ -435,16 +581,23 @@ export function createWritingController({
       publish({ operation: { kind: "idle" }, correctionPreview: null });
       reopenInput();
     } catch {
+      if (operationSerial !== ticket) return;
       fence();
       publish({
         operation: { kind: "failed", prepared, message: saveMessage },
       });
     }
   }
-  async function perform(request: ActionRequest, origin: Projection) {
+  async function perform(
+    request: ActionRequest,
+    origin: Projection,
+    ticket = operationSerial,
+  ) {
     try {
       await drain();
+      checkOperation(ticket);
     } catch {
+      if (operationSerial !== ticket) return;
       fence();
       publish({
         operation: {
@@ -457,38 +610,77 @@ export function createWritingController({
     }
     let prepared: PreparedAction;
     try {
-      const command =
-        "intent" in request
-          ? writing(origin)
-            ? await prepareWritingCommand({
-                projection: origin,
-                action: request,
-                barrier: {
-                  kind: "writing",
-                  documents: origin.documents.map((token) => {
-                    const view = documents.get(token.documentId);
-                    if (!view)
-                      throw new Error("Writing barrier is unavailable.");
-                    return view.snapshot.token;
-                  }),
-                },
-                ids,
-                hash: hashText,
-              })
-            : await prepareCommand({
-                projection: origin,
-                request: { kind: "action", action: request },
-                ids,
-                hash: hashText,
-              })
+      if ("kind" in request) {
+        await teaching.read({ expectation: refreshExpectation() });
+        checkOperation(ticket);
+        const current = teaching.current()?.projection;
+        const summary = teaching.practiceControls.getSnapshot();
+        if (
+          !current ||
+          current.kind !== "writing" ||
+          summary.kind !== "editable"
+        )
+          throw new Error("Practice unavailable");
+        origin = current;
+      }
+      let command: TeachingCommand;
+      if ("kind" in request) {
+        const summary = teaching.practiceControls.getSnapshot();
+        if (summary.kind !== "editable" || origin.kind !== "writing")
+          throw new Error("Practice unavailable");
+        command = await prepareWritingControl({
+          projection: origin,
+          control: request.control,
+          documentId: summary.token.documentId,
+          layer: summary.layer,
+          barrier: { kind: "writing", documents: origin.documents },
+          ids,
+          hash: hashText,
+          reserve(envelope) {
+            const bytes = new TextEncoder().encode(envelope).byteLength;
+            if (writeReservation() + bytes > INK_LIMITS.queuedBytes)
+              throw new Error("Practice queue reservation full");
+            semanticReservation = bytes;
+          },
+        });
+      } else if ("intent" in request) {
+        command = writing(origin)
+          ? await prepareWritingCommand({
+              projection: origin,
+              action: request,
+              barrier: {
+                kind: "writing",
+                documents: origin.documents.map((token) => {
+                  const view = documents.get(token.documentId);
+                  if (!view) throw new Error("Writing barrier is unavailable.");
+                  return view.snapshot.token;
+                }),
+              },
+              ids,
+              hash: hashText,
+            })
           : await prepareCommand({
               projection: origin,
-              request: { kind: "review", ...request },
+              request: { kind: "action", action: request },
               ids,
               hash: hashText,
             });
+      } else if ("choice" in request) {
+        command = await prepareCommand({
+          projection: origin,
+          request: { kind: "review", ...request },
+          ids,
+          hash: hashText,
+        });
+      } else {
+        const exhaustive: never = request;
+        return exhaustive;
+      }
+      checkOperation(ticket);
       prepared = { command, origin };
     } catch {
+      if (closed || operationSerial !== ticket) return;
+      semanticReservation = 0;
       publish({
         operation: {
           kind: "rejected",
@@ -498,7 +690,7 @@ export function createWritingController({
       });
       return;
     }
-    await commit(prepared);
+    await commit(prepared, ticket);
   }
   function act(request: ActionRequest) {
     if (
@@ -509,6 +701,7 @@ export function createWritingController({
       return;
     const origin = teaching.current()?.projection;
     if (!origin) return;
+    operationSerial++;
     fence();
     publish({
       operation: { kind: "preparing", request, origin },
@@ -527,6 +720,7 @@ export function createWritingController({
       document.visibilityState !== "visible"
     )
       return;
+    const ticket = ++operationSerial;
     fence();
     publish({ operation: { kind: "opening" } });
     try {
@@ -539,12 +733,14 @@ export function createWritingController({
         await commit(operation.prepared);
         return;
       }
-      const result = connected
+      const recovery = connected
         ? (await drain(), null)
         : await reconcile(
             operation.kind === "failed" ? operation.prepared : null,
           );
+      checkOperation(ticket);
       if (operation.kind === "failed") {
+        const result = recovery?.result;
         if (!result || result.kind === "rejected") {
           publish({
             operation: {
@@ -564,12 +760,19 @@ export function createWritingController({
             courseId: current.courseId,
             prepared: operation.prepared,
             receipt: result,
+            restoreBinding: recovery
+              ? { kind: "reconciled", projection: recovery.projection }
+              : { kind: "normal" },
           },
         });
+        checkOperation(ticket);
+        semanticReservation = 0;
         publish({ operation: { kind: "idle" }, correctionPreview: null });
         reopenInput();
       } else {
         await teaching.read({ expectation: refreshExpectation() });
+        checkOperation(ticket);
+        semanticReservation = 0;
         if (operation.kind === "inkFailed" && operation.retry.kind === "action")
           await perform(operation.retry.request, operation.retry.origin);
         else {
@@ -578,6 +781,8 @@ export function createWritingController({
         }
       }
     } catch (error) {
+      if (operationSerial !== ticket) return;
+      fence();
       publish({
         operation:
           operation.kind === "failed"
@@ -601,12 +806,20 @@ export function createWritingController({
     }
   }
   async function interrupt() {
+    const ticket = operationSerial;
     fence();
     if (!connected || state.operation.kind !== "idle") return;
     try {
       await drain();
+      checkOperation(ticket);
       reopenInput();
     } catch {
+      if (
+        closed ||
+        operationSerial !== ticket ||
+        state.operation.kind !== "idle"
+      )
+        return;
       fence();
       publish({
         operation: {
@@ -617,10 +830,69 @@ export function createWritingController({
       });
     }
   }
+  function admit(capture: Capture, count: number, first: boolean) {
+    const view = documents.get(capture.documentId);
+    if (!view) return false;
+    const oldCount = capture.buffer.snapshot().length;
+    const oldSegments = Math.ceil(
+      (oldCount - capture.segmentStart) / INK_LIMITS.pointsPerChunk,
+    );
+    const newSegments = Math.ceil(
+      (oldCount + count - capture.segmentStart) / INK_LIMITS.pointsPerChunk,
+    );
+    const metadata =
+      (newSegments - oldSegments) * inkChunkMetadataReservation +
+      (first
+        ? inkStrokeMetadataReservation({
+            strokeId: capture.strokeId,
+            layer: capture.layer,
+            brush: brushFor(capture.layer),
+          })
+        : 0);
+    try {
+      validateInkDocumentUsage({
+        pointCount: view.usage.pointCount + count,
+        canonicalByteLength:
+          view.usage.canonicalByteLength + count * 16 + metadata,
+      });
+      if (
+        spool.reduce(
+          (sum, item) => sum + item.buffer.snapshot().length * 16,
+          0,
+        ) +
+          count * 16 >
+          INK_LIMITS.liveBytes ||
+        writeReservation({
+          kind: "samples",
+          capture,
+          pointCount: oldCount + count,
+        }) > INK_LIMITS.queuedBytes
+      )
+        throw new Error("Writing reservation full");
+      view.usage = {
+        pointCount: view.usage.pointCount + count,
+        canonicalByteLength:
+          view.usage.canonicalByteLength + count * 16 + metadata,
+      };
+      return true;
+    } catch {
+      fence();
+      publish({
+        operation: {
+          kind: "inkFailed",
+          retry: { kind: "inkOnly" },
+          message:
+            "This writing buffer is full. Confirmed writing is kept. Retry saving before continuing.",
+        },
+      });
+      void drain().catch(() => {});
+      return false;
+    }
+  }
   function begin(
     documentId: DocumentToken["documentId"],
     sample: InkSample,
-  ): StrokeId | null {
+  ): InkContact | null {
     const view = documents.get(documentId);
     if (
       fenced ||
@@ -629,42 +901,22 @@ export function createWritingController({
       state.operation.kind !== "idle"
     )
       return null;
-    const pointCount =
-      view.strokes.reduce((n, stroke) => n + stroke.points.length, 0) +
-      spool
-        .filter((capture) => capture.documentId === documentId)
-        .reduce((n, capture) => n + capture.buffer.snapshot().length, 0);
-    if (
-      spool.length >= 64 ||
-      spool.reduce(
-        (n, capture) => n + capture.buffer.snapshot().length * 16,
-        0,
-      ) +
-        16 >
-        INK_LIMITS.liveBytes
-    ) {
+    if (spool.length >= 64) {
       void interrupt();
       return null;
     }
-    try {
-      validateInkDocumentUsage({
-        pointCount: pointCount + 1,
-        canonicalByteLength: (pointCount + 1) * 16,
-      });
-    } catch {
-      fence();
-      publish({
-        operation: {
-          kind: "inkFailed",
-          retry: { kind: "inkOnly" },
-          message:
-            "This writing page is full. Keep your saved work and pause or skip this optional task.",
-        },
-      });
-      return null;
-    }
+    const strokeId = parseId({ kind: "stroke", value: ids() });
+    const layer = layerForPhase(view.snapshot.token.phase);
+    const contact = Object.freeze({
+      strokeId,
+      originalToken: view.snapshot.token,
+      fenceSerial,
+    });
     const capture: Capture = {
-      strokeId: parseId({ kind: "stroke", value: ids() }),
+      strokeId,
+      contact,
+      reserved: null,
+      segmentStart: 0,
       documentId,
       layer: layerForPhase(view.snapshot.token.phase),
       buffer: createInkBuffer({ bounds: view.snapshot.bounds }),
@@ -673,13 +925,17 @@ export function createWritingController({
       chunkIndex: 0,
       began: false,
       pending: null,
-      chunks: [],
     };
+    spool.push(capture);
+    if (!admit(capture, 1, true)) {
+      spool = spool.filter((item) => item !== capture);
+      return null;
+    }
     capture.buffer.appendConfirmed({ samples: [sample] });
     active = capture;
-    spool.push(capture);
     paint();
     void drain().catch(() => {
+      if (closed || state.operation.kind !== "idle") return;
       fence();
       publish({
         operation: {
@@ -689,44 +945,19 @@ export function createWritingController({
         },
       });
     });
-    return capture.strokeId;
+    return contact;
   }
-  function append(strokeId: StrokeId, samples: readonly InkSample[]) {
+  function append(contact: InkContact, samples: readonly InkSample[]) {
     if (
       fenced ||
-      active?.strokeId !== strokeId ||
+      active?.contact !== contact ||
+      contact.fenceSerial !== fenceSerial ||
       active.status !== "capturing"
     )
       return;
     const view = documents.get(active.documentId);
     if (!view) return;
-    const livePoints = spool.reduce(
-      (count, capture) => count + capture.buffer.snapshot().length,
-      0,
-    );
-    const documentPoints =
-      view.strokes.reduce((count, stroke) => count + stroke.points.length, 0) +
-      spool
-        .filter((capture) => capture.documentId === active?.documentId)
-        .reduce(
-          (count, capture) => count + capture.buffer.snapshot().length,
-          0,
-        );
-    if (
-      (livePoints + samples.length) * 16 > INK_LIMITS.liveBytes ||
-      documentPoints + samples.length > INK_LIMITS.pointsPerDocument
-    ) {
-      fence();
-      publish({
-        operation: {
-          kind: "inkFailed",
-          message:
-            "The writing buffer is full. Confirmed writing has been kept. Retry saving before continuing.",
-          retry: { kind: "inkOnly" },
-        },
-      });
-      return;
-    }
+    if (!admit(active, samples.length, false)) return;
     const result = active.buffer.appendConfirmed({ samples });
     if (result.kind === "fenced") {
       fence();
@@ -742,12 +973,14 @@ export function createWritingController({
     }
     paint();
   }
-  function finish(strokeId: StrokeId, status: "finished" | "interrupted") {
-    if (active?.strokeId !== strokeId) return;
+  function finish(contact: InkContact, status: "finished" | "interrupted") {
+    if (active?.contact !== contact || contact.fenceSerial !== fenceSerial)
+      return;
     active.status = status;
     active = null;
     paint();
     void drain().catch(() => {
+      if (closed || state.operation.kind !== "idle") return;
       fence();
       publish({
         operation: {
@@ -761,6 +994,7 @@ export function createWritingController({
   const checkpoint = window.setInterval(() => {
     if (!connected || !active || state.operation.kind !== "idle") return;
     void drain().catch(() => {
+      if (closed || state.operation.kind !== "idle") return;
       fence();
       publish({
         operation: {
@@ -785,6 +1019,11 @@ export function createWritingController({
     committed: teaching.view,
     open,
     act,
+    editPractice(control: PracticeControl) {
+      updateReadiness();
+      if (state.practiceControlsReady) act({ kind: "practice", control });
+    },
+    practiceControls: teaching.practiceControls,
     retry,
     async reopen() {
       await retry();
@@ -833,6 +1072,8 @@ export function createWritingController({
     },
     canWrite: () => !fenced && state.operation.kind === "idle",
     close() {
+      closed = true;
+      operationSerial++;
       window.clearInterval(checkpoint);
       window.removeEventListener("resize", lifecycle);
       window.removeEventListener("orientationchange", lifecycle);
@@ -841,6 +1082,7 @@ export function createWritingController({
       window.removeEventListener("pagehide", lifecycle);
       document.removeEventListener("visibilitychange", lifecycle);
       window.visualViewport?.removeEventListener("resize", lifecycle);
+      detachControls();
       teaching.close();
       client.close();
     },

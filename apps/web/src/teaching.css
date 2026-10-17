@@ -808,6 +808,12 @@
   justify-content: flex-end;
 }
 
+.teaching-writing-tools {
+  display: flex;
+  gap: 8px;
+  margin-right: auto;
+}
+
 .teaching-writing-footer .teaching-button {
   min-height: 44px;
   padding: 10px 14px;

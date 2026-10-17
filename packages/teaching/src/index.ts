@@ -30,6 +30,7 @@ export {
   createCoordinator,
   prepareCommand,
   prepareWritingCommand,
+  prepareWritingControl,
 } from "./coordinator.ts";
 export { parseProjection, parseDispatchResult } from "./content.ts";
 export type {
@@ -48,3 +49,7 @@ export {
 } from "./writing.ts";
 
 export * from "./ink.ts";
+
+export * from "./ink-history.ts";
+
+export * from "./ink-reservation.ts";

@@ -15,10 +15,12 @@ export async function probe(page: Page) {
   await page.addInitScript(`
     const NativeWorker = window.Worker;
     const requests = [], snapshots = [], responses = [];
-    let mode = '', held = null, heldWrite = null, heldTeaching = null, droppedTail = false, loseRecoveredTeaching = false, loseReconcile = false;
+    let mode = '', held = null, heldSummary = null, heldWrite = null, heldTeaching = null, droppedTail = false, loseRecoveredTeaching = false, loseReconcile = false;
     window.writingEvidence = () => structuredClone({requests, snapshots, responses});
     window.armWritingFault = (value) => { mode = value; if(value==='teaching-before-twice'){mode='teaching-before';loseRecoveredTeaching=true;} if(value==='teaching-after-reconcile'){mode='teaching-after';loseReconcile=true;} };
     window.hasHeldWritingReply = () => held !== null;
+    window.hasHeldSummary = () => heldSummary !== null;
+    window.releaseHeldSummary = () => { if (!heldSummary) throw Error('No held summary'); const {worker,data}=heldSummary; heldSummary=null; worker.dispatchEvent(new MessageEvent('message',{data})); };
     window.hasHeldWritingWrite = () => heldWrite !== null;
     window.releaseHeldWritingWrite = () => { if(!heldWrite) throw Error('No retained writing write');const send=heldWrite.release;heldWrite=null;send(); };
     window.hasHeldTeachingWrite = () => heldTeaching !== null;
@@ -36,7 +38,11 @@ export async function probe(page: Page) {
           responses.push(structuredClone(data));
           if (data?.kind === 'inkSnapshot') snapshots.push(structuredClone(data.value));
           const request = this.sent.get(data?.id);
-          if (mode === 'teaching-receipt-command-id' && (request?.kind === 'dispatch' || request?.kind === 'recoverTeaching') && data?.kind === 'receipt' && data.value.kind === 'committed') {
+          if (mode === 'hold-summary' && request?.kind === 'readPracticeControls' && data?.kind === 'practiceControls') {
+            mode=''; event.stopImmediatePropagation(); heldSummary={worker:this,data};
+          } else if (mode === 'ahead-summary' && request?.kind === 'readPracticeControls' && data?.kind === 'practiceControls' && data.value.kind === 'editable') {
+            mode=''; event.stopImmediatePropagation(); this.dispatchEvent(new MessageEvent('message',{data:{...data,value:{...data.value,token:{...data.value.token,revision:String(BigInt(data.value.token.revision)+1n)}}}}));
+          } else if (mode === 'teaching-receipt-command-id' && (request?.kind === 'dispatch' || request?.kind === 'recoverTeaching') && data?.kind === 'receipt' && data.value.kind === 'committed') {
             mode='';event.stopImmediatePropagation();this.dispatchEvent(new MessageEvent('message',{data:{...data,value:{...data.value,commandId:'wrong-teaching-command'}}}));
           } else if (mode === 'teaching-read-revision' && request?.kind === 'read' && data?.kind === 'projection' && data.value.kind === 'writing') {
             mode='';event.stopImmediatePropagation();this.dispatchEvent(new MessageEvent('message',{data:{...data,value:{...data.value,revision:'99'}}}));
@@ -60,6 +66,8 @@ export async function probe(page: Page) {
       postMessage(message, options) {
         requests.push(structuredClone(message));
         this.sent.set(message.id, message);
+        if(mode === 'control-restore-revision' && message.kind === 'dispatch' && message.command.kind === 'writingControl') mode='teaching-restore-revision';
+        if(mode === 'reject-control' && message.kind === 'dispatch' && message.command.kind === 'writingControl'){ mode=''; super.postMessage({...message,command:{...message.command,expectedRevision:'99'}}, options); return; }
         if(mode === 'hold-teaching' && message.kind === 'dispatch'){mode='';heldTeaching=()=>super.postMessage(message,options);return;}
         if (mode === 'teaching-before' && message.kind === 'dispatch') {
           mode=''; queueMicrotask(()=>this.dispatchEvent(new ErrorEvent('error',{message:'Injected transport loss before teaching write'}))); return;

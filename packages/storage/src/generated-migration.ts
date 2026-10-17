@@ -70,4 +70,9 @@ export const migrations = [
       "UPDATE installation SET database_version=4",
     ],
   },
+  {
+    version: 5,
+    id: "issue-07-ink-editing",
+    statements: ["UPDATE installation SET database_version = 5"],
+  },
 ] as const;

@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { canonical } from "@readatthree/teaching";
+import { canonical, increment } from "@readatthree/teaching";
 import { MutationObserver, QueryObserver } from "@tanstack/react-query";
 import type {
   MutationObserverResult,
@@ -14,6 +14,8 @@ import type {
   DocumentToken,
   Owner,
   TeachingCommand,
+  PracticeControlsBinding,
+  PracticeControlsSummary,
 } from "@readatthree/teaching";
 
 export type PreparedAction = Readonly<{
@@ -39,6 +41,9 @@ export class TeachingRecoveryError extends Error {
 }
 export interface TeachingRepository {
   read(): Promise<ReadEnvelope>;
+  readPracticeControls?(
+    binding: PracticeControlsBinding,
+  ): Promise<PracticeControlsSummary>;
   dispatch(command: TeachingCommand): Promise<CommandResult>;
   recoverTeaching(
     input: Readonly<{ recoveryId: string; command: TeachingCommand }>,
@@ -52,6 +57,10 @@ export type ReadExpectation =
       courseId: CourseId;
       prepared: PreparedAction;
       receipt: CommitReceipt;
+      restoreBinding: Readonly<
+        | { kind: "normal" }
+        | { kind: "reconciled"; projection: CommittedProjection }
+      >;
     }>;
 export type Attempt =
   | Readonly<{ kind: "normal"; prepared: PreparedAction }>
@@ -84,15 +93,23 @@ export interface CommittedTeachingView {
 }
 export type RestoreTeaching = (
   projection: CommittedProjection,
-) => Promise<Readonly<{ activate(): void }>>;
+) => Promise<
+  Readonly<{ activate(): void; practiceControls?: PracticeControlsSummary }>
+>;
+export interface PracticeControlsView {
+  subscribe(listener: () => void): () => void;
+  getSnapshot(): PracticeControlsSummary;
+}
 export interface CommittedTeachingExecution {
   readonly view: CommittedTeachingView;
+  readonly practiceControls: PracticeControlsView;
   current(): ReadEnvelope | undefined;
   read(
     input: Readonly<{ expectation: ReadExpectation }>,
   ): Promise<ReadEnvelope>;
   execute(attempt: Attempt): Promise<AttemptResult>;
   connectionLost(): void;
+  captureFinalized(input: Readonly<{ token: DocumentToken }>): void;
   inkCommitted(input: Readonly<{ token: DocumentToken }>): void;
   close(): void;
 }
@@ -124,6 +141,12 @@ function matchesReceipt({
     projection.kind !== "recovery" &&
     projection.kind !== "entry" &&
     receipt.commandId === command.commandId &&
+    receipt.revision === increment(command.expectedRevision) &&
+    (command.kind === "start" ||
+      command.kind === "select" ||
+      command.kind === "writingSelect" ||
+      (receipt.sessionId === command.payload.sessionId &&
+        receipt.runId === command.payload.runId)) &&
     receipt.owner.profileId === command.owner.profileId &&
     receipt.owner.generation === command.owner.generation &&
     projection.owner.profileId === receipt.owner.profileId &&
@@ -137,6 +160,9 @@ function matchesReceipt({
       : projection.revision) === receipt.revision
   );
 }
+const readOnlyControls: PracticeControlsSummary = Object.freeze({
+  kind: "readOnly",
+});
 let runtimeSerial = 0;
 export function createCommittedTeaching({
   queryClient,
@@ -172,6 +198,114 @@ export function createCommittedTeaching({
     ...inactive,
     queryKey: ["teaching-resolver", runtimeId, "unopened"],
   });
+  const controls = new QueryObserver<PracticeControlsSummary, Error>(
+    queryClient,
+    {
+      ...inactive,
+      queryKey: ["practice-controls-empty", String(runtimeId)],
+      initialData: { kind: "readOnly" },
+    },
+  );
+  const controlListeners = new Set<() => void>();
+  const detachControls = controls.subscribe(() => {
+    for (const listener of controlListeners) listener();
+  });
+  function publishControls(summary: PracticeControlsSummary) {
+    const previousKey = controls.getCurrentQuery().queryKey;
+    const queryKey =
+      summary.kind === "editable"
+        ? [
+            "practice-controls",
+            summary.binding.owner.profileId,
+            summary.binding.owner.generation,
+            summary.token.courseId,
+            summary.binding.packageHash,
+            summary.binding.sessionId,
+            summary.binding.runId,
+            summary.token.documentId,
+            String(runtimeId),
+          ]
+        : ["practice-controls-empty", String(runtimeId)];
+    const publishingLease = lease;
+    queryClient.setQueryData(queryKey, summary);
+    controls.setOptions({
+      ...inactive,
+      queryKey,
+      queryFn: async () => {
+        checkLease(publishingLease);
+        if (summary.kind === "readOnly") return summary;
+        if (!repository.readPracticeControls)
+          throw new Error("Practice repository unavailable");
+        const next = await repository.readPracticeControls(summary.binding);
+        checkLease(publishingLease);
+        if (canonical(next) !== canonical(summary))
+          throw new Error(
+            "Changed practice controls require a guarded repository read.",
+          );
+        return next;
+      },
+    });
+    if (canonical(previousKey) !== canonical(queryKey))
+      queryClient.removeQueries({ queryKey: previousKey, exact: true });
+  }
+  let summaryWanted = 0;
+  let summaryReading = false;
+  async function refreshControls() {
+    if (summaryReading || !repository.readPracticeControls) return;
+    summaryReading = true;
+    try {
+      while (!closed) {
+        const wanted = summaryWanted,
+          readingLease = lease,
+          selectedRead = selected.getCurrentResult().data;
+        if (!selectedRead || selectedRead.projection.kind !== "writing") break;
+        const projection = selectedRead.projection;
+        const binding = {
+          owner: projection.owner,
+          sessionId: projection.sessionId,
+          runId: projection.runId,
+          packageHash: projection.packageHash,
+        };
+        const queryKey = [
+          "practice-controls-read",
+          projection.owner.profileId,
+          projection.owner.generation,
+          selectedRead.courseId,
+          projection.packageHash,
+          projection.sessionId,
+          projection.runId,
+          ...projection.documents.map((token) => token.documentId),
+          runtimeId,
+          readingLease,
+          wanted,
+        ];
+        try {
+          const summary = await queryClient.query({
+            ...inactive,
+            queryKey,
+            queryFn: () =>
+              repository.readPracticeControls
+                ? repository.readPracticeControls(binding)
+                : Promise.resolve<PracticeControlsSummary>({
+                    kind: "readOnly",
+                  }),
+          });
+          checkLease(readingLease);
+          if (
+            wanted === summaryWanted &&
+            selected.getCurrentResult().data === selectedRead
+          )
+            publishControls(summary);
+        } finally {
+          queryClient.removeQueries({ queryKey, exact: true });
+        }
+        if (wanted === summaryWanted) break;
+      }
+    } catch {
+    } finally {
+      summaryReading = false;
+    }
+  }
   function checkLease(expected: number) {
     if (closed || lease !== expected)
       throw new Error(
@@ -201,6 +335,42 @@ export function createCommittedTeaching({
       })
     )
       throw new Error("The saved reading place did not match this save.");
+    if (expectation.kind === "receipt") {
+      if (expectation.restoreBinding.kind === "reconciled") {
+        if (
+          canonical(view) !== canonical(expectation.restoreBinding.projection)
+        )
+          throw new Error("The reconciled reading binding changed.");
+      } else if (expectation.prepared.command.kind === "writingControl") {
+        const command = expectation.prepared.command;
+        if (view.kind !== "writing")
+          throw new Error("The practice control left its writing context.");
+        const expected = command.payload.barrier.documents.map((token) =>
+          token.documentId === command.payload.documentId
+            ? {
+                ...token,
+                revision: increment(token.revision),
+                inputEpoch: increment(token.inputEpoch),
+              }
+            : token,
+        );
+        if (
+          canonical(
+            [...view.documents].sort((a, b) =>
+              a.documentId.localeCompare(b.documentId),
+            ),
+          ) !==
+          canonical(
+            [...expected].sort((a, b) =>
+              a.documentId.localeCompare(b.documentId),
+            ),
+          )
+        )
+          throw new Error(
+            "The practice control documents did not match this save.",
+          );
+      }
+    }
   }
   async function read({
     expectation,
@@ -262,7 +432,9 @@ export function createCommittedTeaching({
           return next;
         },
       };
+      summaryWanted++;
       staged.activate();
+      publishControls(staged.practiceControls ?? { kind: "readOnly" });
       queryClient.setQueryData(canonicalKey, value);
       selected.setOptions(canonicalOptions);
       recovery = null;
@@ -312,8 +484,10 @@ export function createCommittedTeaching({
                 courseId: origin.courseId,
                 prepared: attempt.prepared,
                 receipt: result,
+                restoreBinding: { kind: "normal" },
               },
             });
+            checkLease(executingLease);
             await queryClient.invalidateQueries({
               queryKey: [
                 "teaching",
@@ -324,6 +498,7 @@ export function createCommittedTeaching({
               ],
               refetchType: "none",
             });
+            checkLease(executingLease);
             return { kind: "visible", receipt: result };
           }
           default: {
@@ -378,11 +553,24 @@ export function createCommittedTeaching({
       },
       getSnapshot: () => currentSnapshot,
     },
+    practiceControls: {
+      subscribe(listener) {
+        controlListeners.add(listener);
+        return () => {
+          controlListeners.delete(listener);
+        };
+      },
+      getSnapshot: () => controls.getCurrentResult().data ?? readOnlyControls,
+    },
     current: () => selected.getCurrentResult().data,
     read,
     execute: (attempt) => mutation.mutate(attempt),
     connectionLost() {
       lease++;
+    },
+    captureFinalized() {
+      summaryWanted++;
+      void refreshControls();
     },
     inkCommitted({ token }) {
       void queryClient.invalidateQueries({
@@ -400,6 +588,11 @@ export function createCommittedTeaching({
       for (const unsubscribe of detach) unsubscribe();
       selected.destroy();
       resolver.destroy();
+      detachControls();
+      const controlsKey = controls.getCurrentQuery().queryKey;
+      controls.destroy();
+      controlListeners.clear();
+      queryClient.removeQueries({ queryKey: controlsKey, exact: true });
       listeners.clear();
     },
   };

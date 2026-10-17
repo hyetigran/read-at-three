@@ -2,7 +2,7 @@ import type { HashFunction } from "../../teaching/src/index.ts";
 import type { SqlExecutor } from "./executor.ts";
 import { migrations } from "./generated-migration.ts";
 export { migrationStatements } from "./generated-migration.ts";
-export const DATABASE_VERSION = 4;
+export const DATABASE_VERSION = 5;
 export async function transaction<T>(
   executor: SqlExecutor,
   work: () => Promise<T>,

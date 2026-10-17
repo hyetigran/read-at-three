@@ -347,6 +347,20 @@ export type TeachingCommand = CommandCommon &
         }>;
       }
     | {
+        kind: "writingControl";
+        scope: SessionScope;
+        payload: Readonly<{
+          packageHash: PackageHash;
+          sessionId: SessionId;
+          runId: RunId;
+          checkpointId: CheckpointId;
+          barrier: WritingBarrier;
+          documentId: DocumentId;
+          layer: import("./ink-history.ts").ChildPracticeLayer;
+          control: import("./ink-history.ts").PracticeControl;
+        }>;
+      }
+    | {
         kind: "navigate";
         scope: SessionScope;
         payload: Readonly<{
@@ -475,6 +489,13 @@ export interface TeachingTransaction {
     selection: SelectionPlan;
     receipt: CommitReceipt;
   }): Promise<void>;
+  applyWritingControl?(
+    input: Readonly<{
+      command: Extract<TeachingCommand, { kind: "writingControl" }>;
+      context: StoredContext & { session: StoredSession };
+      receipt: CommitReceipt;
+    }>,
+  ): Promise<boolean>;
   apply(input: ApplyTransitionInput): Promise<void>;
 }
 export interface TeachingStore {

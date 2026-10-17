@@ -387,8 +387,18 @@ if (arguments_.includes("--check")) {
   if ((await readFile(writingPath, "utf8")) !== writingSql)
     throw new Error("Writing migration stale");
 } else await writeFile(writingPath, writingSql);
+const editingStatements = ["UPDATE installation SET database_version = 5"];
+const editingPath = resolve(
+  root,
+  "packages/storage/migrations/0004_ink_editing.sql",
+);
+const editingSql = editingStatements.join(";\n") + ";\n";
+if (arguments_.includes("--check")) {
+  if ((await readFile(editingPath, "utf8")) !== editingSql)
+    throw new Error("Ink editing migration stale");
+} else await writeFile(editingPath, editingSql);
 const output = await format(
-  `// Generated from ordered Kit migrations plus reviewed deferred constraints.\n// Reproduce: node --import tsx tools/migrations/prepare.ts\nexport const migrationStatements = ${JSON.stringify(statements)} as const;\nexport const migrations = [{version:1, id:"issue-02-initial", statements:migrationStatements}, {version:2, id:"issue-03-sound-task-credits", statements:${JSON.stringify(upgrades)}}, {version:3,id:"issue-04-accepting-command",statements:${JSON.stringify(finalStatements)}}, {version:4,id:"issue-06-canonical-ink",statements:${JSON.stringify(writingStatements)}}] as const;\n`,
+  `// Generated from ordered Kit migrations plus reviewed deferred constraints.\n// Reproduce: node --import tsx tools/migrations/prepare.ts\nexport const migrationStatements = ${JSON.stringify(statements)} as const;\nexport const migrations = [{version:1, id:"issue-02-initial", statements:migrationStatements}, {version:2, id:"issue-03-sound-task-credits", statements:${JSON.stringify(upgrades)}}, {version:3,id:"issue-04-accepting-command",statements:${JSON.stringify(finalStatements)}}, {version:4,id:"issue-06-canonical-ink",statements:${JSON.stringify(writingStatements)}}, {version:5,id:"issue-07-ink-editing",statements:${JSON.stringify(editingStatements)}}] as const;\n`,
   { parser: "typescript" },
 );
 const path = resolve(root, "packages/storage/src/generated-migration.ts");

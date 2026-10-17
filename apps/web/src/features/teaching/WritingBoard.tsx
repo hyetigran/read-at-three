@@ -1,16 +1,14 @@
 import { useEffect, useRef } from "react";
+import type { InkPoint, InkSample, InkSnapshot } from "@readatthree/teaching";
 import type {
-  InkPoint,
-  InkSample,
-  InkSnapshot,
-  StrokeId,
-} from "@readatthree/teaching";
-import type { WritingController } from "@/platform/writing-controller";
+  WritingController,
+  InkContact,
+} from "@/platform/writing-controller";
 
 type Transform = Readonly<{ scale: number; x: number; y: number }>;
 type Contact = {
   pointerId: number;
-  strokeId: StrokeId;
+  handle: InkContact;
   snapshot: InkSnapshot;
   transform: Transform;
   started: number;
@@ -45,7 +43,7 @@ export function WritingBoard({
         canvas.releasePointerCapture(current.pointerId);
     }
     function finish(status: "finished" | "interrupted") {
-      if (contact) controller.finish(contact.strokeId, status);
+      if (contact) controller.finish(contact.handle, status);
       release();
     }
     function drawStroke(points: readonly InkPoint[], width: number) {
@@ -192,11 +190,11 @@ export function WritingBoard({
       for (const { snapshot } of controller.getBoard()) {
         const point = local(event, snapshot, transform);
         if (!snapshot.writable || !inside(point, snapshot)) continue;
-        const strokeId = controller.begin(snapshot.token.documentId, point);
-        if (!strokeId) return;
+        const handle = controller.begin(snapshot.token.documentId, point);
+        if (!handle) return;
         contact = {
           pointerId: event.pointerId,
-          strokeId,
+          handle,
           snapshot,
           transform,
           started: event.timeStamp,
@@ -230,7 +228,7 @@ export function WritingBoard({
                 ? -current.last.y / dy
                 : 1;
           const fraction = Math.max(0, Math.min(1, tx, ty));
-          controller.append(current.strokeId, [
+          controller.append(current.handle, [
             {
               ...point,
               x: Math.max(
@@ -252,7 +250,7 @@ export function WritingBoard({
           finish("interrupted");
           break;
         }
-        controller.append(current.strokeId, [point]);
+        controller.append(current.handle, [point]);
         current.last = point;
       }
     }

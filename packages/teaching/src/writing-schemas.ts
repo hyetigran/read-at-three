@@ -417,14 +417,28 @@ export const inkStrokeIdsSchema = {
   Serialized<readonly import("./types.ts").StrokeId[]>
 >;
 export const inkOperationSchema = {
-  type: "object",
-  properties: {
-    seq: counter,
-    kind: { type: "string", const: "AddStroke" },
-    strokeId: id,
-  },
-  required: ["seq", "kind", "strokeId"],
-  additionalProperties: false,
+  oneOf: [
+    {
+      type: "object",
+      properties: {
+        seq: counter,
+        kind: { type: "string", const: "AddStroke" },
+        strokeId: id,
+      },
+      required: ["seq", "kind", "strokeId"],
+      additionalProperties: false,
+    },
+    {
+      type: "object",
+      properties: {
+        seq: counter,
+        kind: { type: "string", const: "ClearPractice" },
+        strokeIds: { ...inkStrokeIdsSchema, minItems: 1 },
+      },
+      required: ["seq", "kind", "strokeIds"],
+      additionalProperties: false,
+    },
+  ],
 } satisfies JSONSchemaType<Serialized<import("./ink.ts").InkOperation>>;
 export { brush as inkBrushSchema };
 const inkStrokeSchema = {
@@ -742,4 +756,123 @@ export const writingSkippedSchema = {
   additionalProperties: false,
 } satisfies JSONSchemaType<
   Serialized<import("./types.ts").WritingSkippedState>
+>;
+
+export const writingControlSchema = {
+  ...writingNavigateSchema,
+  properties: {
+    ...writingNavigateSchema.properties,
+    kind: { type: "string", const: "writingControl" },
+    payload: {
+      type: "object",
+      properties: {
+        packageHash: hash,
+        sessionId: id,
+        runId: id,
+        checkpointId: id,
+        barrier: writingBarrierSchema,
+        documentId: id,
+        layer: { type: "string", enum: ["tracing", "independent"] },
+        control: {
+          oneOf: [
+            {
+              type: "object",
+              properties: { kind: { type: "string", const: "inkUndo" } },
+              required: ["kind"],
+              additionalProperties: false,
+            },
+            {
+              type: "object",
+              properties: { kind: { type: "string", const: "inkRedo" } },
+              required: ["kind"],
+              additionalProperties: false,
+            },
+            {
+              type: "object",
+              properties: { kind: { type: "string", const: "clearPractice" } },
+              required: ["kind"],
+              additionalProperties: false,
+            },
+          ],
+        },
+      },
+      required: [
+        "packageHash",
+        "sessionId",
+        "runId",
+        "checkpointId",
+        "barrier",
+        "documentId",
+        "layer",
+        "control",
+      ],
+      additionalProperties: false,
+    },
+  },
+} satisfies JSONSchemaType<
+  Serialized<
+    Extract<import("./types.ts").TeachingCommand, { kind: "writingControl" }>
+  >
+>;
+
+export const practiceControlsBindingSchema = {
+  type: "object",
+  properties: {
+    owner: writingNavigateSchema.properties.owner,
+    packageHash: hash,
+    sessionId: id,
+    runId: id,
+  },
+  required: ["owner", "packageHash", "sessionId", "runId"],
+  additionalProperties: false,
+} satisfies JSONSchemaType<
+  Serialized<import("./ink.ts").PracticeControlsBinding>
+>;
+export const practiceControlsSummarySchema = {
+  oneOf: [
+    {
+      type: "object",
+      properties: { kind: { type: "string", const: "readOnly" } },
+      required: ["kind"],
+      additionalProperties: false,
+    },
+    {
+      type: "object",
+      properties: {
+        kind: { type: "string", const: "editable" },
+        binding: practiceControlsBindingSchema,
+        token: documentTokenSchema,
+        layer: { type: "string", enum: ["tracing", "independent"] },
+        undo: { type: "boolean" },
+        redo: { type: "boolean" },
+        clear: { type: "boolean" },
+        retainedUsage: {
+          type: "object",
+          properties: {
+            pointCount: integer,
+            canonicalByteLength: {
+              type: "integer",
+              minimum: 0,
+              maximum: 33554432,
+            },
+          },
+          required: ["pointCount", "canonicalByteLength"],
+          additionalProperties: false,
+        },
+      },
+      required: [
+        "kind",
+        "binding",
+        "token",
+        "layer",
+        "undo",
+        "redo",
+        "clear",
+        "retainedUsage",
+      ],
+      additionalProperties: false,
+    },
+  ],
+} satisfies JSONSchemaType<
+  Serialized<import("./ink.ts").PracticeControlsSummary>
 >;

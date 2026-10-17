@@ -96,6 +96,13 @@ self.addEventListener("message", (event: MessageEvent<unknown>) => {
             value: await app.read(),
           };
           break;
+        case "readPracticeControls":
+          response = {
+            id: request.id,
+            kind: "practiceControls",
+            value: await app.readPracticeControls(request.binding),
+          };
+          break;
         case "dispatch":
           response = {
             id: request.id,

@@ -646,6 +646,13 @@ function WritingActivity({
   onAction: TeachingScreenProps["onAction"];
 }) {
   const guidance = useRef<HTMLDivElement>(null);
+  const controls = useSyncExternalStore(
+    controller.practiceControls.subscribe,
+    controller.practiceControls.getSnapshot,
+  );
+  const state = useSyncExternalStore(controller.subscribe, controller.getState);
+  const toolsReady =
+    !disabled && state.practiceControlsReady && controls.kind === "editable";
   const turn = projection.kind === "writing" ? projection.turn : null;
   useEffect(() => {
     if (guidance.current) guidance.current.scrollTop = 0;
@@ -729,6 +736,36 @@ function WritingActivity({
           </div>
         </nav>
         <div className="teaching-writing-footer">
+          <div
+            className="teaching-writing-tools"
+            role="group"
+            aria-label="Practice ink tools"
+          >
+            <Button
+              className="teaching-button"
+              variant="outline"
+              disabled={!toolsReady || !controls.undo}
+              onClick={() => controller.editPractice({ kind: "inkUndo" })}
+            >
+              <AddedText>Undo ink</AddedText>
+            </Button>
+            <Button
+              className="teaching-button"
+              variant="outline"
+              disabled={!toolsReady || !controls.redo}
+              onClick={() => controller.editPractice({ kind: "inkRedo" })}
+            >
+              <AddedText>Redo ink</AddedText>
+            </Button>
+            <Button
+              className="teaching-button"
+              variant="outline"
+              disabled={!toolsReady || !controls.clear}
+              onClick={() => controller.editPractice({ kind: "clearPractice" })}
+            >
+              <AddedText>Clear practice</AddedText>
+            </Button>
+          </div>
           {projection.actions
             .filter((action) => action.intent.kind === "skipWriting")
             .map((action) => (

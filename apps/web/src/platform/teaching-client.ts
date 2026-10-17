@@ -113,6 +113,18 @@ export function createBrowserTeachingClient() {
         throw new Error("The saved place could not be read.");
       return { courseId: response.courseId, projection: response.value };
     },
+    async readPracticeControls(
+      binding: Parameters<WritingApplication["readPracticeControls"]>[0],
+    ) {
+      const response = await request({
+        id: id(),
+        kind: "readPracticeControls",
+        binding,
+      });
+      if (response.kind !== "practiceControls")
+        throw new Error("Practice tools could not be read.");
+      return response.value;
+    },
     async dispatch(command: Parameters<WritingApplication["dispatch"]>[0]) {
       const response = await request({ id: id(), kind: "dispatch", command });
       if (response.kind !== "receipt")
@@ -188,5 +200,5 @@ export type BrowserTeachingClient = ReturnType<
 
 export type InkLifecycleClient = Omit<
   BrowserTeachingClient,
-  "read" | "dispatch" | "recoverTeaching"
+  "read" | "dispatch" | "recoverTeaching" | "readPracticeControls"
 >;
