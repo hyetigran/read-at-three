@@ -1,6 +1,6 @@
 # Issue 12 implementation evidence
 
-Issue [#12](https://github.com/hyetigran/read-at-three/issues/12) delivers all seven Lesson 2 tasks. Work starts from merged main `3ac2dda4ed2793bff39994de7770a68fb3a347df` on `codex/issue-12-lesson-two`. PR review, complete regressions, CI and merge remain pending.
+Issue [#12](https://github.com/hyetigran/read-at-three/issues/12) delivers all seven Lesson 2 tasks in [PR #46](https://github.com/hyetigran/read-at-three/pull/46). Work starts from merged main `3ac2dda4ed2793bff39994de7770a68fb3a347df` on `codex/issue-12-lesson-two`. GitHub recognizes the closing issue reference. Final review, complete regressions, CI and merge remain pending.
 
 The supplied curriculum remains private. The public branch contains the portable implementation, authoring checks and synthetic fixtures. Local review records and runtime packages remain excluded from Git. Content publication and native qualification remain separate release inputs.
 
@@ -27,3 +27,7 @@ The actual private package completes all seven tasks through real SQLite, includ
 The synthetic browser flow passes at 1024×768 and 1280×800 in both development and production builds. The supplied-source flow also passes at both sizes in development and production builds through the actual Worker and local content preparation. These checks cover all seven tasks, supported-review reload, eight writing turns, four parent phase confirmations and retained model, tracing and independent ink. Complete regressions remain pending.
 
 These are bounded SPA and portable SQLite checks. They do not qualify native adapters, physical-device latency, signed distribution or public curriculum publication.
+
+The first complete Node run passes 337 tests and fails three final database-version expectations. Each expects version 9 after successful initialization or migration to version 10. The correction changes only those three literals. Original V8 failure injection and whole-file rollback assertions remain intact. All eight affected profile-foundation tests then pass. The original failing log remains retained privately.
+
+Initial independent Spec review identifies zero findings. Standards review identifies one test-boundary type violation and one nonblocking P3 schema-navigation judgment. The test now parses the baseline before typed traversal and constructs the malformed candidate without implicit `any`. All three affected writing-plan tests pass. Final fix verification remains pending. Comment review identifies no added authored comments, suppressions or unenforced comment constraints. Configured external review runners are unavailable, so these are fresh inherited-local reviews.

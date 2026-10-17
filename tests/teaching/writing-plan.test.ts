@@ -124,18 +124,61 @@ test("original coverage refuses rich runs and new writing semantics instead of s
   const value = await syntheticPlanEnvelope();
   const content = await parseRuntimePackage(value, hash);
   assert.ok(content);
-  const old = JSON.parse(
-    await (
-      await import("node:fs/promises")
-    ).readFile("tests/fixtures/course-development-package.json", "utf8"),
+  const old = await parseRuntimePackage(
+    JSON.parse(
+      await (
+        await import("node:fs/promises")
+      ).readFile("tests/fixtures/course-development-package.json", "utf8"),
+    ),
+    hash,
   );
-  const node = old.body.lessons[0].tasks[0].task.nodes[0];
-  node.guidance[0] = {
-    kind: node.guidance[0].kind,
-    runs: [{ copy: node.guidance[0].copy, emphasis: "strong" }],
+  assert.equal(old.body.coverage, "course-development");
+  assert.ok("lessons" in old.body);
+  const lesson = old.body.lessons[0];
+  const entry = lesson?.tasks[0];
+  assert.ok(entry?.kind === "printedGraphV1");
+  const node = entry.task.nodes[0];
+  const span = node?.guidance[0];
+  assert.ok(node && span && "copy" in span);
+  const body = {
+    ...old.body,
+    lessons: old.body.lessons.map((item) =>
+      item === lesson
+        ? {
+            ...item,
+            tasks: item.tasks.map((task) =>
+              task === entry
+                ? {
+                    ...task,
+                    task: {
+                      ...entry.task,
+                      nodes: entry.task.nodes.map((candidate) =>
+                        candidate === node
+                          ? {
+                              ...candidate,
+                              guidance: candidate.guidance.map((guidance) =>
+                                guidance === span
+                                  ? {
+                                      kind: span.kind,
+                                      runs: [
+                                        { copy: span.copy, emphasis: "strong" },
+                                      ],
+                                    }
+                                  : guidance,
+                              ),
+                            }
+                          : candidate,
+                      ),
+                    },
+                  }
+                : task,
+            ),
+          }
+        : item,
+    ),
   };
-  old.packageHash = await hash(canonical(old.body));
-  await assert.rejects(() => parseRuntimePackage(old, hash), /Legacy/);
+  const richLegacy = { ...old, body, packageHash: await hash(canonical(body)) };
+  await assert.rejects(() => parseRuntimePackage(richLegacy, hash), /Legacy/);
   const plan = await syntheticPlanEnvelope();
   const {
     contentSchemaVersion: _version,
