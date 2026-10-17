@@ -43,6 +43,7 @@ export { compileControlTask } from "./control-content.ts";
 
 export {
   compileWritingTask,
+  compileWritingPlan,
   writingTask,
   writingState,
   writingPermission,
@@ -68,3 +69,5 @@ export * from "./preparation.ts";
 export * from "./profile-removal.ts";
 
 export * from "./support.ts";
+
+export { guidanceCopies, requirePlainGuidance } from "./guidance.ts";

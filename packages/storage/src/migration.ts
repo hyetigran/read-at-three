@@ -2,7 +2,7 @@ import type { HashFunction } from "../../teaching/src/index.ts";
 import type { SqlExecutor } from "./executor.ts";
 import { migrations } from "./generated-migration.ts";
 export { migrationStatements } from "./generated-migration.ts";
-export const DATABASE_VERSION = 9;
+export const DATABASE_VERSION = 10;
 export type MigrationDataHook = (
   version: number,
 ) => Promise<(() => Promise<void>) | undefined>;
@@ -114,7 +114,25 @@ export async function initializeDatabase(
                 );
               })
             : undefined;
-        const statement = replacement ?? original;
+        const statement =
+          appliedVersion >= 10 &&
+          original.startsWith("CREATE TABLE installed_package_v10 ")
+            ? original.replace(
+                "CREATE TABLE installed_package_v10 ",
+                'CREATE TABLE "installed_package" ',
+              )
+            : appliedVersion >= 10 &&
+                original.startsWith("CREATE TABLE installed_package ")
+              ? original
+                  .replace(
+                    "CHECK(content_schema_version=1)",
+                    "CHECK(content_schema_version IN (1,2))",
+                  )
+                  .replace(
+                    "CREATE TABLE installed_package ",
+                    'CREATE TABLE "installed_package" ',
+                  )
+              : (replacement ?? original);
         if (!statement.startsWith("CREATE ")) continue;
         const name = /^CREATE (?:UNIQUE )?(?:TABLE|INDEX) [`"]?([a-z_]+)/.exec(
           statement,
@@ -161,18 +179,41 @@ export async function initializeDatabase(
     const checksum = checksums[migration.version - 1];
     if (!checksum) throw new Error("Migration checksum is missing");
     const migrateData = await prepareData?.(migration.version);
-    await transaction(executor, async () => {
-      for (const statement of migration.statements)
-        await executor.execute(statement, []);
-      await migrateData?.();
-      await executor.execute(
-        "INSERT INTO schema_migration(version,migration_id,checksum) VALUES(?,?,?)",
-        [migration.version, migration.id, checksum],
-      );
-      if ((await executor.execute("PRAGMA foreign_key_check", [])).rows.length)
-        throw new Error("Migration violated the ownership graph");
-      await executor.execute(`PRAGMA user_version=${migration.version}`, []);
-    });
+    const rebuildParent =
+      "foreignKeys" in migration && migration.foreignKeys === "rebuild";
+    try {
+      if (rebuildParent) {
+        await executor.execute("PRAGMA foreign_keys=OFF", []);
+        const disabled = firstValue(
+          (await executor.execute("PRAGMA foreign_keys", [])).rows,
+        );
+        if (disabled !== 0 && disabled !== 0n)
+          throw new Error("Cannot enter isolated parent table migration");
+      }
+      await transaction(executor, async () => {
+        for (const statement of migration.statements)
+          await executor.execute(statement, []);
+        await migrateData?.();
+        await executor.execute(
+          "INSERT INTO schema_migration(version,migration_id,checksum) VALUES(?,?,?)",
+          [migration.version, migration.id, checksum],
+        );
+        if (
+          (await executor.execute("PRAGMA foreign_key_check", [])).rows.length
+        )
+          throw new Error("Migration violated the ownership graph");
+        await executor.execute(`PRAGMA user_version=${migration.version}`, []);
+      });
+    } finally {
+      if (rebuildParent) {
+        await executor.execute("PRAGMA foreign_keys=ON", []);
+        const enabled = firstValue(
+          (await executor.execute("PRAGMA foreign_keys", [])).rows,
+        );
+        if (enabled !== 1 && enabled !== 1n)
+          throw new Error("Cannot restore SQLite foreign key enforcement");
+      }
+    }
     await verify(migration.version);
   }
 }

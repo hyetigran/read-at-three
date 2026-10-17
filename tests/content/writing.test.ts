@@ -1,3 +1,4 @@
+import { plainCopy, requiredPlainCopy } from "../plain-guidance.ts";
 import {
   executeTeaching,
   prepareSelectedTeaching,
@@ -139,7 +140,7 @@ test("writing fixture is reproducible, synthetic and adds only the explicit opti
   assert.equal(
     entry.task.nodes
       .flatMap((node) => node.guidance)
-      .every((span) => span.copy.kind === "added"),
+      .every((span) => requiredPlainCopy(span).kind === "added"),
     true,
   );
   assert.equal("corrections" in entry.task, false);
@@ -237,7 +238,10 @@ test("source authoring preserves all five earlier bodies and literal seven-turn/
     ],
   );
   assert.deepEqual(
-    entry.task.nodes[0]?.guidance.map((span) => [span.kind, span.copy.text]),
+    entry.task.nodes[0]?.guidance.map((span) => [
+      span.kind,
+      requiredPlainCopy(span).text,
+    ]),
     [
       ["speech", "Synthetic first introduction mmm. Synthetic question?"],
       ["expected", "mmm."],
@@ -250,20 +254,20 @@ test("source authoring preserves all five earlier bodies and literal seven-turn/
     model?.guidance.map((span) => span.kind),
     ["speech", "action", "action", "action", "speech", "expected"],
   );
-  assert.equal(model?.guidance[1]?.copy.kind, "source");
+  assert.equal(plainCopy(model?.guidance[1])?.kind, "source");
   const trace = entry.task.nodes[2],
     independent = entry.task.nodes[3];
   assert.equal(trace?.guidance[0]?.kind, "speech");
   assert.equal(
-    trace?.guidance[0]?.copy.text,
+    plainCopy(trace?.guidance[0])?.text,
     "Synthetic tracing mmm invitation.",
   );
   assert.equal(
-    independent?.guidance[0]?.copy.text,
+    plainCopy(independent?.guidance[0])?.text,
     "Synthetic further writing.",
   );
   assert.equal(
-    independent?.guidance[1]?.copy.text,
+    plainCopy(independent?.guidance[1])?.text,
     "Synthetic sound mmm while writing.",
   );
   for (const index of [2, 3, 5, 6]) {
@@ -272,7 +276,9 @@ test("source authoring preserves all five earlier bodies and literal seven-turn/
     assert.ok(phaseNode);
     assert.equal(phaseNode.guidance.at(-1)?.kind, "praise");
     assert.equal(
-      phaseNode.guidance.every((span) => span.copy.kind === "adapted"),
+      phaseNode.guidance.every(
+        (span) => requiredPlainCopy(span).kind === "adapted",
+      ),
       true,
     );
     assert.equal(

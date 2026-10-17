@@ -173,6 +173,7 @@ export async function completeInitialSetup({
       page.getByRole("heading", {
         name: preparation.document.body.title.copy.text,
         exact: true,
+        level: 2,
       }),
     ).toBeVisible();
     const diagrams = preparation.document.body.sections.flatMap((section) =>

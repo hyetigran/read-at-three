@@ -1,3 +1,4 @@
+import { packageMetadata } from "../../teaching/src/index.ts";
 import { decodePersonalReceipt } from "./personal-receipt.ts";
 import {
   durableReceipt,
@@ -197,7 +198,10 @@ export function createTeachingApplication({
         value.body.courseId !== row.courseId ||
         value.body.releaseId !== row.releaseId ||
         row.storageKey !== row.packageHash ||
-        canonical([value.body.coverage]) !== row.capabilities
+        canonical(packageMetadata(value).capabilities) !== row.capabilities ||
+        packageMetadata(value).contentSchemaVersion !==
+          Number(row.contentSchemaVersion) ||
+        Number(row.manifestVersion) !== 1
       )
         throw new Error(
           "Installed package metadata does not match verified bytes",
@@ -223,6 +227,10 @@ export function createTeachingApplication({
       row.courseId !== value.body.courseId ||
       row.releaseId !== value.body.releaseId ||
       row.storageKey !== value.packageHash ||
+      Number(row.contentSchemaVersion) !==
+        packageMetadata(value).contentSchemaVersion ||
+      row.capabilities !== canonical(packageMetadata(value).capabilities) ||
+      Number(row.manifestVersion) !== 1 ||
       !equalBytes(row.verifiedManifest, utf8(canonical(value)))
     )
       throw new Error("Pinned package identity changed");
@@ -413,8 +421,9 @@ export function createTeachingApplication({
               packageHash: content.packageHash,
               courseId: content.body.courseId,
               releaseId: content.body.releaseId,
-              contentSchemaVersion: 1,
-              capabilities: canonical([content.body.coverage]),
+              contentSchemaVersion:
+                packageMetadata(content).contentSchemaVersion,
+              capabilities: canonical(packageMetadata(content).capabilities),
               manifestVersion: 1,
               verifiedManifest: utf8(canonical(content)),
               state: "ready",

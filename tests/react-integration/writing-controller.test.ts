@@ -1,3 +1,5 @@
+import { syntheticPlanEnvelope, hash } from "../lesson-two-fixture.ts";
+import { parseRuntimePackage, canonical } from "@readatthree/teaching";
 import { readEnvelope } from "./support.ts";
 import {
   executeInk,
@@ -24,7 +26,11 @@ function deferred() {
 }
 async function controllerFixture(
   t: Parameters<typeof practiceFixture>[0],
-  options: { deferOpen?: boolean } = {},
+  options: {
+    deferOpen?: boolean;
+    content?: import("@readatthree/teaching").RuntimePackage;
+    start?: boolean;
+  } = {},
 ) {
   const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window"),
     previousDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
@@ -41,13 +47,13 @@ async function controllerFixture(
     configurable: true,
     value: Object.assign(new EventTarget(), { visibilityState: "visible" }),
   });
-  const f = await practiceFixture(t);
+  const f = await practiceFixture(t, options.content);
   let sqlHook: import("../storage/support.ts").SqlHook = async (_sql, work) =>
     work();
   const hook: import("../storage/support.ts").SqlHook = (sql, work) =>
     sqlHook(sql, work);
   let { app, db } = await f.connectReady({ hook });
-  await f.start(app);
+  if (options.start !== false) await f.start(app);
   let connectionRevision = 0;
   let replace = false;
   let onLoss = () => {};
@@ -944,7 +950,7 @@ test("ordinary cold opening retains actual stored recovery through one held Retr
 test("failed cold opening exposes recovery without teaching or input and retries through the real replacement connection", async (t) => {
   const f = await controllerFixture(t, { deferOpen: true });
   const before = f.db.prepare("SELECT * FROM task_run ORDER BY run_id").all();
-  f.db.exec("PRAGMA user_version=10");
+  f.db.exec("PRAGMA user_version=11");
   f.lose();
   await f.controller.open();
   const state = f.controller.getState();
@@ -958,8 +964,8 @@ test("failed cold opening exposes recovery without teaching or input and retries
     f.db.prepare("SELECT * FROM task_run ORDER BY run_id").all(),
     before,
   );
-  assert.equal(f.db.prepare("PRAGMA user_version").get()?.user_version, 10);
-  f.db.exec("PRAGMA user_version=9");
+  assert.equal(f.db.prepare("PRAGMA user_version").get()?.user_version, 11);
+  f.db.exec("PRAGMA user_version=10");
   f.lose();
   await f.controller.retry();
   assert.equal(f.controller.getState().operation.kind, "idle");
@@ -1286,3 +1292,110 @@ for (const workerLoss of [false, true]) {
     );
   });
 }
+
+test(
+  "V2 sound responses expose read-only writing readiness and reject contacts until the source moves to practice",
+  { timeout: 30000 },
+  async (t) => {
+    const envelope = await syntheticPlanEnvelope();
+    const content = await parseRuntimePackage(envelope, hash);
+    if (content.body.coverage !== "course-development-v2")
+      throw new Error("V2 synthetic package missing");
+    const lesson = content.body.lessons[0];
+    assert.ok(lesson);
+    const writing = lesson.tasks.find(
+      (entry) => entry.kind === "writingPracticePlanV2",
+    );
+    assert.ok(writing && writing.kind === "writingPracticePlanV2");
+    const task = { ...writing.task, number: 1 };
+    const body = {
+      ...content.body,
+      lessons: [
+        {
+          ...lesson,
+          lessonTasks: [
+            {
+              id: task.id,
+              number: 1,
+              title: task.title,
+              optional: true,
+              artKey: "writing",
+            },
+          ],
+          tasks: [{ kind: "writingPracticePlanV2", task }],
+        },
+      ],
+    };
+    const isolated = await parseRuntimePackage(
+      { formatVersion: 1, body, packageHash: await hash(canonical(body)) },
+      hash,
+    );
+    const f = await controllerFixture(t, { content: isolated, start: false });
+    assert.equal(f.controller.canWrite(), false);
+    const entry = f.controller.committed.getSnapshot().visible.data?.projection;
+    assert.ok(entry && entry.kind !== "recovery");
+    const start = entry.actions.find(
+      (action) => action.intent.kind === "start",
+    );
+    assert.ok(start);
+    assert.equal(await f.controller.enter(start), true);
+    assert.equal(f.controller.canWrite(), true);
+    function current() {
+      const p = f.controller.committed.getSnapshot().visible.data?.projection;
+      if (!p || p.kind !== "writing")
+        throw new Error("Writing projection missing");
+      return p;
+    }
+    const model = current();
+    assert.equal(model.turn.presentation.kind, "writing");
+    const next = model.actions.find(
+      (action) => action.intent.kind === "continue",
+    );
+    assert.ok(next);
+    f.controller.act(next);
+    await waitForPaint(
+      f.controller,
+      () =>
+        f.controller.getState().operation.kind === "idle" &&
+        current().turn.id.endsWith(".respond"),
+    );
+    assert.equal(f.controller.canWrite(), false);
+    const rows = f.controller.getBoard();
+    assert.equal(rows.length, 2);
+    assert.ok(rows.every((row) => !row.snapshot.writable));
+    const before = f.db
+        .prepare("SELECT * FROM ink_document ORDER BY document_id")
+        .all(),
+      deliveries = f.deliveries();
+    for (const row of rows)
+      assert.equal(
+        f.controller.begin(
+          row.snapshot.token.documentId,
+          { x: 100, y: 200, elapsedMs: 0 },
+          performance.now(),
+        ),
+        null,
+      );
+    assert.equal(f.deliveries(), deliveries);
+    assert.deepEqual(
+      f.db.prepare("SELECT * FROM ink_document ORDER BY document_id").all(),
+      before,
+    );
+    const respond = current().actions.find(
+      (action) => action.intent.kind === "continue",
+    );
+    assert.ok(respond);
+    f.controller.act(respond);
+    await waitForPaint(
+      f.controller,
+      () =>
+        f.controller.getState().operation.kind === "idle" &&
+        current().turn.id.endsWith(".trace"),
+    );
+    assert.equal(f.controller.canWrite(), true);
+    assert.equal(
+      f.controller.getBoard().filter((row) => row.snapshot.writable).length,
+      1,
+    );
+  },
+);

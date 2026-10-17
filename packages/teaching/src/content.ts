@@ -1,3 +1,4 @@
+import { guidanceCopies, requirePlainGuidance } from "./guidance.ts";
 import type { RuntimePackage } from "./course-content.ts";
 import { resolvedTask } from "./course-content.ts";
 import {
@@ -17,7 +18,7 @@ export {
   deepFreeze,
 } from "./identity.ts";
 import { parseDocumentToken } from "./ink.ts";
-import { compileWritingTask } from "./writing.ts";
+import { compileWritingTask, compileWritingPlan } from "./writing.ts";
 import { compileControlTask } from "./control-content.ts";
 import type {
   DevelopmentBodyInput,
@@ -93,6 +94,10 @@ export async function parseDevelopmentPackage(
     const seen = new Set<TaskId>();
     for (const entryTask of input.body.tasks) {
       const task = "task" in entryTask ? entryTask.task : entryTask;
+      if (!("nodes" in task))
+        throw new Error("Unsupported legacy content capability");
+      for (const node of task.nodes)
+        for (const span of node.guidance) requirePlainGuidance(span);
       if (seen.has(task.id)) throw new Error("Duplicate available task");
       seen.add(task.id);
       const entry = metadata.get(task.id);
@@ -118,7 +123,9 @@ export async function parseDevelopmentPackage(
           )
             throw new Error("Writing requires an explicit writing task");
           compileControlTask(entryTask.task);
-        } else if ("task" in entryTask) compileTask(entryTask.task);
+        } else if ("kind" in entryTask && entryTask.kind === "printedGraphV1")
+          compileTask(entryTask.task);
+        else throw new Error("Unsupported legacy task capability");
       } else if (!("task" in entryTask)) compileTask(entryTask);
     }
   }
@@ -274,8 +281,10 @@ export function compileTask(task: GraphTask): CompiledTask {
   for (const node of task.nodes) {
     for (const span of node.guidance) {
       if (
-        span.copy.kind !== "added" &&
-        !node.sourceRefs.includes(span.copy.sourceRef)
+        guidanceCopies(span).some(
+          (copy) =>
+            copy.kind !== "added" && !node.sourceRefs.includes(copy.sourceRef),
+        )
       )
         throw new Error("Guidance source reference is missing");
     }
@@ -290,6 +299,7 @@ export function graphTask(
 ): CompiledTask {
   if (
     content.body.coverage === "course-development" ||
+    content.body.coverage === "course-development-v2" ||
     content.body.coverage === "lesson1-sounds-oral-complete" ||
     content.body.coverage === "lesson1-complete"
   ) {
@@ -314,11 +324,17 @@ export function taskDefinition({
 }) {
   if (
     content.body.coverage === "course-development" ||
+    content.body.coverage === "course-development-v2" ||
     content.body.coverage === "lesson1-sounds-oral-complete" ||
     content.body.coverage === "lesson1-complete"
   ) {
     const entry = resolvedTask({ content, taskId })?.entry;
     if (!entry) throw new Error("Task unavailable in exact package");
+    if (entry.kind === "writingPracticePlanV2")
+      return {
+        kind: "graphControls",
+        graph: compileWritingPlan(entry.task),
+      } as const;
     if (entry.kind === "soundWritingV1")
       return {
         kind: "graphControls",

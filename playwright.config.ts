@@ -1,7 +1,10 @@
 import { defineConfig } from "@playwright/test";
 
-const build = process.env.READING_BROWSER_BUILD === "1";
-const port = build ? 5175 : 5174;
+import {
+  browserBuild as build,
+  browserPort as port,
+  browserBaseURL,
+} from "./tests/browser/environment.ts";
 
 export default defineConfig({
   testDir: "./tests/browser",
@@ -11,16 +14,16 @@ export default defineConfig({
   timeout: 45000,
   expect: { timeout: 15000 },
   use: {
-    baseURL: `http://127.0.0.1:${port}`,
+    baseURL: browserBaseURL,
     viewport: { width: 1280, height: 800 },
     trace: "retain-on-failure",
   },
   reporter: process.env.CI ? "github" : "list",
   webServer: {
     command: build
-      ? "npm run build && npm run preview -- --port 5175"
-      : "npm run dev -- --port 5174",
-    url: `http://127.0.0.1:${port}`,
+      ? `npm run build && npm run preview -- --port ${port}`
+      : `npm run dev -- --port ${port}`,
+    url: browserBaseURL,
     reuseExistingServer: false,
     env: { READING_CONTENT_MODE: "fixture" },
   },

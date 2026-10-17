@@ -1,7 +1,8 @@
 import { completeInitialSetup } from "./parent-setup.ts";
 import { reloadSavedTurn } from "./reload-saved-turn.ts";
 import { chromium, expect, test } from "@playwright/test";
-import { mkdtemp, rm } from "node:fs/promises";
+import type { Page } from "@playwright/test";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { decodeInkPoints, prepareInkCommand } from "@readatthree/teaching";
@@ -683,14 +684,16 @@ test("a failed finalize retains the action and retries ink before one phase acce
   ).toBeVisible();
 });
 
-test("each phase survives a full browser process restart and cold committed capture recovery is idempotent", async () => {
+test("each phase survives a full browser process restart and cold committed capture recovery is idempotent", async ({}, testInfo) => {
   const directory = await mkdtemp(join(tmpdir(), "writing-opfs-restart-"));
   let context = await chromium.launchPersistentContext(directory, {
     headless: true,
     viewport: { width: 900, height: 600 },
   });
+  let diagnosticPage: Page | undefined;
   try {
     let page = await context.newPage();
+    diagnosticPage = page;
     await probe(page);
     await startWriting(page);
     await writingAction(page);
@@ -730,6 +733,7 @@ test("each phase survives a full browser process restart and cold committed capt
         viewport: { width: 900, height: 600 },
       });
       page = await context.newPage();
+      diagnosticPage = page;
       await probe(page);
       await page.goto(`${writingBase}/teaching`);
       await atWriting(page, phase.suffix);
@@ -753,6 +757,34 @@ test("each phase survives a full browser process restart and cold committed capt
     await expect(
       page.getByText("Writing task complete", { exact: true }),
     ).toBeVisible();
+  } catch (error) {
+    const failedPage = diagnosticPage;
+    if (failedPage)
+      await Promise.allSettled([
+        (async () => {
+          const path = testInfo.outputPath("restart-failure.png");
+          await failedPage.screenshot({ path });
+          await testInfo.attach("restart-failure-screenshot", {
+            path,
+            contentType: "image/png",
+          });
+        })(),
+        (async () => {
+          const evidence: unknown = await failedPage.evaluate(`(async () => ({
+          url: location.href,
+          body: document.body.innerText,
+          writing: window.writingEvidence(),
+          locks: navigator.locks ? await navigator.locks.query() : null
+        }))()`);
+          const path = testInfo.outputPath("restart-failure.json");
+          await writeFile(path, JSON.stringify(evidence, null, 2));
+          await testInfo.attach("restart-failure-state", {
+            path,
+            contentType: "application/json",
+          });
+        })(),
+      ]);
+    throw error;
   } finally {
     await context.close();
     await rm(directory, { recursive: true, force: true });

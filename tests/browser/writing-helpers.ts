@@ -1,3 +1,4 @@
+import { browserBaseURL } from "./environment.ts";
 import {
   installInitialSetupObservation,
   completeInitialSetup,
@@ -12,10 +13,7 @@ import {
   parseResponse,
 } from "../../apps/web/src/platform/protocol.ts";
 
-export const writingBase =
-  process.env.READING_BROWSER_BUILD === "1"
-    ? "http://127.0.0.1:5175"
-    : "http://127.0.0.1:5174";
+export const writingBase = browserBaseURL;
 export const writingTask = "fixture.graph.l01.t06";
 export async function probe(page: Page) {
   await page.addInitScript(`

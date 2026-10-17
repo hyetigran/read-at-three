@@ -1,3 +1,4 @@
+import { requirePlainGuidance } from "@readatthree/teaching";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -11,7 +12,7 @@ import type {
   ControlNode,
   ControlTask,
   Copy,
-  ParentSpan,
+  PlainParentSpan as ParentSpan,
   Serialized,
 } from "@readatthree/teaching";
 import { verifyGraphInputReview } from "./graph.ts";
@@ -509,8 +510,10 @@ export function authorContinuousBody(input: SourceAuthoringInput): Body {
       .filter((turn) => turn.suffix.endsWith("-together"))
       .map((turn) => [
         turn.item,
-        required(
-          turn.script.guidance.find((span) => span.kind === "expected"),
+        requirePlainGuidance(
+          required(
+            turn.script.guidance.find((span) => span.kind === "expected"),
+          ),
         ).copy.text.replace(/[.!?]$/, ""),
       ]),
   );

@@ -1,3 +1,4 @@
+import { browserBaseURL } from "./environment.ts";
 import {
   installInitialSetupObservation,
   completeInitialSetup,
@@ -12,10 +13,7 @@ test.beforeEach(async ({ context }) => {
   await useLegacyContent(context);
 });
 
-const base =
-  process.env.READING_BROWSER_BUILD === "1"
-    ? "http://127.0.0.1:5175"
-    : "http://127.0.0.1:5174";
+const base = browserBaseURL;
 async function start(page: Page) {
   await useLegacyContent(page);
   await installInitialSetupObservation(page);

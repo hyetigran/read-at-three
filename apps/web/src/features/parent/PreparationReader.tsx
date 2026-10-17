@@ -15,7 +15,7 @@ import type {
   VerifiedPreparationDocument,
 } from "@readatthree/teaching";
 import { Button } from "@/components/ui/button.tsx";
-import { AddedText, CopyText } from "../teaching/CopyText.tsx";
+import { AddedText, CopyText, ParentSpanText } from "../teaching/CopyText.tsx";
 import { SoundGlyph } from "../teaching/SoundGlyph.tsx";
 import { readFirstTaskPreview } from "./task-preview.ts";
 import type { TaskPreviewTicket } from "./task-preview.ts";
@@ -523,7 +523,7 @@ export function PreparationReader({
                                           : "Praise"}
                                   </AddedText>
                                 </span>{" "}
-                                <CopyText copy={span.copy} />
+                                <ParentSpanText span={span} />
                               </p>
                             ))}
                             <SoundGlyph glyph={node.glyph} />

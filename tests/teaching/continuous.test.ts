@@ -1,3 +1,4 @@
+import { plainCopy, requiredPlainCopy } from "../plain-guidance.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -156,7 +157,10 @@ for (const trigger of normal.slice(1))
       ["Practice again", "Ready"],
     );
     const routeBeforePractice = correctionContext(fixture);
-    assert.match(fixture.current().guidance.at(-1)?.copy.text ?? "", /firm/);
+    assert.match(
+      plainCopy(fixture.current().guidance.at(-1))?.text ?? "",
+      /firm/,
+    );
     fixture.act({ kind: "continue" });
     const routeAfterPractice = correctionContext(fixture);
     assert.equal(fixture.current().parentRole, "together");

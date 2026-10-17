@@ -1,6 +1,7 @@
+import { requirePlainGuidance } from "./guidance.ts";
 import { resolvedTask } from "./course-content.ts";
 import type { RuntimePackage } from "./course-content.ts";
-import { canonical } from "./identity.ts";
+import { canonical, parseId } from "./identity.ts";
 import { compileControlTask } from "./control-content.ts";
 import type {
   ControlTask,
@@ -10,29 +11,177 @@ import type {
   TeachingState,
   WritingPhase,
   WritingTask,
+  WritingPracticePlan,
+  WritingScript,
+  WritingNode,
 } from "./types.ts";
+
+const planCache = new WeakMap<WritingPracticePlan, WritingTask>();
+function joinScripts(scripts: readonly WritingScript[]): WritingScript {
+  return {
+    sourceRefs: [...new Set(scripts.flatMap((script) => script.sourceRefs))],
+    guidance: scripts.flatMap((script) => script.guidance),
+  };
+}
+function lowerPlan(plan: WritingPracticePlan): WritingTask {
+  const cached = planCache.get(plan);
+  if (cached) return cached;
+  if (plan.targets.length !== 2)
+    throw new Error("Writing requires two targets");
+  const turns = plan.targets.flatMap((practice, index) => {
+    for (const phase of [practice.tracing, practice.independent]) {
+      const prescription = phase.practice;
+      if (!phase.instruction.sourceRefs.includes(prescription.sourceRef))
+        throw new Error("Practice source missing");
+      if (
+        prescription.kind === "range" &&
+        (!Number.isInteger(prescription.minimum) ||
+          !Number.isInteger(prescription.maximum) ||
+          prescription.minimum < 1 ||
+          prescription.maximum < prescription.minimum)
+      )
+        throw new Error("Practice range invalid");
+      if (
+        prescription.kind === "qualitative" &&
+        prescription.instruction.kind !== "added" &&
+        !phase.instruction.sourceRefs.includes(
+          prescription.instruction.sourceRef,
+        )
+      )
+        throw new Error("Practice instruction source missing");
+    }
+    const base = { targetId: practice.target.id };
+    return [
+      {
+        ...base,
+        slot: "demonstrate",
+        parentRole: "model",
+        script: joinScripts(
+          index === 0
+            ? [plan.introduction, practice.demonstration]
+            : [practice.demonstration],
+        ),
+        obligation: { kind: "parentModel" },
+      },
+      {
+        ...base,
+        slot: "respond",
+        parentRole: "listen",
+        script: joinScripts([practice.sound.prompt, practice.sound.expected]),
+        obligation: { kind: "soundResponse" },
+      },
+      {
+        ...base,
+        slot: "trace",
+        parentRole: "listen",
+        script: joinScripts([
+          practice.sound.affirmation,
+          practice.tracing.instruction,
+          practice.tracing.praise,
+        ]),
+        obligation: {
+          kind: "phaseConfirmation",
+          phase: "childTracing",
+          practice: practice.tracing.practice,
+        },
+      },
+      {
+        ...base,
+        slot: "independent",
+        parentRole: "listen",
+        script: joinScripts([
+          practice.independent.instruction,
+          practice.independent.praise,
+        ]),
+        obligation: {
+          kind: "phaseConfirmation",
+          phase: "childIndependentWriting",
+          practice: practice.independent.practice,
+        },
+      },
+    ] satisfies readonly Readonly<{
+      targetId: WritingNode["presentation"]["targetId"];
+      slot: string;
+      parentRole: WritingNode["parentRole"];
+      script: WritingScript;
+      obligation: WritingNode["presentation"]["obligation"];
+    }>[];
+  });
+  const nodeId = (index: number) => {
+    const turn = turns[index];
+    if (!turn) throw new Error("Writing turn missing");
+    return parseId({
+      kind: "node",
+      value: `${plan.id}.${turn.targetId}.${turn.slot}`,
+    });
+  };
+  const result: WritingTask = {
+    id: plan.id,
+    number: plan.number,
+    title: plan.title,
+    optional: true,
+    startNodeId: nodeId(0),
+    targets: plan.targets.map((practice) => practice.target),
+    nodes: turns.map((turn, index) => ({
+      id: nodeId(index),
+      ...turn.script,
+      kind: "turn",
+      route: "normal",
+      parentRole: turn.parentRole,
+      presentation: {
+        kind: "writing",
+        targetId: turn.targetId,
+        obligation: turn.obligation,
+      },
+      next:
+        index === turns.length - 1
+          ? { kind: "end" }
+          : { kind: "node", nodeId: nodeId(index + 1) },
+    })),
+  };
+  compileTaskVersion(result, 2);
+  planCache.set(plan, result);
+  return result;
+}
+export function compileWritingPlan(plan: WritingPracticePlan) {
+  return compileTaskVersion(lowerPlan(plan), 2);
+}
 
 const cache = new WeakMap<WritingTask, ReturnType<typeof compileControlTask>>();
 export function compileWritingTask(task: WritingTask) {
+  return compileTaskVersion(task, 1);
+}
+function compileTaskVersion(task: WritingTask, version: 1 | 2) {
+  if (version === 1)
+    for (const node of task.nodes)
+      for (const span of node.guidance) requirePlainGuidance(span);
   const cached = cache.get(task);
-  if (cached) return cached;
   if (
     task.targets.length !== 2 ||
     new Set(task.targets.map((t) => t.id)).size !== 2 ||
-    task.nodes.length !== 7
+    task.nodes.length !== (version === 1 ? 7 : 8)
   )
     throw new Error("Writing requires two targets and seven source turns");
+  if (cached) return cached;
   const [first, second] = task.targets;
   if (!first || !second) throw new Error("Writing targets missing");
-  const expected = [
-    [first.id, "soundResponse", null],
-    [first.id, "modelAndSound", null],
-    [first.id, "phaseConfirmation", "childTracing"],
-    [first.id, "phaseConfirmation", "childIndependentWriting"],
-    [second.id, "modelAndSound", null],
-    [second.id, "phaseConfirmation", "childTracing"],
-    [second.id, "phaseConfirmation", "childIndependentWriting"],
-  ];
+  const expected =
+    version === 2
+      ? task.targets.flatMap((target) => [
+          [target.id, "parentModel", null],
+          [target.id, "soundResponse", null],
+          [target.id, "phaseConfirmation", "childTracing"],
+          [target.id, "phaseConfirmation", "childIndependentWriting"],
+        ])
+      : [
+          [first.id, "soundResponse", null],
+          [first.id, "modelAndSound", null],
+          [first.id, "phaseConfirmation", "childTracing"],
+          [first.id, "phaseConfirmation", "childIndependentWriting"],
+          [second.id, "modelAndSound", null],
+          [second.id, "phaseConfirmation", "childTracing"],
+          [second.id, "phaseConfirmation", "childIndependentWriting"],
+        ];
   for (const target of task.targets) {
     const { top, midline, baseline } = target.guides;
     if (
@@ -66,14 +215,18 @@ export function compileWritingTask(task: WritingTask) {
       ]) !== canonical(expected[i]) ||
       node.route !== "normal" ||
       node.parentRole !==
-        (obligation.kind === "modelAndSound" ? "model" : "listen") ||
+        (obligation.kind === "modelAndSound" ||
+        obligation.kind === "parentModel"
+          ? "model"
+          : "listen") ||
       node.presentation.kind !== "writing" ||
-      node.next.kind !== (i === 6 ? "end" : "node") ||
+      node.next.kind !== (i === task.nodes.length - 1 ? "end" : "node") ||
       (node.next.kind === "node" && node.next.nodeId !== task.nodes[i + 1]?.id)
     )
       throw new Error("Writing source order invalid");
     if (
       obligation.kind === "phaseConfirmation" &&
+      version === 1 &&
       canonical(obligation.practice) !==
         canonical({
           minimum: obligation.phase === "childTracing" ? 2 : 3,
@@ -103,7 +256,11 @@ export function writingTask({
   taskId: TaskId;
 }): WritingTask | null {
   const entry = resolvedTask({ content, taskId })?.entry;
-  return entry?.kind === "soundWritingV1" ? entry.task : null;
+  return entry?.kind === "soundWritingV1"
+    ? entry.task
+    : entry?.kind === "writingPracticePlanV2"
+      ? lowerPlan(entry.task)
+      : null;
 }
 export function writingState(
   state: TeachingState,

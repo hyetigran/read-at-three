@@ -1,3 +1,4 @@
+import { plainCopy, requiredPlainCopy } from "../plain-guidance.ts";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -132,7 +133,7 @@ test("continuous fixture is reproducible, cumulative and source neutral with exa
   assert.equal(
     entry.task.nodes
       .flatMap((node) => node.guidance)
-      .every((span) => span.copy.kind === "added"),
+      .every((span) => requiredPlainCopy(span).kind === "added"),
     true,
   );
 });
@@ -172,7 +173,10 @@ test("source authoring splits actual ten-turn topology, preserves local readines
   );
   const gate = entry.task.nodes.find((node) => node.id.endsWith(".if-firm"));
   assert.deepEqual(
-    gate?.guidance.map((span) => [span.copy.kind, span.copy.text]),
+    gate?.guidance.map((span) => [
+      requiredPlainCopy(span).kind,
+      requiredPlainCopy(span).text,
+    ]),
     [
       ["source", "(Synthetic local response with parent.)"],
       ["source", "Synthetic lead until firm."],
@@ -189,18 +193,18 @@ test("source authoring splits actual ten-turn topology, preserves local readines
       correctionTest?.guidance.map((span) => span.kind),
       ["action", "speech", "expected", "praise", "action"],
     );
-    assert.equal(correctionTest?.guidance[0]?.copy.kind, "adapted");
+    assert.equal(plainCopy(correctionTest?.guidance[0])?.kind, "adapted");
     assert.equal(c.retestNodeIds[0], `${entry.task.id}.am-model`);
   }
   const later = entry.task.nodes.find((node) =>
     node.id.endsWith("correction-if-independent.model"),
   );
   assert.equal(
-    later?.guidance.every((span) => span.copy.kind === "adapted"),
+    later?.guidance.every((span) => requiredPlainCopy(span).kind === "adapted"),
     true,
   );
   assert.equal(
-    later?.guidance.at(-1)?.copy.text,
+    plainCopy(later?.guidance.at(-1))?.text,
     "Synthetic correction model: iiivvv.",
   );
   const fixtureTask = createContinuousOralFixtureBody().tasks.find(

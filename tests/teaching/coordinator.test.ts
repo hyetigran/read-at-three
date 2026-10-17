@@ -1,3 +1,4 @@
+import { plainCopy, requiredPlainCopy } from "../plain-guidance.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -394,7 +395,7 @@ test("Help projects only the applicable immutable correction without changing sa
   assert.equal(help.correctionPreview.glyph, "m");
   assert.deepEqual(help.correctionPreview.sourceRefs, ["synthetic-source"]);
   assert.deepEqual(
-    help.correctionPreview.guidance.map((span) => span.copy.text),
+    help.correctionPreview.guidance.map((span) => requiredPlainCopy(span).text),
     [
       "Synthetic setup support-m",
       "Synthetic movement support-m",

@@ -1,6 +1,6 @@
 # Selected-child reset, deletion, and local support
 
-Issue [#11](https://github.com/hyetigran/read-at-three/issues/11) is in progress. The implementation has not been merged. Full application qualification and independent review remain required.
+Issue [#11](https://github.com/hyetigran/read-at-three/issues/11) is closed. [PR #45](https://github.com/hyetigran/read-at-three/pull/45) merged as `3ac2dda4ed2793bff39994de7770a68fb3a347df`. Its tree exactly matches the reviewed head `2bf7a25daed76ac4092218f732eac47577057d2d`. Both merged branch refs are deleted. Full application and native release qualification remain outstanding.
 
 ## Committed data and recovery
 
@@ -29,4 +29,10 @@ Private immutable historical fixtures remain outside Git because they contain so
 
 The first complete Node run exposes five outdated schema expectations. Four tests expect the previous version after initialization. The fifth expects immediate selected-owner rejection and unsupported version 2, which V9 deliberately changes. The original frozen V8 foundation suite still passes all eight tests. Current tests retain the V8 COMMIT fault and verify V9 rejection at actual COMMIT, exact rollback, unsupported version 3, and supported version 2. The two affected current files pass 25 focused tests. No original fixture is rewritten.
 
-The production browser suite, actual supplied-source smoke, final source continuity, independent reviews, and exact-head CI remain delivery gates. Portable Node SQLite evidence does not qualify OPFS, native SQLite, physical devices, or release readiness.
+Final local qualification also passes 110 production browser tests with two existing development-only skips, and both supplied-source built-application checks at the supported landscape sizes. Root verifies every tracked source hash against the qualified head and the completed check logs. Private source packages remain unchanged and excluded from Git.
+
+Independent Standards review finds zero documented breaches and one acknowledged nonblocking P3 duplication judgment. Independent Spec review finds zero actionable findings. A fresh verifier builds separate parent and head revisions, then checks actual Chromium/Worker reset, deletion, lost-ack recovery, full process restart, keyboard focus and layout. Its verdict is PASS+NOTES for that bounded local built lane. [The posted review](https://github.com/hyetigran/read-at-three/pull/45#issuecomment-6239821511) records its scope.
+
+[Exact-head CI run 39062913368](https://github.com/hyetigran/read-at-three/actions/runs/39062913368) passes all named checks: 331 Node tests, 112 development browser tests and 110 production browser tests, with two existing development-only skips and no failures. GitHub recognizes the closing reference and closes issue #11 after merge. The verified merged tree is `0a96013786838b2896fe1aaf4fa9c313dd0dd8ef`.
+
+Portable Node SQLite evidence does not qualify OPFS by itself; the actual browser and independent built checks provide their separate web evidence. No native SQLite, physical-device, cloud-runner or public content-release qualification is claimed.

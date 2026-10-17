@@ -1,6 +1,8 @@
 import { activityArtKeys } from "./course-art.ts";
 import {
   writingTaskSchema,
+  writingPlanSchema,
+  parentSpanSchema,
   writingTargetSchema,
   writingPresentationSchema,
   writingActionSchema,
@@ -30,7 +32,7 @@ const id = { type: "string", minLength: 1, maxLength: 200 };
 const text = { type: "string", minLength: 1, maxLength: 20000 };
 const hashSchema = { type: "string", pattern: "^[a-f0-9]{64}$" };
 const counter = { type: "string", pattern: "^(0|[1-9][0-9]{0,18})$" };
-function record(properties: Record<string, unknown>) {
+function record<P extends Record<string, unknown>>(properties: P) {
   return {
     type: "object",
     properties,
@@ -38,7 +40,7 @@ function record(properties: Record<string, unknown>) {
     additionalProperties: false,
   };
 }
-function list(items: object, maxItems = 1000, minItems = 0) {
+function list<I extends object>(items: I, maxItems = 1000, minItems = 0) {
   return { type: "array", items, minItems, maxItems };
 }
 const ids = { ...list(id), uniqueItems: true };
@@ -70,10 +72,7 @@ const legacyNode = record({
     ],
   },
 });
-const span = record({
-  kind: { enum: ["action", "speech", "expected", "praise"] },
-  copy,
-});
+const span = parentSpanSchema;
 const graphNode = record({
   id,
   kind: { enum: ["normal", "correction"] },
@@ -383,7 +382,7 @@ const packageSchema = record({
   packageHash: hashSchema,
   body: bodySchema,
 });
-const cumulativePackageSchema = record({
+const cumulativePackageV1Schema = record({
   formatVersion: { const: 1 },
   packageHash: hashSchema,
   body: record({
@@ -428,6 +427,64 @@ const cumulativePackageSchema = record({
     ),
   }),
 });
+const cumulativePackageSchema = {
+  oneOf: [
+    cumulativePackageV1Schema,
+    {
+      ...cumulativePackageV1Schema,
+      properties: {
+        ...cumulativePackageV1Schema.properties,
+        body: {
+          ...cumulativePackageV1Schema.properties.body,
+          properties: {
+            ...cumulativePackageV1Schema.properties.body.properties,
+            coverage: { const: "course-development-v2" },
+            contentSchemaVersion: { const: 2 },
+            requiredEngineCapabilities: {
+              type: "array",
+              items: {
+                type: "string",
+                enum: ["writing-practice-plan-v2", "guidance-runs-v2"],
+              },
+              minItems: 2,
+              maxItems: 2,
+              uniqueItems: true,
+            },
+            lessons: {
+              ...cumulativePackageV1Schema.properties.body.properties.lessons,
+              items: {
+                ...cumulativePackageV1Schema.properties.body.properties.lessons
+                  .items,
+                properties: {
+                  ...cumulativePackageV1Schema.properties.body.properties
+                    .lessons.items.properties,
+                  tasks: list(
+                    {
+                      oneOf: [
+                        ...cumulativePackageV1Schema.properties.body.properties
+                          .lessons.items.properties.tasks.items.oneOf,
+                        record({
+                          kind: { const: "writingPracticePlanV2" },
+                          task: writingPlanSchema,
+                        }),
+                      ],
+                    },
+                    100,
+                  ),
+                },
+              },
+            },
+          },
+          required: [
+            ...cumulativePackageV1Schema.properties.body.required,
+            "contentSchemaVersion",
+            "requiredEngineCapabilities",
+          ],
+        },
+      },
+    },
+  ],
+};
 const normalContext = record({ kind: { const: "normal" } });
 const repeatContext = record({
   kind: { const: "repeat" },
@@ -840,6 +897,8 @@ const sharedDefinitions = {
   graphTask,
   controlTask,
   writingTaskSchema,
+  writingPlanSchema,
+  parentSpanSchema,
   forbiddenCatalogSkipped: forbiddenCatalogSkippedSchema,
   catalogTask: catalogTaskSchema,
   graphAction,

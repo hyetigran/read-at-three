@@ -1,3 +1,4 @@
+import { requirePlainGuidance } from "@readatthree/teaching";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -13,7 +14,7 @@ import type {
   ControlTask,
   Copy,
   GraphDevelopmentBody,
-  ParentSpan,
+  PlainParentSpan as ParentSpan,
   Serialized,
 } from "@readatthree/teaching";
 import {
@@ -712,7 +713,9 @@ export async function prepareOralContent(input: { fixture: boolean }) {
                 kind: node.kind,
                 sourceRefs: node.sourceRefs,
                 guidanceKinds: node.guidance.map((span) => span.kind),
-                provenance: node.guidance.map((span) => span.copy.kind),
+                provenance: node.guidance.map(
+                  (span) => requirePlainGuidance(span).copy.kind,
+                ),
               })),
               corrections: task.corrections,
             })),

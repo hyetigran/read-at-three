@@ -255,39 +255,48 @@ export const profileAdministrationReceipt = sqliteTable(
     ),
   ],
 );
-export const installedPackage = sqliteTable(
-  "installed_package",
-  {
-    packageHash: packageHash("package_hash").primaryKey(),
-    courseId: courseId("course_id").notNull(),
-    releaseId: releaseId("release_id").notNull(),
-    contentSchemaVersion: integer("content_schema_version").notNull(),
-    capabilities: text("capabilities").notNull(),
-    manifestVersion: integer("manifest_version").notNull(),
-    verifiedManifest: bytes("verified_manifest").notNull(),
-    state: text("state", {
-      enum: ["staged", "ready", "missing", "metadataOnly"],
-    }).notNull(),
-    storageKey: text("storage_key"),
-  },
-  (table) => [
-    hash("package_hash"),
-    check("content_schema_version_supported", sql`content_schema_version=1`),
-    check("capabilities_json", sql`json_valid(capabilities)`),
-    check("manifest_version_supported", sql`manifest_version=1`),
-    check("verified_manifest_bytes", sql`typeof(verified_manifest)='blob'`),
-    check(
-      "package_state",
-      sql`state IN ('staged','ready','missing','metadataOnly')`,
-    ),
-    unique().on(table.courseId, table.releaseId),
-    unique().on(table.packageHash, table.courseId),
-    check(
-      "package_storage",
-      sql`(state='ready' AND storage_key IS NOT NULL) OR (state='metadataOnly' AND storage_key IS NULL) OR state IN ('staged','missing')`,
-    ),
-  ],
-);
+function installedPackageTable(version: 1 | 2) {
+  return sqliteTable(
+    "installed_package",
+    {
+      packageHash: packageHash("package_hash").primaryKey(),
+      courseId: courseId("course_id").notNull(),
+      releaseId: releaseId("release_id").notNull(),
+      contentSchemaVersion: integer("content_schema_version").notNull(),
+      capabilities: text("capabilities").notNull(),
+      manifestVersion: integer("manifest_version").notNull(),
+      verifiedManifest: bytes("verified_manifest").notNull(),
+      state: text("state", {
+        enum: ["staged", "ready", "missing", "metadataOnly"],
+      }).notNull(),
+      storageKey: text("storage_key"),
+    },
+    (table) => [
+      hash("package_hash"),
+      check(
+        "content_schema_version_supported",
+        version === 1
+          ? sql`content_schema_version=1`
+          : sql`content_schema_version IN (1,2)`,
+      ),
+      check("capabilities_json", sql`json_valid(capabilities)`),
+      check("manifest_version_supported", sql`manifest_version=1`),
+      check("verified_manifest_bytes", sql`typeof(verified_manifest)='blob'`),
+      check(
+        "package_state",
+        sql`state IN ('staged','ready','missing','metadataOnly')`,
+      ),
+      unique().on(table.courseId, table.releaseId),
+      unique().on(table.packageHash, table.courseId),
+      check(
+        "package_storage",
+        sql`(state='ready' AND storage_key IS NOT NULL) OR (state='metadataOnly' AND storage_key IS NULL) OR state IN ('staged','missing')`,
+      ),
+    ],
+  );
+}
+export const installedPackageV1 = installedPackageTable(1);
+export const installedPackage = installedPackageTable(2);
 export const courseActivation = sqliteTable(
   "course_activation",
   {
