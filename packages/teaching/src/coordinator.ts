@@ -1047,6 +1047,22 @@ export async function prepareWritingCommand({
     intent.kind === "restart" ||
     intent.kind === "replay"
   ) {
+    switch (projection.runStatus) {
+      case "completed":
+      case "skipped":
+        return prepareCommand({
+          projection,
+          request: { kind: "action", action },
+          ids,
+          hash,
+        });
+      case "inProgress":
+        break;
+      default: {
+        const exhaustive: never = projection.runStatus;
+        throw new Error(`Unknown run status ${String(exhaustive)}`);
+      }
+    }
     const payload = {
       packageHash: intent.packageHash,
       intent: intent.kind,
