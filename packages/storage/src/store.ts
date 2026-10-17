@@ -30,6 +30,8 @@ import {
   parseRecoveryOpening,
   parseRecoveryChoice,
   parseRecoveryInventory,
+  parseProfileAdministrationCommand,
+  profileAdministrationPreimage,
 } from "../../teaching/src/index.ts";
 import type {
   CommitReceipt,
@@ -59,6 +61,9 @@ import type {
   SavedWork,
   ProfileAdministrationApplication,
   PreparationPolicy,
+  DepartureWitness,
+  SelectedOwnerWitness,
+  CommandRejection,
 } from "../../teaching/src/index.ts";
 import { sqlValues } from "./executor.ts";
 import type { SqlExecutor } from "./executor.ts";
@@ -763,6 +768,103 @@ export function createTeachingApplication({
       taskResults: results.map(({ taskId, outcome }) => ({ taskId, outcome })),
     };
   }
+  async function settleOwnedSessions(sessions: readonly StoredSession[]) {
+    for (const other of sessions)
+      if (other.status === "active") {
+        await ink.fence({ session: other, content: pinned(other.packageHash) });
+        await db
+          .update(schema.session)
+          .set({ status: "paused", revision: increment(other.revision) })
+          .where(eq(schema.session.sessionId, other.sessionId))
+          .run();
+      }
+  }
+  async function readDeparture(
+    selection: SelectedOwnerWitness,
+  ): Promise<DepartureWitness> {
+    const directory = await profileDirectory.read();
+    if (canonical(selection) !== canonical(directory.selection))
+      throw new Error("Selected child lifetime changed before departure read");
+    await warmPackages();
+    const activations = await db
+      .select({ courseId: schema.courseActivation.courseId })
+      .from(schema.courseActivation)
+      .all();
+    const retained = await db
+      .select({ courseId: schema.session.courseId })
+      .from(schema.session)
+      .where(
+        and(
+          eq(schema.session.profileId, selection.owner.profileId),
+          eq(schema.session.generation, selection.owner.generation),
+        ),
+      )
+      .all();
+    const courseIds = [
+      ...new Set(
+        [...activations, ...retained].map((course) => course.courseId),
+      ),
+    ].sort();
+    const courses: DepartureWitness["courses"][number][] = [];
+    for (const courseId of courseIds) {
+      const current = await context(selection.owner, courseId);
+      if (!current) throw new Error("Outgoing child generation is unavailable");
+      const documents = [];
+      for (const session of current.sessions) {
+        for (const token of await ink.tokens({ session })) {
+          await ink.snapshot({ token });
+          documents.push(token);
+        }
+      }
+      documents.sort((a, b) =>
+        a.documentId < b.documentId ? -1 : a.documentId > b.documentId ? 1 : 0,
+      );
+      courses.push({
+        courseId,
+        witness: {
+          owner: current.owner,
+          profileRevision: current.profileRevision,
+          activePackageHash: current.activePackageHash,
+          activationRevision: current.activationRevision ?? parseCounter("0"),
+          cursorRevision: current.cursorRevision ?? parseCounter("0"),
+          selectedSessionRevision: current.session?.revision ?? null,
+        },
+        documents,
+      });
+    }
+    return { courses };
+  }
+  async function departProfile(input: {
+    selection: SelectedOwnerWitness;
+    departure: DepartureWitness;
+  }): Promise<CommandRejection | null> {
+    const current = await readDeparture(input.selection);
+    if (canonical(input.departure) !== canonical(current))
+      return {
+        kind: "rejected",
+        code: "stale-departure",
+        message: "Outgoing teaching or writing changed before selection.",
+      };
+    if (
+      (await ink.inventory()).some(
+        (capture) =>
+          capture.token.profileId === input.selection.owner.profileId &&
+          capture.token.generation === input.selection.owner.generation,
+      )
+    )
+      return {
+        kind: "rejected",
+        code: "unsettled-capture",
+        message:
+          "Finish saving the outgoing child's retained writing before selection.",
+      };
+    for (const course of current.courses) {
+      const scope = await context(input.selection.owner, course.courseId);
+      if (!scope) throw new Error("Outgoing owner changed during selection");
+      await settleOwnedSessions(scope.sessions);
+    }
+    return null;
+  }
   async function receipt(command: TeachingCommand) {
     const rows = await db
       .select()
@@ -965,18 +1067,7 @@ export function createTeachingApplication({
     }) {
       const owner = command.owner;
       const nextSelection = increment(current.selectionCounter);
-      for (const other of current.sessions)
-        if (other.status === "active") {
-          await ink.fence({
-            session: other,
-            content: pinned(other.packageHash),
-          });
-          await db
-            .update(schema.session)
-            .set({ status: "paused", revision: increment(other.revision) })
-            .where(eq(schema.session.sessionId, other.sessionId))
-            .run();
-        }
+      await settleOwnedSessions(current.sessions);
       if (selection.kind === "new") {
         if (value.packageHash !== current.activePackageHash)
           throw new Error("New teaching requires the active package");
@@ -1590,9 +1681,34 @@ export function createTeachingApplication({
         await ensureInitialized();
         return profileDirectory.read();
       }),
-    administer: async () => {
-      throw new Error("Profile administration is not implemented");
-    },
+    readDeparture: (input) =>
+      exclusive(async () => {
+        if (!(await ready()))
+          throw new Error("Writing recovery must finish before departure");
+        return readDeparture(input.selection);
+      }),
+    administer: (input) =>
+      exclusive(async () => {
+        const command = parseProfileAdministrationCommand(input);
+        if (!(await ready()))
+          return {
+            kind: "rejected",
+            code: "recovery-closed",
+            message: "Writing recovery must finish before profile changes.",
+          };
+        if (
+          (await hash(profileAdministrationPreimage(command))) !==
+          command.payloadHash
+        )
+          return {
+            kind: "rejected",
+            code: "payload-hash",
+            message: "The profile command payload changed.",
+          };
+        return transaction(executor, () =>
+          profileDirectory.administer({ command, depart: departProfile }),
+        );
+      }),
     open: () => exclusive(normalRead),
     read: () => exclusive(normalRead),
     readApplication: (target) =>

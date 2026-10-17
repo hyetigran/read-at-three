@@ -160,6 +160,9 @@ export type ProfileAdministrationReceipt = Readonly<{
 }>;
 export interface ProfileAdministrationApplication {
   readDirectory(): Promise<ProfileDirectory>;
+  readDeparture(input: {
+    selection: SelectedOwnerWitness;
+  }): Promise<DepartureWitness>;
   administer(
     command: ProfileAdministrationCommand,
   ): Promise<ProfileAdministrationReceipt | CommandRejection>;

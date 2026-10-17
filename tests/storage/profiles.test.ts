@@ -25,8 +25,6 @@ test("confirming another child's animal survives SQLite reopen without changing 
 
   async function administer(intent: ProfileAdministrationIntent) {
     const directory = await app.readDirectory();
-    const application = await app.readApplication({ kind: "cursor" });
-    if (application.kind !== "ready") assert.fail(application.message);
     const preparation = {
       selection: directory.selection,
       ids: fixture.ids,
@@ -37,19 +35,9 @@ test("confirming another child's animal survives SQLite reopen without changing 
         ? await prepareProfileAdministration({
             ...preparation,
             intent,
-            departure: {
-              courses: [
-                {
-                  courseId: application.courseId,
-                  witness: application.witness,
-                  documents:
-                    application.projection.kind === "writing" ||
-                    application.projection.kind === "writingResult"
-                      ? application.projection.documents
-                      : [],
-                },
-              ],
-            },
+            departure: await app.readDeparture({
+              selection: directory.selection,
+            }),
           })
         : await prepareProfileAdministration({ ...preparation, intent });
     const result = await app.administer(command);
