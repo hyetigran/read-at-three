@@ -1,19 +1,17 @@
 import { useEffect, useRef } from "react";
+import type { InkPoint, InkSample, InkSnapshot } from "@readatthree/teaching";
 import type {
-  InkPoint,
-  InkSample,
-  InkSnapshot,
-  StrokeId,
-} from "@readatthree/teaching";
-import type { WritingController } from "@/platform/writing-controller";
+  WritingController,
+  InkContact,
+} from "@/platform/writing-controller";
 
 type Transform = Readonly<{ scale: number; x: number; y: number }>;
 type Contact = {
   pointerId: number;
-  strokeId: StrokeId;
+  handle: InkContact;
   snapshot: InkSnapshot;
   transform: Transform;
-  started: number;
+  lastEventAt: number;
   last: InkSample;
 };
 
@@ -45,7 +43,7 @@ export function WritingBoard({
         canvas.releasePointerCapture(current.pointerId);
     }
     function finish(status: "finished" | "interrupted") {
-      if (contact) controller.finish(contact.strokeId, status);
+      if (contact) controller.finish(contact.handle, status);
       release();
     }
     function drawStroke(points: readonly InkPoint[], width: number) {
@@ -153,7 +151,7 @@ export function WritingBoard({
       const elapsedMs = contact
         ? Math.max(
             contact.last.elapsedMs,
-            Math.round(event.timeStamp - contact.started),
+            Math.round(event.timeStamp - contact.handle.startedAt),
           )
         : 0;
       return {
@@ -192,27 +190,40 @@ export function WritingBoard({
       for (const { snapshot } of controller.getBoard()) {
         const point = local(event, snapshot, transform);
         if (!snapshot.writable || !inside(point, snapshot)) continue;
-        const strokeId = controller.begin(snapshot.token.documentId, point);
-        if (!strokeId) return;
+        const handle = controller.begin(
+          snapshot.token.documentId,
+          point,
+          event.timeStamp,
+        );
+        if (!handle) return;
         contact = {
           pointerId: event.pointerId,
-          strokeId,
+          handle,
           snapshot,
           transform,
-          started: event.timeStamp,
+          lastEventAt: event.timeStamp,
           last: point,
         };
         canvas?.setPointerCapture(event.pointerId);
         return;
       }
     }
+    function belongsToContact(event: PointerEvent, current: Contact): boolean {
+      return (
+        event.pointerId === current.pointerId &&
+        Number.isFinite(event.timeStamp) &&
+        event.timeStamp >= current.handle.startedAt &&
+        event.timeStamp >= current.lastEventAt
+      );
+    }
     function move(event: PointerEvent) {
-      if (!contact || event.pointerId !== contact.pointerId) return;
+      if (!contact || !belongsToContact(event, contact)) return;
       event.preventDefault();
       const events = event.getCoalescedEvents?.();
       for (const sampleEvent of events?.length ? events : [event]) {
         const current = contact;
         if (!current) break;
+        if (!belongsToContact(sampleEvent, current)) continue;
         const point = local(sampleEvent, current.snapshot, current.transform);
         if (!inside(point, current.snapshot)) {
           const dx = point.x - current.last.x;
@@ -230,7 +241,7 @@ export function WritingBoard({
                 ? -current.last.y / dy
                 : 1;
           const fraction = Math.max(0, Math.min(1, tx, ty));
-          controller.append(current.strokeId, [
+          controller.append(current.handle, [
             {
               ...point,
               x: Math.max(
@@ -252,17 +263,21 @@ export function WritingBoard({
           finish("interrupted");
           break;
         }
-        controller.append(current.strokeId, [point]);
+        controller.append(current.handle, [point]);
         current.last = point;
+        current.lastEventAt = sampleEvent.timeStamp;
       }
     }
     function up(event: PointerEvent) {
-      if (event.pointerId !== contact?.pointerId) return;
+      if (!contact || !belongsToContact(event, contact)) return;
       move(event);
       finish("finished");
     }
     function cancel(event: PointerEvent) {
-      if (event.pointerId === contact?.pointerId) finish("interrupted");
+      if (contact && belongsToContact(event, contact)) finish("interrupted");
+    }
+    function lostCapture(event: PointerEvent) {
+      if (!canvas?.hasPointerCapture(event.pointerId)) cancel(event);
     }
     function resized() {
       void controller.interrupt();
@@ -276,7 +291,7 @@ export function WritingBoard({
     canvas.addEventListener("pointermove", move);
     canvas.addEventListener("pointerup", up);
     canvas.addEventListener("pointercancel", cancel);
-    canvas.addEventListener("lostpointercapture", cancel);
+    canvas.addEventListener("lostpointercapture", lostCapture);
     window.addEventListener("resize", resized);
     paint();
     return () => {
@@ -290,7 +305,7 @@ export function WritingBoard({
       canvas.removeEventListener("pointermove", move);
       canvas.removeEventListener("pointerup", up);
       canvas.removeEventListener("pointercancel", cancel);
-      canvas.removeEventListener("lostpointercapture", cancel);
+      canvas.removeEventListener("lostpointercapture", lostCapture);
       window.removeEventListener("resize", resized);
     };
   }, [controller]);

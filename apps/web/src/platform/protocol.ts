@@ -1,5 +1,7 @@
 import {
   parseId,
+  parsePracticeControlsBinding,
+  parsePracticeControlsSummary,
   parseCommand,
   parseDispatchResult,
   parseProjection,
@@ -13,6 +15,8 @@ import {
 } from "@readatthree/teaching";
 import type {
   CourseId,
+  PracticeControlsBinding,
+  PracticeControlsSummary,
   DispatchResult,
   Projection,
   TeachingCommand,
@@ -34,6 +38,11 @@ export type WorkerRequest =
       opening: RecoveryOpening;
     }
   | { id: WorkerRequestId; kind: "read" }
+  | {
+      id: WorkerRequestId;
+      kind: "readPracticeControls";
+      binding: PracticeControlsBinding;
+    }
   | { id: WorkerRequestId; kind: "dispatch"; command: TeachingCommand }
   | {
       id: WorkerRequestId;
@@ -61,6 +70,11 @@ export type WorkerResponse =
       kind: "projection";
       courseId: CourseId;
       value: Projection;
+    }
+  | {
+      id: WorkerRequestId;
+      kind: "practiceControls";
+      value: PracticeControlsSummary;
     }
   | { id: WorkerRequestId; kind: "receipt"; value: DispatchResult }
   | { id: WorkerRequestId; kind: "inkReceipt"; value: InkResult }
@@ -103,6 +117,16 @@ export function parseRequest(value: unknown): WorkerRequest {
           kind: value.kind,
           content: value.content,
           opening: parseRecoveryOpening(value.opening),
+        };
+      }
+      break;
+    case "readPracticeControls":
+      if ("binding" in value) {
+        exact(value, ["id", "kind", "binding"]);
+        return {
+          id,
+          kind: value.kind,
+          binding: parsePracticeControlsBinding(value.binding),
         };
       }
       break;
@@ -193,6 +217,12 @@ export function parseResponse(value: unknown): WorkerResponse {
         kind: value.kind,
         courseId: parseId({ kind: "course", value: value.courseId }),
         value: parseProjection(value.value),
+      };
+    case "practiceControls":
+      return {
+        id,
+        kind: value.kind,
+        value: parsePracticeControlsSummary(value.value),
       };
     case "receipt":
       return { id, kind: value.kind, value: parseDispatchResult(value.value) };

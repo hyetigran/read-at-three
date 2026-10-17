@@ -1,4 +1,4 @@
-import { writingTask } from "./writing.ts";
+import { writingTask, writingPermission, layerForPhase } from "./writing.ts";
 import { controlActions } from "./control-engine.ts";
 import { canonicalReviewChoice } from "./control-content.ts";
 import {
@@ -811,7 +811,8 @@ export function createCoordinator({
           writingTask({ content, taskId: session.taskId }) !== null;
         if (isWriting) {
           if (
-            command.kind !== "writingNavigate" ||
+            (command.kind !== "writingNavigate" &&
+              command.kind !== "writingControl") ||
             !tx.writingBarrier ||
             !(await tx.writingBarrier({
               session,
@@ -822,11 +823,60 @@ export function createCoordinator({
               "writing-barrier",
               "Committed writing documents changed or retain an active capture.",
             );
-        } else if (command.kind === "writingNavigate")
+        } else if (
+          command.kind === "writingNavigate" ||
+          command.kind === "writingControl"
+        )
           return reject(
             "wrong-task",
             "Writing command requires a writing task.",
           );
+        if (command.kind === "writingControl") {
+          const document = command.payload.barrier.documents.find(
+            (token) => token.documentId === command.payload.documentId,
+          );
+          if (
+            !document ||
+            session.status !== "active" ||
+            session.runStatus !== "inProgress" ||
+            (session.state.kind !== "graph" &&
+              session.state.kind !== "graphControls") ||
+            currentCheckpoint(session.state).id !==
+              command.payload.checkpointId ||
+            !writingPermission({
+              content,
+              state: session.state,
+              targetId: document.targetId,
+            }).writable ||
+            layerForPhase(document.phase) !== command.payload.layer ||
+            !tx.applyWritingControl
+          )
+            return reject(
+              "invalid-control",
+              "Practice control is unavailable at this saved position.",
+            );
+          const receipt: CommitReceipt = {
+            kind: "committed",
+            commandId: command.commandId,
+            owner: context.owner,
+            sessionId: session.sessionId,
+            runId: session.runId,
+            revision: increment(session.revision),
+            packageHash: content.packageHash,
+          };
+          if (
+            !(await tx.applyWritingControl({
+              command,
+              context: { ...context, session },
+              receipt,
+            }))
+          )
+            return reject(
+              "invalid-control",
+              "Practice control is unavailable at this saved position.",
+            );
+          return receipt;
+        }
         let plan: TransitionPlan;
         try {
           if (command.kind === "advance") {
@@ -973,4 +1023,58 @@ export async function prepareWritingCommand({
     payload,
     payloadHash: await hash(canonical({ kind: "writingNavigate", payload })),
   });
+}
+
+export async function prepareWritingControl({
+  projection,
+  control,
+  documentId,
+  layer,
+  barrier,
+  ids,
+  hash,
+  reserve,
+}: {
+  projection: CommittedProjection;
+  control: import("./ink-history.ts").PracticeControl;
+  documentId: import("./types.ts").DocumentId;
+  layer: import("./ink-history.ts").ChildPracticeLayer;
+  barrier: import("./types.ts").WritingBarrier;
+  ids: IdFactory;
+  hash: HashFunction;
+  reserve?: (canonicalEnvelope: string) => void;
+}): Promise<Extract<TeachingCommand, { kind: "writingControl" }>> {
+  if (projection.kind !== "writing" || projection.checkpointId === null)
+    throw new Error("Practice control unavailable");
+  const payload = {
+    packageHash: projection.packageHash,
+    sessionId: projection.sessionId,
+    runId: projection.runId,
+    checkpointId: projection.checkpointId,
+    barrier,
+    documentId,
+    layer,
+    control,
+  };
+  const envelope = deepFreeze({
+    kind: "writingControl",
+    commandId: ids(),
+    owner: projection.owner,
+    scope: {
+      kind: "session",
+      id: projection.sessionId,
+      generation: projection.owner.generation,
+    },
+    expectedRevision: projection.revision,
+    payload,
+    payloadHash: "0".repeat(64),
+  });
+  reserve?.(canonical(envelope));
+  const command = parseCommand({
+    ...envelope,
+    payloadHash: await hash(canonical({ kind: "writingControl", payload })),
+  });
+  if (command.kind !== "writingControl")
+    throw new Error("Invalid practice command");
+  return command;
 }

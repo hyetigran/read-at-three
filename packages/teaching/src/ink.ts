@@ -1,6 +1,12 @@
+import { INK_LIMITS } from "./ink-limits.ts";
+export { INK_LIMITS } from "./ink-limits.ts";
+import { inkCommandByteLength } from "./ink-reservation.ts";
+import { evaluateInkHistory } from "./ink-history.ts";
 import { utf8ByteLength } from "./unicode-length.ts";
 import {
   validateInkCommand,
+  validatePracticeControlsBinding,
+  validatePracticeControlsSummary,
   validateInkReceipt,
   validateInkBrush,
   validateInkStrokeIds,
@@ -14,15 +20,6 @@ import {
 import { canonical, parseCounter, deepFreeze, increment } from "./identity.ts";
 import type { Counter, DocumentToken, InkLayer, StrokeId } from "./types.ts";
 
-export const INK_LIMITS = Object.freeze({
-  pointsPerChunk: 2048,
-  pointsPerStroke: 100_000,
-  pointsPerDocument: 1_000_000,
-  bytesPerDocument: 32 * 1024 * 1024,
-  liveBytes: 4 * 1024 * 1024,
-  queuedBytes: 2 * 1024 * 1024,
-  retainedOperations: 128,
-});
 export type StrokeIdList = readonly StrokeId[];
 export type InkPoint = Readonly<{
   x: number;
@@ -60,11 +57,10 @@ export type InkStroke = Readonly<{
   pointCount: number;
   chunks: readonly InkChunk[];
 }>;
-export type InkOperation = Readonly<{
-  seq: Counter;
-  kind: "AddStroke";
-  strokeId: StrokeId;
-}>;
+export type InkOperation = Readonly<
+  | { seq: Counter; kind: "AddStroke"; strokeId: StrokeId }
+  | { seq: Counter; kind: "ClearPractice"; strokeIds: readonly StrokeId[] }
+>;
 export type InkHistory = Readonly<{
   layer: InkLayer;
   baseline: readonly StrokeId[];
@@ -153,6 +149,9 @@ export type RecoveryOpening = Readonly<
 import type { TeachingApplication } from "./types.ts";
 export interface WritingApplication extends TeachingApplication {
   readInk(input: { token: DocumentToken }): Promise<InkSnapshot>;
+  readPracticeControls(
+    input: PracticeControlsBinding,
+  ): Promise<PracticeControlsSummary>;
   dispatchInk(command: InkCommand): Promise<InkResult>;
   openRecovery(input: RecoveryOpening): Promise<RecoveryInventory>;
   recoverInk(input: {
@@ -330,46 +329,7 @@ export function visibleInkStrokes({
   history: InkHistory;
   strokes: readonly InkStroke[];
 }): readonly StrokeId[] {
-  const visible = new Set(history.baseline),
-    origins = new Set(history.baseline);
-  let seq = BigInt(history.baseSeq);
-  for (const operation of history.operations) {
-    if (
-      BigInt(operation.seq) <= seq ||
-      operation.kind !== "AddStroke" ||
-      !strokes.some(
-        (s) =>
-          s.strokeId === operation.strokeId &&
-          s.layer === history.layer &&
-          s.status !== "capturing",
-      ) ||
-      origins.has(operation.strokeId)
-    )
-      throw new Error("Invalid ink history operation");
-    origins.add(operation.strokeId);
-    seq = BigInt(operation.seq);
-    if (seq <= BigInt(history.cursorSeq)) visible.add(operation.strokeId);
-  }
-  if (
-    BigInt(history.tipSeq) !== seq ||
-    BigInt(history.nextOpSeq) <= seq ||
-    BigInt(history.cursorSeq) < BigInt(history.baseSeq) ||
-    BigInt(history.cursorSeq) > seq ||
-    history.operations.length > INK_LIMITS.retainedOperations ||
-    new Set(history.baseline).size !== history.baseline.length ||
-    history.baseline.some(
-      (id) =>
-        !strokes.some(
-          (s) =>
-            s.strokeId === id &&
-            s.layer === history.layer &&
-            s.status !== "capturing",
-        ),
-    )
-  )
-    throw new Error("Invalid ink visibility baseline");
-  parseCounter(history.nextOpSeq);
-  return [...visible];
+  return evaluateInkHistory({ history, strokes }).visible;
 }
 
 export function parseInkCommand(input: unknown): InkCommand {
@@ -446,19 +406,24 @@ export async function prepareInkCommand({
   edit,
   ids,
   hash,
+  reserve,
 }: {
   token: DocumentToken;
   edit: InkEdit;
   ids: import("./types.ts").IdFactory;
   hash: import("./types.ts").HashFunction;
+  reserve?: (byteLength: number) => void;
 }): Promise<InkCommand> {
-  return parseInkCommand({
+  const envelope = parseInkCommand({
     kind: "ink",
     commandId: ids(),
     token,
     edit,
-    payloadHash: await hash(canonical({ kind: "ink", token, edit })),
+    payloadHash: "0".repeat(64),
   });
+  reserve?.(inkCommandByteLength(envelope));
+  const payloadHash = await hash(canonical({ kind: "ink", token, edit }));
+  return parseInkCommand({ ...envelope, payloadHash });
 }
 export type InkBufferResult = Readonly<
   | { kind: "buffered"; pointCount: number }
@@ -521,20 +486,6 @@ export function createInkBuffer({
     },
   };
 }
-function queuedCommandByteLength(command: InkCommand): number {
-  return (
-    command.edit.chunks.reduce((n, c) => n + c.payload.length, 0) +
-    utf8ByteLength(
-      canonical({
-        ...command,
-        edit: {
-          ...command.edit,
-          chunks: command.edit.chunks.map(({ payload, ...chunk }) => chunk),
-        },
-      }),
-    )
-  );
-}
 export function createInkCommandQueue() {
   let commands: readonly InkCommand[] = [],
     bytes = 0,
@@ -560,7 +511,7 @@ export function createInkCommandQueue() {
         return { kind: "retained" };
       }
       if (fenced) throw new Error("Ink write queue is fenced");
-      const size = queuedCommandByteLength(parsed);
+      const size = inkCommandByteLength(parsed);
       if (bytes + size > INK_LIMITS.queuedBytes || commands.length >= 256) {
         fenced = true;
         return { kind: "fenced", reason: "write-queue-bound", command: parsed };
@@ -581,7 +532,7 @@ export function createInkCommandQueue() {
       )
         throw new Error("Ink queue acknowledgement changed");
       commands = Object.freeze(commands.slice(1));
-      bytes = commands.reduce((sum, c) => sum + queuedCommandByteLength(c), 0);
+      bytes = commands.reduce((sum, c) => sum + inkCommandByteLength(c), 0);
     },
     snapshot() {
       return commands;
@@ -610,4 +561,106 @@ export function validateInkDocumentUsage({
     canonicalByteLength > INK_LIMITS.bytesPerDocument
   )
     throw new Error("Ink document bound reached");
+}
+
+export type RetainedInkUsage = Readonly<{
+  pointCount: number;
+  canonicalByteLength: number;
+}>;
+export function inkSnapshotUsage(value: InkSnapshot): RetainedInkUsage {
+  return {
+    pointCount: value.strokes.reduce(
+      (sum, stroke) => sum + stroke.pointCount,
+      0,
+    ),
+    canonicalByteLength:
+      value.strokes.reduce(
+        (sum, stroke) =>
+          sum + stroke.chunks.reduce((n, chunk) => n + chunk.payload.length, 0),
+        0,
+      ) +
+      utf8ByteLength(
+        canonical({
+          ...value,
+          strokes: value.strokes.map((stroke) => ({
+            ...stroke,
+            chunks: stroke.chunks.map(({ payload, ...chunk }) => chunk),
+          })),
+        }),
+      ),
+  };
+}
+export type PracticeControlsBinding = Readonly<{
+  owner: import("./types.ts").Owner;
+  packageHash: import("./types.ts").PackageHash;
+  sessionId: import("./types.ts").SessionId;
+  runId: import("./types.ts").RunId;
+}>;
+export type PracticeControlsSummary = Readonly<
+  | { kind: "readOnly" }
+  | {
+      kind: "editable";
+      binding: PracticeControlsBinding;
+      token: DocumentToken;
+      layer: import("./ink-history.ts").ChildPracticeLayer;
+      undo: boolean;
+      redo: boolean;
+      clear: boolean;
+      retainedUsage: RetainedInkUsage;
+    }
+>;
+export function summarizePractice({
+  binding,
+  snapshot,
+}: {
+  binding: PracticeControlsBinding;
+  snapshot: InkSnapshot;
+}): PracticeControlsSummary {
+  const layer =
+    snapshot.token.phase === "childTracing"
+      ? "tracing"
+      : snapshot.token.phase === "childIndependentWriting"
+        ? "independent"
+        : null;
+  if (
+    !snapshot.writable ||
+    layer === null ||
+    snapshot.strokes.some((s) => s.status === "capturing")
+  )
+    return { kind: "readOnly" };
+  const history = snapshot.histories.find((h) => h.layer === layer);
+  if (!history) throw new Error("Practice history missing");
+  const { visible } = evaluateInkHistory({
+    history,
+    strokes: snapshot.strokes,
+  });
+  return {
+    kind: "editable",
+    binding,
+    token: snapshot.token,
+    layer,
+    undo: history.cursorSeq !== history.baseSeq,
+    redo: history.cursorSeq !== history.tipSeq,
+    clear: visible.length > 0,
+    retainedUsage: inkSnapshotUsage(snapshot),
+  };
+}
+export function parsePracticeControlsBinding(
+  input: unknown,
+): PracticeControlsBinding {
+  if (!validatePracticeControlsBinding(input))
+    throw new Error("Invalid practice controls binding");
+  parseCounter(input.owner.generation);
+  return deepFreeze(input);
+}
+export function parsePracticeControlsSummary(
+  input: unknown,
+): PracticeControlsSummary {
+  if (!validatePracticeControlsSummary(input))
+    throw new Error("Invalid practice controls summary");
+  if (input.kind === "editable") {
+    parseDocumentToken(input.token);
+    parsePracticeControlsBinding(input.binding);
+  }
+  return deepFreeze(input);
 }

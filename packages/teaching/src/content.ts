@@ -134,7 +134,11 @@ export function parseCommand(input: unknown): TeachingCommand {
   parseCounter(input.expectedRevision);
   parseCounter(input.owner.generation);
   parseCounter(input.scope.generation);
-  if (input.kind === "writingNavigate" || input.kind === "writingSelect")
+  if (
+    input.kind === "writingNavigate" ||
+    input.kind === "writingSelect" ||
+    input.kind === "writingControl"
+  )
     for (const token of input.payload.barrier.documents)
       parseDocumentToken(token);
   return deepFreeze(input);

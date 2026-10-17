@@ -14,6 +14,9 @@ import {
   recoveryChoiceSchema,
   recoveryInventorySchema,
   writingNavigateSchema,
+  writingControlSchema,
+  practiceControlsBindingSchema,
+  practiceControlsSummarySchema,
   writingSelectSchema,
   writingSkippedSchema,
 } from "./writing-schemas.ts";
@@ -528,6 +531,7 @@ const commandSchema = {
     }),
     writingSelectSchema,
     writingNavigateSchema,
+    writingControlSchema,
     record({
       ...commandCommon,
       kind: { const: "navigate" },
@@ -689,6 +693,8 @@ function withDefinitions(root: object) {
   };
 }
 export const validatorSchemas = {
+  validatePracticeControlsBinding: practiceControlsBindingSchema,
+  validatePracticeControlsSummary: practiceControlsSummarySchema,
   validateDocumentToken: withDefinitions(documentTokenSchema),
   validateInkSnapshot: withDefinitions(inkSnapshotSchema),
   validateRecoveryOpening: withDefinitions(recoveryOpeningSchema),

@@ -3,6 +3,8 @@ import { and, eq, asc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/sqlite-proxy";
 import {
   canonical,
+  summarizePractice,
+  parsePracticeControlsBinding,
   completionProof,
   createCoordinator,
   initialState,
@@ -1068,6 +1070,27 @@ export function createTeachingApplication({
       await updateCursor(owner, result.sessionId, nextSelection);
       await saveReceipt(command, result);
     },
+    async applyWritingControl({ command, context: current, receipt: result }) {
+      const token = command.payload.barrier.documents.find(
+        (document) => document.documentId === command.payload.documentId,
+      );
+      if (!token) throw new Error("Practice document missing");
+      if (
+        !(await ink.applyPracticeControl({
+          token,
+          layer: command.payload.layer,
+          control: command.payload.control,
+        }))
+      )
+        return false;
+      await db
+        .update(schema.session)
+        .set({ revision: result.revision })
+        .where(eq(schema.session.sessionId, current.session.sessionId))
+        .run();
+      await saveReceipt(command, result);
+      return true;
+    },
     async apply(input) {
       const {
         command,
@@ -1328,6 +1351,27 @@ export function createTeachingApplication({
             message: "Writing recovery is closed.",
           };
         return (await ensureInitialized()).dispatch(command);
+      }),
+    readPracticeControls: (input) =>
+      exclusive(async () => {
+        input = parsePracticeControlsBinding(input);
+        if (!(await ready())) throw new Error("Writing recovery is closed");
+        const projection = await read();
+        if (
+          projection.kind !== "writing" ||
+          projection.owner.profileId !== input.owner.profileId ||
+          projection.owner.generation !== input.owner.generation ||
+          projection.sessionId !== input.sessionId ||
+          projection.runId !== input.runId ||
+          projection.packageHash !== input.packageHash
+        )
+          return { kind: "readOnly" };
+        for (const token of projection.documents) {
+          const snapshot = await ink.snapshot({ token });
+          const summary = summarizePractice({ binding: input, snapshot });
+          if (summary.kind === "editable") return summary;
+        }
+        return { kind: "readOnly" };
       }),
     readInk: (input) =>
       exclusive(async () => {

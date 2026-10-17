@@ -8,6 +8,7 @@ export type {
   AttemptResult,
   CommittedTeachingExecution,
   CommittedTeachingView,
+  PracticeControlsView,
   PreparedAction,
   QuerySnapshot,
   ReadEnvelope,

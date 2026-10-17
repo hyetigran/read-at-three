@@ -12,6 +12,8 @@ if (arguments_.some((argument) => argument !== "--check")) {
 const check = arguments_.includes("--check");
 const directory = resolve(import.meta.dirname, "../../packages/teaching/src");
 const domains = {
+  validatePracticeControlsBinding: "PracticeControlsBinding",
+  validatePracticeControlsSummary: "PracticeControlsSummary",
   validateDocumentToken: "DocumentToken",
   validateInkSnapshot: "InkSnapshot",
   validateRecoveryOpening: "RecoveryOpening",

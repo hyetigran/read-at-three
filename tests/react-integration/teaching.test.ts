@@ -464,6 +464,7 @@ for (const lostAcknowledgement of [false, true]) {
         courseId: f.content.body.courseId,
         prepared,
         receipt: resolved.result,
+        restoreBinding: { kind: "normal" },
       },
     });
     assert.equal(f.readCount(), reads + 1);
@@ -509,6 +510,7 @@ test("an actual canonical repository refetch cannot publish changed teaching bef
       courseId: f.content.body.courseId,
       prepared,
       receipt,
+      restoreBinding: { kind: "normal" },
     },
   });
   const view = f.current().projection;
