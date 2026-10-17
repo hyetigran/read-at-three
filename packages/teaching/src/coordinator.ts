@@ -603,7 +603,8 @@ export function createCoordinator({
         context.undoRunId === session.runId &&
         session.activeAdvanceId &&
         context.cursorRevision !== undefined &&
-        (context.cursorSession ?? session).sessionId === session.sessionId
+        (context.cursorSession === undefined ||
+          context.cursorSession?.sessionId === session.sessionId)
       )
         actions.push(
           choice("Undo advance", {

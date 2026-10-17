@@ -15,35 +15,26 @@ import {
   parseHistoricalWork,
   summarizePractice,
   parsePracticeControlsBinding,
-  completionProof,
   createCoordinator,
-  initialState,
   increment,
   parseCounter,
   parseId,
   parseRuntimePackage,
   parseReceipt,
   parseCommand,
-  currentCheckpoint,
   parseTeachingState,
   validatePosition,
-  validateAcceptanceState,
-  validateAcceptanceTransition,
   writingTask,
-  writingPermission,
   parseInkCommand,
   parseRecoveryOpening,
   parseRecoveryChoice,
   parseRecoveryInventory,
 } from "../../teaching/src/index.ts";
 import type {
-  AdvanceId,
   CommitReceipt,
   CommittedProjection,
-  CompletionProof,
   RuntimePackage,
   HashFunction,
-  GraphAction,
   IdFactory,
   Owner,
   PackageHash,
@@ -51,7 +42,6 @@ import type {
   StoredSession,
   TeachingApplication,
   TeachingCommand,
-  TeachingState,
   TeachingStore,
   TeachingTransaction,
   WritingApplication,
@@ -106,14 +96,15 @@ function isCumulativeOralExtension({
   return canonical(retained) === canonical(old.tasks);
 }
 
-type AdvanceRow = typeof schema.taskAdvance.$inferSelect;
 type RunRow = typeof schema.taskRunV6.$inferSelect;
 export function createTeachingApplication({
   executor,
   content,
   ids,
   hash,
+  owner: selectedOwner,
 }: {
+  owner?: Owner;
   executor: SqlExecutor;
   content: RuntimePackage;
   ids: IdFactory;
@@ -130,6 +121,10 @@ export function createTeachingApplication({
     tail = next.catch(() => undefined);
     return next;
   }
+  const matchesBoundOwner = (owner: Owner) =>
+    !selectedOwner ||
+    (owner.profileId === selectedOwner.profileId &&
+      owner.generation === selectedOwner.generation);
   const verified = new Map<PackageHash, RuntimePackage>();
   async function warmPackages() {
     verified.clear();
@@ -307,6 +302,22 @@ export function createTeachingApplication({
       await warmPackages();
       await transaction(executor, async () => {
         const installations = await db.select().from(schema.installation).all();
+        if (selectedOwner) {
+          const existing = (
+            await db
+              .select()
+              .from(schema.profile)
+              .where(
+                and(
+                  eq(schema.profile.id, selectedOwner.profileId),
+                  eq(schema.profile.generation, selectedOwner.generation),
+                ),
+              )
+              .all()
+          )[0];
+          if (!existing)
+            throw new Error("Selected profile generation is unavailable");
+        }
         if (!installations.length) {
           await db
             .insert(schema.installation)
@@ -919,7 +930,8 @@ export function createTeachingApplication({
   });
   const repositories: TeachingTransaction = {
     writingBarrier: ink.barrier,
-    context,
+    context: (owner) =>
+      matchesBoundOwner(owner) ? context(owner) : Promise.resolve(null),
     receipt,
     ensurePackage,
     async select({
@@ -1409,6 +1421,14 @@ export function createTeachingApplication({
         await db
           .select()
           .from(schema.profile)
+          .where(
+            selectedOwner
+              ? and(
+                  eq(schema.profile.id, selectedOwner.profileId),
+                  eq(schema.profile.generation, selectedOwner.generation),
+                )
+              : undefined,
+          )
           .orderBy(asc(schema.profile.id))
           .all()
       )[0];
@@ -1569,6 +1589,10 @@ export function createTeachingApplication({
             generation: parseCounter(input.owner.generation),
           },
           runId = parseId({ kind: "run", value: input.runId });
+        if (!matchesBoundOwner(owner))
+          throw new Error(
+            "Historical work belongs to another selected profile",
+          );
         await warmPackages();
         const current = await context(owner);
         const summary = current?.history?.find((work) => work.runId === runId);
@@ -1659,6 +1683,8 @@ export function createTeachingApplication({
     readInk: (input) =>
       exclusive(async () => {
         if (!(await ready())) throw new Error("Writing recovery is closed");
+        if (!matchesBoundOwner(input.token))
+          throw new Error("Writing belongs to another selected profile");
         return ink.snapshot(input);
       }),
     dispatchInk: (command) =>
@@ -1668,6 +1694,12 @@ export function createTeachingApplication({
             kind: "rejected",
             code: "ink-reconciliation-required",
             message: "Writing recovery is closed.",
+          };
+        if (!matchesBoundOwner(command.token))
+          return {
+            kind: "rejected",
+            code: "stale-owner",
+            message: "Writing belongs to another selected profile.",
           };
         return transaction(executor, () => ink.dispatch(command));
       }),
@@ -1732,6 +1764,12 @@ export function createTeachingApplication({
             kind: "rejected",
             code: "undeclared-capture",
             message: "Capture was not retained by this client.",
+          };
+        if (!matchesBoundOwner(command.token))
+          return {
+            kind: "rejected",
+            code: "stale-owner",
+            message: "Writing belongs to another selected profile.",
           };
         return transaction(executor, () => ink.dispatch(command));
       }),

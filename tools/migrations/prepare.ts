@@ -436,6 +436,43 @@ if (arguments_.includes("--check")) {
   if ((await readFile(lessonPath, "utf8")) !== lessonSql)
     throw new Error("Lesson support migration stale");
 } else await writeFile(lessonPath, lessonSql);
+const v6RunStatements = await generateSQLiteMigration(
+  await generateSQLiteDrizzleJson({}),
+  await generateSQLiteDrizzleJson({ taskRun: taskRunV6 }),
+);
+const v7RunStatements = await generateSQLiteMigration(
+  await generateSQLiteDrizzleJson({}),
+  await generateSQLiteDrizzleJson({ taskRun }),
+);
+const cutoffClauses = v7RunStatements.flatMap((statement) =>
+  statement
+    .split("\n")
+    .filter((line) => line.includes("legacy_acceptance_seq_limit"))
+    .map((line) => line.trim().replace(/,$/, "")),
+);
+if (
+  canonical(cutoffClauses) !==
+  canonical([
+    "`legacy_acceptance_seq_limit` integer DEFAULT 0 NOT NULL",
+    `CONSTRAINT "legacy_acceptance_seq_limit_nonnegative" CHECK(typeof(legacy_acceptance_seq_limit)='integer' AND legacy_acceptance_seq_limit>=0)`,
+  ])
+)
+  throw new Error(
+    "V7 Drizzle acceptance cutoff differs from the reviewed ALTER",
+  );
+if (
+  canonical(
+    v7RunStatements.map((statement) =>
+      statement
+        .split("\n")
+        .filter((line) => !line.includes("legacy_acceptance_seq_limit"))
+        .join("\n"),
+    ),
+  ) !== canonical(v6RunStatements)
+)
+  throw new Error(
+    "V7 Drizzle run changes more than the reviewed acceptance cutoff",
+  );
 const reversibleStatements = [
   "ALTER TABLE task_run ADD COLUMN legacy_acceptance_seq_limit INTEGER NOT NULL DEFAULT 0 CHECK(typeof(legacy_acceptance_seq_limit)='integer' AND legacy_acceptance_seq_limit>=0)",
   "UPDATE task_run SET legacy_acceptance_seq_limit=next_advance_seq-1",
