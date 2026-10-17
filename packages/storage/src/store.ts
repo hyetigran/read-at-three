@@ -46,6 +46,7 @@ import type {
   RecoveryOpening,
   RecoveryChoice,
   RecoveryInventory,
+  RecoveryTeaching,
   InkResult,
   StrokeId,
 } from "../../teaching/src/index.ts";
@@ -1277,7 +1278,18 @@ export function createTeachingApplication({
   let recovery:
     | { kind: "unopened" }
     | { kind: "ready" }
-    | { kind: "closed"; id: string; opening: RecoveryOpening } = {
+    | {
+        kind: "closed";
+        id: string;
+        opening: RecoveryOpening;
+        teaching:
+          | RecoveryTeaching
+          | {
+              kind: "resolved";
+              commandId: import("../../teaching/src/index.ts").CommandId;
+              payloadHash: import("../../teaching/src/index.ts").PayloadHash;
+            };
+      } = {
     kind: "unopened",
   };
   const recoveryProjection = (): CommittedProjection => ({
@@ -1353,8 +1365,23 @@ export function createTeachingApplication({
           throw new Error(
             "Warm retained ink cannot be replaced by cold recovery",
           );
+        if (
+          recovery.kind === "closed" &&
+          recovery.teaching.kind === "pending" &&
+          (opening.kind !== "warm" ||
+            opening.teaching.kind !== "pending" ||
+            opening.teaching.commandId !== recovery.teaching.commandId ||
+            opening.teaching.payloadHash !== recovery.teaching.payloadHash)
+        )
+          throw new Error("Pending teaching declaration changed");
         const id = ids();
-        recovery = { kind: "closed", id, opening };
+        recovery = {
+          kind: "closed",
+          id,
+          opening,
+          teaching:
+            opening.kind === "warm" ? opening.teaching : { kind: "none" },
+        };
         const captures = await ink.inventory();
         return parseRecoveryInventory({
           kind: "closed",
@@ -1383,6 +1410,50 @@ export function createTeachingApplication({
           };
         return transaction(executor, () => ink.dispatch(command));
       }),
+    recoverTeaching: (input) =>
+      exclusive(async () => {
+        if (
+          recovery.kind !== "closed" ||
+          recovery.id !== input.recoveryId ||
+          recovery.opening.kind !== "warm"
+        )
+          return {
+            kind: "rejected",
+            code: "recovery-closed",
+            message: "Warm recovery is unavailable.",
+          };
+        const command = parseCommand(input.command);
+        if (
+          recovery.teaching.kind === "none" ||
+          recovery.teaching.commandId !== command.commandId ||
+          recovery.teaching.payloadHash !== command.payloadHash
+        )
+          return {
+            kind: "rejected",
+            code: "undeclared-teaching",
+            message: "Teaching command was not retained by this client.",
+          };
+        const retained = recovery.opening.retainedStrokeIds;
+        if ((await ink.inventory()).some((c) => retained.includes(c.strokeId)))
+          return {
+            kind: "rejected",
+            code: "unsettled-capture",
+            message:
+              "Retained ink requires exact finalization before teaching.",
+          };
+        recovery.teaching = {
+          kind: "pending",
+          commandId: command.commandId,
+          payloadHash: command.payloadHash,
+        };
+        const result = await (await ensureInitialized()).dispatch(command);
+        recovery.teaching = {
+          kind: "resolved",
+          commandId: command.commandId,
+          payloadHash: command.payloadHash,
+        };
+        return result;
+      }),
     reconcileRecovery: (input) =>
       exclusive(async () => {
         input = { ...input, choice: parseRecoveryChoice(input.choice) };
@@ -1392,6 +1463,10 @@ export function createTeachingApplication({
           recovery.opening.kind !== input.choice.kind
         )
           throw new Error("Recovery identity changed");
+        if (recovery.teaching.kind === "pending")
+          throw new Error(
+            "Retained teaching command still requires exact resolution",
+          );
         if (input.choice.kind === "warm") {
           if (
             recovery.opening.kind !== "warm" ||

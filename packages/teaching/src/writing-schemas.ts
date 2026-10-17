@@ -521,6 +521,26 @@ const retainedIds = {
   maxItems: 64,
   uniqueItems: true,
 } satisfies JSONSchemaType<readonly string[]>;
+const recoveryTeachingSchema = {
+  oneOf: [
+    {
+      type: "object",
+      properties: { kind: { type: "string", const: "none" } },
+      required: ["kind"],
+      additionalProperties: false,
+    },
+    {
+      type: "object",
+      properties: {
+        kind: { type: "string", const: "pending" },
+        commandId: id,
+        payloadHash: hash,
+      },
+      required: ["kind", "commandId", "payloadHash"],
+      additionalProperties: false,
+    },
+  ],
+} satisfies JSONSchemaType<Serialized<import("./ink.ts").RecoveryTeaching>>;
 export const recoveryOpeningSchema = {
   oneOf: [
     {
@@ -534,8 +554,9 @@ export const recoveryOpeningSchema = {
       properties: {
         kind: { type: "string", const: "warm" },
         retainedStrokeIds: retainedIds,
+        teaching: recoveryTeachingSchema,
       },
-      required: ["kind", "retainedStrokeIds"],
+      required: ["kind", "retainedStrokeIds", "teaching"],
       additionalProperties: false,
     },
   ],

@@ -134,8 +134,21 @@ export type RecoveryInventory = Readonly<{
 export type RecoveryChoice = Readonly<
   { kind: "cold" } | { kind: "warm"; settledStrokeIds: readonly StrokeId[] }
 >;
+export type RecoveryTeaching = Readonly<
+  | { kind: "none" }
+  | {
+      kind: "pending";
+      commandId: import("./types.ts").CommandId;
+      payloadHash: import("./types.ts").PayloadHash;
+    }
+>;
 export type RecoveryOpening = Readonly<
-  { kind: "cold" } | { kind: "warm"; retainedStrokeIds: readonly StrokeId[] }
+  | { kind: "cold" }
+  | {
+      kind: "warm";
+      retainedStrokeIds: readonly StrokeId[];
+      teaching: RecoveryTeaching;
+    }
 >;
 import type { TeachingApplication } from "./types.ts";
 export interface WritingApplication extends TeachingApplication {
@@ -146,6 +159,10 @@ export interface WritingApplication extends TeachingApplication {
     recoveryId: string;
     command: InkCommand;
   }): Promise<InkResult>;
+  recoverTeaching(input: {
+    recoveryId: string;
+    command: import("./types.ts").TeachingCommand;
+  }): Promise<import("./types.ts").CommandResult>;
   reconcileRecovery(input: {
     recoveryId: string;
     choice: RecoveryChoice;

@@ -11,8 +11,66 @@ import {
   canonical,
   validateInkChunks,
   visibleInkStrokes,
+  parseRecoveryOpening,
 } from "../../packages/teaching/src/index.ts";
 const bounds = { width: 1000, height: 180 };
+test("warm recovery strictly requires one tagged retained teaching declaration", () => {
+  const commandId = parseId({ kind: "command", value: "retained-teaching" });
+  const payloadHash = parseHash({ kind: "payload", value: "a".repeat(64) });
+  for (const teaching of [
+    { kind: "none" },
+    { kind: "pending", commandId, payloadHash },
+  ]) {
+    const opening = { kind: "warm", retainedStrokeIds: [], teaching };
+    assert.deepEqual(parseRecoveryOpening(opening), opening);
+    assert.equal(Object.isFrozen(teaching), true);
+  }
+  assert.deepEqual(parseRecoveryOpening({ kind: "cold" }), { kind: "cold" });
+  for (const opening of [
+    { kind: "warm", retainedStrokeIds: [] },
+    { kind: "warm", retainedStrokeIds: [], teaching: null },
+    {
+      kind: "warm",
+      retainedStrokeIds: [],
+      teaching: { kind: "none", commandId },
+    },
+    {
+      kind: "warm",
+      retainedStrokeIds: [],
+      teaching: { kind: "pending", commandId },
+    },
+    {
+      kind: "warm",
+      retainedStrokeIds: [],
+      teaching: { kind: "pending", commandId: "", payloadHash },
+    },
+    {
+      kind: "warm",
+      retainedStrokeIds: [],
+      teaching: { kind: "pending", commandId, payloadHash: "A".repeat(64) },
+    },
+    {
+      kind: "warm",
+      retainedStrokeIds: [],
+      teaching: { kind: "pending", commandId, payloadHash: "a".repeat(63) },
+    },
+    {
+      kind: "warm",
+      retainedStrokeIds: [],
+      teaching: { kind: "resolved", commandId, payloadHash },
+    },
+    {
+      kind: "warm",
+      retainedStrokeIds: [],
+      teaching: { kind: "pending", commandId, payloadHash, extra: true },
+    },
+    { kind: "cold", teaching: { kind: "none" } },
+  ])
+    assert.throws(
+      () => parseRecoveryOpening(opening),
+      /Invalid recovery opening/,
+    );
+});
 test("codec v1 is literal little-endian Float32/Uint32 with canonical zeros/default pressure", () => {
   const bytes = encodeInkPoints({
     points: [

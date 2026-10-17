@@ -256,6 +256,7 @@ test("lost checkpoint and tail-finalize acknowledgements survive two warm replac
   const opened = await second.app.openRecovery({
     kind: "warm",
     retainedStrokeIds: [strokeId],
+    teaching: { kind: "none" },
   });
   lose = true;
   await assert.rejects(
@@ -266,6 +267,7 @@ test("lost checkpoint and tail-finalize acknowledgements survive two warm replac
   const thirdOpen = await third.app.openRecovery({
     kind: "warm",
     retainedStrokeIds: [strokeId],
+    teaching: { kind: "none" },
   });
   assert.equal((await third.app.read()).kind, "recovery");
   const recovered = await third.app.recoverInk({
@@ -298,6 +300,7 @@ test("lost checkpoint and tail-finalize acknowledgements survive two warm replac
   const fourthOpen = await fourth.app.openRecovery({
     kind: "warm",
     retainedStrokeIds: [strokeId],
+    teaching: { kind: "none" },
   });
   loseTail = true;
   await assert.rejects(
@@ -308,6 +311,7 @@ test("lost checkpoint and tail-finalize acknowledgements survive two warm replac
   const fifthOpen = await fifth.app.openRecovery({
     kind: "warm",
     retainedStrokeIds: [strokeId],
+    teaching: { kind: "none" },
   });
   assert.equal(
     (
@@ -630,6 +634,7 @@ test("cross binding, layer, chunk order and unclosed recovery reject without wri
   const inventory = await app.openRecovery({
     kind: "warm",
     retainedStrokeIds: [strokeId],
+    teaching: { kind: "none" },
   });
   assert.equal(
     (await app.dispatchInk(await inkCommand({ token, edit, ids: f.ids }))).kind,

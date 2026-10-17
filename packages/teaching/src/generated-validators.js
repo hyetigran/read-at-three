@@ -6866,8 +6866,28 @@ const schema33 = {
           maxItems: 64,
           uniqueItems: true,
         },
+        teaching: {
+          oneOf: [
+            {
+              type: "object",
+              properties: { kind: { type: "string", const: "none" } },
+              required: ["kind"],
+              additionalProperties: false,
+            },
+            {
+              type: "object",
+              properties: {
+                kind: { type: "string", const: "pending" },
+                commandId: { type: "string", minLength: 1, maxLength: 200 },
+                payloadHash: { type: "string", pattern: "^[a-f0-9]{64}$" },
+              },
+              required: ["kind", "commandId", "payloadHash"],
+              additionalProperties: false,
+            },
+          ],
+        },
       },
-      required: ["kind", "retainedStrokeIds"],
+      required: ["kind", "retainedStrokeIds", "teaching"],
       additionalProperties: false,
     },
   ],
@@ -8098,32 +8118,33 @@ function validate22(
       }
       errors++;
     }
+    if (data.teaching === undefined) {
+      const err7 = {
+        instancePath,
+        schemaPath: "#/oneOf/1/required",
+        keyword: "required",
+        params: { missingProperty: "teaching" },
+        message: "must have required property '" + "teaching" + "'",
+      };
+      if (vErrors === null) {
+        vErrors = [err7];
+      } else {
+        vErrors.push(err7);
+      }
+      errors++;
+    }
     for (const key1 in data) {
-      if (!(key1 === "kind" || key1 === "retainedStrokeIds")) {
-        const err7 = {
+      if (!(
+        key1 === "kind" ||
+        key1 === "retainedStrokeIds" ||
+        key1 === "teaching"
+      )) {
+        const err8 = {
           instancePath,
           schemaPath: "#/oneOf/1/additionalProperties",
           keyword: "additionalProperties",
           params: { additionalProperty: key1 },
           message: "must NOT have additional properties",
-        };
-        if (vErrors === null) {
-          vErrors = [err7];
-        } else {
-          vErrors.push(err7);
-        }
-        errors++;
-      }
-    }
-    if (data.kind !== undefined) {
-      let data1 = data.kind;
-      if (typeof data1 !== "string") {
-        const err8 = {
-          instancePath: instancePath + "/kind",
-          schemaPath: "#/oneOf/1/properties/kind/type",
-          keyword: "type",
-          params: { type: "string" },
-          message: "must be string",
         };
         if (vErrors === null) {
           vErrors = [err8];
@@ -8132,13 +8153,16 @@ function validate22(
         }
         errors++;
       }
-      if ("warm" !== data1) {
+    }
+    if (data.kind !== undefined) {
+      let data1 = data.kind;
+      if (typeof data1 !== "string") {
         const err9 = {
           instancePath: instancePath + "/kind",
-          schemaPath: "#/oneOf/1/properties/kind/const",
-          keyword: "const",
-          params: { allowedValue: "warm" },
-          message: "must be equal to constant",
+          schemaPath: "#/oneOf/1/properties/kind/type",
+          keyword: "type",
+          params: { type: "string" },
+          message: "must be string",
         };
         if (vErrors === null) {
           vErrors = [err9];
@@ -8147,12 +8171,27 @@ function validate22(
         }
         errors++;
       }
+      if ("warm" !== data1) {
+        const err10 = {
+          instancePath: instancePath + "/kind",
+          schemaPath: "#/oneOf/1/properties/kind/const",
+          keyword: "const",
+          params: { allowedValue: "warm" },
+          message: "must be equal to constant",
+        };
+        if (vErrors === null) {
+          vErrors = [err10];
+        } else {
+          vErrors.push(err10);
+        }
+        errors++;
+      }
     }
     if (data.retainedStrokeIds !== undefined) {
       let data2 = data.retainedStrokeIds;
       if (Array.isArray(data2)) {
         if (data2.length > 64) {
-          const err10 = {
+          const err11 = {
             instancePath: instancePath + "/retainedStrokeIds",
             schemaPath: "#/oneOf/1/properties/retainedStrokeIds/maxItems",
             keyword: "maxItems",
@@ -8160,9 +8199,9 @@ function validate22(
             message: "must NOT have more than 64 items",
           };
           if (vErrors === null) {
-            vErrors = [err10];
+            vErrors = [err11];
           } else {
-            vErrors.push(err10);
+            vErrors.push(err11);
           }
           errors++;
         }
@@ -8171,7 +8210,7 @@ function validate22(
           let data3 = data2[i0];
           if (typeof data3 === "string") {
             if (func2(data3) > 200) {
-              const err11 = {
+              const err12 = {
                 instancePath: instancePath + "/retainedStrokeIds/" + i0,
                 schemaPath:
                   "#/oneOf/1/properties/retainedStrokeIds/items/maxLength",
@@ -8180,14 +8219,14 @@ function validate22(
                 message: "must NOT have more than 200 characters",
               };
               if (vErrors === null) {
-                vErrors = [err11];
+                vErrors = [err12];
               } else {
-                vErrors.push(err11);
+                vErrors.push(err12);
               }
               errors++;
             }
             if (func2(data3) < 1) {
-              const err12 = {
+              const err13 = {
                 instancePath: instancePath + "/retainedStrokeIds/" + i0,
                 schemaPath:
                   "#/oneOf/1/properties/retainedStrokeIds/items/minLength",
@@ -8196,14 +8235,14 @@ function validate22(
                 message: "must NOT have fewer than 1 characters",
               };
               if (vErrors === null) {
-                vErrors = [err12];
+                vErrors = [err13];
               } else {
-                vErrors.push(err12);
+                vErrors.push(err13);
               }
               errors++;
             }
           } else {
-            const err13 = {
+            const err14 = {
               instancePath: instancePath + "/retainedStrokeIds/" + i0,
               schemaPath: "#/oneOf/1/properties/retainedStrokeIds/items/type",
               keyword: "type",
@@ -8211,9 +8250,9 @@ function validate22(
               message: "must be string",
             };
             if (vErrors === null) {
-              vErrors = [err13];
+              vErrors = [err14];
             } else {
-              vErrors.push(err13);
+              vErrors.push(err14);
             }
             errors++;
           }
@@ -8229,7 +8268,7 @@ function validate22(
             }
             if (typeof indices0[item0] == "number") {
               j0 = indices0[item0];
-              const err14 = {
+              const err15 = {
                 instancePath: instancePath + "/retainedStrokeIds",
                 schemaPath:
                   "#/oneOf/1/properties/retainedStrokeIds/uniqueItems",
@@ -8243,9 +8282,9 @@ function validate22(
                   " are identical)",
               };
               if (vErrors === null) {
-                vErrors = [err14];
+                vErrors = [err15];
               } else {
-                vErrors.push(err14);
+                vErrors.push(err15);
               }
               errors++;
               break;
@@ -8254,7 +8293,7 @@ function validate22(
           }
         }
       } else {
-        const err15 = {
+        const err16 = {
           instancePath: instancePath + "/retainedStrokeIds",
           schemaPath: "#/oneOf/1/properties/retainedStrokeIds/type",
           keyword: "type",
@@ -8262,15 +8301,356 @@ function validate22(
           message: "must be array",
         };
         if (vErrors === null) {
-          vErrors = [err15];
+          vErrors = [err16];
         } else {
-          vErrors.push(err15);
+          vErrors.push(err16);
         }
         errors++;
       }
     }
+    if (data.teaching !== undefined) {
+      let data4 = data.teaching;
+      const _errs16 = errors;
+      let valid6 = false;
+      let passing1 = null;
+      const _errs17 = errors;
+      if (data4 && typeof data4 == "object" && !Array.isArray(data4)) {
+        if (data4.kind === undefined) {
+          const err17 = {
+            instancePath: instancePath + "/teaching",
+            schemaPath: "#/oneOf/1/properties/teaching/oneOf/0/required",
+            keyword: "required",
+            params: { missingProperty: "kind" },
+            message: "must have required property '" + "kind" + "'",
+          };
+          if (vErrors === null) {
+            vErrors = [err17];
+          } else {
+            vErrors.push(err17);
+          }
+          errors++;
+        }
+        for (const key2 in data4) {
+          if (!(key2 === "kind")) {
+            const err18 = {
+              instancePath: instancePath + "/teaching",
+              schemaPath:
+                "#/oneOf/1/properties/teaching/oneOf/0/additionalProperties",
+              keyword: "additionalProperties",
+              params: { additionalProperty: key2 },
+              message: "must NOT have additional properties",
+            };
+            if (vErrors === null) {
+              vErrors = [err18];
+            } else {
+              vErrors.push(err18);
+            }
+            errors++;
+          }
+        }
+        if (data4.kind !== undefined) {
+          let data5 = data4.kind;
+          if (typeof data5 !== "string") {
+            const err19 = {
+              instancePath: instancePath + "/teaching/kind",
+              schemaPath:
+                "#/oneOf/1/properties/teaching/oneOf/0/properties/kind/type",
+              keyword: "type",
+              params: { type: "string" },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err19];
+            } else {
+              vErrors.push(err19);
+            }
+            errors++;
+          }
+          if ("none" !== data5) {
+            const err20 = {
+              instancePath: instancePath + "/teaching/kind",
+              schemaPath:
+                "#/oneOf/1/properties/teaching/oneOf/0/properties/kind/const",
+              keyword: "const",
+              params: { allowedValue: "none" },
+              message: "must be equal to constant",
+            };
+            if (vErrors === null) {
+              vErrors = [err20];
+            } else {
+              vErrors.push(err20);
+            }
+            errors++;
+          }
+        }
+      } else {
+        const err21 = {
+          instancePath: instancePath + "/teaching",
+          schemaPath: "#/oneOf/1/properties/teaching/oneOf/0/type",
+          keyword: "type",
+          params: { type: "object" },
+          message: "must be object",
+        };
+        if (vErrors === null) {
+          vErrors = [err21];
+        } else {
+          vErrors.push(err21);
+        }
+        errors++;
+      }
+      var _valid1 = _errs17 === errors;
+      if (_valid1) {
+        valid6 = true;
+        passing1 = 0;
+        var props1 = true;
+      }
+      const _errs22 = errors;
+      if (data4 && typeof data4 == "object" && !Array.isArray(data4)) {
+        if (data4.kind === undefined) {
+          const err22 = {
+            instancePath: instancePath + "/teaching",
+            schemaPath: "#/oneOf/1/properties/teaching/oneOf/1/required",
+            keyword: "required",
+            params: { missingProperty: "kind" },
+            message: "must have required property '" + "kind" + "'",
+          };
+          if (vErrors === null) {
+            vErrors = [err22];
+          } else {
+            vErrors.push(err22);
+          }
+          errors++;
+        }
+        if (data4.commandId === undefined) {
+          const err23 = {
+            instancePath: instancePath + "/teaching",
+            schemaPath: "#/oneOf/1/properties/teaching/oneOf/1/required",
+            keyword: "required",
+            params: { missingProperty: "commandId" },
+            message: "must have required property '" + "commandId" + "'",
+          };
+          if (vErrors === null) {
+            vErrors = [err23];
+          } else {
+            vErrors.push(err23);
+          }
+          errors++;
+        }
+        if (data4.payloadHash === undefined) {
+          const err24 = {
+            instancePath: instancePath + "/teaching",
+            schemaPath: "#/oneOf/1/properties/teaching/oneOf/1/required",
+            keyword: "required",
+            params: { missingProperty: "payloadHash" },
+            message: "must have required property '" + "payloadHash" + "'",
+          };
+          if (vErrors === null) {
+            vErrors = [err24];
+          } else {
+            vErrors.push(err24);
+          }
+          errors++;
+        }
+        for (const key3 in data4) {
+          if (!(
+            key3 === "kind" ||
+            key3 === "commandId" ||
+            key3 === "payloadHash"
+          )) {
+            const err25 = {
+              instancePath: instancePath + "/teaching",
+              schemaPath:
+                "#/oneOf/1/properties/teaching/oneOf/1/additionalProperties",
+              keyword: "additionalProperties",
+              params: { additionalProperty: key3 },
+              message: "must NOT have additional properties",
+            };
+            if (vErrors === null) {
+              vErrors = [err25];
+            } else {
+              vErrors.push(err25);
+            }
+            errors++;
+          }
+        }
+        if (data4.kind !== undefined) {
+          let data6 = data4.kind;
+          if (typeof data6 !== "string") {
+            const err26 = {
+              instancePath: instancePath + "/teaching/kind",
+              schemaPath:
+                "#/oneOf/1/properties/teaching/oneOf/1/properties/kind/type",
+              keyword: "type",
+              params: { type: "string" },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err26];
+            } else {
+              vErrors.push(err26);
+            }
+            errors++;
+          }
+          if ("pending" !== data6) {
+            const err27 = {
+              instancePath: instancePath + "/teaching/kind",
+              schemaPath:
+                "#/oneOf/1/properties/teaching/oneOf/1/properties/kind/const",
+              keyword: "const",
+              params: { allowedValue: "pending" },
+              message: "must be equal to constant",
+            };
+            if (vErrors === null) {
+              vErrors = [err27];
+            } else {
+              vErrors.push(err27);
+            }
+            errors++;
+          }
+        }
+        if (data4.commandId !== undefined) {
+          let data7 = data4.commandId;
+          if (typeof data7 === "string") {
+            if (func2(data7) > 200) {
+              const err28 = {
+                instancePath: instancePath + "/teaching/commandId",
+                schemaPath:
+                  "#/oneOf/1/properties/teaching/oneOf/1/properties/commandId/maxLength",
+                keyword: "maxLength",
+                params: { limit: 200 },
+                message: "must NOT have more than 200 characters",
+              };
+              if (vErrors === null) {
+                vErrors = [err28];
+              } else {
+                vErrors.push(err28);
+              }
+              errors++;
+            }
+            if (func2(data7) < 1) {
+              const err29 = {
+                instancePath: instancePath + "/teaching/commandId",
+                schemaPath:
+                  "#/oneOf/1/properties/teaching/oneOf/1/properties/commandId/minLength",
+                keyword: "minLength",
+                params: { limit: 1 },
+                message: "must NOT have fewer than 1 characters",
+              };
+              if (vErrors === null) {
+                vErrors = [err29];
+              } else {
+                vErrors.push(err29);
+              }
+              errors++;
+            }
+          } else {
+            const err30 = {
+              instancePath: instancePath + "/teaching/commandId",
+              schemaPath:
+                "#/oneOf/1/properties/teaching/oneOf/1/properties/commandId/type",
+              keyword: "type",
+              params: { type: "string" },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err30];
+            } else {
+              vErrors.push(err30);
+            }
+            errors++;
+          }
+        }
+        if (data4.payloadHash !== undefined) {
+          let data8 = data4.payloadHash;
+          if (typeof data8 === "string") {
+            if (!pattern5.test(data8)) {
+              const err31 = {
+                instancePath: instancePath + "/teaching/payloadHash",
+                schemaPath:
+                  "#/oneOf/1/properties/teaching/oneOf/1/properties/payloadHash/pattern",
+                keyword: "pattern",
+                params: { pattern: "^[a-f0-9]{64}$" },
+                message: 'must match pattern "' + "^[a-f0-9]{64}$" + '"',
+              };
+              if (vErrors === null) {
+                vErrors = [err31];
+              } else {
+                vErrors.push(err31);
+              }
+              errors++;
+            }
+          } else {
+            const err32 = {
+              instancePath: instancePath + "/teaching/payloadHash",
+              schemaPath:
+                "#/oneOf/1/properties/teaching/oneOf/1/properties/payloadHash/type",
+              keyword: "type",
+              params: { type: "string" },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err32];
+            } else {
+              vErrors.push(err32);
+            }
+            errors++;
+          }
+        }
+      } else {
+        const err33 = {
+          instancePath: instancePath + "/teaching",
+          schemaPath: "#/oneOf/1/properties/teaching/oneOf/1/type",
+          keyword: "type",
+          params: { type: "object" },
+          message: "must be object",
+        };
+        if (vErrors === null) {
+          vErrors = [err33];
+        } else {
+          vErrors.push(err33);
+        }
+        errors++;
+      }
+      var _valid1 = _errs22 === errors;
+      if (_valid1 && valid6) {
+        valid6 = false;
+        passing1 = [passing1, 1];
+      } else {
+        if (_valid1) {
+          valid6 = true;
+          passing1 = 1;
+          if (props1 !== true) {
+            props1 = true;
+          }
+        }
+      }
+      if (!valid6) {
+        const err34 = {
+          instancePath: instancePath + "/teaching",
+          schemaPath: "#/oneOf/1/properties/teaching/oneOf",
+          keyword: "oneOf",
+          params: { passingSchemas: passing1 },
+          message: "must match exactly one schema in oneOf",
+        };
+        if (vErrors === null) {
+          vErrors = [err34];
+        } else {
+          vErrors.push(err34);
+        }
+        errors++;
+      } else {
+        errors = _errs16;
+        if (vErrors !== null) {
+          if (_errs16) {
+            vErrors.length = _errs16;
+          } else {
+            vErrors = null;
+          }
+        }
+      }
+    }
   } else {
-    const err16 = {
+    const err35 = {
       instancePath,
       schemaPath: "#/oneOf/1/type",
       keyword: "type",
@@ -8278,9 +8658,9 @@ function validate22(
       message: "must be object",
     };
     if (vErrors === null) {
-      vErrors = [err16];
+      vErrors = [err35];
     } else {
-      vErrors.push(err16);
+      vErrors.push(err35);
     }
     errors++;
   }
@@ -8298,7 +8678,7 @@ function validate22(
     }
   }
   if (!valid0) {
-    const err17 = {
+    const err36 = {
       instancePath,
       schemaPath: "#/oneOf",
       keyword: "oneOf",
@@ -8306,9 +8686,9 @@ function validate22(
       message: "must match exactly one schema in oneOf",
     };
     if (vErrors === null) {
-      vErrors = [err17];
+      vErrors = [err36];
     } else {
-      vErrors.push(err17);
+      vErrors.push(err36);
     }
     errors++;
   } else {
