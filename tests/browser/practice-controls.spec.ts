@@ -1,3 +1,4 @@
+import { reloadSavedTurn } from "./reload-saved-turn.ts";
 import { expect, test } from "@playwright/test";
 import { visibleInkStrokes, decodeInkPoints } from "@readatthree/teaching";
 import {
@@ -90,7 +91,7 @@ for (const viewport of [
     await expect(
       page.getByRole("button", { name: "Redo ink", exact: true }),
     ).toBeDisabled();
-    await page.reload();
+    await reloadSavedTurn({ page, turnId: "fixture.graph.l01.t06.m-tracing" });
     await atWritableWriting(page, "m-tracing");
     expect(await anchors()).toEqual(before);
     const document = (await latestDocuments(page))[0];
@@ -172,7 +173,7 @@ for (const fault of [
         ),
       ).size,
     ).toBe(1);
-    await page.reload();
+    await reloadSavedTurn({ page, turnId: "fixture.graph.l01.t06.m-tracing" });
     await atWritableWriting(page, "m-tracing");
     expect(await childIds(page)).toHaveLength(1);
   });
@@ -376,7 +377,7 @@ for (const stale of [
     await expect(
       page.getByRole("button", { name: "Undo ink", exact: true }),
     ).toBeEnabled();
-    await page.reload();
+    await reloadSavedTurn({ page, turnId: "fixture.graph.l01.t06.m-tracing" });
     await atWritableWriting(page, "m-tracing");
     const saved = (await latestDocuments(page))[0];
     if (!saved) throw new Error("Restored document required");
@@ -448,7 +449,7 @@ test("events created while a control input fence is closed cannot start after re
   await expect(
     page.getByRole("button", { name: "Undo ink", exact: true }),
   ).toBeEnabled();
-  await page.reload();
+  await reloadSavedTurn({ page, turnId: "fixture.graph.l01.t06.m-tracing" });
   await atWritableWriting(page, "m-tracing");
   const saved = (await latestDocuments(page))[0];
   if (!saved) throw new Error("Saved document missing");

@@ -14,7 +14,7 @@ import {
 } from "../../packages/teaching/src/index.ts";
 import type {
   AvailableAction,
-  DevelopmentPackage,
+  RuntimePackage,
   TeachingApplication,
   TeachingIntent,
 } from "../../packages/teaching/src/index.ts";
@@ -47,7 +47,7 @@ export function executorFor(db: DatabaseSync, hook?: SqlHook): SqlExecutor {
 }
 export async function storageFixture(
   t: { after(fn: () => Promise<void>): void },
-  supplied?: DevelopmentPackage,
+  supplied?: RuntimePackage,
 ) {
   const directory = await mkdtemp(join(tmpdir(), "reading-graph-"));
   const path = join(directory, "reading.sqlite");
@@ -66,9 +66,7 @@ export async function storageFixture(
     for (const db of connections) db.close();
     await rm(directory, { recursive: true, force: true });
   });
-  function connect(
-    options: { content?: DevelopmentPackage; hook?: SqlHook } = {},
-  ) {
+  function connect(options: { content?: RuntimePackage; hook?: SqlHook } = {}) {
     const db = new DatabaseSync(path);
     connections.push(db);
     db.exec("PRAGMA journal_mode=DELETE");

@@ -1,3 +1,5 @@
+import { resolvedLessons } from "./course-content.ts";
+import type { RuntimePackage } from "./course-content.ts";
 import { writingTask } from "./writing.ts";
 import {
   initialControlState,
@@ -7,7 +9,6 @@ import {
   controlCompletionProof,
 } from "./control-engine.ts";
 import type {
-  DevelopmentPackage,
   TeachingState,
   LegacyTeachingState,
   GraphTeachingState,
@@ -36,7 +37,7 @@ import {
 } from "./content.ts";
 
 export function initialState(
-  content: DevelopmentPackage,
+  content: RuntimePackage,
   taskId?: TaskId,
 ): TeachingState {
   if (content.body.coverage === "partial-first-m")
@@ -46,10 +47,8 @@ export function initialState(
       nodeId: content.body.startNodeId,
       acceptedNodeIds: [],
     };
-  const firstTask = content.body.tasks[0];
-  const id =
-    taskId ??
-    (firstTask && ("task" in firstTask ? firstTask.task.id : firstTask.id));
+  const firstTask = resolvedLessons(content)[0]?.tasks[0];
+  const id = taskId ?? firstTask?.task.id;
   if (!id) throw new Error("Task is unavailable");
   if (taskDefinition({ content, taskId: id }).kind === "graphControls")
     return initialControlState({ content, taskId: id });
@@ -81,7 +80,7 @@ export function initialState(
     nextCheckpointNumber: parseCounter("2"),
   });
 }
-function legacyNode(content: DevelopmentPackage, id: NodeId) {
+function legacyNode(content: RuntimePackage, id: NodeId) {
   if (content.body.coverage !== "partial-first-m")
     throw new Error("Legacy state needs its exact legacy package");
   const node = content.body.nodes.find((node) => node.id === id);
@@ -89,7 +88,7 @@ function legacyNode(content: DevelopmentPackage, id: NodeId) {
   return node;
 }
 function legacyTransition(
-  content: DevelopmentPackage,
+  content: RuntimePackage,
   state: Extract<LegacyTeachingState, { kind: "teaching" }>,
 ): LegacyTeachingState {
   const node = legacyNode(content, state.nodeId);
@@ -152,7 +151,7 @@ function normalOccurrence(
   return found;
 }
 export function validatePosition(
-  content: DevelopmentPackage,
+  content: RuntimePackage,
   state: TeachingState,
   taskId?: TaskId,
 ): void {
@@ -424,7 +423,7 @@ export function validatePosition(
   currentCheckpoint(state);
 }
 export function evaluate(
-  content: DevelopmentPackage,
+  content: RuntimePackage,
   state: TeachingState,
   nodeId: NodeId,
 ): TeachingState {
@@ -447,7 +446,7 @@ export function evaluateGraph({
   status,
   action,
 }: {
-  content: DevelopmentPackage;
+  content: RuntimePackage;
   state:
     | GraphTeachingState
     | ControlTeachingState
@@ -696,7 +695,7 @@ export function validateAcceptanceTransition({
   occurrenceId,
   action,
 }: {
-  content: DevelopmentPackage;
+  content: RuntimePackage;
   taskId: TaskId;
   before: TeachingState;
   after: TeachingState;
@@ -754,7 +753,7 @@ export function validateAcceptanceTransition({
   }
 }
 export function project(
-  content: DevelopmentPackage,
+  content: RuntimePackage,
   state: TeachingState,
 ): EngineProjection {
   validatePosition(content, state);
@@ -794,7 +793,7 @@ export function project(
 }
 
 export function completionProof(
-  content: DevelopmentPackage,
+  content: RuntimePackage,
   state: TeachingState,
 ): CompletionProof | null {
   validatePosition(content, state);
@@ -804,7 +803,7 @@ export function completionProof(
   return graphCompletionProof(content, state);
 }
 function graphCompletionProof(
-  content: DevelopmentPackage,
+  content: RuntimePackage,
   state: GraphTeachingState,
 ): CompletionProof | null {
   const graph = graphTask(content, state.taskId);
@@ -830,7 +829,7 @@ export function validateAcceptanceState({
   baseline,
   state,
 }: {
-  content: DevelopmentPackage;
+  content: RuntimePackage;
   taskId: TaskId;
   baseline: TeachingState;
   state: TeachingState;

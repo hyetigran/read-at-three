@@ -5,6 +5,7 @@ import {
   createCommittedTeaching,
   useCommittedTeaching,
 } from "@readatthree/react-integration";
+import { CopyText } from "../../apps/web/src/features/teaching/CopyText.tsx";
 import { TeachingScreen } from "../../apps/web/src/features/teaching/TeachingScreen.tsx";
 import { createBrowserTeachingClient } from "../../apps/web/src/platform/teaching-client.ts";
 import { createWritingController } from "../../apps/web/src/platform/writing-controller.ts";
@@ -39,6 +40,24 @@ function Consumer() {
       { id: "selected-query", hidden: true },
       JSON.stringify(cached),
     ),
+    view.projection.kind === "entry"
+      ? createElement(
+          "nav",
+          null,
+          ...view.projection.actions
+            .filter((action) => "taskId" in action.intent)
+            .map((action) =>
+              createElement(
+                "button",
+                {
+                  key: JSON.stringify(action.intent),
+                  onClick: () => controller.act(action),
+                },
+                createElement(CopyText, { copy: action.label }),
+              ),
+            ),
+        )
+      : null,
     createElement(TeachingScreen, {
       projection: view.projection,
       correctionPreview: state.correctionPreview,

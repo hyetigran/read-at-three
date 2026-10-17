@@ -75,4 +75,20 @@ export const migrations = [
     id: "issue-07-ink-editing",
     statements: ["UPDATE installation SET database_version = 5"],
   },
+  {
+    version: 6,
+    id: "issue-08-lesson-support",
+    statements: [
+      'CREATE TABLE `lesson_credit` (\n\t`lesson_credit_id` text PRIMARY KEY NOT NULL,\n\t`profile_id` text NOT NULL,\n\t`generation` integer NOT NULL,\n\t`course_id` text NOT NULL,\n\t`lesson_id` text NOT NULL,\n\t`package_hash` text NOT NULL,\n\t`status` text NOT NULL,\n\t`receipt_version` integer NOT NULL,\n\t`receipt` text NOT NULL,\n\t`support_hash` text NOT NULL,\n\tFOREIGN KEY (`profile_id`,`generation`) REFERENCES `profile`(`profile_id`,`generation`) ON UPDATE no action ON DELETE no action,\n\tFOREIGN KEY (`package_hash`,`course_id`) REFERENCES `installed_package`(`package_hash`,`course_id`) ON UPDATE no action ON DELETE no action,\n\tCONSTRAINT "generation_nonnegative" CHECK(typeof(generation)=\'integer\' AND generation>=0),\n\tCONSTRAINT "package_hash_hash" CHECK(length(package_hash)=64 AND package_hash NOT GLOB \'*[^a-f0-9]*\'),\n\tCONSTRAINT "support_hash_hash" CHECK(length(support_hash)=64 AND support_hash NOT GLOB \'*[^a-f0-9]*\'),\n\tCONSTRAINT "lesson_credit_status" CHECK(status IN (\'valid\',\'withdrawn\')),\n\tCONSTRAINT "lesson_receipt_version" CHECK(receipt_version=1),\n\tCONSTRAINT "lesson_receipt_json" CHECK(json_valid(receipt))\n);\n',
+      "CREATE INDEX `lesson_credit_owner_status` ON `lesson_credit` (`profile_id`,`generation`,`course_id`,`lesson_id`,`status`);",
+      "CREATE INDEX `lesson_credit_package` ON `lesson_credit` (`package_hash`);",
+      "CREATE UNIQUE INDEX `lesson_credit_lesson_credit_id_profile_id_generation_course_id_lesson_id_unique` ON `lesson_credit` (`lesson_credit_id`,`profile_id`,`generation`,`course_id`,`lesson_id`);",
+      "CREATE UNIQUE INDEX `lesson_credit_profile_id_generation_course_id_lesson_id_support_hash_unique` ON `lesson_credit` (`profile_id`,`generation`,`course_id`,`lesson_id`,`support_hash`);",
+      "CREATE TABLE `lesson_credit_support` (\n\t`lesson_credit_id` text NOT NULL,\n\t`profile_id` text NOT NULL,\n\t`generation` integer NOT NULL,\n\t`course_id` text NOT NULL,\n\t`lesson_id` text NOT NULL,\n\t`ordinal` integer NOT NULL,\n\t`task_id` text NOT NULL,\n\t`outcome` text NOT NULL,\n\t`task_credit_id` text NOT NULL,\n\tPRIMARY KEY(`lesson_credit_id`, `ordinal`),\n\tFOREIGN KEY (`lesson_credit_id`,`profile_id`,`generation`,`course_id`,`lesson_id`) REFERENCES `lesson_credit`(`lesson_credit_id`,`profile_id`,`generation`,`course_id`,`lesson_id`) ON UPDATE no action ON DELETE no action,\n\tFOREIGN KEY (`task_credit_id`,`profile_id`,`generation`,`course_id`,`lesson_id`,`task_id`,`outcome`) REFERENCES `task_credit`(`credit_id`,`profile_id`,`generation`,`course_id`,`lesson_id`,`task_id`,`outcome`) ON UPDATE no action ON DELETE no action,\n\tCONSTRAINT \"generation_nonnegative\" CHECK(typeof(generation)='integer' AND generation>=0),\n\tCONSTRAINT \"lesson_support_ordinal\" CHECK(ordinal>=0),\n\tCONSTRAINT \"lesson_support_outcome\" CHECK(outcome IN ('completed','skipped'))\n);\n",
+      "CREATE INDEX `lesson_support_task_credit` ON `lesson_credit_support` (`task_credit_id`);",
+      "CREATE UNIQUE INDEX `lesson_credit_support_lesson_credit_id_task_id_unique` ON `lesson_credit_support` (`lesson_credit_id`,`task_id`);",
+      "CREATE TABLE `lesson_result` (\n\t`profile_id` text NOT NULL,\n\t`generation` integer NOT NULL,\n\t`course_id` text NOT NULL,\n\t`lesson_id` text NOT NULL,\n\t`accepted_lesson_credit_id` text NOT NULL,\n\tPRIMARY KEY(`profile_id`, `generation`, `course_id`, `lesson_id`),\n\tFOREIGN KEY (`accepted_lesson_credit_id`,`profile_id`,`generation`,`course_id`,`lesson_id`) REFERENCES `lesson_credit`(`lesson_credit_id`,`profile_id`,`generation`,`course_id`,`lesson_id`) ON UPDATE no action ON DELETE no action DEFERRABLE INITIALLY DEFERRED,\n\tCONSTRAINT \"generation_nonnegative\" CHECK(typeof(generation)='integer' AND generation>=0)\n);\n",
+      "UPDATE installation SET database_version = 6",
+    ],
+  },
 ] as const;

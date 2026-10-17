@@ -1,8 +1,14 @@
+import { createLessonProgress } from "./lesson-progress.ts";
 import { createInkRepository } from "./ink.ts";
 import { and, eq, asc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/sqlite-proxy";
 import {
   canonical,
+  lessonForTask,
+  cumulativeExtension,
+  resolvedTask,
+  parseApplicationRead,
+  parseHistoricalWork,
   summarizePractice,
   parsePracticeControlsBinding,
   completionProof,
@@ -11,7 +17,7 @@ import {
   increment,
   parseCounter,
   parseId,
-  parseDevelopmentPackage,
+  parseRuntimePackage,
   parseReceipt,
   parseCommand,
   currentCheckpoint,
@@ -31,7 +37,7 @@ import type {
   CommitReceipt,
   CommittedProjection,
   CompletionProof,
-  DevelopmentPackage,
+  RuntimePackage,
   HashFunction,
   GraphAction,
   IdFactory,
@@ -51,6 +57,11 @@ import type {
   RecoveryTeaching,
   InkResult,
   StrokeId,
+  CourseApplication,
+  CourseReadTarget,
+  ApplicationRead,
+  HistoricalWork,
+  SavedWork,
 } from "../../teaching/src/index.ts";
 import { sqlValues } from "./executor.ts";
 import type { SqlExecutor } from "./executor.ts";
@@ -66,8 +77,8 @@ function isCumulativeOralExtension({
   previous,
   candidate,
 }: {
-  previous: DevelopmentPackage;
-  candidate: DevelopmentPackage;
+  previous: RuntimePackage;
+  candidate: RuntimePackage;
 }): boolean {
   if (
     previous.body.coverage !== "lesson1-sounds-oral-complete" ||
@@ -118,7 +129,7 @@ function durableReceipt({
   };
 }
 function skipProof(
-  content: DevelopmentPackage,
+  content: RuntimePackage,
   state: Extract<TeachingState, { kind: "writingSkipped" }>,
 ): import("../../teaching/src/index.ts").SkipProof {
   const task = writingTask({ content, taskId: state.taskId });
@@ -148,10 +159,10 @@ export function createTeachingApplication({
   hash,
 }: {
   executor: SqlExecutor;
-  content: DevelopmentPackage;
+  content: RuntimePackage;
   ids: IdFactory;
   hash: HashFunction;
-}): WritingApplication {
+}): WritingApplication & CourseApplication {
   const db = drizzle(async (sql, parameters, method) => {
     if (method === "get")
       throw new Error("Repository must use array-row reads");
@@ -163,13 +174,13 @@ export function createTeachingApplication({
     tail = next.catch(() => undefined);
     return next;
   }
-  const verified = new Map<PackageHash, DevelopmentPackage>();
+  const verified = new Map<PackageHash, RuntimePackage>();
   async function warmPackages() {
     verified.clear();
     const rows = await db.select().from(schema.installedPackage).all();
     for (const row of rows) {
       if (row.state !== "ready") continue;
-      const value = await parseDevelopmentPackage(
+      const value = await parseRuntimePackage(
         JSON.parse(decodeUtf8(row.verifiedManifest)),
         hash,
       );
@@ -191,7 +202,7 @@ export function createTeachingApplication({
     if (!value) throw new Error("Exact pinned package is unavailable");
     return value;
   }
-  async function ensurePackage(value: DevelopmentPackage) {
+  async function ensurePackage(value: RuntimePackage) {
     const rows = await db
       .select()
       .from(schema.installedPackage)
@@ -208,11 +219,117 @@ export function createTeachingApplication({
     )
       throw new Error("Pinned package identity changed");
   }
-  let initialization: Promise<TeachingApplication> | undefined;
+  const lessonProgress = createLessonProgress({ executor, hash, ids, pinned });
+  let legacyCursorRead = false;
+  async function repairTerminalCursors(
+    owner?: Owner,
+    excludeCourse?: import("../../teaching/src/index.ts").CourseId,
+  ) {
+    const cursors = await db.select().from(schema.courseCursor).all();
+    for (const cursor of cursors) {
+      if (
+        !cursor.resumeSessionId ||
+        (owner &&
+          (cursor.profileId !== owner.profileId ||
+            cursor.generation !== owner.generation)) ||
+        cursor.courseId === excludeCourse
+      )
+        continue;
+      const selected = (
+        await db
+          .select()
+          .from(schema.session)
+          .where(eq(schema.session.sessionId, cursor.resumeSessionId))
+          .all()
+      )[0];
+      const profile = (
+        await db
+          .select()
+          .from(schema.profile)
+          .where(
+            and(
+              eq(schema.profile.id, cursor.profileId),
+              eq(schema.profile.generation, cursor.generation),
+            ),
+          )
+          .all()
+      )[0];
+      if (!selected || !profile) throw new Error("Cursor owner missing");
+      if (
+        selected.status === "closed" &&
+        selected.currentRunId !== profile.undoRunId
+      )
+        await db
+          .update(schema.courseCursor)
+          .set({ resumeSessionId: null, revision: increment(cursor.revision) })
+          .where(
+            and(
+              eq(schema.courseCursor.profileId, cursor.profileId),
+              eq(schema.courseCursor.generation, cursor.generation),
+              eq(schema.courseCursor.courseId, cursor.courseId),
+            ),
+          )
+          .run();
+    }
+  }
+  async function validateOwners() {
+    const profiles = await db.select().from(schema.profile).all(),
+      activations = await db.select().from(schema.courseActivation).all();
+    for (const profile of profiles)
+      for (const activation of activations)
+        await context(
+          { profileId: profile.id, generation: profile.generation },
+          activation.courseId,
+        );
+  }
+  let initialization: Promise<ReturnType<typeof createCoordinator>> | undefined;
   function ensureInitialized() {
     initialization ??= (async () => {
-      content = await parseDevelopmentPackage(content, hash);
-      await initializeDatabase(executor, hash);
+      content = await parseRuntimePackage(content, hash);
+      await initializeDatabase(executor, hash, async (version) => {
+        if (version !== 6) return undefined;
+        await warmPackages();
+        const prepared = [...verified.values()].sort((a, b) =>
+          a.packageHash.localeCompare(b.packageHash),
+        );
+        return async () => {
+          const readyPackages = await db
+            .select()
+            .from(schema.installedPackage)
+            .where(eq(schema.installedPackage.state, "ready"))
+            .all();
+          if (
+            readyPackages.length !== prepared.length ||
+            readyPackages.some(
+              (row) =>
+                !prepared.some(
+                  (value) => value.packageHash === row.packageHash,
+                ),
+            )
+          )
+            throw new Error("Prepared package set changed before migration");
+          for (const value of prepared) await ensurePackage(value);
+          legacyCursorRead = true;
+          try {
+            await validateOwners();
+            await ink.inventory();
+          } finally {
+            legacyCursorRead = false;
+          }
+          await repairTerminalCursors();
+          const profiles = await db.select().from(schema.profile).all();
+          for (const profile of profiles)
+            for (const value of prepared)
+              await lessonProgress.derive({
+                owner: {
+                  profileId: profile.id,
+                  generation: profile.generation,
+                },
+                content: value,
+              });
+          await validateOwners();
+        };
+      });
       await warmPackages();
       await transaction(executor, async () => {
         const installations = await db.select().from(schema.installation).all();
@@ -312,6 +429,7 @@ export function createTeachingApplication({
                 entry.task.id === previous.body.taskId,
             );
           if (
+            cumulativeExtension({ previous, candidate: content }) ||
             cumulative ||
             isCumulativeOralExtension({ previous, candidate: content }) ||
             legacyCumulative ||
@@ -347,6 +465,8 @@ export function createTeachingApplication({
         }
       });
       await warmPackages();
+      await validateOwners();
+      await ink.inventory();
       return createCoordinator({ store, ids, hash });
     })();
     return initialization;
@@ -354,13 +474,14 @@ export function createTeachingApplication({
   async function loadSession(
     row: typeof schema.session.$inferSelect,
     owner: Owner,
+    retainedRun?: RunRow,
   ): Promise<StoredSession | null> {
     const rows = await db
       .select()
       .from(schema.taskRun)
       .where(eq(schema.taskRun.runId, row.currentRunId))
       .all();
-    const run = rows[0];
+    const run = retainedRun ?? rows[0];
     if (
       !run ||
       run.sessionId !== row.sessionId ||
@@ -369,22 +490,25 @@ export function createTeachingApplication({
       run.courseId !== row.courseId ||
       run.packageHash !== row.packageHash ||
       run.lessonId !== row.lessonId ||
-      run.taskId !== row.taskId
+      (!retainedRun && run.taskId !== row.taskId)
     )
       throw new Error("Saved run ownership is invalid");
-    if (run.status === "abandoned" && row.status === "closed") return null;
     if (
       run.status !== "inProgress" &&
       run.status !== "completed" &&
-      run.status !== "skipped"
+      run.status !== "skipped" &&
+      run.status !== "abandoned"
     )
       throw new Error("Saved run status is unsupported");
-    if ((run.status !== "inProgress") !== (row.status === "closed"))
+    if (
+      !retainedRun &&
+      (run.status !== "inProgress") !== (row.status === "closed")
+    )
       throw new Error("Saved session terminal status is invalid");
     const value = pinned(run.packageHash);
     if (
       value.body.courseId !== run.courseId ||
-      value.body.lessonId !== run.lessonId
+      lessonForTask({ content: value, taskId: run.taskId }) !== run.lessonId
     )
       throw new Error("Saved package ownership is invalid");
     const state = parseTeachingState(JSON.parse(run.state));
@@ -565,7 +689,8 @@ export function createTeachingApplication({
     if (
       previous !== run.activeAdvanceId ||
       nextSeq !== run.nextAdvanceSeq ||
-      Boolean(terminal) !== (run.status !== "inProgress") ||
+      Boolean(terminal) !==
+        (run.status === "completed" || run.status === "skipped") ||
       (state.kind === "writingSkipped"
         ? run.status !== "skipped"
         : Boolean(completionProof(value, state)) !==
@@ -597,6 +722,7 @@ export function createTeachingApplication({
         throw new Error("Durable task completion receipt is invalid");
     } else if (credits.length)
       throw new Error("Unfinished run has completion credit");
+    if (run.status === "abandoned") return null;
     return {
       sessionId: row.sessionId,
       runId: run.runId,
@@ -605,14 +731,18 @@ export function createTeachingApplication({
       packageHash: run.packageHash,
       lessonId: run.lessonId,
       taskId: run.taskId,
-      status: row.status,
+      status: retainedRun ? "closed" : row.status,
       runStatus: run.status,
       state,
       activeAdvanceId: run.activeAdvanceId,
       nextAdvanceSeq: run.nextAdvanceSeq,
+      lastSelectedSequence: row.lastSelectedSeq,
     };
   }
-  async function context(owner: Owner): Promise<StoredContext | null> {
+  async function context(
+    owner: Owner,
+    courseId = content.body.courseId,
+  ): Promise<StoredContext | null> {
     const profiles = await db
       .select()
       .from(schema.profile)
@@ -628,7 +758,7 @@ export function createTeachingApplication({
     const activations = await db
       .select()
       .from(schema.courseActivation)
-      .where(eq(schema.courseActivation.courseId, content.body.courseId))
+      .where(eq(schema.courseActivation.courseId, courseId))
       .all();
     const active = activations[0];
     if (!active) throw new Error("Course activation is missing");
@@ -640,7 +770,7 @@ export function createTeachingApplication({
         and(
           eq(schema.courseCursor.profileId, owner.profileId),
           eq(schema.courseCursor.generation, owner.generation),
-          eq(schema.courseCursor.courseId, content.body.courseId),
+          eq(schema.courseCursor.courseId, courseId),
         ),
       )
       .all();
@@ -652,7 +782,7 @@ export function createTeachingApplication({
         and(
           eq(schema.session.profileId, owner.profileId),
           eq(schema.session.generation, owner.generation),
-          eq(schema.session.courseId, content.body.courseId),
+          eq(schema.session.courseId, courseId),
         ),
       )
       .all();
@@ -661,13 +791,34 @@ export function createTeachingApplication({
       const session = await loadSession(row, owner);
       if (session) sessions.push(session);
     }
+    const retainedRuns = await db
+      .select()
+      .from(schema.taskRun)
+      .where(
+        and(
+          eq(schema.taskRun.profileId, owner.profileId),
+          eq(schema.taskRun.generation, owner.generation),
+          eq(schema.taskRun.courseId, courseId),
+        ),
+      )
+      .all();
+    const validatedRuns: StoredSession[] = [...sessions];
+    for (const run of retainedRuns) {
+      const row = rows.find((row) => row.sessionId === run.sessionId);
+      if (!row) throw new Error("Retained run has no owned session");
+      if (row.currentRunId === run.runId) continue;
+      if (run.status === "inProgress")
+        throw new Error("Unselected historical run cannot remain active");
+      const historical = await loadSession(row, owner, run);
+      if (historical) validatedRuns.push(historical);
+    }
     const selected = cursor?.resumeSessionId
       ? sessions.find((session) => session.sessionId === cursor.resumeSessionId)
       : null;
     if (
       (cursor?.resumeSessionId && !selected) ||
       (!cursor?.resumeSessionId &&
-        sessions.some((session) => session.status !== "closed"))
+        sessions.some((session) => session.status === "active"))
     )
       throw new Error("Saved teaching is missing its resume cursor");
     if (
@@ -678,6 +829,12 @@ export function createTeachingApplication({
       )
     )
       throw new Error("Active session is not selected");
+    if (
+      !legacyCursorRead &&
+      selected?.status === "closed" &&
+      selected.runId !== profile.undoRunId
+    )
+      throw new Error("Closed terminal cursor does not own Undo");
     const results = await db
       .select()
       .from(schema.taskResult)
@@ -685,7 +842,7 @@ export function createTeachingApplication({
         and(
           eq(schema.taskResult.profileId, owner.profileId),
           eq(schema.taskResult.generation, owner.generation),
-          eq(schema.taskResult.courseId, content.body.courseId),
+          eq(schema.taskResult.courseId, courseId),
         ),
       )
       .all();
@@ -696,14 +853,14 @@ export function createTeachingApplication({
         and(
           eq(schema.taskCredit.profileId, owner.profileId),
           eq(schema.taskCredit.generation, owner.generation),
-          eq(schema.taskCredit.courseId, content.body.courseId),
+          eq(schema.taskCredit.courseId, courseId),
           eq(schema.taskCredit.status, "valid"),
         ),
       )
       .all();
     for (const credit of credits)
       if (
-        !sessions.some(
+        !validatedRuns.some(
           (session) =>
             session.runId === credit.runId &&
             session.runStatus === credit.outcome,
@@ -726,13 +883,33 @@ export function createTeachingApplication({
         )
       )
         throw new Error("Effective task result has no valid credit");
+    const lessonResults = await lessonProgress.validate({ owner, courseId });
+    const history: SavedWork[] = [];
+    for (const run of retainedRuns) {
+      const row = rows.find((row) => row.sessionId === run.sessionId);
+      if (!row) throw new Error("Historical run owner missing");
+      history.push({
+        sessionId: row.sessionId,
+        runId: run.runId,
+        packageHash: run.packageHash,
+        lessonId: run.lessonId,
+        taskId: run.taskId,
+        lastSelectedSequence: row.lastSelectedSeq,
+        status: run.status,
+      });
+    }
     return {
       owner,
+      activationRevision: active.revision,
+      cursorRevision: cursor?.revision ?? parseCounter("0"),
+      lessonResults,
+      history,
       profileRevision: profile.revision,
       undoRunId: profile.undoRunId,
       activePackageHash: active.activePackageHash,
       selectionCounter: cursor?.selectionCounter ?? parseCounter("0"),
       session: selected ?? null,
+      cursorSession: selected ?? null,
       sessions,
       ownedSessionIds: rows.map((row) => row.sessionId),
       taskResults: results.map(({ taskId, outcome }) => ({ taskId, outcome })),
@@ -800,7 +977,7 @@ export function createTeachingApplication({
   }
   async function updateCursor(
     owner: Owner,
-    sessionId: StoredSession["sessionId"],
+    sessionId: StoredSession["sessionId"] | null,
     selectionCounter: StoredContext["selectionCounter"],
   ) {
     const where = and(
@@ -882,7 +1059,8 @@ export function createTeachingApplication({
           .all()
       )[0];
       if (!row) return null;
-      if (run.status === "abandoned" && row.status === "closed") {
+      if (run.status === "abandoned" || run.runId !== row.currentRunId) {
+        await loadSession(row, owner, run);
         const state = parseTeachingState(JSON.parse(run.state));
         validatePosition(pinned(run.packageHash), state, run.taskId);
         return {
@@ -894,7 +1072,7 @@ export function createTeachingApplication({
             packageHash: run.packageHash,
             lessonId: run.lessonId,
             taskId: run.taskId,
-            status: row.status,
+            status: "closed",
             runStatus: run.status,
             state,
             activeAdvanceId: run.activeAdvanceId,
@@ -981,7 +1159,10 @@ export function createTeachingApplication({
             generation: owner.generation,
             courseId: value.body.courseId,
             packageHash: value.packageHash,
-            lessonId: value.body.lessonId,
+            lessonId: lessonForTask({
+              content: value,
+              taskId: selection.taskId,
+            }),
             taskId: selection.taskId,
             currentRunId: selection.runId,
             scopeKind: "taskReplay",
@@ -1001,7 +1182,10 @@ export function createTeachingApplication({
             generation: owner.generation,
             courseId: value.body.courseId,
             packageHash: value.packageHash,
-            lessonId: value.body.lessonId,
+            lessonId: lessonForTask({
+              content: value,
+              taskId: selection.taskId,
+            }),
             taskId: selection.taskId,
             ordinal: parseCounter("0"),
             status: "inProgress",
@@ -1019,7 +1203,10 @@ export function createTeachingApplication({
             revision: parseCounter("0"),
             runRevision: parseCounter("0"),
             packageHash: value.packageHash,
-            lessonId: value.body.lessonId,
+            lessonId: lessonForTask({
+              content: value,
+              taskId: selection.taskId,
+            }),
             taskId: selection.taskId,
             status: "active",
             runStatus: "inProgress",
@@ -1067,6 +1254,8 @@ export function createTeachingApplication({
           )
           .run();
       }
+      if (selection.kind === "new")
+        await repairTerminalCursors(owner, content.body.courseId);
       await updateCursor(owner, result.sessionId, nextSelection);
       await saveReceipt(command, result);
     },
@@ -1194,7 +1383,7 @@ export function createTeachingApplication({
             profileId: current.owner.profileId,
             generation: current.owner.generation,
             courseId: value.body.courseId,
-            lessonId: value.body.lessonId,
+            lessonId: saved.lessonId,
             taskId: saved.taskId,
             sessionId: saved.sessionId,
             runId: saved.runId,
@@ -1218,7 +1407,7 @@ export function createTeachingApplication({
             profileId: current.owner.profileId,
             generation: current.owner.generation,
             courseId: value.body.courseId,
-            lessonId: value.body.lessonId,
+            lessonId: saved.lessonId,
             taskId: saved.taskId,
             outcome: plan.kind === "skip" ? "skipped" : "completed",
             acceptedCreditId: creditId,
@@ -1240,13 +1429,26 @@ export function createTeachingApplication({
             )
             .run();
       }
+      if (plan.kind === "completion" || plan.kind === "skip") {
+        await lessonProgress.derive({ owner: current.owner, content: value });
+        if (current.activePackageHash !== value.packageHash)
+          await lessonProgress.derive({
+            owner: current.owner,
+            content: pinned(current.activePackageHash),
+          });
+      }
       await ink.fence({
         session: { ...saved, state: plan.after },
         content: value,
       });
       await updateCursor(
         current.owner,
-        saved.sessionId,
+        (plan.kind === "completion" ||
+          plan.kind === "skip" ||
+          saved.runStatus !== "inProgress") &&
+          current.undoRunId !== saved.runId
+          ? null
+          : saved.sessionId,
         current.selectionCounter,
       );
       await saveReceipt(command, result);
@@ -1258,7 +1460,7 @@ export function createTeachingApplication({
       for (const token of tokens) await ink.snapshot({ token });
       return tokens;
     },
-    async current() {
+    async current(target) {
       await warmPackages();
       const profile = (
         await db
@@ -1273,6 +1475,58 @@ export function createTeachingApplication({
         generation: profile.generation,
       });
       if (!result) throw new Error("Local profile disappeared");
+      if (target?.kind === "accepted") {
+        const acknowledged = parseReceipt(target.receipt);
+        if (
+          acknowledged.owner.profileId !== result.owner.profileId ||
+          acknowledged.owner.generation !== result.owner.generation
+        )
+          throw new Error("Acknowledgment owner changed");
+        const rows = await db
+          .select()
+          .from(schema.commandReceipt)
+          .where(
+            and(
+              eq(schema.commandReceipt.commandId, acknowledged.commandId),
+              eq(schema.commandReceipt.ownerProfileId, result.owner.profileId),
+              eq(
+                schema.commandReceipt.ownerGeneration,
+                result.owner.generation,
+              ),
+            ),
+          )
+          .all();
+        const retained = rows[0];
+        if (
+          rows.length !== 1 ||
+          !retained ||
+          retained.result !== canonical(acknowledged) ||
+          retained.scopeGeneration !== result.owner.generation ||
+          retained.resultingRevision !== acknowledged.revision ||
+          Number(retained.resultVersion) !== 1
+        )
+          throw new Error("Acknowledged receipt is not retained");
+        if (
+          (retained.scopeKind !== "profile" &&
+            retained.scopeKind !== "session") ||
+          (retained.scopeKind === "profile" &&
+            (retained.scopeId !== result.owner.profileId ||
+              result.profileRevision !== acknowledged.revision)) ||
+          (retained.scopeKind === "session" &&
+            retained.scopeId !== acknowledged.sessionId)
+        )
+          throw new Error("Acknowledged receipt scope changed");
+        const selected = result.sessions.find(
+          (session) =>
+            session.sessionId === acknowledged.sessionId &&
+            session.runId === acknowledged.runId &&
+            session.packageHash === acknowledged.packageHash &&
+            (retained.scopeKind === "profile" ||
+              session.revision === acknowledged.revision),
+        );
+        if (!selected) throw new Error("Acknowledged delivery changed");
+        return { ...result, session: selected };
+      }
       return result;
     },
     async resolvePackage(packageHash) {
@@ -1313,7 +1567,10 @@ export function createTeachingApplication({
       } = {
     kind: "unopened",
   };
-  const recoveryProjection = (): CommittedProjection => ({
+  const recoveryProjection = (): Extract<
+    CommittedProjection,
+    { kind: "recovery" }
+  > => ({
     kind: "recovery",
     code: "ink-reconciliation-required",
     message: "Writing recovery must finish before teaching opens.",
@@ -1342,6 +1599,89 @@ export function createTeachingApplication({
   return {
     open: () => exclusive(normalRead),
     read: () => exclusive(normalRead),
+    readApplication: (target) =>
+      exclusive(async () => {
+        try {
+          if (!(await ready())) return recoveryProjection();
+          return parseApplicationRead(
+            await (await ensureInitialized()).readApplication(target),
+          );
+        } catch {
+          return {
+            kind: "recovery",
+            code: "storage-recovery",
+            message:
+              "Saved storage could not be verified. Recover this installation before continuing.",
+          };
+        }
+      }),
+    readWork: (input) =>
+      exclusive(async () => {
+        if (!(await ready())) throw new Error("Writing recovery is closed");
+        const owner = {
+            profileId: parseId({
+              kind: "profile",
+              value: input.owner.profileId,
+            }),
+            generation: parseCounter(input.owner.generation),
+          },
+          runId = parseId({ kind: "run", value: input.runId });
+        await warmPackages();
+        const current = await context(owner);
+        const summary = current?.history?.find((work) => work.runId === runId);
+        if (!current || !summary)
+          throw new Error("Owned historical work is unavailable");
+        const row = (
+          await db
+            .select()
+            .from(schema.session)
+            .where(eq(schema.session.sessionId, summary.sessionId))
+            .all()
+        )[0];
+        const run = (
+          await db
+            .select()
+            .from(schema.taskRun)
+            .where(eq(schema.taskRun.runId, runId))
+            .all()
+        )[0];
+        if (!row || !run) throw new Error("Historical owner missing");
+        const value = pinned(summary.packageHash),
+          state = parseTeachingState(JSON.parse(run.state));
+        validatePosition(value, state, summary.taskId);
+        const session = {
+          sessionId: row.sessionId,
+          runId,
+          revision: row.revision,
+          runRevision: run.revision,
+          packageHash: run.packageHash,
+          lessonId: run.lessonId,
+          taskId: run.taskId,
+          status: row.status,
+          runStatus: run.status,
+          state,
+          activeAdvanceId: run.activeAdvanceId,
+          nextAdvanceSeq: run.nextAdvanceSeq,
+        };
+        const writing = writingTask({ content: value, taskId: summary.taskId }),
+          documents: HistoricalWork["documents"][number][] = [];
+        for (const token of await ink.tokens({ session })) {
+          const snapshot = await ink.snapshot({ token }),
+            target = writing?.targets.find(
+              (target) => target.id === token.targetId,
+            );
+          if (!target) throw new Error("Historical writing guide missing");
+          const { token: privateToken, writable, ...readOnly } = snapshot;
+          documents.push({ access: "readOnly", target, snapshot: readOnly });
+        }
+        const title =
+          value.body.coverage === "partial-first-m"
+            ? value.body.title
+            : resolvedTask({ content: value, taskId: summary.taskId })?.entry
+                .task.title;
+        if (!title) throw new Error("Historical task unavailable");
+        return parseHistoricalWork({ kind: "work", summary, title, documents });
+      }),
     dispatch: (command) =>
       exclusive(async () => {
         if (!(await ready()))

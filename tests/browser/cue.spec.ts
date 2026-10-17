@@ -12,6 +12,7 @@ for (const reducedMotion of motionModes) {
   }) => {
     await page.emulateMedia({ reducedMotion });
     await page.goto("/");
+    await page.getByRole("link", { name: "Lesson 1", exact: true }).click();
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await expect(
       page.getByText("Fixture model.", { exact: true }),

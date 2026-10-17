@@ -19,6 +19,7 @@ async function turn(page: Page, suffix: string) {
 }
 async function start(page: Page, task = 1) {
   await page.goto(base);
+  await page.getByRole("link", { name: "Lesson 1", exact: true }).click();
   await page
     .getByRole("button", { name: `Start Task ${task}`, exact: true })
     .click();
@@ -73,12 +74,15 @@ test("complete six source obligations with stable anchors, completed Back and ex
   await page.getByRole("button", { name: "Replay task", exact: true }).click();
   await turn(page, "s01.model-m");
   await page.getByRole("button", { name: "Activities", exact: true }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.locator(".course-task-grid")).toBeVisible();
   await expect(page.locator('[data-task-number="1"]')).toContainText(
     "Completed",
   );
   await expect(page.locator('[data-available="false"]')).toHaveCount(0);
-  await page.keyboard.press("Escape");
+  await page
+    .locator('[data-task-number="1"]')
+    .getByRole("button", { name: "Resume", exact: true })
+    .click();
   await turn(page, "s01.model-m");
 });
 test("Repeat and Again correction preserve owed responses through Pause/reload/Resume", async ({
@@ -224,7 +228,7 @@ test("full browser process restart restores a graph correction route in actual O
       viewport: { width: 1024, height: 768 },
     });
     const next = await context.newPage();
-    await next.goto(base);
+    await next.goto(`${base}/teaching`);
     await expect(next.locator("main[data-turn-id]")).toHaveAttribute(
       "data-turn-id",
       /correction-m$/,

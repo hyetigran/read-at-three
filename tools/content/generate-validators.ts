@@ -24,7 +24,10 @@ const domains = {
   validateInkOperation: "InkOperation",
   validateInkCommand: "InkCommand",
   validateInkReceipt: "InkReceipt",
+  validateApplicationRead: "ApplicationRead",
+  validateHistoricalWork: "HistoricalWork",
   validatePackage: "DevelopmentPackage",
+  validateCumulativePackage: "CumulativeDevelopmentPackage",
   validateState: "TeachingState",
   validateCommand: "TeachingCommand",
   validateReceipt: "CommitReceipt",
@@ -33,6 +36,7 @@ const domains = {
 } satisfies Record<keyof typeof validatorSchemas, string>;
 const ajv = new Ajv2020({
   strict: true,
+  inlineRefs: false,
   allErrors: true,
   code: { source: true, esm: true },
 });

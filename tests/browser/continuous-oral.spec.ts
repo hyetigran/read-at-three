@@ -1,3 +1,4 @@
+import { reloadSavedTurn } from "./reload-saved-turn.ts";
 import { chromium, expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -33,6 +34,7 @@ async function act({ page, name = "Continue" }: { page: Page; name?: string }) {
 
 async function start(page: Page) {
   await page.goto(base);
+  await page.getByRole("link", { name: "Lesson 1", exact: true }).click();
   await page.getByRole("button", { name: "Start Task 3", exact: true }).click();
   await at({ page, suffix: "am-model" });
 }
@@ -224,7 +226,10 @@ test("failed correction Ready keeps the committed joint turn and retries the ide
   });
   expect(attempts).toHaveLength(2);
   expect(attempts[0]).toEqual(attempts[1]);
-  await page.reload();
+  await reloadSavedTurn({
+    page,
+    turnId: "fixture.graph.l01.t03.correction-am-together.test",
+  });
   await at({ page, suffix: "correction-am-together.test" });
 });
 
@@ -252,7 +257,7 @@ test("correction practice and its independent test survive full browser process 
       viewport: { width: 900, height: 600 },
     });
     page = await context.newPage();
-    await page.goto(base);
+    await page.goto(`${base}/teaching`);
     await expect(
       page.getByRole("heading", { name: "Reading is paused", exact: true }),
     ).toBeVisible();
@@ -266,7 +271,7 @@ test("correction practice and its independent test survive full browser process 
       viewport: { width: 900, height: 600 },
     });
     page = await context.newPage();
-    await page.goto(base);
+    await page.goto(`${base}/teaching`);
     await at({ page, suffix: "correction-am-again.test" });
     await act({ page });
     await at({ page, suffix: "am-model" });

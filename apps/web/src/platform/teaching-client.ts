@@ -1,6 +1,9 @@
+import { TeachingRecoveryError } from "@readatthree/react-integration";
 import type {
   WritingApplication,
   RecoveryOpening,
+  CourseApplication,
+  CourseReadTarget,
 } from "@readatthree/teaching";
 import { parseResponse, parseWorkerRequestId } from "./protocol.ts";
 import type {
@@ -107,11 +110,24 @@ export function createBrowserTeachingClient() {
         );
       return response.value;
     },
-    async read() {
-      const response = await request({ id: id(), kind: "read" });
-      if (response.kind !== "projection")
+    async read(target: CourseReadTarget = { kind: "cursor" }) {
+      const response = await request({ id: id(), kind: "read", target });
+      if (response.kind !== "application")
         throw new Error("The saved place could not be read.");
-      return { courseId: response.courseId, projection: response.value };
+      const application = response.value;
+      if (application.kind === "recovery")
+        throw new TeachingRecoveryError(application);
+      return {
+        courseId: application.courseId,
+        projection: application.projection,
+        application,
+      };
+    },
+    async readWork(input: Parameters<CourseApplication["readWork"]>[0]) {
+      const response = await request({ id: id(), kind: "readWork", ...input });
+      if (response.kind !== "work")
+        throw new Error("Saved work could not be read.");
+      return response.value;
     },
     async readPracticeControls(
       binding: Parameters<WritingApplication["readPracticeControls"]>[0],
@@ -200,5 +216,5 @@ export type BrowserTeachingClient = ReturnType<
 
 export type InkLifecycleClient = Omit<
   BrowserTeachingClient,
-  "read" | "dispatch" | "recoverTeaching" | "readPracticeControls"
+  "read" | "readWork" | "dispatch" | "recoverTeaching" | "readPracticeControls"
 >;

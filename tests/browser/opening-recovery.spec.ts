@@ -82,7 +82,7 @@ for (const { code, title } of [
                 typeof data.id !== "string" ||
                 !this.reads.has(data.id) ||
                 !("kind" in data) ||
-                data.kind !== "projection"
+                data.kind !== "application"
               )
                 return;
               injected = true;
@@ -157,7 +157,7 @@ for (const { code, title } of [
       else throw new Error("Opening release is unavailable");
     });
     await expect(
-      page.getByRole("button", { name: "Start", exact: true }),
+      page.getByRole("link", { name: "Lesson 1", exact: true }),
     ).toBeVisible();
     await expect(page.getByRole("heading", { name: title })).toHaveCount(0);
   });

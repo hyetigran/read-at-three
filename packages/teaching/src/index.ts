@@ -53,3 +53,7 @@ export * from "./ink.ts";
 export * from "./ink-history.ts";
 
 export * from "./ink-reservation.ts";
+
+export * from "./course-content.ts";
+
+export * from "./course.ts";

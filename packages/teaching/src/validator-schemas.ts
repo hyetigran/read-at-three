@@ -1,5 +1,7 @@
+import { activityArtKeys } from "./course-art.ts";
 import {
   writingTaskSchema,
+  writingTargetSchema,
   writingPresentationSchema,
   writingActionSchema,
   writingBarrierSchema,
@@ -381,6 +383,51 @@ const packageSchema = record({
   packageHash: hashSchema,
   body: bodySchema,
 });
+const cumulativePackageSchema = record({
+  formatVersion: { const: 1 },
+  packageHash: hashSchema,
+  body: record({
+    coverage: { const: "course-development" },
+    courseId: id,
+    releaseId: id,
+    title: copy,
+    lessons: list(
+      record({
+        lessonId: id,
+        number: { type: "integer", minimum: 1, maximum: 100 },
+        title: copy,
+        lessonTasks: list(
+          record({
+            id,
+            number: { type: "integer", minimum: 1, maximum: 100 },
+            title: copy,
+            optional: { type: "boolean" },
+            artKey: {
+              enum: activityArtKeys,
+            },
+          }),
+          100,
+          1,
+        ),
+        tasks: list(
+          {
+            oneOf: [
+              record({ kind: { const: "printedGraphV1" }, task: graphTask }),
+              record({ kind: { const: "graphControls" }, task: controlTask }),
+              record({
+                kind: { const: "soundWritingV1" },
+                task: writingTaskSchema,
+              }),
+            ],
+          },
+          100,
+        ),
+      }),
+      100,
+      1,
+    ),
+  }),
+});
 const normalContext = record({ kind: { const: "normal" } });
 const repeatContext = record({
   kind: { const: "repeat" },
@@ -641,6 +688,113 @@ const projectionSchema = {
     record({ kind: { const: "recovery" }, code: id, message: text }),
   ],
 };
+const savedWorkSchema = record({
+  sessionId: id,
+  runId: id,
+  packageHash: hashSchema,
+  lessonId: id,
+  taskId: id,
+  lastSelectedSequence: counter,
+  status: { enum: ["inProgress", "completed", "skipped", "abandoned"] },
+});
+const courseActionSchema = record({
+  label: copy,
+  intent: record({
+    kind: { enum: ["start", "resume", "restart", "replay"] },
+    taskId: id,
+    packageHash: hashSchema,
+    sessionId: nullableId,
+  }),
+});
+const courseSchema = record({
+  lessons: list(
+    record({
+      lessonId: id,
+      number: { type: "integer", minimum: 1, maximum: 100 },
+      title: copy,
+      tasks: list(
+        record({
+          id,
+          number: { type: "integer", minimum: 1, maximum: 100 },
+          title: copy,
+          optional: { type: "boolean" },
+          artKey: {
+            enum: activityArtKeys,
+          },
+          availability: { enum: ["ready", "missingTeaching"] },
+          outcome: { enum: ["unseen", "completed", "skipped"] },
+          actions: list(courseActionSchema, 100),
+          unfinished: list(savedWorkSchema, 10000),
+          history: list(savedWorkSchema, 10000),
+        }),
+        100,
+      ),
+      progress: { enum: ["unfinished", "satisfied"] },
+    }),
+    100,
+    1,
+  ),
+  resume: {
+    oneOf: [
+      record({ kind: { const: "none" } }),
+      record({
+        kind: { const: "unfinished" },
+        work: savedWorkSchema,
+        action: courseActionSchema,
+      }),
+      record({ kind: { const: "terminalUndoView" }, work: savedWorkSchema }),
+    ],
+  },
+  recommendation: {
+    oneOf: [
+      record({ kind: { const: "contentBoundary" } }),
+      record({ kind: { const: "task" }, lessonId: id, taskId: id }),
+    ],
+  },
+});
+const applicationReadSchema = {
+  oneOf: [
+    record({ kind: { const: "recovery" }, code: id, message: text }),
+    record({
+      kind: { const: "ready" },
+      courseId: id,
+      witness: record({
+        owner,
+        profileRevision: counter,
+        activePackageHash: hashSchema,
+        activationRevision: counter,
+        cursorRevision: counter,
+        selectedSessionRevision: { anyOf: [counter, { type: "null" }] },
+      }),
+      course: courseSchema,
+      projection: projectionSchema,
+    }),
+  ],
+};
+const historicalSnapshotSchema = {
+  ...inkSnapshotSchema,
+  properties: Object.fromEntries(
+    Object.entries(inkSnapshotSchema.properties).filter(
+      ([name]) => name !== "token" && name !== "writable",
+    ),
+  ),
+  required: inkSnapshotSchema.required.filter(
+    (name) => name !== "token" && name !== "writable",
+  ),
+};
+const historicalWorkSchema = record({
+  kind: { const: "work" },
+  summary: savedWorkSchema,
+  title: copy,
+  documents: list(
+    record({
+      access: { const: "readOnly" },
+      target: writingTargetSchema,
+      snapshot: historicalSnapshotSchema,
+    }),
+    100,
+  ),
+});
 const resultSchema = {
   oneOf: [
     receiptSchema,
@@ -657,6 +811,12 @@ const rootSchemas = {
 };
 
 const sharedDefinitions = {
+  projectionSchema,
+  savedWorkSchema,
+  courseActionSchema,
+  graphTask,
+  controlTask,
+  writingTaskSchema,
   forbiddenCatalogSkipped: forbiddenCatalogSkippedSchema,
   catalogTask: catalogTaskSchema,
   graphAction,
@@ -682,15 +842,31 @@ function withDefinitions(root: object) {
       if (value === schema) return { $ref: `#/$defs/${name}` };
     return Array.isArray(value) ? value.map(walk) : object(value);
   }
-  return {
-    ...object(root),
-    $defs: Object.fromEntries(
-      Object.entries(sharedDefinitions).map(([name, schema]) => [
-        name,
-        object(schema),
-      ]),
-    ),
-  };
+  const transformed = object(root);
+  const definitions = new Map(
+    Object.entries(sharedDefinitions).map(([name, schema]) => [
+      name,
+      object(schema),
+    ]),
+  );
+  const retained = new Map<string, Record<string, unknown>>();
+  function references(value: unknown): void {
+    if (value === null || typeof value !== "object") return;
+    if ("$ref" in value) {
+      if (typeof value.$ref !== "string" || !value.$ref.startsWith("#/$defs/"))
+        throw new Error("Unreviewed shared schema reference");
+      const name = value.$ref.slice("#/$defs/".length),
+        definition = definitions.get(name);
+      if (!definition) throw new Error("Missing shared schema definition");
+      if (!retained.has(name)) {
+        retained.set(name, definition);
+        references(definition);
+      }
+    }
+    for (const child of Object.values(value)) references(child);
+  }
+  references(transformed);
+  return { ...transformed, $defs: Object.fromEntries(retained) };
 }
 export const validatorSchemas = {
   validatePracticeControlsBinding: practiceControlsBindingSchema,
@@ -705,7 +881,10 @@ export const validatorSchemas = {
   validateInkOperation: withDefinitions(inkOperationSchema),
   validateInkCommand: withDefinitions(inkCommandSchema),
   validateInkReceipt: withDefinitions(inkReceiptSchema),
+  validateApplicationRead: withDefinitions(applicationReadSchema),
+  validateHistoricalWork: withDefinitions(historicalWorkSchema),
   validatePackage: withDefinitions(rootSchemas.validatePackage),
+  validateCumulativePackage: withDefinitions(cumulativePackageSchema),
   validateState: withDefinitions(rootSchemas.validateState),
   validateCommand: withDefinitions(rootSchemas.validateCommand),
   validateReceipt: withDefinitions(rootSchemas.validateReceipt),

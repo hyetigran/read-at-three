@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import {
   initializeDatabase,
+  DATABASE_VERSION,
   migrationStatements,
 } from "../../packages/storage/src/migration.ts";
 import { migrations } from "../../packages/storage/src/generated-migration.ts";
@@ -155,11 +156,14 @@ test("real captured V1 data upgrades without rebinding pinned bytes; full task r
       .get(capture.packageHash)?.verified_manifest,
     bytes,
   );
-  assert.equal(first.db.prepare("PRAGMA user_version").get()?.user_version, 5);
+  assert.equal(
+    first.db.prepare("PRAGMA user_version").get()?.user_version,
+    DATABASE_VERSION,
+  );
   assert.equal(
     first.db.prepare("SELECT database_version FROM installation").get()
       ?.database_version,
-    5,
+    DATABASE_VERSION,
   );
   const restart = f.connect();
   assert.deepEqual(await restart.app.open(), view);
@@ -219,7 +223,7 @@ test("each failed V2 migration statement rolls back to exact V1 schema/data and 
     await initializeDatabase(first.executor, hash);
     assert.equal(
       first.db.prepare("PRAGMA user_version").get()?.user_version,
-      5,
+      DATABASE_VERSION,
     );
     assert.equal(sourceState(first.db), before);
   }
@@ -358,7 +362,7 @@ test("every V3 migration write and pre-COMMIT interruption rolls back genuine V2
     await initializeDatabase(first.executor, hash);
     assert.equal(
       first.db.prepare("PRAGMA user_version").get()?.user_version,
-      5,
+      DATABASE_VERSION,
     );
     assert.equal(sourceState(first.db), before);
   }
@@ -381,6 +385,6 @@ test("every V3 migration write and pre-COMMIT interruption rolls back genuine V2
   await initializeDatabase(first.executor, hash);
   assert.equal(
     first.db.prepare("SELECT count(*) AS n FROM schema_migration").get()?.n,
-    5,
+    DATABASE_VERSION,
   );
 });

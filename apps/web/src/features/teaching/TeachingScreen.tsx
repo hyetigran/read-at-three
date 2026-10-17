@@ -1,6 +1,5 @@
 import type {
   AvailableAction,
-  CatalogTask,
   CommittedProjection,
   Copy,
   GraphTurn,
@@ -35,6 +34,9 @@ type TeachingScreenProps = {
   ) => void;
   onRetry: () => void;
   onOpenRetry: () => void;
+  onLessonMenu?: () => void;
+  lessonNumber?: number;
+  inputSuspended?: boolean;
 };
 
 type ActionProps = {
@@ -122,17 +124,21 @@ function ActionButton({
 function ScreenHeading({
   title,
   taskNumber,
+  lessonNumber = 1,
   children,
 }: {
   title: Copy;
   taskNumber: number | null;
+  lessonNumber?: number;
   children?: ReactNode;
 }) {
   return (
     <header className="teaching-header">
       <p className="teaching-location">
         <AddedText>
-          {taskNumber ? `Lesson 1 · Task ${taskNumber}` : "Lesson 1"}
+          {taskNumber
+            ? `Lesson ${lessonNumber} · Task ${taskNumber}`
+            : `Lesson ${lessonNumber}`}
         </AddedText>
       </p>
       <h1>
@@ -169,124 +175,6 @@ function SaveStatus({
         </p>
       ) : null}
     </footer>
-  );
-}
-
-function CatalogDialog({
-  children,
-  onClose,
-}: {
-  children: ReactNode;
-  onClose: () => void;
-}) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const dialog = ref.current;
-    dialog?.showModal();
-    return () => {
-      dialog?.close();
-    };
-  }, []);
-  return (
-    <dialog
-      ref={ref}
-      className="teaching-catalog-dialog"
-      aria-label="Lesson activities"
-      onCancel={(event) => {
-        event.preventDefault();
-        onClose();
-      }}
-    >
-      <Button
-        autoFocus
-        className="teaching-button teaching-close-catalog"
-        onClick={onClose}
-      >
-        <AddedText>Return to activity</AddedText>
-      </Button>
-      {children}
-    </dialog>
-  );
-}
-
-function TaskCatalog({
-  catalog,
-  actions,
-  disabled,
-  onAction,
-}: {
-  catalog: readonly CatalogTask[];
-  actions: readonly AvailableAction[];
-  disabled: boolean;
-  onAction: TeachingScreenProps["onAction"];
-}) {
-  return (
-    <section className="teaching-catalog" aria-label="Lesson activities">
-      <h2>
-        <AddedText>Lesson 1 activities</AddedText>
-      </h2>
-      {catalog.length ? (
-        <ol className="teaching-task-list">
-          {catalog.map((task) => {
-            const taskActions = actions.filter(
-              (action) =>
-                "taskId" in action.intent && action.intent.taskId === task.id,
-            );
-            return (
-              <li
-                key={task.id}
-                data-task-number={task.number}
-                data-available={task.available}
-              >
-                <span className="teaching-task-number">
-                  <AddedText>{task.number}</AddedText>
-                </span>
-                <div className="teaching-task-description">
-                  <h3>
-                    <CopyText copy={task.title} />
-                  </h3>
-                  <p>
-                    <AddedText>
-                      {!task.available
-                        ? "Teaching content not installed"
-                        : task.completed
-                          ? "Completed"
-                          : task.skipped
-                            ? "Skipped"
-                            : task.savedSessionId
-                              ? "Saved activity"
-                              : "Available"}
-                      {task.optional ? " · Optional" : ""}
-                    </AddedText>
-                  </p>
-                </div>
-                <div className="teaching-task-actions">
-                  {taskActions.map((action) => (
-                    <ProjectedAction
-                      key={actionKey(action)}
-                      action={action}
-                      disabled={disabled}
-                      onAction={onAction}
-                    />
-                  ))}
-                </div>
-              </li>
-            );
-          })}
-        </ol>
-      ) : (
-        <div className="teaching-entry-actions">
-          {actions.map((action) => (
-            <ProjectedAction
-              key={actionKey(action)}
-              action={action}
-              disabled={disabled}
-              onAction={onAction}
-            />
-          ))}
-        </div>
-      )}
-    </section>
   );
 }
 
@@ -919,18 +807,20 @@ export function TeachingScreen({
   onReview,
   onRetry,
   onOpenRetry,
+  onLessonMenu,
+  lessonNumber = 1,
+  inputSuspended = false,
 }: TeachingScreenProps) {
   const supportedWindow = useSyncExternalStore(
     subscribeViewport,
     isTeachingViewport,
     () => false,
   );
-  const [catalogOpen, setCatalogOpen] = useState(false);
   const [cueGeneration, setCueGeneration] = useState(0);
-  const disabled = busy || saveError !== null || correctionPreview !== null;
+  const disabled =
+    busy || saveError !== null || correctionPreview !== null || inputSuspended;
   function act(action: AvailableAction) {
     setCueGeneration((generation) => generation + 1);
-    setCatalogOpen(false);
     onAction(action);
   }
   const saveStatus = (
@@ -941,14 +831,6 @@ export function TeachingScreen({
     return (
       <RecoveryScreen recovery={projection} busy={busy} onRetry={onOpenRetry} />
     );
-  const catalog = (
-    <TaskCatalog
-      catalog={projection.catalog}
-      actions={projection.actions}
-      disabled={disabled}
-      onAction={act}
-    />
-  );
   if (
     (projection.kind === "teaching" ||
       projection.kind === "reviewSelection" ||
@@ -987,6 +869,7 @@ export function TeachingScreen({
         <ScreenHeading
           title={projection.title}
           taskNumber={projection.taskNumber}
+          lessonNumber={lessonNumber}
         >
           {pause.map((action) => (
             <ProjectedAction
@@ -996,16 +879,14 @@ export function TeachingScreen({
               onAction={act}
             />
           ))}
-          {projection.catalog.length ? (
+          {onLessonMenu ? (
             <Button
               className="teaching-button teaching-catalog-toggle"
               onClick={() => {
                 setCueGeneration((generation) => generation + 1);
-                void writingController.interrupt();
-                setCatalogOpen(true);
+                onLessonMenu();
               }}
-              disabled={disabled}
-              aria-haspopup="dialog"
+              disabled={busy}
             >
               <AddedText>Activities</AddedText>
             </Button>
@@ -1016,7 +897,7 @@ export function TeachingScreen({
           <WritingActivity
             projection={projection}
             controller={writingController}
-            disabled={disabled || catalogOpen}
+            disabled={disabled}
             onAction={act}
           />
         ) : projection.kind === "teaching" && displayedTurn !== null ? (
@@ -1041,7 +922,7 @@ export function TeachingScreen({
             preview={correctionPreview !== null}
             actions={projection.actions}
             completed={projection.runStatus === "completed"}
-            disabled={disabled || catalogOpen}
+            disabled={disabled}
             onAction={act}
           />
         ) : projection.kind === "reviewSelection" ? (
@@ -1054,7 +935,7 @@ export function TeachingScreen({
               projection.reviewId,
             ])}
             projection={projection}
-            disabled={disabled || catalogOpen}
+            disabled={disabled}
             onAction={act}
             onReview={(request) => {
               setCueGeneration((generation) => generation + 1);
@@ -1063,11 +944,6 @@ export function TeachingScreen({
           />
         ) : null}
         {saveStatus}
-        {catalogOpen ? (
-          <CatalogDialog onClose={() => setCatalogOpen(false)}>
-            {catalog}
-          </CatalogDialog>
-        ) : null}
       </main>
     );
   }
@@ -1076,6 +952,7 @@ export function TeachingScreen({
       <ScreenHeading
         title={projection.title}
         taskNumber={projection.kind === "entry" ? null : projection.taskNumber}
+        lessonNumber={lessonNumber}
       />
       {projection.kind !== "entry" ? (
         <section className="teaching-session-summary" aria-live="polite">
@@ -1101,7 +978,11 @@ export function TeachingScreen({
           </p>
           <div className="teaching-entry-actions">
             {projection.actions
-              .filter((action) => !("taskId" in action.intent))
+              .filter(
+                (action) =>
+                  !("taskId" in action.intent) ||
+                  action.intent.taskId === projection.taskId,
+              )
               .map((action) => (
                 <ProjectedAction
                   key={actionKey(action)}
@@ -1113,7 +994,11 @@ export function TeachingScreen({
           </div>
         </section>
       ) : null}
-      {catalog}
+      {onLessonMenu ? (
+        <Button className="teaching-button" onClick={onLessonMenu}>
+          <AddedText>Activities</AddedText>
+        </Button>
+      ) : null}
       {saveStatus}
     </main>
   );

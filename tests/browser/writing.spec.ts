@@ -1,3 +1,4 @@
+import { reloadSavedTurn } from "./reload-saved-turn.ts";
 import { chromium, expect, test } from "@playwright/test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -265,8 +266,23 @@ for (const holdFinalize of [false, true]) {
       await startWriting(page);
       await writingAction(page);
       await atWritableWriting(page, "m-model");
-      const original = (await latestDocuments(page))[0];
+      const before = await latestDocuments(page);
+      const original = before[0];
       if (!original) throw new Error("The model document is missing");
+      const selected = (await responses(page)).findLast(
+        (response) => response.kind === "application",
+      );
+      if (
+        selected?.kind !== "application" ||
+        selected.value.kind !== "ready" ||
+        selected.value.projection.kind !== "writing"
+      )
+        throw new Error("The model teaching projection is missing");
+      const projection = selected.value.projection;
+      const checkpoint = await page
+        .locator("main")
+        .getAttribute("data-checkpoint-id");
+      if (!checkpoint) throw new Error("The model checkpoint is missing");
       const start = await boardPoint(page, 120, 110);
       const firstEnd = await boardPoint(page, 155, 130);
       await page.mouse.move(start.x, start.y);
@@ -284,8 +300,14 @@ for (const holdFinalize of [false, true]) {
           .toBe(true);
       await page.mouse.up();
       await page.setViewportSize({ width: 1280, height: 800 });
-      await atWriting(page, "m-model");
+      await page.evaluate(`
+        window.lifecycleClosedDown = new PointerEvent("pointerdown", {
+          bubbles: true, pointerId: 98, pointerType: "pen", isPrimary: true,
+          button: 0, buttons: 1, clientX: 450, clientY: 350,
+        });
+      `);
       if (holdFinalize) {
+        await atWriting(page, "m-model");
         await expect(page.locator("canvas")).toHaveAttribute(
           "data-writable",
           "false",
@@ -308,8 +330,31 @@ for (const holdFinalize of [false, true]) {
         ).toHaveLength(begins);
         await page.evaluate("window.releaseHeldWritingWrite()");
       }
-      await atWritableWriting(page, "m-model");
       await finalizedWriting(page, original.token.documentId, 1);
+      await expect(
+        page.getByRole("heading", { name: "Reading is paused", exact: true }),
+      ).toBeVisible();
+      await writingAction(page, "Resume");
+      await atWritableWriting(page, "m-model");
+      await expect(page.locator("main")).toHaveAttribute(
+        "data-checkpoint-id",
+        checkpoint,
+      );
+      const begins = (await requests(page)).filter(
+        (request) =>
+          request.kind === "dispatchInk" &&
+          request.command.edit.kind === "begin",
+      ).length;
+      await page.evaluate(
+        "document.querySelector('canvas').dispatchEvent(window.lifecycleClosedDown)",
+      );
+      expect(
+        (await requests(page)).filter(
+          (request) =>
+            request.kind === "dispatchInk" &&
+            request.command.edit.kind === "begin",
+        ),
+      ).toHaveLength(begins);
       const next = await boardPoint(page, 250, 110);
       const secondEnd = await boardPoint(page, 270, 120);
       await page.mouse.move(next.x, next.y);
@@ -330,13 +375,110 @@ for (const holdFinalize of [false, true]) {
           value: "visible",
         });
         document.dispatchEvent(new Event("visibilitychange"));
+        window.dispatchEvent(
+          new PageTransitionEvent("pageshow", { persisted: true }),
+        );
       });
       await finalizedWriting(page, original.token.documentId, 2);
+      await expect(
+        page.getByRole("heading", { name: "Reading is paused", exact: true }),
+      ).toBeVisible();
+      await writingAction(page, "Resume");
       await atWritableWriting(page, "m-model");
+      await expect(page.locator("main")).toHaveAttribute(
+        "data-checkpoint-id",
+        checkpoint,
+      );
+      const commands = (await requests(page))
+        .filter((request) => request.kind === "dispatch")
+        .map((request) => request.command);
       expect(
-        (await requests(page)).filter((request) => request.kind === "dispatch"),
-      ).toHaveLength(2);
-      await page.reload();
+        commands.map((command) => {
+          if (command.kind === "select" || command.kind === "writingSelect")
+            return [
+              command.kind,
+              command.scope.kind,
+              command.expectedRevision,
+              command.payload.intent,
+              command.payload.taskId,
+              command.payload.sessionId,
+            ];
+          if (command.kind === "writingNavigate")
+            return [
+              command.kind,
+              command.scope.kind,
+              command.expectedRevision,
+              command.payload.action.kind,
+              command.payload.sessionId,
+              command.payload.runId,
+              command.payload.checkpointId,
+            ];
+          return command;
+        }),
+      ).toEqual([
+        ["select", "profile", "0", "start", "fixture.graph.l01.t06", null],
+        [
+          "writingNavigate",
+          "session",
+          "0",
+          "continue",
+          projection.sessionId,
+          projection.runId,
+          "checkpoint-1",
+        ],
+        [
+          "writingNavigate",
+          "session",
+          "1",
+          "pause",
+          projection.sessionId,
+          projection.runId,
+          checkpoint,
+        ],
+        [
+          "writingSelect",
+          "profile",
+          "1",
+          "resume",
+          "fixture.graph.l01.t06",
+          projection.sessionId,
+        ],
+        [
+          "writingNavigate",
+          "session",
+          "3",
+          "pause",
+          projection.sessionId,
+          projection.runId,
+          checkpoint,
+        ],
+        [
+          "writingSelect",
+          "profile",
+          "2",
+          "resume",
+          "fixture.graph.l01.t06",
+          projection.sessionId,
+        ],
+      ]);
+      for (const command of commands) {
+        expect(command.owner).toEqual(projection.owner);
+        expect(command.scope).toEqual({
+          kind: command.kind === "writingNavigate" ? "session" : "profile",
+          id:
+            command.kind === "writingNavigate"
+              ? projection.sessionId
+              : projection.owner.profileId,
+          generation: projection.owner.generation,
+        });
+      }
+      expect(new Set(commands.map((command) => command.commandId)).size).toBe(
+        6,
+      );
+      const restored = await reloadSavedTurn({
+        page,
+        turnId: "fixture.graph.l01.t06.m-model",
+      });
       await atWritableWriting(page, "m-model");
       const first = (await latestDocuments(page))[0];
       expect(first?.token.documentId).toBe(original.token.documentId);
@@ -364,6 +506,8 @@ for (const holdFinalize of [false, true]) {
             bounds: first.bounds,
           }),
         );
+        expect(stroke.pointCount).toBe(2);
+        expect(points).toHaveLength(2);
         expect(points[0]?.x).toBeCloseTo(expected[0]?.x ?? NaN, 3);
         expect(points[0]?.y).toBeCloseTo(expected[0]?.y ?? NaN, 3);
         expect(points.at(-1)?.x).toBeCloseTo(expected[1]?.x ?? NaN, 3);
@@ -373,9 +517,43 @@ for (const holdFinalize of [false, true]) {
         first.histories.find((history) => history.layer === "model")
           ?.operations,
       ).toHaveLength(2);
+      const other = (await latestDocuments(page))[1];
+      expect(other?.token.documentId).toBe(before[1]?.token.documentId);
+      expect(other?.strokes).toEqual(before[1]?.strokes);
+      expect(other?.histories).toEqual(before[1]?.histories);
       expect(
-        (await requests(page)).filter((request) => request.kind === "dispatch"),
-      ).toHaveLength(0);
+        (await requests(page))
+          .filter((request) => request.kind === "dispatch")
+          .map((request) => {
+            const command = request.command;
+            if (command.kind !== "writingSelect") return command;
+            return {
+              kind: command.kind,
+              scope: command.scope,
+              expectedRevision: command.expectedRevision,
+              intent: command.payload.intent,
+              taskId: command.payload.taskId,
+              sessionId: command.payload.sessionId,
+            };
+          }),
+      ).toEqual(
+        restored.kind === "resumedPaused"
+          ? [
+              {
+                kind: "writingSelect",
+                scope: {
+                  kind: "profile",
+                  id: projection.owner.profileId,
+                  generation: projection.owner.generation,
+                },
+                expectedRevision: "3",
+                intent: "resume",
+                taskId: "fixture.graph.l01.t06",
+                sessionId: projection.sessionId,
+              },
+            ]
+          : [],
+      );
     },
   );
 }
@@ -453,7 +631,7 @@ test("warm retained newer tail survives two committed reply losses and Retry ope
     }),
   );
   expect(points.at(-1)?.x).toBeGreaterThan(150);
-  await page.reload();
+  await reloadSavedTurn({ page, turnId: "fixture.graph.l01.t06.m-model" });
   await atWriting(page, "m-model");
   expect((await latestDocuments(page))[0]?.strokes).toHaveLength(1);
 });
@@ -530,7 +708,7 @@ test("each phase survives a full browser process restart and cold committed capt
       });
       page = await context.newPage();
       await probe(page);
-      await page.goto(writingBase);
+      await page.goto(`${writingBase}/teaching`);
       await atWriting(page, phase.suffix);
       const documents = await latestDocuments(page);
       expect(
@@ -539,7 +717,10 @@ test("each phase survives a full browser process restart and cold committed capt
           .every((stroke) => stroke.status !== "capturing"),
       ).toBe(true);
       const count = documents.flatMap((document) => document.strokes).length;
-      await page.reload();
+      await reloadSavedTurn({
+        page,
+        turnId: `fixture.graph.l01.t06.${phase.suffix}`,
+      });
       await atWriting(page, phase.suffix);
       expect(
         (await latestDocuments(page)).flatMap((document) => document.strokes),
@@ -602,7 +783,7 @@ for (const fault of ["teaching-before-twice", "teaching-after-reconcile"]) {
     ).toHaveLength(2);
     const restored = (await latestDocuments(page))[0];
     expect(restored?.strokes).toHaveLength(3);
-    await page.reload();
+    await reloadSavedTurn({ page, turnId: "fixture.graph.l01.t06.m-tracing" });
     await atWriting(page, "m-tracing");
   });
 }
@@ -619,22 +800,23 @@ for (const path of ["normal", "recovered teaching"]) {
       await probe(page);
       await startWriting(page);
       const selected = (await responses(page)).findLast(
-        (response) => response.kind === "projection",
+        (response) => response.kind === "application",
       );
       const selectedReceipt = (await responses(page)).findLast(
         (response) => response.kind === "receipt",
       );
       if (
-        selected?.kind !== "projection" ||
-        selected.value.kind !== "writing" ||
+        selected?.kind !== "application" ||
+        selected.value.kind !== "ready" ||
+        selected.value.projection.kind !== "writing" ||
         selectedReceipt?.kind !== "receipt" ||
         selectedReceipt.value.kind !== "committed"
       )
         throw new Error("Committed writing selection missing");
       expect({
         receiptRevision: selectedReceipt.value.revision,
-        profileRevision: selected.value.profileRevision,
-        sessionRevision: selected.value.revision,
+        profileRevision: selected.value.projection.profileRevision,
+        sessionRevision: selected.value.projection.revision,
       }).toEqual({
         receiptRevision: "1",
         profileRevision: "1",
@@ -742,7 +924,10 @@ for (const path of ["normal", "recovered teaching"]) {
           points[index - 1]?.elapsedMs ?? 0,
         );
       }
-      await page.reload();
+      const restoration = await reloadSavedTurn({
+        page,
+        turnId: "fixture.graph.l01.t06.m-tracing",
+      });
       await atWriting(page, "m-tracing");
       const reopened = await latestDocuments(page);
       expect(reopened.map((document) => document.token.documentId)).toEqual(
@@ -752,11 +937,60 @@ for (const path of ["normal", "recovered teaching"]) {
         after.flatMap((document) => document.strokes),
       );
       const durable = (await responses(page)).findLast(
-        (response) => response.kind === "projection",
+        (response) => response.kind === "application",
       );
-      if (durable?.kind !== "projection" || durable.value.kind !== "writing")
+      if (
+        durable?.kind !== "application" ||
+        durable.value.kind !== "ready" ||
+        durable.value.projection.kind !== "writing"
+      )
         throw new Error("Reopened writing projection missing");
-      expect(durable.value.revision).toBe("2");
+      expect(durable.value.projection.revision).toBe(
+        restoration.kind === "recoveredActive" ? "2" : "4",
+      );
+      const reopenedCommands = (await requests(page))
+        .filter((request) => request.kind === "dispatch")
+        .map((request) => request.command);
+      if (restoration.kind === "recoveredActive") {
+        expect(reopenedCommands).toEqual([]);
+      } else {
+        const paused = (await responses(page)).find(
+          (response) => response.kind === "application",
+        );
+        expect(paused).toMatchObject({
+          kind: "application",
+          value: {
+            kind: "ready",
+            witness: { selectedSessionRevision: "3" },
+            projection: {
+              kind: "writing",
+              sessionStatus: "paused",
+              sessionId: selected.value.projection.sessionId,
+              runId: selected.value.projection.runId,
+              revision: "3",
+              checkpointId: durable.value.projection.checkpointId,
+              turn: { id: "fixture.graph.l01.t06.m-tracing" },
+            },
+          },
+        });
+        expect(reopenedCommands).toHaveLength(1);
+        expect(reopenedCommands[0]).toMatchObject({
+          kind: "writingSelect",
+          owner: selected.value.projection.owner,
+          scope: {
+            kind: "profile",
+            id: selected.value.projection.owner.profileId,
+            generation: selected.value.projection.owner.generation,
+          },
+          expectedRevision: "1",
+          payload: {
+            packageHash: selected.value.projection.packageHash,
+            intent: "resume",
+            taskId: "fixture.graph.l01.t06",
+            sessionId: selected.value.projection.sessionId,
+          },
+        });
+      }
     });
   }
 }
@@ -857,7 +1091,7 @@ test("DPR reconstruction changes only pixels and stale document epochs cannot ap
         (request) => request.kind === "dispatchInk",
       ),
     ).toHaveLength(before);
-    await page.reload();
+    await reloadSavedTurn({ page, turnId: "fixture.graph.l01.t06.m-tracing" });
     await atWriting(page, "m-tracing");
     const restored = (await latestDocuments(page))[0];
     expect(restored?.strokes).toEqual(committed.strokes);
@@ -919,14 +1153,27 @@ test("task selection uses closed exact Retry, Resume keeps documents and Replay 
 }) => {
   await probe(page);
   await startWriting(page);
+  const originalSelection = (await requests(page)).find(
+    (request) =>
+      request.kind === "dispatch" &&
+      (request.command.kind === "select" ||
+        request.command.kind === "writingSelect") &&
+      request.command.payload.taskId === "fixture.graph.l01.t06" &&
+      request.command.payload.intent === "start",
+  );
+  if (!originalSelection || originalSelection.kind !== "dispatch")
+    throw new Error("Original Task 6 selection missing");
   await writingAction(page);
   await drawPractice(page);
   const original = (await latestDocuments(page)).map(
     (document) => document.token.documentId,
   );
   await page.getByRole("button", { name: "Activities", exact: true }).click();
+  const task2 = page.getByRole("button", { name: "Start Task 2", exact: true });
+  await expect(task2).toBeVisible();
+  await expect(task2).toBeEnabled();
   await page.evaluate("window.armWritingFault('teaching-before-twice')");
-  await page.getByRole("button", { name: "Start Task 2", exact: true }).click();
+  await task2.click();
   await expect(
     page.getByRole("button", { name: "Retry save", exact: true }),
   ).toBeVisible();
@@ -940,22 +1187,23 @@ test("task selection uses closed exact Retry, Resume keeps documents and Replay 
     /t02/,
   );
   const selectedProjection = (await responses(page)).findLast(
-    (response) => response.kind === "projection",
+    (response) => response.kind === "application",
   );
   const selectedReceipt = (await responses(page)).findLast(
     (response) => response.kind === "receipt",
   );
   if (
-    selectedProjection?.kind !== "projection" ||
-    selectedProjection.value.kind !== "teaching" ||
+    selectedProjection?.kind !== "application" ||
+    selectedProjection.value.kind !== "ready" ||
+    selectedProjection.value.projection.kind !== "teaching" ||
     selectedReceipt?.kind !== "receipt" ||
     selectedReceipt.value.kind !== "committed"
   )
     throw new Error("Committed task selection missing");
   expect({
     receiptRevision: selectedReceipt.value.revision,
-    profileRevision: selectedProjection.value.profileRevision,
-    sessionRevision: selectedProjection.value.revision,
+    profileRevision: selectedProjection.value.projection.profileRevision,
+    sessionRevision: selectedProjection.value.projection.revision,
   }).toEqual({
     receiptRevision: "2",
     profileRevision: "2",
@@ -972,7 +1220,11 @@ test("task selection uses closed exact Retry, Resume keeps documents and Replay 
   expect((await latestDocuments(page))[0]?.strokes).toHaveLength(3);
   await writingAction(page, "Skip writing");
   await page.getByRole("button", { name: "Activities", exact: true }).click();
-  await page.getByRole("button", { name: "Replay task", exact: true }).click();
+  await page
+    .getByRole("listitem")
+    .filter({ has: page.getByText("Task 6", { exact: true }) })
+    .getByRole("button", { name: "Replay task", exact: true })
+    .click();
   await atWriting(page, "m-sound");
   const replayed = await latestDocuments(page);
   expect(replayed.map((document) => document.token.documentId)).not.toEqual(
@@ -984,12 +1236,36 @@ test("task selection uses closed exact Retry, Resume keeps documents and Replay 
   const selected = (await requests(page)).filter(
     (request) =>
       (request.kind === "dispatch" || request.kind === "recoverTeaching") &&
-      request.command.kind === "writingSelect",
+      request.command.kind === "writingSelect" &&
+      request.command.payload.taskId === "fixture.graph.l01.t02",
   );
-  expect(selected.length).toBeGreaterThanOrEqual(3);
+  expect(selected).toHaveLength(3);
   if (!selected[0] || !("command" in selected[0]))
     throw Error("Writing selection missing");
-  for (const request of selected.slice(0, 3)) {
+  expect(selected[0].command.commandId).not.toBe(
+    originalSelection.command.commandId,
+  );
+  expect(selected.map((request) => request.kind)).toEqual([
+    "dispatch",
+    "recoverTeaching",
+    "recoverTeaching",
+  ]);
+  expect(selected[0].command).toMatchObject({
+    kind: "writingSelect",
+    owner: selectedProjection.value.projection.owner,
+    scope: {
+      kind: "profile",
+      id: selectedProjection.value.projection.owner.profileId,
+      generation: selectedProjection.value.projection.owner.generation,
+    },
+    expectedRevision: "1",
+    payload: {
+      intent: "start",
+      taskId: "fixture.graph.l01.t02",
+      sessionId: null,
+    },
+  });
+  for (const request of selected) {
     if (!("command" in request)) throw Error("Selection envelope missing");
     expect(request.command).toEqual(selected[0].command);
   }
@@ -1037,7 +1313,7 @@ test("abrupt browser process loss restores committed checkpoints without promisi
     });
     page = await context.newPage();
     await probe(page);
-    await page.goto(writingBase);
+    await page.goto(`${writingBase}/teaching`);
     await atWriting(page, "m-model");
     const document = (await latestDocuments(page))[0];
     const stroke = document?.strokes[0];
@@ -1056,7 +1332,7 @@ test("abrupt browser process loss restores committed checkpoints without promisi
       document.histories.find((history) => history.layer === "model")
         ?.operations,
     ).toHaveLength(1);
-    await page.reload();
+    await reloadSavedTurn({ page, turnId: "fixture.graph.l01.t06.m-model" });
     await atWriting(page, "m-model");
     expect((await latestDocuments(page))[0]?.strokes).toHaveLength(1);
   } finally {
@@ -1173,14 +1449,21 @@ for (const loseAfterDetach of [false, true]) {
     const committed = (await responses(page))
       .filter(
         (response) =>
-          response.kind === "projection" && response.value.kind === "writing",
+          response.kind === "application" &&
+          response.value.kind === "ready" &&
+          response.value.projection.kind === "writing",
       )
       .at(-1);
-    if (!committed || committed.kind !== "projection")
+    if (
+      !committed ||
+      committed.kind !== "application" ||
+      committed.value.kind !== "ready"
+    )
       throw new Error("Committed read missing");
     expect(selected).toEqual({
-      courseId: committed.courseId,
-      projection: committed.value,
+      courseId: committed.value.courseId,
+      projection: committed.value.projection,
+      application: committed.value,
     });
     expect(
       (await requests(page)).filter(
@@ -1212,7 +1495,7 @@ for (const loseAfterDetach of [false, true]) {
       restored?.histories.find((history) => history.layer === "model")
         ?.operations,
     ).toHaveLength(1);
-    await page.reload();
+    await reloadSavedTurn({ page, turnId: "fixture.graph.l01.t06.m-tracing" });
     await atWritableWriting(page, "m-tracing");
     expect((await latestDocuments(page))[0]?.strokes).toHaveLength(1);
   });

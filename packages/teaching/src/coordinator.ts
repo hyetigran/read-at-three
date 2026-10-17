@@ -1,3 +1,12 @@
+import { parseCounter } from "./identity.ts";
+import { courseProjection } from "./course.ts";
+import type { ApplicationRead, CourseReadTarget } from "./course.ts";
+import {
+  resolvedLessons,
+  resolvedTask,
+  authoredTaskIdentity,
+} from "./course-content.ts";
+import type { RuntimePackage } from "./course-content.ts";
 import { writingTask, writingPermission, layerForPhase } from "./writing.ts";
 import { controlActions } from "./control-engine.ts";
 import { canonicalReviewChoice } from "./control-content.ts";
@@ -23,7 +32,6 @@ import type {
   AvailableAction,
   CatalogTask,
   CommittedProjection,
-  DevelopmentPackage,
   HashFunction,
   IdFactory,
   TeachingApplication,
@@ -200,25 +208,14 @@ function sameAuthoredTask({
   candidate,
   taskId,
 }: {
-  previous: DevelopmentPackage;
-  candidate: DevelopmentPackage;
+  previous: RuntimePackage;
+  candidate: RuntimePackage;
   taskId: TaskId;
 }) {
-  if (
-    (previous.body.coverage !== "lesson1-sounds-oral-complete" &&
-      previous.body.coverage !== "lesson1-complete") ||
-    (candidate.body.coverage !== "lesson1-sounds-oral-complete" &&
-      candidate.body.coverage !== "lesson1-complete") ||
-    previous.body.courseId !== candidate.body.courseId ||
-    previous.body.lessonId !== candidate.body.lessonId
-  )
-    return false;
-  const before = previous.body.tasks.find((entry) => entry.task.id === taskId),
-    after = candidate.body.tasks.find((entry) => entry.task.id === taskId);
+  const before = authoredTaskIdentity({ content: previous, taskId });
   return (
-    before !== undefined &&
-    after !== undefined &&
-    canonical(before) === canonical(after)
+    before !== null &&
+    before === authoredTaskIdentity({ content: candidate, taskId })
   );
 }
 function catalogFor({
@@ -226,49 +223,58 @@ function catalogFor({
   context,
   retained,
 }: {
-  active: DevelopmentPackage;
+  active: RuntimePackage;
   context: StoredContext;
-  retained: ReadonlyMap<import("./types.ts").PackageHash, DevelopmentPackage>;
+  retained: ReadonlyMap<import("./types.ts").PackageHash, RuntimePackage>;
 }): readonly CatalogTask[] {
   if (active.body.coverage === "partial-first-m") return [];
-  return active.body.lessonTasks.map((task): CatalogTask => {
-    const saved = context.sessions
-      .filter(
-        (session) =>
-          session.taskId === task.id &&
-          (session.packageHash === active.packageHash ||
-            (() => {
-              const previous = retained.get(session.packageHash);
-              return (
-                previous !== undefined &&
-                sameAuthoredTask({
-                  previous,
-                  candidate: active,
-                  taskId: task.id,
-                })
-              );
-            })()) &&
-          session.runStatus === "inProgress",
-      )
-      .sort((a, b) => a.sessionId.localeCompare(b.sessionId))[0];
-    const result = context.taskResults.find(
-      (result) => result.taskId === task.id,
-    );
-    const entry = {
-      ...task,
-      completed: result?.outcome === "completed",
-      available:
-        active.body.coverage !== "partial-first-m" &&
-        active.body.tasks.some(
-          (entry) => ("task" in entry ? entry.task.id : entry.id) === task.id,
-        ),
-      packageHash: active.packageHash,
-      savedSessionId: saved?.sessionId ?? null,
-    };
-    return result?.outcome === "skipped" && task.optional
-      ? { ...entry, optional: true, completed: false, skipped: true }
-      : entry;
-  });
+  return resolvedLessons(active)
+    .flatMap((lesson) => lesson.lessonTasks)
+    .map((task): CatalogTask => {
+      const saved = context.sessions
+        .filter(
+          (session) =>
+            session.taskId === task.id &&
+            (session.packageHash === active.packageHash ||
+              (() => {
+                const previous = retained.get(session.packageHash);
+                return (
+                  previous !== undefined &&
+                  sameAuthoredTask({
+                    previous,
+                    candidate: active,
+                    taskId: task.id,
+                  })
+                );
+              })()) &&
+            session.runStatus === "inProgress",
+        )
+        .sort((a, b) =>
+          BigInt(b.lastSelectedSequence ?? "0") >
+          BigInt(a.lastSelectedSequence ?? "0")
+            ? 1
+            : BigInt(b.lastSelectedSequence ?? "0") <
+                BigInt(a.lastSelectedSequence ?? "0")
+              ? -1
+              : a.sessionId.localeCompare(b.sessionId),
+        )[0];
+      const result = context.taskResults.find(
+        (result) => result.taskId === task.id,
+      );
+      const entry = {
+        id: task.id,
+        number: task.number,
+        title: task.title,
+        optional: task.optional,
+        completed: result?.outcome === "completed",
+        available: resolvedTask({ content: active, taskId: task.id }) !== null,
+        packageHash: active.packageHash,
+        savedSessionId: saved?.sessionId ?? null,
+      };
+      return result?.outcome === "skipped" && task.optional
+        ? { ...entry, optional: true, completed: false, skipped: true }
+        : entry;
+    });
 }
 function selectionActions({
   active,
@@ -276,8 +282,8 @@ function selectionActions({
   context,
   catalog,
 }: {
-  active: DevelopmentPackage;
-  content: DevelopmentPackage;
+  active: RuntimePackage;
+  content: RuntimePackage;
   context: StoredContext;
   catalog: readonly CatalogTask[];
 }): AvailableAction[] {
@@ -318,6 +324,21 @@ function selectionActions({
             sessionId: saved.sessionId,
           }),
         );
+      continue;
+    }
+    const incompatibleSaved = context.sessions.find(
+      (session) =>
+        session.taskId === task.id && session.runStatus === "inProgress",
+    );
+    if (incompatibleSaved && current?.taskId !== task.id) {
+      actions.push(
+        choice(`Start full Task ${task.number}`, {
+          kind: "restart",
+          taskId: task.id,
+          packageHash: active.packageHash,
+          sessionId: incompatibleSaved.sessionId,
+        }),
+      );
       continue;
     }
     if (current?.taskId === task.id) {
@@ -374,19 +395,23 @@ export function createCoordinator({
   store: TeachingStore;
   ids: IdFactory;
   hash: HashFunction;
-}): TeachingApplication {
+}): TeachingApplication & {
+  readApplication(target: CourseReadTarget): Promise<ApplicationRead>;
+} {
   const reject = (code: string, message: string): CommandResult => ({
     kind: "rejected",
     code,
     message,
   });
-  async function read(): Promise<CommittedProjection> {
+  async function readApplication(
+    target: CourseReadTarget,
+  ): Promise<ApplicationRead> {
     try {
-      const context = await store.current();
+      const context = await store.current(target);
       const active = await store.resolvePackage(context.activePackageHash);
       const retained = new Map<
         import("./types.ts").PackageHash,
-        DevelopmentPackage
+        RuntimePackage
       >([[active.packageHash, active]]);
       for (const session of context.sessions)
         if (!retained.has(session.packageHash))
@@ -404,6 +429,43 @@ export function createCoordinator({
         context,
         catalog,
       });
+      for (const saved of context.sessions)
+        if (
+          saved.runStatus === "inProgress" &&
+          !selections.some(
+            (action) =>
+              "sessionId" in action.intent &&
+              action.intent.sessionId === saved.sessionId &&
+              action.intent.kind === "resume",
+          )
+        )
+          selections.push(
+            choice("Resume saved activity", {
+              kind: "resume",
+              taskId: saved.taskId,
+              packageHash: saved.packageHash,
+              sessionId: saved.sessionId,
+            }),
+          );
+      function envelope(
+        projection: Exclude<CommittedProjection, { kind: "recovery" }>,
+      ): ApplicationRead {
+        return deepFreeze({
+          kind: "ready",
+          courseId: active.body.courseId,
+          witness: {
+            owner: context.owner,
+            profileRevision: context.profileRevision,
+            activePackageHash: active.packageHash,
+            activationRevision: context.activationRevision ?? parseCounter("0"),
+            cursorRevision: context.cursorRevision ?? parseCounter("0"),
+            selectedSessionRevision: context.session?.revision ?? null,
+          },
+          course: courseProjection({ active, context, actions: selections }),
+          projection,
+        });
+      }
+
       if (!context.session) {
         if (active.body.coverage === "partial-first-m")
           selections.push(
@@ -414,7 +476,7 @@ export function createCoordinator({
               sessionId: null,
             }),
           );
-        return deepFreeze({
+        return envelope({
           kind: "entry",
           owner: context.owner,
           packageHash: active.packageHash,
@@ -531,7 +593,7 @@ export function createCoordinator({
               documents
             ? { kind: "writing", turn: engine.turn, documents }
             : engine;
-      return deepFreeze({
+      return envelope({
         ...publishedEngine,
         owner: context.owner,
         packageHash: content.packageHash,
@@ -563,9 +625,14 @@ export function createCoordinator({
       };
     }
   }
+  async function read(): Promise<CommittedProjection> {
+    const view = await readApplication({ kind: "cursor" });
+    return view.kind === "ready" ? view.projection : view;
+  }
   return {
     open: read,
     read,
+    readApplication,
     async dispatch(input) {
       const command = parseCommand(input);
       if (
@@ -574,7 +641,7 @@ export function createCoordinator({
         )) !== command.payloadHash
       )
         return reject("payload-hash", "Command payload hash does not match.");
-      let content: DevelopmentPackage | undefined;
+      let content: RuntimePackage | undefined;
       try {
         content = await store.resolvePackage(command.payload.packageHash);
       } catch {}
@@ -748,7 +815,6 @@ export function createCoordinator({
               const live = context.sessions.find(
                 (session) =>
                   session.taskId === taskId &&
-                  session.packageHash === content.packageHash &&
                   session.runStatus === "inProgress",
               );
               if (live && live.sessionId !== replaceSessionId)
@@ -981,6 +1047,22 @@ export async function prepareWritingCommand({
     intent.kind === "restart" ||
     intent.kind === "replay"
   ) {
+    switch (projection.runStatus) {
+      case "completed":
+      case "skipped":
+        return prepareCommand({
+          projection,
+          request: { kind: "action", action },
+          ids,
+          hash,
+        });
+      case "inProgress":
+        break;
+      default: {
+        const exhaustive: never = projection.runStatus;
+        throw new Error(`Unknown run status ${String(exhaustive)}`);
+      }
+    }
     const payload = {
       packageHash: intent.packageHash,
       intent: intent.kind,

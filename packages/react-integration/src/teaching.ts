@@ -7,6 +7,8 @@ import type {
   QueryObserverResult,
 } from "@tanstack/react-query";
 import type {
+  ApplicationRead,
+  CourseReadTarget,
   CommandResult,
   CommitReceipt,
   CommittedProjection,
@@ -25,6 +27,7 @@ export type PreparedAction = Readonly<{
 export type ReadEnvelope = Readonly<{
   courseId: CourseId;
   projection: CommittedProjection;
+  application?: Extract<ApplicationRead, { kind: "ready" }>;
 }>;
 export class TeachingRecoveryError extends Error {
   readonly code: string;
@@ -40,7 +43,7 @@ export class TeachingRecoveryError extends Error {
   }
 }
 export interface TeachingRepository {
-  read(): Promise<ReadEnvelope>;
+  read(target?: CourseReadTarget): Promise<ReadEnvelope>;
   readPracticeControls?(
     binding: PracticeControlsBinding,
   ): Promise<PracticeControlsSummary>;
@@ -121,12 +124,33 @@ function keyFor(read: ReadEnvelope): readonly string[] {
     view.owner.profileId,
     view.owner.generation,
     read.courseId,
+    read.application?.witness.activePackageHash ?? view.packageHash,
     view.packageHash,
     view.kind === "entry" ? "entry" : view.sessionId,
     ...(view.kind === "writing" || view.kind === "writingResult"
       ? view.documents.map((token) => token.documentId)
       : []),
   ];
+}
+function matchesCommandReceipt({
+  command,
+  receipt,
+}: Readonly<{
+  command: TeachingCommand;
+  receipt: CommitReceipt;
+}>) {
+  return (
+    receipt.commandId === command.commandId &&
+    receipt.revision === increment(command.expectedRevision) &&
+    receipt.packageHash === command.payload.packageHash &&
+    (command.kind === "start" ||
+      command.kind === "select" ||
+      command.kind === "writingSelect" ||
+      (receipt.sessionId === command.payload.sessionId &&
+        receipt.runId === command.payload.runId)) &&
+    receipt.owner.profileId === command.owner.profileId &&
+    receipt.owner.generation === command.owner.generation
+  );
 }
 function matchesReceipt({
   projection,
@@ -140,25 +164,27 @@ function matchesReceipt({
   return (
     projection.kind !== "recovery" &&
     projection.kind !== "entry" &&
-    receipt.commandId === command.commandId &&
-    receipt.revision === increment(command.expectedRevision) &&
-    (command.kind === "start" ||
-      command.kind === "select" ||
-      command.kind === "writingSelect" ||
-      (receipt.sessionId === command.payload.sessionId &&
-        receipt.runId === command.payload.runId)) &&
-    receipt.owner.profileId === command.owner.profileId &&
-    receipt.owner.generation === command.owner.generation &&
+    matchesCommandReceipt({ command, receipt }) &&
     projection.owner.profileId === receipt.owner.profileId &&
     projection.owner.generation === receipt.owner.generation &&
     projection.sessionId === receipt.sessionId &&
     projection.runId === receipt.runId &&
     projection.packageHash === receipt.packageHash &&
-    projection.packageHash === command.payload.packageHash &&
     (command.scope.kind === "profile"
       ? projection.profileRevision
       : projection.revision) === receipt.revision
   );
+}
+function targetFor(expectation: ReadExpectation): CourseReadTarget {
+  if (expectation.kind !== "receipt") return { kind: "cursor" };
+  if (
+    !matchesCommandReceipt({
+      command: expectation.prepared.command,
+      receipt: expectation.receipt,
+    })
+  )
+    throw new Error("The saved reading place did not match this save.");
+  return { kind: "accepted", receipt: expectation.receipt };
 }
 const readOnlyControls: PracticeControlsSummary = Object.freeze({
   kind: "readOnly",
@@ -336,7 +362,11 @@ export function createCommittedTeaching({
     )
       throw new Error("The saved reading place did not match this save.");
     if (expectation.kind === "receipt") {
-      if (expectation.restoreBinding.kind === "reconciled") {
+      if (
+        expectation.restoreBinding.kind === "reconciled" &&
+        (!read.application ||
+          expectation.prepared.command.kind === "writingControl")
+      ) {
         if (
           canonical(view) !== canonical(expectation.restoreBinding.projection)
         )
@@ -395,7 +425,7 @@ export function createCommittedTeaching({
       queryKey,
       staleTime: 0,
       queryFn: async () => {
-        const value = await repository.read();
+        const value = await repository.read(targetFor(expectation));
         if (value.projection.kind === "recovery")
           throw new TeachingRecoveryError(value.projection);
         checkRead();
@@ -420,7 +450,7 @@ export function createCommittedTeaching({
         queryKey: canonicalKey,
         queryFn: async () => {
           checkLease(readingLease);
-          const next = await repository.read();
+          const next = await repository.read(targetFor(expectation));
           checkLease(readingLease);
           verify(next, expectation);
           if (JSON.stringify(keyFor(next)) !== JSON.stringify(canonicalKey))

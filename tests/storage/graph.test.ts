@@ -31,11 +31,7 @@ test("six normal obligations complete once; navigation and unfinished Replay pre
     1,
   );
   assert.equal(
-    first.db
-      .prepare(
-        "SELECT count(*) AS n FROM sqlite_master WHERE name='lesson_credit'",
-      )
-      .get()?.n,
+    first.db.prepare("SELECT count(*) AS n FROM lesson_credit").get()?.n,
     0,
   );
   assert.equal((await f.act(first.app, "back")).kind, "committed");
