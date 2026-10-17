@@ -11,6 +11,7 @@ import {
   layerForPhase,
   parseCounter,
   parseId,
+  lessonForTask,
   parseInkBrush,
   parseInkCommand,
   parseInkSnapshot,
@@ -23,7 +24,7 @@ import {
   writingTask,
 } from "../../teaching/src/index.ts";
 import type {
-  DevelopmentPackage,
+  RuntimePackage,
   DocumentToken,
   HashFunction,
   IdFactory,
@@ -61,7 +62,7 @@ export function createInkRepository({
   hash: HashFunction;
   resolve: (input: {
     token: DocumentToken;
-  }) => Promise<{ session: InkRunContext; content: DevelopmentPackage } | null>;
+  }) => Promise<{ session: InkRunContext; content: RuntimePackage } | null>;
 }) {
   const db = drizzle(async (sql, parameters, method) => {
     if (method === "get") throw new Error("Array reads required");
@@ -123,7 +124,7 @@ export function createInkRepository({
   async function tokens({
     session,
   }: {
-    session: StoredSession;
+    session: Pick<StoredSession, "runId">;
   }): Promise<readonly DocumentToken[]> {
     return (
       await db
@@ -140,7 +141,7 @@ export function createInkRepository({
     owner,
   }: {
     session: StoredSession;
-    content: DevelopmentPackage;
+    content: RuntimePackage;
     owner: Owner;
   }) {
     const task = writingTask({ content, taskId: session.taskId });
@@ -156,7 +157,7 @@ export function createInkRepository({
           generation: owner.generation,
           courseId: content.body.courseId,
           packageHash: content.packageHash,
-          lessonId: content.body.lessonId,
+          lessonId: lessonForTask({ content, taskId: session.taskId }),
           taskId: session.taskId,
           targetId: target.id,
           sourceRefs: canonical(target.sourceRefs),
@@ -792,7 +793,7 @@ export function createInkRepository({
     content,
   }: {
     session: StoredSession;
-    content: DevelopmentPackage;
+    content: RuntimePackage;
   }) {
     for (const expected of await tokens({ session })) {
       await db

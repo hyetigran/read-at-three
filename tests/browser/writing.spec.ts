@@ -530,7 +530,7 @@ test("each phase survives a full browser process restart and cold committed capt
       });
       page = await context.newPage();
       await probe(page);
-      await page.goto(writingBase);
+      await page.goto(`${writingBase}/teaching`);
       await atWriting(page, phase.suffix);
       const documents = await latestDocuments(page);
       expect(
@@ -619,22 +619,23 @@ for (const path of ["normal", "recovered teaching"]) {
       await probe(page);
       await startWriting(page);
       const selected = (await responses(page)).findLast(
-        (response) => response.kind === "projection",
+        (response) => response.kind === "application",
       );
       const selectedReceipt = (await responses(page)).findLast(
         (response) => response.kind === "receipt",
       );
       if (
-        selected?.kind !== "projection" ||
-        selected.value.kind !== "writing" ||
+        selected?.kind !== "application" ||
+        selected.value.kind !== "ready" ||
+        selected.value.projection.kind !== "writing" ||
         selectedReceipt?.kind !== "receipt" ||
         selectedReceipt.value.kind !== "committed"
       )
         throw new Error("Committed writing selection missing");
       expect({
         receiptRevision: selectedReceipt.value.revision,
-        profileRevision: selected.value.profileRevision,
-        sessionRevision: selected.value.revision,
+        profileRevision: selected.value.projection.profileRevision,
+        sessionRevision: selected.value.projection.revision,
       }).toEqual({
         receiptRevision: "1",
         profileRevision: "1",
@@ -752,11 +753,15 @@ for (const path of ["normal", "recovered teaching"]) {
         after.flatMap((document) => document.strokes),
       );
       const durable = (await responses(page)).findLast(
-        (response) => response.kind === "projection",
+        (response) => response.kind === "application",
       );
-      if (durable?.kind !== "projection" || durable.value.kind !== "writing")
+      if (
+        durable?.kind !== "application" ||
+        durable.value.kind !== "ready" ||
+        durable.value.projection.kind !== "writing"
+      )
         throw new Error("Reopened writing projection missing");
-      expect(durable.value.revision).toBe("2");
+      expect(durable.value.projection.revision).toBe("2");
     });
   }
 }
@@ -940,22 +945,23 @@ test("task selection uses closed exact Retry, Resume keeps documents and Replay 
     /t02/,
   );
   const selectedProjection = (await responses(page)).findLast(
-    (response) => response.kind === "projection",
+    (response) => response.kind === "application",
   );
   const selectedReceipt = (await responses(page)).findLast(
     (response) => response.kind === "receipt",
   );
   if (
-    selectedProjection?.kind !== "projection" ||
-    selectedProjection.value.kind !== "teaching" ||
+    selectedProjection?.kind !== "application" ||
+    selectedProjection.value.kind !== "ready" ||
+    selectedProjection.value.projection.kind !== "teaching" ||
     selectedReceipt?.kind !== "receipt" ||
     selectedReceipt.value.kind !== "committed"
   )
     throw new Error("Committed task selection missing");
   expect({
     receiptRevision: selectedReceipt.value.revision,
-    profileRevision: selectedProjection.value.profileRevision,
-    sessionRevision: selectedProjection.value.revision,
+    profileRevision: selectedProjection.value.projection.profileRevision,
+    sessionRevision: selectedProjection.value.projection.revision,
   }).toEqual({
     receiptRevision: "2",
     profileRevision: "2",
@@ -1037,7 +1043,7 @@ test("abrupt browser process loss restores committed checkpoints without promisi
     });
     page = await context.newPage();
     await probe(page);
-    await page.goto(writingBase);
+    await page.goto(`${writingBase}/teaching`);
     await atWriting(page, "m-model");
     const document = (await latestDocuments(page))[0];
     const stroke = document?.strokes[0];
@@ -1173,14 +1179,21 @@ for (const loseAfterDetach of [false, true]) {
     const committed = (await responses(page))
       .filter(
         (response) =>
-          response.kind === "projection" && response.value.kind === "writing",
+          response.kind === "application" &&
+          response.value.kind === "ready" &&
+          response.value.projection.kind === "writing",
       )
       .at(-1);
-    if (!committed || committed.kind !== "projection")
+    if (
+      !committed ||
+      committed.kind !== "application" ||
+      committed.value.kind !== "ready"
+    )
       throw new Error("Committed read missing");
     expect(selected).toEqual({
-      courseId: committed.courseId,
-      projection: committed.value,
+      courseId: committed.value.courseId,
+      projection: committed.value.projection,
+      application: committed.value,
     });
     expect(
       (await requests(page)).filter(

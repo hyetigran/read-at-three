@@ -10,16 +10,16 @@ import {
 
 async function assertSkippedCatalog(page: Page) {
   await page.getByRole("button", { name: "Activities", exact: true }).click();
-  const task = page.locator('.teaching-task-list [data-task-number="6"]');
-  const status = task.locator('p [data-origin="added"]');
-  await expect(status).toHaveText("Skipped · Optional");
+  const task = page.locator('[data-task-number="6"]');
+  const status = task.locator('.course-outcome [data-origin="added"]');
+  await expect(status).toHaveText("Skipped");
   await expect(status).toHaveCSS("background-color", "rgb(255, 240, 163)");
   const response = (await responses(page)).findLast(
-    (response) => response.kind === "projection",
+    (response) => response.kind === "application",
   );
-  if (response?.kind !== "projection" || response.value.kind === "recovery")
+  if (response?.kind !== "application" || response.value.kind !== "ready")
     throw Error("Committed catalog projection is missing");
-  const projectedTask = response.value.catalog.find(
+  const projectedTask = response.value.projection.catalog.find(
     (entry) => entry.number === 6,
   );
   expect(projectedTask).toMatchObject({
@@ -48,6 +48,10 @@ test("Activities shows highlighted authoritative Skip immediately, after task sw
   await expect(page.locator("main")).toHaveAttribute("aria-busy", "false");
   await assertSkippedCatalog(page);
   await page.reload();
+  await page
+    .locator('[data-task-number="2"]')
+    .getByRole("button", { name: "Resume", exact: true })
+    .click();
   await expect(page.locator("main[data-turn-id]")).toHaveAttribute(
     "data-turn-id",
     /t02/,

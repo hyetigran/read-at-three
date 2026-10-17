@@ -1,9 +1,10 @@
+import { resolvedTask } from "./course-content.ts";
+import type { RuntimePackage } from "./course-content.ts";
 import { canonical } from "./identity.ts";
 import { compileControlTask } from "./control-content.ts";
 import type {
   ControlTask,
   ControlTeachingState,
-  DevelopmentPackage,
   InkLayer,
   TaskId,
   TeachingState,
@@ -98,11 +99,10 @@ export function writingTask({
   content,
   taskId,
 }: {
-  content: DevelopmentPackage;
+  content: RuntimePackage;
   taskId: TaskId;
 }): WritingTask | null {
-  if (content.body.coverage !== "lesson1-complete") return null;
-  const entry = content.body.tasks.find((entry) => entry.task.id === taskId);
+  const entry = resolvedTask({ content, taskId })?.entry;
   return entry?.kind === "soundWritingV1" ? entry.task : null;
 }
 export function writingState(
@@ -119,7 +119,7 @@ export function writingPermission({
   state,
   targetId,
 }: {
-  content: DevelopmentPackage;
+  content: RuntimePackage;
   state: TeachingState;
   targetId: WritingTask["targets"][number]["id"];
 }): { phase: WritingPhase; writable: boolean } {

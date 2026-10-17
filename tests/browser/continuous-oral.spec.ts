@@ -33,6 +33,7 @@ async function act({ page, name = "Continue" }: { page: Page; name?: string }) {
 
 async function start(page: Page) {
   await page.goto(base);
+  await page.getByRole("link", { name: "Lesson 1", exact: true }).click();
   await page.getByRole("button", { name: "Start Task 3", exact: true }).click();
   await at({ page, suffix: "am-model" });
 }
@@ -252,7 +253,7 @@ test("correction practice and its independent test survive full browser process 
       viewport: { width: 900, height: 600 },
     });
     page = await context.newPage();
-    await page.goto(base);
+    await page.goto(`${base}/teaching`);
     await expect(
       page.getByRole("heading", { name: "Reading is paused", exact: true }),
     ).toBeVisible();
@@ -266,7 +267,7 @@ test("correction practice and its independent test survive full browser process 
       viewport: { width: 900, height: 600 },
     });
     page = await context.newPage();
-    await page.goto(base);
+    await page.goto(`${base}/teaching`);
     await at({ page, suffix: "correction-am-again.test" });
     await act({ page });
     await at({ page, suffix: "am-model" });

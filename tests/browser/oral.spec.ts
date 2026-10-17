@@ -47,6 +47,7 @@ async function act({ page, name = "Continue" }: { page: Page; name?: string }) {
 }
 async function start({ page, task = 2 }: { page: Page; task?: number }) {
   await page.goto(base);
+  await page.getByRole("link", { name: "Lesson 1", exact: true }).click();
   await page
     .getByRole("button", { name: `Start Task ${task}`, exact: true })
     .click();
@@ -283,7 +284,7 @@ test("the selected correction and its item confirmation survive complete browser
       viewport: { width: 900, height: 600 },
     });
     page = await context.newPage();
-    await page.goto(base);
+    await page.goto(`${base}/teaching`);
     await expect(
       page.getByRole("heading", { name: "Reading is paused", exact: true }),
     ).toBeVisible();
@@ -304,7 +305,7 @@ test("the selected correction and its item confirmation survive complete browser
       viewport: { width: 900, height: 600 },
     });
     page = await context.newPage();
-    await page.goto(base);
+    await page.goto(`${base}/teaching`);
     await expect(
       page.getByRole("heading", { name: "Task complete", exact: true }),
     ).toBeVisible();

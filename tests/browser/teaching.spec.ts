@@ -15,6 +15,7 @@ const base =
 async function start(page: Page) {
   await useLegacyContent(page);
   await page.goto(base);
+  await page.getByRole("link", { name: "Lesson 1", exact: true }).click();
   await page.getByRole("button", { name: "Start", exact: true }).click();
   await expect(page.getByText("Fixture model.", { exact: true })).toBeVisible();
 }
@@ -89,7 +90,7 @@ test("a full browser process restart restores the exact child-response turn", as
     });
     const restored = await context.newPage();
     await useLegacyContent(restored);
-    await restored.goto(base);
+    await restored.goto(`${base}/teaching`);
     await expect(
       restored.getByText("Fixture child response.", { exact: true }),
     ).toBeVisible();
@@ -136,6 +137,12 @@ test("a competing tab cannot open a second database and can resume after ownersh
   await page.close();
   await competing
     .getByRole("button", { name: "Retry opening", exact: true })
+    .click();
+  await competing
+    .getByRole("button", {
+      name: "Resume saved activity · Lesson 1",
+      exact: true,
+    })
     .click();
   await expect(
     competing.getByText("Fixture model.", { exact: true }),
@@ -239,6 +246,12 @@ test("real OPFS initialization failure preserves every saved pool byte and permi
   expect(await operation("snapshot")).toEqual(before);
   await failed
     .getByRole("button", { name: "Retry opening", exact: true })
+    .click();
+  await failed
+    .getByRole("button", {
+      name: "Resume saved activity · Lesson 1",
+      exact: true,
+    })
     .click();
   await expect(
     failed.getByText("Fixture child response.", { exact: true }),
@@ -381,7 +394,7 @@ test("recovery after committed acceptance replaces stale teaching and reopens th
             return;
           if (data.id === this.advanceId && data.kind === "receipt")
             committedAdvance = true;
-          if (!injected && committedAdvance && data.kind === "projection") {
+          if (!injected && committedAdvance && data.kind === "application") {
             injected = true;
             event.stopImmediatePropagation();
             this.dispatchEvent(

@@ -1,3 +1,4 @@
+import type { RuntimePackage } from "./course-content.ts";
 export type IdKind =
   | "profile"
   | "session"
@@ -435,10 +436,18 @@ export type StoredSession = Readonly<{
   state: TeachingState;
   activeAdvanceId: AdvanceId | null;
   nextAdvanceSeq: Counter;
+  lastSelectedSequence?: Counter;
 }>;
 export interface StoredContext {
   owner: Owner;
   profileRevision: Counter;
+  activationRevision?: Counter;
+  cursorRevision?: Counter;
+  lessonResults?: readonly Readonly<{
+    lessonId: LessonId;
+    acceptedLessonCreditId: CreditId;
+  }>[];
+  history?: readonly import("./course.ts").SavedWork[];
   undoRunId: RunId | null;
   taskResults: readonly Readonly<{
     taskId: TaskId;
@@ -447,6 +456,7 @@ export interface StoredContext {
   activePackageHash: PackageHash;
   selectionCounter: Counter;
   session: StoredSession | null;
+  cursorSession?: StoredSession | null;
   sessions: readonly StoredSession[];
   ownedSessionIds: readonly SessionId[];
 }
@@ -464,7 +474,7 @@ export type SelectionPlan = Readonly<
 export type ApplyTransitionInput = Readonly<{
   command: TeachingCommand;
   context: StoredContext & { session: StoredSession };
-  content: DevelopmentPackage;
+  content: RuntimePackage;
   before: TeachingState;
   receipt: CommitReceipt;
 }> &
@@ -477,7 +487,7 @@ export interface TeachingTransaction {
   receipt(
     command: TeachingCommand,
   ): Promise<{ payloadHash: PayloadHash; result: CommitReceipt } | null>;
-  ensurePackage(content: DevelopmentPackage): Promise<void>;
+  ensurePackage(content: RuntimePackage): Promise<void>;
   writingBarrier?(input: {
     session: StoredSession;
     barrier: WritingBarrier;
@@ -485,7 +495,7 @@ export interface TeachingTransaction {
   select(input: {
     command: TeachingCommand;
     context: StoredContext;
-    content: DevelopmentPackage;
+    content: RuntimePackage;
     selection: SelectionPlan;
     receipt: CommitReceipt;
   }): Promise<void>;
@@ -499,11 +509,13 @@ export interface TeachingTransaction {
   apply(input: ApplyTransitionInput): Promise<void>;
 }
 export interface TeachingStore {
-  current(): Promise<StoredContext>;
+  current(
+    target?: import("./course.ts").CourseReadTarget,
+  ): Promise<StoredContext>;
   documents?(input: {
     session: StoredSession;
   }): Promise<readonly DocumentToken[]>;
-  resolvePackage(packageHash: PackageHash): Promise<DevelopmentPackage>;
+  resolvePackage(packageHash: PackageHash): Promise<RuntimePackage>;
   transaction<T>(work: (tx: TeachingTransaction) => Promise<T>): Promise<T>;
 }
 

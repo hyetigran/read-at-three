@@ -1,3 +1,5 @@
+import type { RuntimePackage } from "./course-content.ts";
+import { resolvedTask } from "./course-content.ts";
 import {
   canonical,
   parseId,
@@ -44,7 +46,13 @@ import {
   validateProjection,
   validateResult,
 } from "./generated-validators.js";
-export function canonicalContentBody(body: DevelopmentBodyInput): string {
+export function canonicalContentBody(
+  body:
+    | DevelopmentBodyInput
+    | import("./types.ts").Serialized<
+        import("./course-content.ts").CumulativeDevelopmentBody
+      >,
+): string {
   return canonical(body);
 }
 export async function parseDevelopmentPackage(
@@ -270,14 +278,15 @@ export function compileTask(task: GraphTask): CompiledTask {
   return result;
 }
 export function graphTask(
-  content: DevelopmentPackage,
+  content: RuntimePackage,
   taskId: TaskId,
 ): CompiledTask {
   if (
+    content.body.coverage === "course-development" ||
     content.body.coverage === "lesson1-sounds-oral-complete" ||
     content.body.coverage === "lesson1-complete"
   ) {
-    const entry = content.body.tasks.find((entry) => entry.task.id === taskId);
+    const entry = resolvedTask({ content, taskId })?.entry;
     if (!entry || entry.kind !== "printedGraphV1")
       throw new Error("Printed task is not available in exact package");
     return compileTask(entry.task);
@@ -293,14 +302,15 @@ export function taskDefinition({
   content,
   taskId,
 }: {
-  content: DevelopmentPackage;
+  content: RuntimePackage;
   taskId: TaskId;
 }) {
   if (
+    content.body.coverage === "course-development" ||
     content.body.coverage === "lesson1-sounds-oral-complete" ||
     content.body.coverage === "lesson1-complete"
   ) {
-    const entry = content.body.tasks.find((entry) => entry.task.id === taskId);
+    const entry = resolvedTask({ content, taskId })?.entry;
     if (!entry) throw new Error("Task unavailable in exact package");
     if (entry.kind === "soundWritingV1")
       return {
@@ -319,7 +329,7 @@ export function controlTask({
   content,
   taskId,
 }: {
-  content: DevelopmentPackage;
+  content: RuntimePackage;
   taskId: TaskId;
 }) {
   const entry = taskDefinition({ content, taskId });

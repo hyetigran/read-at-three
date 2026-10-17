@@ -68,6 +68,7 @@ export type ControllerState = Readonly<{
   operation: Operation;
   correctionPreview: GraphNode | ControlTurnNode | null;
   practiceControlsReady: boolean;
+  inputSuspended: boolean;
 }>;
 export type RenderStroke = Readonly<{
   strokeId: StrokeId;
@@ -124,14 +125,17 @@ function writing(
 export function createWritingController({
   client,
   createTeaching,
+  initialSurface = "teaching",
 }: Readonly<{
   client: InkLifecycleClient;
+  initialSurface?: "teaching" | "other";
   createTeaching: (stageRestore: RestoreTeaching) => CommittedTeachingExecution;
 }>) {
   let state: ControllerState = {
     operation: { kind: "opening" },
     correctionPreview: null,
     practiceControlsReady: false,
+    inputSuspended: initialSurface !== "teaching",
   };
   const subscribers = new Set<() => void>();
   const painters = new Set<() => void>();
@@ -139,6 +143,10 @@ export function createWritingController({
   const documents = new Map<DocumentToken["documentId"], DocumentView>();
   let spool: Capture[] = [];
   let active: Capture | null = null;
+  let routeSuspended = initialSurface !== "teaching";
+  let focused = true;
+  let pageHidden = false;
+  let visiting: Promise<boolean> | null = null;
   let fenced = true;
   let fenceSerial = 0;
   let inputEligibleAt = performance.now();
@@ -211,10 +219,21 @@ export function createWritingController({
   function reopenInput() {
     const wasFenced = fenced;
     fenced =
+      routeSuspended ||
+      !focused ||
+      pageHidden ||
       state.operation.kind !== "idle" ||
       !connected ||
       !isTeachingViewport() ||
       document.visibilityState !== "visible";
+    const suspended =
+      routeSuspended ||
+      !focused ||
+      pageHidden ||
+      !isTeachingViewport() ||
+      document.visibilityState !== "visible";
+    if (state.inputSuspended !== suspended)
+      publish({ inputSuspended: suspended });
     if (wasFenced && !fenced) inputEligibleAt = performance.now();
     paint();
   }
@@ -568,7 +587,13 @@ export function createWritingController({
     checkOperation(ticket);
     publish({ operation: { kind: "pending", prepared } });
     try {
-      if (!isTeachingViewport() || document.visibilityState !== "visible")
+      const pausing =
+        "action" in prepared.command.payload &&
+        prepared.command.payload.action.kind === "pause";
+      if (
+        !pausing &&
+        (!isTeachingViewport() || document.visibilityState !== "visible")
+      )
         throw new Error("Return to the reading window to save this action.");
       const result = await teaching.execute({ kind: "normal", prepared });
       checkOperation(ticket);
@@ -697,24 +722,107 @@ export function createWritingController({
     }
     await commit(prepared, ticket);
   }
-  function act(request: ActionRequest) {
+  async function enter(request: ActionRequest) {
     if (
+      !focused ||
+      pageHidden ||
       state.operation.kind !== "idle" ||
       !isTeachingViewport() ||
       document.visibilityState !== "visible"
     )
-      return;
+      return false;
     const origin = teaching.current()?.projection;
-    if (!origin) return;
-    operationSerial++;
+    if (!origin) return false;
+    const ticket = ++operationSerial;
     fence();
     publish({
       operation: { kind: "preparing", request, origin },
       correctionPreview:
         "correctionPreview" in request ? request.correctionPreview : null,
     });
-    void perform(request, origin);
+    await perform(request, origin, ticket);
+    return operationSerial === ticket && state.operation.kind === "idle";
   }
+  function act(request: ActionRequest) {
+    if (
+      state.inputSuspended ||
+      state.operation.kind !== "idle" ||
+      !isTeachingViewport() ||
+      document.visibilityState !== "visible"
+    )
+      return;
+    void enter(request);
+  }
+  function waitForOperation() {
+    if (!["opening", "preparing", "pending"].includes(state.operation.kind))
+      return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      const listener = () => {
+        if (["opening", "preparing", "pending"].includes(state.operation.kind))
+          return;
+        subscribers.delete(listener);
+        resolve();
+      };
+      subscribers.add(listener);
+    });
+  }
+  async function settleVisit() {
+    await waitForOperation();
+    if (state.operation.kind !== "idle") return false;
+    const ticket = operationSerial;
+    try {
+      await drain();
+      checkOperation(ticket);
+    } catch {
+      fence();
+      publish({
+        operation: {
+          kind: "inkFailed",
+          message: saveMessage,
+          retry: { kind: "inkOnly" },
+        },
+      });
+      return false;
+    }
+    const origin = teaching.current()?.projection;
+    if (
+      origin &&
+      origin.kind !== "entry" &&
+      origin.kind !== "recovery" &&
+      origin.runStatus === "inProgress" &&
+      origin.sessionStatus === "active"
+    ) {
+      const pause = origin.actions.find(
+        (action) => action.intent.kind === "pause",
+      );
+      if (!pause) return false;
+      const next = ++operationSerial;
+      publish({
+        operation: { kind: "preparing", request: pause, origin },
+        correctionPreview: null,
+      });
+      await perform(pause, origin, next);
+    }
+    return state.operation.kind === "idle";
+  }
+  function settleSuspension() {
+    visiting ??= settleVisit().finally(() => {
+      visiting = null;
+    });
+    return visiting;
+  }
+  function visit() {
+    routeSuspended = true;
+    fence();
+    reopenInput();
+    return settleSuspension();
+  }
+  function setSurface(surface: "teaching" | "other") {
+    routeSuspended = surface !== "teaching";
+    if (routeSuspended) fence();
+    reopenInput();
+  }
+
   async function retry() {
     const operation = state.operation;
     if (
@@ -1014,20 +1122,45 @@ export function createWritingController({
       });
     });
   }, 750);
-  const lifecycle = () => {
-    void interrupt();
+  const lifecycle = (event: Event) => {
+    if (event.type === "blur") focused = false;
+    if (event.type === "focus") focused = true;
+    if (event.type === "pagehide") pageHidden = true;
+    if (event.type === "pageshow") pageHidden = false;
+    fence();
+    const suspended =
+      routeSuspended ||
+      !focused ||
+      pageHidden ||
+      !isTeachingViewport() ||
+      document.visibilityState !== "visible";
+    if (state.inputSuspended !== suspended)
+      publish({ inputSuspended: suspended });
+    if (
+      !isTeachingViewport() ||
+      document.visibilityState !== "visible" ||
+      pageHidden
+    ) {
+      void settleSuspension();
+    } else {
+      void interrupt();
+    }
   };
   window.addEventListener("resize", lifecycle);
   window.addEventListener("orientationchange", lifecycle);
   window.addEventListener("blur", lifecycle);
   window.addEventListener("focus", lifecycle);
   window.addEventListener("pagehide", lifecycle);
+  window.addEventListener("pageshow", lifecycle);
   document.addEventListener("visibilitychange", lifecycle);
   window.visualViewport?.addEventListener("resize", lifecycle);
   return {
     committed: teaching.view,
     open,
     act,
+    enter,
+    visit,
+    setSurface,
     editPractice(control: PracticeControl) {
       updateReadiness();
       if (state.practiceControlsReady) act({ kind: "practice", control });
@@ -1089,6 +1222,7 @@ export function createWritingController({
       window.removeEventListener("blur", lifecycle);
       window.removeEventListener("focus", lifecycle);
       window.removeEventListener("pagehide", lifecycle);
+      window.removeEventListener("pageshow", lifecycle);
       document.removeEventListener("visibilitychange", lifecycle);
       window.visualViewport?.removeEventListener("resize", lifecycle);
       detachControls();

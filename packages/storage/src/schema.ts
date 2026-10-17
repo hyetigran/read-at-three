@@ -863,3 +863,147 @@ export const inkOperation = sqliteTable(
       .where(sql`origin_stroke_id IS NOT NULL`),
   ],
 );
+
+export const lessonCredit = sqliteTable(
+  "lesson_credit",
+  {
+    lessonCreditId: creditId("lesson_credit_id").primaryKey(),
+    profileId: profileId("profile_id").notNull(),
+    generation: counter("generation").notNull(),
+    courseId: courseId("course_id").notNull(),
+    lessonId: lessonId("lesson_id").notNull(),
+    packageHash: packageHash("package_hash").notNull(),
+    status: text("status", { enum: ["valid", "withdrawn"] }).notNull(),
+    receiptVersion: integer("receipt_version").notNull(),
+    receipt: text("receipt").notNull(),
+    supportHash: payloadHash("support_hash").notNull(),
+  },
+  (t) => [
+    nonnegative("generation"),
+    hash("package_hash"),
+    hash("support_hash"),
+    check("lesson_credit_status", sql`status IN ('valid','withdrawn')`),
+    check("lesson_receipt_version", sql`receipt_version=1`),
+    check("lesson_receipt_json", sql`json_valid(receipt)`),
+    unique().on(
+      t.lessonCreditId,
+      t.profileId,
+      t.generation,
+      t.courseId,
+      t.lessonId,
+    ),
+    unique().on(
+      t.profileId,
+      t.generation,
+      t.courseId,
+      t.lessonId,
+      t.supportHash,
+    ),
+    foreignKey({
+      columns: [t.profileId, t.generation],
+      foreignColumns: [profile.id, profile.generation],
+    }),
+    foreignKey({
+      columns: [t.packageHash, t.courseId],
+      foreignColumns: [installedPackage.packageHash, installedPackage.courseId],
+    }),
+    index("lesson_credit_owner_status").on(
+      t.profileId,
+      t.generation,
+      t.courseId,
+      t.lessonId,
+      t.status,
+    ),
+    index("lesson_credit_package").on(t.packageHash),
+  ],
+);
+export const lessonCreditSupport = sqliteTable(
+  "lesson_credit_support",
+  {
+    lessonCreditId: creditId("lesson_credit_id").notNull(),
+    profileId: profileId("profile_id").notNull(),
+    generation: counter("generation").notNull(),
+    courseId: courseId("course_id").notNull(),
+    lessonId: lessonId("lesson_id").notNull(),
+    ordinal: integer("ordinal").notNull(),
+    taskId: taskId("task_id").notNull(),
+    outcome: text("outcome", { enum: ["completed", "skipped"] }).notNull(),
+    taskCreditId: creditId("task_credit_id").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.lessonCreditId, t.ordinal] }),
+    unique().on(t.lessonCreditId, t.taskId),
+    nonnegative("generation"),
+    check("lesson_support_ordinal", sql`ordinal>=0`),
+    check("lesson_support_outcome", sql`outcome IN ('completed','skipped')`),
+    foreignKey({
+      columns: [
+        t.lessonCreditId,
+        t.profileId,
+        t.generation,
+        t.courseId,
+        t.lessonId,
+      ],
+      foreignColumns: [
+        lessonCredit.lessonCreditId,
+        lessonCredit.profileId,
+        lessonCredit.generation,
+        lessonCredit.courseId,
+        lessonCredit.lessonId,
+      ],
+    }),
+    foreignKey({
+      columns: [
+        t.taskCreditId,
+        t.profileId,
+        t.generation,
+        t.courseId,
+        t.lessonId,
+        t.taskId,
+        t.outcome,
+      ],
+      foreignColumns: [
+        taskCredit.creditId,
+        taskCredit.profileId,
+        taskCredit.generation,
+        taskCredit.courseId,
+        taskCredit.lessonId,
+        taskCredit.taskId,
+        taskCredit.outcome,
+      ],
+    }),
+    index("lesson_support_task_credit").on(t.taskCreditId),
+  ],
+);
+export const lessonResult = sqliteTable(
+  "lesson_result",
+  {
+    profileId: profileId("profile_id").notNull(),
+    generation: counter("generation").notNull(),
+    courseId: courseId("course_id").notNull(),
+    lessonId: lessonId("lesson_id").notNull(),
+    acceptedLessonCreditId: creditId("accepted_lesson_credit_id").notNull(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [t.profileId, t.generation, t.courseId, t.lessonId],
+    }),
+    nonnegative("generation"),
+    foreignKey({
+      columns: [
+        t.acceptedLessonCreditId,
+        t.profileId,
+        t.generation,
+        t.courseId,
+        t.lessonId,
+      ],
+      foreignColumns: [
+        lessonCredit.lessonCreditId,
+        lessonCredit.profileId,
+        lessonCredit.generation,
+        lessonCredit.courseId,
+        lessonCredit.lessonId,
+      ],
+    }),
+  ],
+);

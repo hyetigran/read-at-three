@@ -44,15 +44,15 @@ export async function probe(page: Page) {
             mode=''; event.stopImmediatePropagation(); this.dispatchEvent(new MessageEvent('message',{data:{...data,value:{...data.value,token:{...data.value.token,revision:String(BigInt(data.value.token.revision)+1n)}}}}));
           } else if (mode === 'teaching-receipt-command-id' && (request?.kind === 'dispatch' || request?.kind === 'recoverTeaching') && data?.kind === 'receipt' && data.value.kind === 'committed') {
             mode='';event.stopImmediatePropagation();this.dispatchEvent(new MessageEvent('message',{data:{...data,value:{...data.value,commandId:'wrong-teaching-command'}}}));
-          } else if (mode === 'teaching-read-revision' && request?.kind === 'read' && data?.kind === 'projection' && data.value.kind === 'writing') {
-            mode='';event.stopImmediatePropagation();this.dispatchEvent(new MessageEvent('message',{data:{...data,value:{...data.value,revision:'99'}}}));
+          } else if (mode === 'teaching-read-revision' && request?.kind === 'read' && data?.kind === 'application' && data.value.kind === 'ready' && data.value.projection.kind === 'writing') {
+            mode='';event.stopImmediatePropagation();this.dispatchEvent(new MessageEvent('message',{data:{...data,value:{...data.value,projection:{...data.value.projection,revision:'99'}}}}));
           } else if (mode === 'teaching-restore-revision' && request?.kind === 'readInk' && data?.kind === 'inkSnapshot') {
             mode='';event.stopImmediatePropagation();this.dispatchEvent(new MessageEvent('message',{data:{...data,value:{...data.value,token:{...data.value.token,revision:'99'}}}}));
           } else if (loseRecoveredTeaching && request?.kind === 'recoverTeaching' && data?.kind === 'receipt') {
             loseRecoveredTeaching=false;event.stopImmediatePropagation();queueMicrotask(()=>this.dispatchEvent(new ErrorEvent('error',{message:'Injected recovered teaching reply loss'})));
           } else if (loseReconcile && request?.kind === 'reconcileRecovery' && data?.kind === 'projection') {
             loseReconcile=false;event.stopImmediatePropagation();queueMicrotask(()=>this.dispatchEvent(new ErrorEvent('error',{message:'Injected reconciliation reply loss'})));
-          } else if (mode === 'teaching-read-recovery' && request?.kind === 'read' && data?.kind === 'projection') {
+          } else if (mode === 'teaching-read-recovery' && request?.kind === 'read' && data?.kind === 'application') {
             mode=''; event.stopImmediatePropagation();this.dispatchEvent(new MessageEvent('message',{data:{...data,value:{kind:'recovery',code:'worker-lost',message:'Synthetic connection recovery.'}}}));queueMicrotask(()=>this.dispatchEvent(new ErrorEvent('error',{message:'Injected worker replacement after read recovery'})));
           } else if (mode === 'checkpoint-tail' && request?.kind === 'dispatchInk' && request.command.edit.kind === 'checkpoint' && data?.kind === 'inkReceipt') {
             event.stopImmediatePropagation(); held=this; mode='tail-reply';
@@ -157,6 +157,7 @@ export async function writingAction(page: Page, name = "Continue") {
 }
 export async function startWriting(page: Page) {
   await page.goto(writingBase);
+  await page.getByRole("link", { name: "Lesson 1", exact: true }).click();
   await page.getByRole("button", { name: "Start Task 6", exact: true }).click();
   await atWriting(page, "m-sound");
 }

@@ -1,13 +1,20 @@
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import { createTeachingApplication } from "@readatthree/storage";
 import type { SqlExecutor } from "@readatthree/storage";
-import { parseDevelopmentPackage } from "@readatthree/teaching";
-import type { CourseId, WritingApplication } from "@readatthree/teaching";
+import { parseRuntimePackage } from "@readatthree/teaching";
+import type {
+  CourseId,
+  WritingApplication,
+  CourseApplication,
+} from "@readatthree/teaching";
 import { hashText } from "./hash.ts";
 import { parseRequest } from "./protocol.ts";
 import type { WorkerResponse } from "./protocol.ts";
 
-type OpenedStore = Readonly<{ app: WritingApplication; courseId: CourseId }>;
+type OpenedStore = Readonly<{
+  app: WritingApplication & CourseApplication;
+  courseId: CourseId;
+}>;
 let application: Promise<OpenedStore> | undefined;
 
 function bootstrap(content: unknown): Promise<OpenedStore> {
@@ -26,7 +33,7 @@ function bootstrap(content: unknown): Promise<OpenedStore> {
             return;
           }
           try {
-            const verified = await parseDevelopmentPackage(content, hashText);
+            const verified = await parseRuntimePackage(content, hashText);
             const sqlite3 = await sqlite3InitModule();
             if (!sqlite3.config.bigIntEnabled)
               throw new Error(
@@ -91,9 +98,18 @@ self.addEventListener("message", (event: MessageEvent<unknown>) => {
         case "read":
           response = {
             id: request.id,
-            kind: "projection",
-            courseId,
-            value: await app.read(),
+            kind: "application",
+            value: await app.readApplication(request.target),
+          };
+          break;
+        case "readWork":
+          response = {
+            id: request.id,
+            kind: "work",
+            value: await app.readWork({
+              owner: request.owner,
+              runId: request.runId,
+            }),
           };
           break;
         case "readPracticeControls":

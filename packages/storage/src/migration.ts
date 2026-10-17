@@ -2,7 +2,10 @@ import type { HashFunction } from "../../teaching/src/index.ts";
 import type { SqlExecutor } from "./executor.ts";
 import { migrations } from "./generated-migration.ts";
 export { migrationStatements } from "./generated-migration.ts";
-export const DATABASE_VERSION = 5;
+export const DATABASE_VERSION = 6;
+export type MigrationDataHook = (
+  version: number,
+) => Promise<(() => Promise<void>) | undefined>;
 export async function transaction<T>(
   executor: SqlExecutor,
   work: () => Promise<T>,
@@ -30,6 +33,7 @@ function normalize(sql: string): string {
 export async function initializeDatabase(
   executor: SqlExecutor,
   hashFunction: HashFunction,
+  prepareData?: MigrationDataHook,
 ): Promise<void> {
   await executor.execute("PRAGMA foreign_keys=ON", []);
   const foreignKeys = firstValue(
@@ -134,9 +138,11 @@ export async function initializeDatabase(
   for (const migration of migrations.slice(version)) {
     const checksum = checksums[migration.version - 1];
     if (!checksum) throw new Error("Migration checksum is missing");
+    const migrateData = await prepareData?.(migration.version);
     await transaction(executor, async () => {
       for (const statement of migration.statements)
         await executor.execute(statement, []);
+      await migrateData?.();
       await executor.execute(
         "INSERT INTO schema_migration(version,migration_id,checksum) VALUES(?,?,?)",
         [migration.version, migration.id, checksum],

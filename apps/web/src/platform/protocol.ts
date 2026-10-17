@@ -1,4 +1,7 @@
 import {
+  parseApplicationRead,
+  parseHistoricalWork,
+  parseCounter,
   parseId,
   parsePracticeControlsBinding,
   parsePracticeControlsSummary,
@@ -14,6 +17,11 @@ import {
   parseRecoveryInventory,
 } from "@readatthree/teaching";
 import type {
+  ApplicationRead,
+  CourseReadTarget,
+  HistoricalWork,
+  Owner,
+  RunId,
   CourseId,
   PracticeControlsBinding,
   PracticeControlsSummary,
@@ -37,7 +45,8 @@ export type WorkerRequest =
       content: unknown;
       opening: RecoveryOpening;
     }
-  | { id: WorkerRequestId; kind: "read" }
+  | { id: WorkerRequestId; kind: "read"; target: CourseReadTarget }
+  | { id: WorkerRequestId; kind: "readWork"; owner: Owner; runId: RunId }
   | {
       id: WorkerRequestId;
       kind: "readPracticeControls";
@@ -65,6 +74,8 @@ export type WorkerRequest =
       choice: RecoveryChoice;
     };
 export type WorkerResponse =
+  | { id: WorkerRequestId; kind: "application"; value: ApplicationRead }
+  | { id: WorkerRequestId; kind: "work"; value: HistoricalWork }
   | {
       id: WorkerRequestId;
       kind: "projection";
@@ -86,6 +97,12 @@ export function parseWorkerRequestId(value: unknown): WorkerRequestId {
   if (typeof value !== "string" || value.length < 1 || value.length > 200)
     throw new Error("Invalid worker request identity.");
   return value as WorkerRequestId;
+}
+function committedReceipt(value: unknown) {
+  const receipt = parseDispatchResult(value);
+  if (receipt.kind !== "committed")
+    throw new Error("Expected committed receipt.");
+  return receipt;
 }
 function exact(value: object, keys: readonly string[]) {
   if (
@@ -131,8 +148,55 @@ export function parseRequest(value: unknown): WorkerRequest {
       }
       break;
     case "read":
-      exact(value, ["id", "kind"]);
-      return { id, kind: value.kind };
+      if (
+        "target" in value &&
+        typeof value.target === "object" &&
+        value.target !== null &&
+        "kind" in value.target
+      ) {
+        exact(value, ["id", "kind", "target"]);
+        if (value.target.kind === "cursor") {
+          exact(value.target, ["kind"]);
+          return { id, kind: value.kind, target: { kind: "cursor" } };
+        }
+        if (value.target.kind === "accepted" && "receipt" in value.target) {
+          exact(value.target, ["kind", "receipt"]);
+          return {
+            id,
+            kind: value.kind,
+            target: {
+              kind: "accepted",
+              receipt: committedReceipt(value.target.receipt),
+            },
+          };
+        }
+      }
+      break;
+    case "readWork":
+      if (
+        "owner" in value &&
+        typeof value.owner === "object" &&
+        value.owner !== null &&
+        "profileId" in value.owner &&
+        "generation" in value.owner &&
+        "runId" in value
+      ) {
+        exact(value, ["id", "kind", "owner", "runId"]);
+        exact(value.owner, ["profileId", "generation"]);
+        return {
+          id,
+          kind: value.kind,
+          owner: {
+            profileId: parseId({
+              kind: "profile",
+              value: value.owner.profileId,
+            }),
+            generation: parseCounter(value.owner.generation),
+          },
+          runId: parseId({ kind: "run", value: value.runId }),
+        };
+      }
+      break;
     case "dispatch":
     case "dispatchInk":
       if ("command" in value) {
@@ -209,6 +273,10 @@ export function parseResponse(value: unknown): WorkerResponse {
       : ["id", "kind", "value"],
   );
   switch (value.kind) {
+    case "application":
+      return { id, kind: value.kind, value: parseApplicationRead(value.value) };
+    case "work":
+      return { id, kind: value.kind, value: parseHistoricalWork(value.value) };
     case "projection":
       if (!("courseId" in value))
         throw new Error("Missing verified course identity.");

@@ -13,7 +13,10 @@ import type {
   InkOperation,
   InkCommand,
   InkReceipt,
+  ApplicationRead,
+  HistoricalWork,
   DevelopmentPackage,
+  CumulativeDevelopmentPackage,
   TeachingState,
   TeachingCommand,
   CommitReceipt,
@@ -32,7 +35,10 @@ export declare const validateInkStrokeIds: ValidateFunction<StrokeIdList>;
 export declare const validateInkOperation: ValidateFunction<InkOperation>;
 export declare const validateInkCommand: ValidateFunction<InkCommand>;
 export declare const validateInkReceipt: ValidateFunction<InkReceipt>;
+export declare const validateApplicationRead: ValidateFunction<ApplicationRead>;
+export declare const validateHistoricalWork: ValidateFunction<HistoricalWork>;
 export declare const validatePackage: ValidateFunction<DevelopmentPackage>;
+export declare const validateCumulativePackage: ValidateFunction<CumulativeDevelopmentPackage>;
 export declare const validateState: ValidateFunction<TeachingState>;
 export declare const validateCommand: ValidateFunction<TeachingCommand>;
 export declare const validateReceipt: ValidateFunction<CommitReceipt>;

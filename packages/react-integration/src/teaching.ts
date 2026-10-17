@@ -7,6 +7,8 @@ import type {
   QueryObserverResult,
 } from "@tanstack/react-query";
 import type {
+  ApplicationRead,
+  CourseReadTarget,
   CommandResult,
   CommitReceipt,
   CommittedProjection,
@@ -25,6 +27,7 @@ export type PreparedAction = Readonly<{
 export type ReadEnvelope = Readonly<{
   courseId: CourseId;
   projection: CommittedProjection;
+  application?: Extract<ApplicationRead, { kind: "ready" }>;
 }>;
 export class TeachingRecoveryError extends Error {
   readonly code: string;
@@ -40,7 +43,7 @@ export class TeachingRecoveryError extends Error {
   }
 }
 export interface TeachingRepository {
-  read(): Promise<ReadEnvelope>;
+  read(target?: CourseReadTarget): Promise<ReadEnvelope>;
   readPracticeControls?(
     binding: PracticeControlsBinding,
   ): Promise<PracticeControlsSummary>;
@@ -121,6 +124,7 @@ function keyFor(read: ReadEnvelope): readonly string[] {
     view.owner.profileId,
     view.owner.generation,
     read.courseId,
+    read.application?.witness.activePackageHash ?? view.packageHash,
     view.packageHash,
     view.kind === "entry" ? "entry" : view.sessionId,
     ...(view.kind === "writing" || view.kind === "writingResult"
@@ -336,7 +340,10 @@ export function createCommittedTeaching({
     )
       throw new Error("The saved reading place did not match this save.");
     if (expectation.kind === "receipt") {
-      if (expectation.restoreBinding.kind === "reconciled") {
+      if (
+        expectation.restoreBinding.kind === "reconciled" &&
+        !read.application
+      ) {
         if (
           canonical(view) !== canonical(expectation.restoreBinding.projection)
         )
@@ -395,7 +402,11 @@ export function createCommittedTeaching({
       queryKey,
       staleTime: 0,
       queryFn: async () => {
-        const value = await repository.read();
+        const value = await repository.read(
+          expectation.kind === "receipt"
+            ? { kind: "accepted", receipt: expectation.receipt }
+            : { kind: "cursor" },
+        );
         if (value.projection.kind === "recovery")
           throw new TeachingRecoveryError(value.projection);
         checkRead();
@@ -420,7 +431,11 @@ export function createCommittedTeaching({
         queryKey: canonicalKey,
         queryFn: async () => {
           checkLease(readingLease);
-          const next = await repository.read();
+          const next = await repository.read(
+            expectation.kind === "receipt"
+              ? { kind: "accepted", receipt: expectation.receipt }
+              : { kind: "cursor" },
+          );
           checkLease(readingLease);
           verify(next, expectation);
           if (JSON.stringify(keyFor(next)) !== JSON.stringify(canonicalKey))

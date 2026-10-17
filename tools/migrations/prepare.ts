@@ -63,6 +63,9 @@ const sql = await readFile(
 const {
   taskCredit,
   taskResult,
+  lessonCredit,
+  lessonCreditSupport,
+  lessonResult,
   taskAdvanceV2,
   commandReceiptV3,
   commandReceipt,
@@ -397,8 +400,37 @@ if (arguments_.includes("--check")) {
   if ((await readFile(editingPath, "utf8")) !== editingSql)
     throw new Error("Ink editing migration stale");
 } else await writeFile(editingPath, editingSql);
+const generatedLessonStatements = await generateSQLiteMigration(
+  await generateSQLiteDrizzleJson({}),
+  await generateSQLiteDrizzleJson({
+    lessonCredit,
+    lessonCreditSupport,
+    lessonResult,
+  }),
+);
+const lessonStatements = generatedLessonStatements.map((statement) => {
+  if (!statement.startsWith("CREATE TABLE `lesson_result`")) return statement;
+  const foreignKey =
+    /^(\s*FOREIGN KEY \([^\n]+ REFERENCES `lesson_credit`\([^\n]+ ON UPDATE no action ON DELETE no action)(,?)$/gm;
+  if ([...statement.matchAll(foreignKey)].length !== 1)
+    throw new Error("Unreviewed lesson result foreign key grammar");
+  return statement.replace(foreignKey, "$1 DEFERRABLE INITIALLY DEFERRED$2");
+});
+lessonStatements.push("UPDATE installation SET database_version = 6");
+const lessonPath = resolve(
+  root,
+  "packages/storage/migrations/0005_lesson_support.sql",
+);
+const lessonSql =
+  lessonStatements
+    .map((statement) => statement.replace(/;$/, ""))
+    .join(";\n--> statement-breakpoint\n") + ";\n";
+if (arguments_.includes("--check")) {
+  if ((await readFile(lessonPath, "utf8")) !== lessonSql)
+    throw new Error("Lesson support migration stale");
+} else await writeFile(lessonPath, lessonSql);
 const output = await format(
-  `// Generated from ordered Kit migrations plus reviewed deferred constraints.\n// Reproduce: node --import tsx tools/migrations/prepare.ts\nexport const migrationStatements = ${JSON.stringify(statements)} as const;\nexport const migrations = [{version:1, id:"issue-02-initial", statements:migrationStatements}, {version:2, id:"issue-03-sound-task-credits", statements:${JSON.stringify(upgrades)}}, {version:3,id:"issue-04-accepting-command",statements:${JSON.stringify(finalStatements)}}, {version:4,id:"issue-06-canonical-ink",statements:${JSON.stringify(writingStatements)}}, {version:5,id:"issue-07-ink-editing",statements:${JSON.stringify(editingStatements)}}] as const;\n`,
+  `// Generated from ordered Kit migrations plus reviewed deferred constraints.\n// Reproduce: node --import tsx tools/migrations/prepare.ts\nexport const migrationStatements = ${JSON.stringify(statements)} as const;\nexport const migrations = [{version:1, id:"issue-02-initial", statements:migrationStatements}, {version:2, id:"issue-03-sound-task-credits", statements:${JSON.stringify(upgrades)}}, {version:3,id:"issue-04-accepting-command",statements:${JSON.stringify(finalStatements)}}, {version:4,id:"issue-06-canonical-ink",statements:${JSON.stringify(writingStatements)}}, {version:5,id:"issue-07-ink-editing",statements:${JSON.stringify(editingStatements)}}, {version:6,id:"issue-08-lesson-support",statements:${JSON.stringify(lessonStatements)}}] as const;\n`,
   { parser: "typescript" },
 );
 const path = resolve(root, "packages/storage/src/generated-migration.ts");

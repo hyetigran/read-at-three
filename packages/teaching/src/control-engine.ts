@@ -1,3 +1,4 @@
+import type { RuntimePackage } from "./course-content.ts";
 import { writingTask } from "./writing.ts";
 import {
   canonical,
@@ -23,7 +24,6 @@ import type {
   ControlTeachingState,
   CycleBinding,
   CycleId,
-  DevelopmentPackage,
   EngineProjection,
   GraphAction,
   NodeId,
@@ -179,7 +179,7 @@ export function initialControlState({
   content,
   taskId,
 }: {
-  content: DevelopmentPackage;
+  content: RuntimePackage;
   taskId: TaskId;
 }): ControlTeachingState {
   const graph = controlTask({ content, taskId });
@@ -209,7 +209,7 @@ export function validateControlPosition({
   state,
   taskId,
 }: {
-  content: DevelopmentPackage;
+  content: RuntimePackage;
   state: ControlTeachingState;
   taskId?: TaskId;
 }): void {
@@ -969,7 +969,7 @@ export function controlCompletionProof({
   content,
   state,
 }: {
-  content: DevelopmentPackage;
+  content: RuntimePackage;
   state: ControlTeachingState;
 }): CompletionProof | null {
   const graph = controlTask({ content, taskId: state.taskId });
@@ -1008,7 +1008,7 @@ export function evaluateControls({
   status,
   action: requestedAction,
 }: {
-  content: DevelopmentPackage;
+  content: RuntimePackage;
   state: ControlTeachingState;
   status: "inProgress" | "completed";
   action: GraphAction;
@@ -1664,7 +1664,7 @@ export function projectControls({
   content,
   state,
 }: {
-  content: DevelopmentPackage;
+  content: RuntimePackage;
   state: ControlTeachingState;
 }): EngineProjection {
   const graph = controlTask({ content, taskId: state.taskId }),
@@ -1725,7 +1725,7 @@ export function controlActions({
   state,
   status,
 }: {
-  content: DevelopmentPackage;
+  content: RuntimePackage;
   state: ControlTeachingState;
   status: "inProgress" | "completed";
 }): AvailableAction[] {
