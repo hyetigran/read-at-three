@@ -32,6 +32,28 @@ function applyOperation(
   }
 }
 
+export function collectInkHistoryReferences({
+  history,
+}: {
+  history: InkHistory;
+}): ReadonlySet<StrokeId> {
+  const references = new Set(history.baseline);
+  for (const operation of history.operations)
+    switch (operation.kind) {
+      case "AddStroke":
+        references.add(operation.strokeId);
+        break;
+      case "ClearPractice":
+        for (const id of operation.strokeIds) references.add(id);
+        break;
+      default: {
+        const exhaustive: never = operation;
+        throw new Error(`Unknown ink operation ${exhaustive}`);
+      }
+    }
+  return references;
+}
+
 export function evaluateInkHistory({
   history,
   strokes,
@@ -42,10 +64,10 @@ export function evaluateInkHistory({
   visible: readonly StrokeId[];
   references: ReadonlySet<StrokeId>;
 }> {
-  const references = new Set(history.baseline),
+  const references = collectInkHistoryReferences({ history }),
     origins = new Set(history.baseline);
   if (
-    references.size !== history.baseline.length ||
+    origins.size !== history.baseline.length ||
     history.operations.length > INK_LIMITS.retainedOperations
   )
     throw new Error("Invalid ink history baseline");
@@ -70,12 +92,10 @@ export function evaluateInkHistory({
         )
           throw new Error("Invalid ink origin");
         origins.add(operation.strokeId);
-        references.add(operation.strokeId);
         break;
       case "ClearPractice":
         if (history.layer === "model")
           throw new Error("Model cannot be cleared");
-        for (const id of operation.strokeIds) references.add(id);
         break;
     }
     visible = applyOperation(visible, operation);

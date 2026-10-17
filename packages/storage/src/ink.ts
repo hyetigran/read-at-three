@@ -4,6 +4,7 @@ import {
   canonical,
   assertInkReferences,
   changeInkHistory,
+  collectInkHistoryReferences,
   inkSnapshotUsage,
   decodeInkPoints,
   increment,
@@ -346,12 +347,9 @@ export function createInkRepository({
       h.layer === layer ? next : h,
     );
     const references = new Set<StrokeId>();
-    for (const h of histories) {
-      for (const id of h.baseline) references.add(id);
-      for (const op of h.operations)
-        if (op.kind === "AddStroke") references.add(op.strokeId);
-        else for (const id of op.strokeIds) references.add(id);
-    }
+    for (const history of histories)
+      for (const id of collectInkHistoryReferences({ history }))
+        references.add(id);
     const strokes = value.strokes.filter(
       (stroke) =>
         stroke.status === "capturing" || references.has(stroke.strokeId),

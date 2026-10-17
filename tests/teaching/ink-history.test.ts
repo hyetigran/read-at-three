@@ -74,6 +74,11 @@ test("Clear retains exact ordered geometry, gaps undo and redo, and abandoned br
   );
   history = changeInkHistory({ history, strokes, change: { kind: "inkUndo" } });
   history = changeInkHistory({ history, strokes, change: { kind: "inkUndo" } });
+  assert.deepEqual(evaluateInkHistory({ history, strokes }).visible, ["a"]);
+  assert.deepEqual(
+    [...evaluateInkHistory({ history, strokes }).references],
+    ["a", "b"],
+  );
   history = changeInkHistory({
     history,
     strokes,
@@ -95,6 +100,22 @@ test("Clear retains exact ordered geometry, gaps undo and redo, and abandoned br
     "a",
     "c",
   ]);
+  assert.throws(
+    () =>
+      evaluateInkHistory({
+        history: {
+          ...empty(),
+          baseline: [id("a"), id("a")],
+          tipSeq: parseCounter("1"),
+          nextOpSeq: parseCounter("2"),
+          operations: [
+            { kind: "AddStroke", seq: parseCounter("1"), strokeId: id("b") },
+          ],
+        },
+        strokes,
+      }),
+    /baseline/,
+  );
   assert.throws(
     () =>
       evaluateInkHistory({
