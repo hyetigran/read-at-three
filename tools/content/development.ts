@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { format } from "prettier";
-import { Ajv2020 } from "ajv/dist/2020.js";
 import {
   canonicalContentBody,
   parseDevelopmentPackage,
@@ -15,6 +14,7 @@ import type {
 import { prepareGraphContent } from "./graph.ts";
 import { prepareOralContent } from "./oral.ts";
 import { prepareContinuousOralContent } from "./continuous.ts";
+import { parseLessonSources } from "./source.ts";
 
 const hash = async (text: string) =>
   createHash("sha256").update(text).digest("hex");
@@ -87,44 +87,11 @@ if (!process.argv.includes("--graph") && !process.argv.includes("--legacy")) {
     fixtureOutput,
   );
 } else {
-  type Source = {
-    lessons: {
-      number: number;
-      tasks: { number: number; title: string; sourceContentMarkdown: string }[];
-    }[];
-  };
-  const validate = new Ajv2020({ strict: true }).compile<Source>({
-    type: "object",
-    properties: {
-      lessons: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            number: { type: "integer" },
-            tasks: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  number: { type: "integer" },
-                  title: { type: "string" },
-                  sourceContentMarkdown: { type: "string" },
-                },
-                required: ["number", "title", "sourceContentMarkdown"],
-              },
-            },
-          },
-          required: ["number", "tasks"],
-        },
-      },
-    },
-    required: ["lessons"],
-  });
   const raw = await readFile(sourceFile, "utf8");
-  const source: unknown = JSON.parse(raw);
-  if (!validate(source))
-    throw new Error("The authorized local source records are invalid.");
+  const source = parseLessonSources({
+    value: JSON.parse(raw),
+    purpose: "legacy",
+  });
   const task = source.lessons
     .find((lesson) => lesson.number === 1)
     ?.tasks.find((task) => task.number === 1);

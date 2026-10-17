@@ -20,7 +20,9 @@ The new oral package activates only as a strict task addition with identical cou
 
 ## Verification record
 
-All 105 Node tests pass. Source-neutral engine and real SQLite checks cover the new teaching sequence, correction readiness, causal completion, repeat, Back, restart, receipt pruning, identical Retry, uncertain acknowledgements and cumulative activation. Type, validator, migration and package-boundary checks pass. The exact reviewed commit belongs in the pull request.
+All 110 Node tests pass. Source-neutral engine and real SQLite checks cover the new teaching sequence, correction readiness, causal completion, repeat, Back, restart, receipt pruning, identical Retry, uncertain acknowledgements and cumulative activation. Type, validator, migration and package-boundary checks pass. The exact reviewed commit belongs in the pull request.
+
+One schema-derived source parser serves the legacy, printed, oral and continuous authoring paths. Raw factories validate once, and typed internal functions compose the cumulative bodies. Malformed-record checks preserve finite unrestricted integers, extra fields, cumulative nonempty text, legacy empty strings and graph-first error ordering. All eight real and synthetic package variants rebuild to the exact saved bytes. A compiler probe rejects unknown inputs at the typed boundary, and the import checker keeps those internal authoring functions within the content tools.
 
 All 28 browser checks pass in each development and production mode. The five new cases cover both landscape sizes, all normal turns, required Again, grouped correction test and praise, source-prefix replay, a failed Ready save and full browser-process restart. Separate artifact directories prevent the parallel modes from overwriting each other's traces.
 

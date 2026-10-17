@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { Ajv2020 } from "ajv/dist/2020.js";
 import { format } from "prettier";
 import {
   canonicalContentBody,
@@ -18,10 +17,12 @@ import type {
   Serialized,
 } from "@readatthree/teaching";
 import {
-  createGraphBody,
+  authorGraphBody,
   createGraphFixtureBody,
   verifyGraphInputReview,
 } from "./graph.ts";
+import { parseLessonSources } from "./source.ts";
+import type { RawAuthoringInput, SourceAuthoringInput } from "./source.ts";
 
 type BodyInput = Serialized<ControlDevelopmentBody>;
 type NodeInput = Serialized<ControlNode>;
@@ -46,12 +47,6 @@ type Scripts = Readonly<{
     kind: CorrectionKind;
   }): Script;
 }>;
-type LessonSources = {
-  lessons: {
-    number: number;
-    tasks: { number: number; title: string; sourceContentMarkdown: string }[];
-  }[];
-};
 
 const root = resolve(import.meta.dirname, "../..");
 const hash = async (text: string) =>
@@ -315,35 +310,6 @@ export function createOralFixtureBody(): BodyInput {
   });
 }
 
-const validateSources = new Ajv2020({ strict: true }).compile<LessonSources>({
-  type: "object",
-  properties: {
-    lessons: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          number: { type: "integer" },
-          tasks: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                number: { type: "integer" },
-                title: { type: "string", minLength: 1 },
-                sourceContentMarkdown: { type: "string", minLength: 1 },
-              },
-              required: ["number", "title", "sourceContentMarkdown"],
-            },
-          },
-        },
-        required: ["number", "tasks"],
-      },
-    },
-  },
-  required: ["lessons"],
-});
-
 function tokens(text: string): string[] {
   const plain = text.replaceAll("**", "");
   const result = [...plain.matchAll(/\([^()]*\)|"[^"\n]*"|[^(")]+/g)].map(
@@ -484,14 +450,19 @@ function substituteCorrection(input: {
     .replace(new RegExp(`\\b${titleCase}(?=[.!?])`, "g"), replacementTitle);
 }
 
-export function createOralBody(input: {
-  lessons: unknown;
-  overviewMarkdown: string;
-}): BodyInput {
-  const printed = createGraphBody(input);
-  if (!validateSources(input.lessons))
-    throw new Error("The supplied oral lesson records are invalid.");
-  const lesson = input.lessons.lessons.find((item) => item.number === 1);
+export function createOralBody(input: RawAuthoringInput): BodyInput {
+  return authorOralBody({
+    sources: parseLessonSources({
+      value: input.lessons,
+      purpose: "cumulative",
+    }),
+    overviewMarkdown: input.overviewMarkdown,
+  });
+}
+
+export function authorOralBody(input: SourceAuthoringInput): BodyInput {
+  const printed = authorGraphBody(input);
+  const lesson = input.sources.lessons.find((item) => item.number === 1);
   if (!lesson) throw new Error("Supplied Lesson 1 is missing.");
   const texts = new Map<OralNumber, Map<number, string>>();
   const rawTasks = new Map(

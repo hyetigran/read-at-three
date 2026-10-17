@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { Ajv2020 } from "ajv/dist/2020.js";
 import { format } from "prettier";
 import {
   canonicalContentBody,
@@ -16,7 +15,9 @@ import type {
   Serialized,
 } from "@readatthree/teaching";
 import { verifyGraphInputReview } from "./graph.ts";
-import { createOralBody, createOralFixtureBody, oralGuidance } from "./oral.ts";
+import { authorOralBody, createOralFixtureBody, oralGuidance } from "./oral.ts";
+import { parseLessonSources } from "./source.ts";
+import type { RawAuthoringInput } from "./source.ts";
 
 type Body = Serialized<ControlDevelopmentBody>;
 type Node = Serialized<ControlNode>;
@@ -255,39 +256,6 @@ export function createContinuousOralFixtureBody(): Body {
     },
   });
 }
-type LessonSources = {
-  lessons: {
-    number: number;
-    tasks: { number: number; sourceContentMarkdown: string }[];
-  }[];
-};
-const validateSources = new Ajv2020({ strict: true }).compile<LessonSources>({
-  type: "object",
-  required: ["lessons"],
-  properties: {
-    lessons: {
-      type: "array",
-      items: {
-        type: "object",
-        required: ["number", "tasks"],
-        properties: {
-          number: { type: "integer" },
-          tasks: {
-            type: "array",
-            items: {
-              type: "object",
-              required: ["number", "sourceContentMarkdown"],
-              properties: {
-                number: { type: "integer" },
-                sourceContentMarkdown: { type: "string" },
-              },
-            },
-          },
-        },
-      },
-    },
-  },
-});
 function sourcePage(input: { markdown: string; printed: number }): string {
   const page = input.markdown
     .split(
@@ -304,15 +272,17 @@ function sentenceParts(input: { span: Span }): Span[] {
     .split(/(?<=[.!?])\s+(?=[A-Z])/u)
     .map((text) => ({ ...input.span, copy: { ...input.span.copy, text } }));
 }
-export function createContinuousOralBody(input: {
-  lessons: unknown;
-  overviewMarkdown: string;
-}): Body {
-  const previous = createOralBody(input);
-  if (!validateSources(input.lessons))
-    throw new Error("Continuous oral source records are invalid.");
+export function createContinuousOralBody(input: RawAuthoringInput): Body {
+  const sources = parseLessonSources({
+    value: input.lessons,
+    purpose: "cumulative",
+  });
+  const previous = authorOralBody({
+    sources,
+    overviewMarkdown: input.overviewMarkdown,
+  });
   const source = required(
-    input.lessons.lessons
+    sources.lessons
       .find((lesson) => lesson.number === 1)
       ?.tasks.find((task) => task.number === 3)?.sourceContentMarkdown,
   );
