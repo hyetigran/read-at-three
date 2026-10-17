@@ -1,0 +1,235 @@
+{
+  "origin": "Captured from main58a7725680fa37b521f87da55b6043b41f28cc08 frozen v2 SQL before issue04 migration; printed run paused at correction retest.",
+  "userVersion": 2,
+  "packageHash": "40ad507c9a3b63c89b2c77d3891c07b305700fbb881affaa6394665e4060132a",
+  "tables": [
+    {
+      "name": "command_receipt",
+      "rows": [
+        {
+          "scope_kind": "profile",
+          "scope_id": "graph-store-2",
+          "scope_generation": 0,
+          "command_id": "graph-store-3",
+          "owner_profile_id": "graph-store-2",
+          "owner_generation": 0,
+          "expected_revision": 0,
+          "resulting_revision": 1,
+          "payload_hash": "7ecc1b0f6cf4f14b79df44d4b4f3e6a5dea87d51c3461cdbbb118b20d03789ee",
+          "result_version": 1,
+          "result": "{\"commandId\":\"graph-store-3\",\"kind\":\"committed\",\"owner\":{\"generation\":\"0\",\"profileId\":\"graph-store-2\"},\"packageHash\":\"40ad507c9a3b63c89b2c77d3891c07b305700fbb881affaa6394665e4060132a\",\"revision\":\"1\",\"runId\":\"graph-store-5\",\"sessionId\":\"graph-store-4\"}"
+        },
+        {
+          "scope_kind": "session",
+          "scope_id": "graph-store-4",
+          "scope_generation": 0,
+          "command_id": "graph-store-6",
+          "owner_profile_id": "graph-store-2",
+          "owner_generation": 0,
+          "expected_revision": 0,
+          "resulting_revision": 1,
+          "payload_hash": "e782b27c55a6f83e1dffc10324068d7dab6276765b60303fa2e51c85380063ce",
+          "result_version": 1,
+          "result": "{\"commandId\":\"graph-store-6\",\"kind\":\"committed\",\"owner\":{\"generation\":\"0\",\"profileId\":\"graph-store-2\"},\"packageHash\":\"40ad507c9a3b63c89b2c77d3891c07b305700fbb881affaa6394665e4060132a\",\"revision\":\"1\",\"runId\":\"graph-store-5\",\"sessionId\":\"graph-store-4\"}"
+        },
+        {
+          "scope_kind": "session",
+          "scope_id": "graph-store-4",
+          "scope_generation": 0,
+          "command_id": "graph-store-8",
+          "owner_profile_id": "graph-store-2",
+          "owner_generation": 0,
+          "expected_revision": 1,
+          "resulting_revision": 2,
+          "payload_hash": "bfcacad86fe4e3c5f216b8822d7171ab10c6623c8aad3a5aa86a3feadd176f8e",
+          "result_version": 1,
+          "result": "{\"commandId\":\"graph-store-8\",\"kind\":\"committed\",\"owner\":{\"generation\":\"0\",\"profileId\":\"graph-store-2\"},\"packageHash\":\"40ad507c9a3b63c89b2c77d3891c07b305700fbb881affaa6394665e4060132a\",\"revision\":\"2\",\"runId\":\"graph-store-5\",\"sessionId\":\"graph-store-4\"}"
+        },
+        {
+          "scope_kind": "session",
+          "scope_id": "graph-store-4",
+          "scope_generation": 0,
+          "command_id": "graph-store-9",
+          "owner_profile_id": "graph-store-2",
+          "owner_generation": 0,
+          "expected_revision": 2,
+          "resulting_revision": 3,
+          "payload_hash": "89e4657754304f1c964ccf6989d8511d753d4cc4a9659d116edd2dd2c7f2ef21",
+          "result_version": 1,
+          "result": "{\"commandId\":\"graph-store-9\",\"kind\":\"committed\",\"owner\":{\"generation\":\"0\",\"profileId\":\"graph-store-2\"},\"packageHash\":\"40ad507c9a3b63c89b2c77d3891c07b305700fbb881affaa6394665e4060132a\",\"revision\":\"3\",\"runId\":\"graph-store-5\",\"sessionId\":\"graph-store-4\"}"
+        }
+      ]
+    },
+    {
+      "name": "course_activation",
+      "rows": [
+        {
+          "course_id": "fixture.course",
+          "active_package_hash": "40ad507c9a3b63c89b2c77d3891c07b305700fbb881affaa6394665e4060132a",
+          "fallback_package_hash": null,
+          "revision": 0
+        }
+      ]
+    },
+    {
+      "name": "course_cursor",
+      "rows": [
+        {
+          "profile_id": "graph-store-2",
+          "generation": 0,
+          "course_id": "fixture.course",
+          "resume_session_id": "graph-store-4",
+          "selection_counter": 1,
+          "revision": 4
+        }
+      ]
+    },
+    {
+      "name": "installation",
+      "rows": [
+        {
+          "installation_id": "graph-store-1",
+          "revision": 0,
+          "database_version": 2,
+          "singleton": 1
+        }
+      ]
+    },
+    {
+      "name": "installed_package",
+      "rows": [
+        {
+          "package_hash": "40ad507c9a3b63c89b2c77d3891c07b305700fbb881affaa6394665e4060132a",
+          "course_id": "fixture.course",
+          "release_id": "fixture.graph.release.1",
+          "content_schema_version": 1,
+          "capabilities": "[\"lesson1-sounds-complete\"]",
+          "manifest_version": 1,
+          "verified_manifest": {
+            "$bytes": "eyJib2R5Ijp7ImNvdXJzZUlkIjoiZml4dHVyZS5jb3Vyc2UiLCJjb3ZlcmFnZSI6Imxlc3NvbjEtc291bmRzLWNvbXBsZXRlIiwibGVzc29uSWQiOiJmaXh0dXJlLmxlc3NvbiIsImxlc3NvblRhc2tzIjpbeyJpZCI6ImZpeHR1cmUudGFzayIsIm51bWJlciI6MSwib3B0aW9uYWwiOmZhbHNlLCJ0aXRsZSI6eyJraW5kIjoiYWRkZWQiLCJ0ZXh0IjoiU3ludGhldGljIHRhc2sgMSJ9fSx7ImlkIjoiZml4dHVyZS5ncmFwaC5sMDEudDAyIiwibnVtYmVyIjoyLCJvcHRpb25hbCI6ZmFsc2UsInRpdGxlIjp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJTeW50aGV0aWMgdGFzayAyIn19LHsiaWQiOiJmaXh0dXJlLmdyYXBoLmwwMS50MDMiLCJudW1iZXIiOjMsIm9wdGlvbmFsIjpmYWxzZSwidGl0bGUiOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IlN5bnRoZXRpYyB0YXNrIDMifX0seyJpZCI6ImZpeHR1cmUuZ3JhcGgubDAxLnQwNCIsIm51bWJlciI6NCwib3B0aW9uYWwiOmZhbHNlLCJ0aXRsZSI6eyJraW5kIjoiYWRkZWQiLCJ0ZXh0IjoiU3ludGhldGljIHRhc2sgNCJ9fSx7ImlkIjoiZml4dHVyZS5ncmFwaC5sMDEudDA1IiwibnVtYmVyIjo1LCJvcHRpb25hbCI6ZmFsc2UsInRpdGxlIjp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJTeW50aGV0aWMgdGFzayA1In19LHsiaWQiOiJmaXh0dXJlLmdyYXBoLmwwMS50MDYiLCJudW1iZXIiOjYsIm9wdGlvbmFsIjp0cnVlLCJ0aXRsZSI6eyJraW5kIjoiYWRkZWQiLCJ0ZXh0IjoiU3ludGhldGljIHRhc2sgNiJ9fV0sInJlbGVhc2VJZCI6ImZpeHR1cmUuZ3JhcGgucmVsZWFzZS4xIiwidGFza3MiOlt7ImNvcnJlY3Rpb25zIjpbeyJjb250aW51YXRpb25Ob2RlSWQiOiJmaXh0dXJlLmdyYXBoLmwwMS50MDEuczAzLmFnYWluLW0iLCJlbGlnaWJsZU5vZGVJZHMiOlsiZml4dHVyZS5ncmFwaC5sMDEudDAxLnMwMi5yZXNwb25zZS1tIiwiZml4dHVyZS5ncmFwaC5sMDEudDAxLnMwMy5hZ2Fpbi1tIl0sImlkIjoiZml4dHVyZS5ncmFwaC5sMDEudDAxLmhlbHAtbSIsImluc3RydWN0aW9uTm9kZUlkIjoiZml4dHVyZS5ncmFwaC5sMDEudDAxLmNvcnJlY3Rpb24tbSIsInJldGVzdE5vZGVJZHMiOlsiZml4dHVyZS5ncmFwaC5sMDEudDAxLnMwMi5yZXNwb25zZS1tIl0sInNvdXJjZVJlZnMiOlsiZml4dHVyZS5ncmFwaC50MS5jb3JyZWN0aW9uLm0iXX0seyJjb250aW51YXRpb25Ob2RlSWQiOiJmaXh0dXJlLmdyYXBoLmwwMS50MDEuczA2LmFnYWluLXMiLCJlbGlnaWJsZU5vZGVJZHMiOlsiZml4dHVyZS5ncmFwaC5sMDEudDAxLnMwNS5yZXNwb25zZS1zIiwiZml4dHVyZS5ncmFwaC5sMDEudDAxLnMwNi5hZ2Fpbi1zIl0sImlkIjoiZml4dHVyZS5ncmFwaC5sMDEudDAxLmhlbHAtcyIsImluc3RydWN0aW9uTm9kZUlkIjoiZml4dHVyZS5ncmFwaC5sMDEudDAxLmNvcnJlY3Rpb24tcyIsInJldGVzdE5vZGVJZHMiOlsiZml4dHVyZS5ncmFwaC5sMDEudDAxLnMwNS5yZXNwb25zZS1zIl0sInNvdXJjZVJlZnMiOlsiZml4dHVyZS5ncmFwaC50MS5jb3JyZWN0aW9uLnMiXX1dLCJpZCI6ImZpeHR1cmUudGFzayIsIm5vZGVzIjpbeyJjdWUiOnsia2luZCI6InN1c3RhaW4iLCJtaW5pbXVtTXMiOjMwMDB9LCJnbHlwaCI6Im0iLCJndWlkYW5jZSI6W3siY29weSI6eyJraW5kIjoiYWRkZWQiLCJ0ZXh0IjoiU3ludGhldGljIG0gc2V0dXAuIn0sImtpbmQiOiJzcGVlY2gifSx7ImNvcHkiOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IlN5bnRoZXRpYyBmaXJzdC1wb2ludCBhY3Rpb24uIn0sImtpbmQiOiJhY3Rpb24ifSx7ImNvcHkiOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IlN5bnRoZXRpYyBjdWUgcHJvbXB0LiJ9LCJraW5kIjoic3BlZWNoIn0seyJjb3B5Ijp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJTeW50aGV0aWMgc3VzdGFpbmVkLXBvaW50IGFjdGlvbi4ifSwia2luZCI6ImFjdGlvbiJ9LHsiY29weSI6eyJraW5kIjoiYWRkZWQiLCJ0ZXh0IjoiU3ludGhldGljIG0gbW9kZWwuIn0sImtpbmQiOiJzcGVlY2gifSx7ImNvcHkiOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IlN5bnRoZXRpYyByZWxlYXNlIGFjdGlvbi4ifSwia2luZCI6ImFjdGlvbiJ9XSwiaWQiOiJmaXh0dXJlLmdyYXBoLmwwMS50MDEuczAxLm1vZGVsLW0iLCJraW5kIjoibm9ybWFsIiwibmV4dCI6eyJraW5kIjoibm9kZSIsIm5vZGVJZCI6ImZpeHR1cmUuZ3JhcGgubDAxLnQwMS5zMDIucmVzcG9uc2UtbSJ9LCJwYXJlbnRSb2xlIjoibW9kZWwiLCJzb3VyY2VSZWZzIjpbImZpeHR1cmUuZ3JhcGgudDEuczEiLCJmaXh0dXJlLmdyYXBoLnByb251bmNpYXRpb24uY29udGludW91cyJdfSx7ImN1ZSI6eyJraW5kIjoic3VzdGFpbiIsIm1pbmltdW1NcyI6MzAwMH0sImdseXBoIjoibSIsImd1aWRhbmNlIjpbeyJjb3B5Ijp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJTeW50aGV0aWMgY2hpbGQgcmVzcG9uc2Ugc2V0dXAuIn0sImtpbmQiOiJzcGVlY2gifSx7ImNvcHkiOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IlN5bnRoZXRpYyBmaXJzdC1wb2ludCBhY3Rpb24uIn0sImtpbmQiOiJhY3Rpb24ifSx7ImNvcHkiOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IlN5bnRoZXRpYyBjdWUgcHJvbXB0LiJ9LCJraW5kIjoic3BlZWNoIn0seyJjb3B5Ijp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJTeW50aGV0aWMgc3VzdGFpbmVkLXBvaW50IGFjdGlvbi4ifSwia2luZCI6ImFjdGlvbiJ9LHsiY29weSI6eyJraW5kIjoiYWRkZWQiLCJ0ZXh0IjoiU3ludGhldGljIG0gbGlzdGVuLiJ9LCJraW5kIjoiZXhwZWN0ZWQifV0sImlkIjoiZml4dHVyZS5ncmFwaC5sMDEudDAxLnMwMi5yZXNwb25zZS1tIiwia2luZCI6Im5vcm1hbCIsIm5leHQiOnsia2luZCI6Im5vZGUiLCJub2RlSWQiOiJmaXh0dXJlLmdyYXBoLmwwMS50MDEuczAzLmFnYWluLW0ifSwicGFyZW50Um9sZSI6Imxpc3RlbiIsInNvdXJjZVJlZnMiOlsiZml4dHVyZS5ncmFwaC50MS5zMiIsImZpeHR1cmUuZ3JhcGgucHJvbnVuY2lhdGlvbi5jb250aW51b3VzIl19LHsiY3VlIjp7ImtpbmQiOiJzdXN0YWluIiwibWluaW11bU1zIjozMDAwfSwiZ2x5cGgiOiJtIiwiZ3VpZGFuY2UiOlt7ImNvcHkiOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IlN5bnRoZXRpYyBmaXJzdC1wb2ludCBhY3Rpb24uIn0sImtpbmQiOiJhY3Rpb24ifSx7ImNvcHkiOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IlN5bnRoZXRpYyBjdWUgcHJvbXB0LiJ9LCJraW5kIjoic3BlZWNoIn0seyJjb3B5Ijp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJTeW50aGV0aWMgc3VzdGFpbmVkLXBvaW50IGFjdGlvbi4ifSwia2luZCI6ImFjdGlvbiJ9LHsiY29weSI6eyJraW5kIjoiYWRkZWQiLCJ0ZXh0IjoiU3ludGhldGljIG0gbGlzdGVuLiJ9LCJraW5kIjoiZXhwZWN0ZWQifSx7ImNvcHkiOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IlN5bnRoZXRpYyByZXNwb25zZSBwcmFpc2UuIn0sImtpbmQiOiJwcmFpc2UifV0sImlkIjoiZml4dHVyZS5ncmFwaC5sMDEudDAxLnMwMy5hZ2Fpbi1tIiwia2luZCI6Im5vcm1hbCIsIm5leHQiOnsia2luZCI6Im5vZGUiLCJub2RlSWQiOiJmaXh0dXJlLmdyYXBoLmwwMS50MDEuczA0Lm1vZGVsLXMifSwicGFyZW50Um9sZSI6Imxpc3RlbiIsInNvdXJjZVJlZnMiOlsiZml4dHVyZS5ncmFwaC50MS5zMyIsImZpeHR1cmUuZ3JhcGgucHJvbnVuY2lhdGlvbi5jb250aW51b3VzIl19LHsiY3VlIjp7ImtpbmQiOiJzdXN0YWluIiwibWluaW11bU1zIjozMDAwfSwiZ2x5cGgiOiJzIiwiZ3VpZGFuY2UiOlt7ImNvcHkiOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IlN5bnRoZXRpYyBzIHNldHVwLiJ9LCJraW5kIjoic3BlZWNoIn0seyJjb3B5Ijp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJTeW50aGV0aWMgZmlyc3QtcG9pbnQgYWN0aW9uLiJ9LCJraW5kIjoiYWN0aW9uIn0seyJjb3B5Ijp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJTeW50aGV0aWMgY3VlIHByb21wdC4ifSwia2luZCI6InNwZWVjaCJ9LHsiY29weSI6eyJraW5kIjoiYWRkZWQiLCJ0ZXh0IjoiU3ludGhldGljIHN1c3RhaW5lZC1wb2ludCBhY3Rpb24uIn0sImtpbmQiOiJhY3Rpb24ifSx7ImNvcHkiOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IlN5bnRoZXRpYyBzIG1vZGVsLiJ9LCJraW5kIjoic3BlZWNoIn0seyJjb3B5Ijp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJTeW50aGV0aWMgcmVsZWFzZSBhY3Rpb24uIn0sImtpbmQiOiJhY3Rpb24ifV0sImlkIjoiZml4dHVyZS5ncmFwaC5sMDEudDAxLnMwNC5tb2RlbC1zIiwia2luZCI6Im5vcm1hbCIsIm5leHQiOnsia2luZCI6Im5vZGUiLCJub2RlSWQiOiJmaXh0dXJlLmdyYXBoLmwwMS50MDEuczA1LnJlc3BvbnNlLXMifSwicGFyZW50Um9sZSI6Im1vZGVsIiwic291cmNlUmVmcyI6WyJmaXh0dXJlLmdyYXBoLnQxLnM0IiwiZml4dHVyZS5ncmFwaC5wcm9udW5jaWF0aW9uLmNvbnRpbnVvdXMiXX0seyJjdWUiOnsia2luZCI6InN1c3RhaW4iLCJtaW5pbXVtTXMiOjMwMDB9LCJnbHlwaCI6InMiLCJndWlkYW5jZSI6W3siY29weSI6eyJraW5kIjoiYWRkZWQiLCJ0ZXh0IjoiU3ludGhldGljIGNoaWxkIHJlc3BvbnNlIHNldHVwLiJ9LCJraW5kIjoic3BlZWNoIn0seyJjb3B5Ijp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJTeW50aGV0aWMgZmlyc3QtcG9pbnQgYWN0aW9uLiJ9LCJraW5kIjoiYWN0aW9uIn0seyJjb3B5Ijp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJTeW50aGV0aWMgY3VlIHByb21wdC4ifSwia2luZCI6InNwZWVjaCJ9LHsiY29weSI6eyJraW5kIjoiYWRkZWQiLCJ0ZXh0IjoiU3ludGhldGljIHN1c3RhaW5lZC1wb2ludCBhY3Rpb24uIn0sImtpbmQiOiJhY3Rpb24ifSx7ImNvcHkiOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IlN5bnRoZXRpYyBzIGxpc3Rlbi4ifSwia2luZCI6ImV4cGVjdGVkIn1dLCJpZCI6ImZpeHR1cmUuZ3JhcGgubDAxLnQwMS5zMDUucmVzcG9uc2UtcyIsImtpbmQiOiJub3JtYWwiLCJuZXh0Ijp7ImtpbmQiOiJub2RlIiwibm9kZUlkIjoiZml4dHVyZS5ncmFwaC5sMDEudDAxLnMwNi5hZ2Fpbi1zIn0sInBhcmVudFJvbGUiOiJsaXN0ZW4iLCJzb3VyY2VSZWZzIjpbImZpeHR1cmUuZ3JhcGgudDEuczUiLCJmaXh0dXJlLmdyYXBoLnByb251bmNpYXRpb24uY29udGludW91cyJdfSx7ImN1ZSI6eyJraW5kIjoic3VzdGFpbiIsIm1pbmltdW1NcyI6MzAwMH0sImdseXBoIjoicyIsImd1aWRhbmNlIjpbeyJjb3B5Ijp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJTeW50aGV0aWMgZmlyc3QtcG9pbnQgYWN0aW9uLiJ9LCJraW5kIjoiYWN0aW9uIn0seyJjb3B5Ijp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJTeW50aGV0aWMgY3VlIHByb21wdC4ifSwia2luZCI6InNwZWVjaCJ9LHsiY29weSI6eyJraW5kIjoiYWRkZWQiLCJ0ZXh0IjoiU3ludGhldGljIHN1c3RhaW5lZC1wb2ludCBhY3Rpb24uIn0sImtpbmQiOiJhY3Rpb24ifSx7ImNvcHkiOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IlN5bnRoZXRpYyBzIGxpc3Rlbi4ifSwia2luZCI6ImV4cGVjdGVkIn0seyJjb3B5Ijp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJTeW50aGV0aWMgcmVzcG9uc2UgcHJhaXNlLiJ9LCJraW5kIjoicHJhaXNlIn1dLCJpZCI6ImZpeHR1cmUuZ3JhcGgubDAxLnQwMS5zMDYuYWdhaW4tcyIsImtpbmQiOiJub3JtYWwiLCJuZXh0Ijp7ImtpbmQiOiJlbmQifSwicGFyZW50Um9sZSI6Imxpc3RlbiIsInNvdXJjZVJlZnMiOlsiZml4dHVyZS5ncmFwaC50MS5zNiIsImZpeHR1cmUuZ3JhcGgucHJvbnVuY2lhdGlvbi5jb250aW51b3VzIl19LHsiY3VlIjp7ImtpbmQiOiJzdXN0YWluIiwibWluaW11bU1zIjpudWxsfSwiZ2x5cGgiOiJtIiwiZ3VpZGFuY2UiOlt7ImNvcHkiOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IlN5bnRoZXRpYyBjb3JyZWN0aW9uIGFjdGlvbi4ifSwia2luZCI6ImFjdGlvbiJ9LHsiY29weSI6eyJraW5kIjoiYWRkZWQiLCJ0ZXh0IjoiU3ludGhldGljIG0gY29ycmVjdGlvbiBtb2RlbC4ifSwia2luZCI6InNwZWVjaCJ9LHsiY29weSI6eyJraW5kIjoiYWRkZWQiLCJ0ZXh0IjoiU3ludGhldGljIHNvdXJjZSByZXRlc3Qgcm91dGUuIn0sImtpbmQiOiJhY3Rpb24ifV0sImlkIjoiZml4dHVyZS5ncmFwaC5sMDEudDAxLmNvcnJlY3Rpb24tbSIsImtpbmQiOiJjb3JyZWN0aW9uIiwibmV4dCI6eyJraW5kIjoiZW5kIn0sInBhcmVudFJvbGUiOiJtb2RlbCIsInNvdXJjZVJlZnMiOlsiZml4dHVyZS5ncmFwaC50MS5jb3JyZWN0aW9uLm0iXX0seyJjdWUiOnsia2luZCI6InN1c3RhaW4iLCJtaW5pbXVtTXMiOm51bGx9LCJnbHlwaCI6InMiLCJndWlkYW5jZSI6W3siY29weSI6eyJraW5kIjoiYWRkZWQiLCJ0ZXh0IjoiU3ludGhldGljIGNvcnJlY3Rpb24gYWN0aW9uLiJ9LCJraW5kIjoiYWN0aW9uIn0seyJjb3B5Ijp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJTeW50aGV0aWMgcyBjb3JyZWN0aW9uIG1vZGVsLiJ9LCJraW5kIjoic3BlZWNoIn0seyJjb3B5Ijp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJTeW50aGV0aWMgc291cmNlIHJldGVzdCByb3V0ZS4ifSwia2luZCI6ImFjdGlvbiJ9XSwiaWQiOiJmaXh0dXJlLmdyYXBoLmwwMS50MDEuY29ycmVjdGlvbi1zIiwia2luZCI6ImNvcnJlY3Rpb24iLCJuZXh0Ijp7ImtpbmQiOiJlbmQifSwicGFyZW50Um9sZSI6Im1vZGVsIiwic291cmNlUmVmcyI6WyJmaXh0dXJlLmdyYXBoLnQxLmNvcnJlY3Rpb24ucyJdfV0sIm51bWJlciI6MSwic3RhcnROb2RlSWQiOiJmaXh0dXJlLmdyYXBoLmwwMS50MDEuczAxLm1vZGVsLW0iLCJ0aXRsZSI6eyJraW5kIjoiYWRkZWQiLCJ0ZXh0IjoiU3ludGhldGljIHRhc2sgMSJ9fSx7ImNvcnJlY3Rpb25zIjpbeyJjb250aW51YXRpb25Ob2RlSWQiOm51bGwsImVsaWdpYmxlTm9kZUlkcyI6WyJmaXh0dXJlLmdyYXBoLmwwMS50MDQuczAxLnJlc3BvbnNlLW0iXSwiaWQiOiJmaXh0dXJlLmdyYXBoLmwwMS50MDQuaGVscC1tIiwiaW5zdHJ1Y3Rpb25Ob2RlSWQiOiJmaXh0dXJlLmdyYXBoLmwwMS50MDQuY29ycmVjdGlvbi1tIiwicmV0ZXN0Tm9kZUlkcyI6WyJmaXh0dXJlLmdyYXBoLmwwMS50MDQuczAxLnJlc3BvbnNlLW0iLCJmaXh0dXJlLmdyYXBoLmwwMS50MDQuczAyLnJlc3BvbnNlLXMiXSwic291cmNlUmVmcyI6WyJmaXh0dXJlLmdyYXBoLnQ0LmNvcnJlY3Rpb24ubSJdfSx7ImNvbnRpbnVhdGlvbk5vZGVJZCI6bnVsbCwiZWxpZ2libGVOb2RlSWRzIjpbImZpeHR1cmUuZ3JhcGgubDAxLnQwNC5zMDIucmVzcG9uc2UtcyJdLCJpZCI6ImZpeHR1cmUuZ3JhcGgubDAxLnQwNC5oZWxwLXMiLCJpbnN0cnVjdGlvbk5vZGVJZCI6ImZpeHR1cmUuZ3JhcGgubDAxLnQwNC5jb3JyZWN0aW9uLXMiLCJyZXRlc3ROb2RlSWRzIjpbImZpeHR1cmUuZ3JhcGgubDAxLnQwNC5zMDEucmVzcG9uc2UtbSIsImZpeHR1cmUuZ3JhcGgubDAxLnQwNC5zMDIucmVzcG9uc2UtcyJdLCJzb3VyY2VSZWZzIjpbImZpeHR1cmUuZ3JhcGgudDQuY29ycmVjdGlvbi5zIl19XSwiaWQiOiJmaXh0dXJlLmdyYXBoLmwwMS50MDQiLCJub2RlcyI6W3siY3VlIjp7ImtpbmQiOiJzdXN0YWluIiwibWluaW11bU1zIjozMDAwfSwiZ2x5cGgiOiJtIiwiZ3VpZGFuY2UiOlt7ImNvcHkiOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IlN5bnRoZXRpYyBtIHNldHVwLiJ9LCJraW5kIjoic3BlZWNoIn0seyJjb3B5Ijp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJTeW50aGV0aWMgZmlyc3QtcG9pbnQgYWN0aW9uLiJ9LCJraW5kIjoiYWN0aW9uIn0seyJjb3B5Ijp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJTeW50aGV0aWMgY3VlIHByb21wdC4ifSwia2luZCI6InNwZWVjaCJ9LHsiY29weSI6eyJraW5kIjoiYWRkZWQiLCJ0ZXh0IjoiU3ludGhldGljIHN1c3RhaW5lZC1wb2ludCBhY3Rpb24uIn0sImtpbmQiOiJhY3Rpb24ifSx7ImNvcHkiOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IlN5bnRoZXRpYyBtIGxpc3Rlbi4ifSwia2luZCI6ImV4cGVjdGVkIn1dLCJpZCI6ImZpeHR1cmUuZ3JhcGgubDAxLnQwNC5zMDEucmVzcG9uc2UtbSIsImtpbmQiOiJub3JtYWwiLCJuZXh0Ijp7ImtpbmQiOiJub2RlIiwibm9kZUlkIjoiZml4dHVyZS5ncmFwaC5sMDEudDA0LnMwMi5yZXNwb25zZS1zIn0sInBhcmVudFJvbGUiOiJsaXN0ZW4iLCJzb3VyY2VSZWZzIjpbImZpeHR1cmUuZ3JhcGgudDQuczEiLCJmaXh0dXJlLmdyYXBoLnByb251bmNpYXRpb24uY29udGludW91cyJdfSx7ImN1ZSI6eyJraW5kIjoic3VzdGFpbiIsIm1pbmltdW1NcyI6MzAwMH0sImdseXBoIjoicyIsImd1aWRhbmNlIjpbeyJjb3B5Ijp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJTeW50aGV0aWMgZmlyc3QtcG9pbnQgYWN0aW9uLiJ9LCJraW5kIjoiYWN0aW9uIn0seyJjb3B5Ijp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJTeW50aGV0aWMgY3VlIHByb21wdC4ifSwia2luZCI6InNwZWVjaCJ9LHsiY29weSI6eyJraW5kIjoiYWRkZWQiLCJ0ZXh0IjoiU3ludGhldGljIHN1c3RhaW5lZC1wb2ludCBhY3Rpb24uIn0sImtpbmQiOiJhY3Rpb24ifSx7ImNvcHkiOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IlN5bnRoZXRpYyBzIGxpc3Rlbi4ifSwia2luZCI6ImV4cGVjdGVkIn1dLCJpZCI6ImZpeHR1cmUuZ3JhcGgubDAxLnQwNC5zMDIucmVzcG9uc2UtcyIsImtpbmQiOiJub3JtYWwiLCJuZXh0Ijp7ImtpbmQiOiJlbmQifSwicGFyZW50Um9sZSI6Imxpc3RlbiIsInNvdXJjZVJlZnMiOlsiZml4dHVyZS5ncmFwaC50NC5zMiIsImZpeHR1cmUuZ3JhcGgucHJvbnVuY2lhdGlvbi5jb250aW51b3VzIl19LHsiY3VlIjp7ImtpbmQiOiJzdXN0YWluIiwibWluaW11bU1zIjpudWxsfSwiZ2x5cGgiOiJtIiwiZ3VpZGFuY2UiOlt7ImNvcHkiOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IlN5bnRoZXRpYyBjb3JyZWN0aW9uIGFjdGlvbi4ifSwia2luZCI6ImFjdGlvbiJ9LHsiY29weSI6eyJraW5kIjoiYWRkZWQiLCJ0ZXh0IjoiU3ludGhldGljIG0gY29ycmVjdGlvbiBtb2RlbC4ifSwia2luZCI6InNwZWVjaCJ9LHsiY29weSI6eyJraW5kIjoiYWRkZWQiLCJ0ZXh0IjoiU3ludGhldGljIHJlc3BvbnNlIGludml0YXRpb24uIn0sImtpbmQiOiJhY3Rpb24ifSx7ImNvcHkiOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IlN5bnRoZXRpYyBtIGNvcnJlY3Rpb24gcmVzcG9uc2UuIn0sImtpbmQiOiJleHBlY3RlZCJ9LHsiY29weSI6eyJraW5kIjoiYWRkZWQiLCJ0ZXh0IjoiU3ludGhldGljIGNvcnJlY3Rpb24gcHJhaXNlLiJ9LCJraW5kIjoicHJhaXNlIn0seyJjb3B5Ijp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJTeW50aGV0aWMgc291cmNlIHJldGVzdCByb3V0ZS4ifSwia2luZCI6ImFjdGlvbiJ9XSwiaWQiOiJmaXh0dXJlLmdyYXBoLmwwMS50MDQuY29ycmVjdGlvbi1tIiwia2luZCI6ImNvcnJlY3Rpb24iLCJuZXh0Ijp7ImtpbmQiOiJlbmQifSwicGFyZW50Um9sZSI6Im1vZGVsIiwic291cmNlUmVmcyI6WyJmaXh0dXJlLmdyYXBoLnQ0LmNvcnJlY3Rpb24ubSJdfSx7ImN1ZSI6eyJraW5kIjoic3VzdGFpbiIsIm1pbmltdW1NcyI6bnVsbH0sImdseXBoIjoicyIsImd1aWRhbmNlIjpbeyJjb3B5Ijp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJTeW50aGV0aWMgY29ycmVjdGlvbiBhY3Rpb24uIn0sImtpbmQiOiJhY3Rpb24ifSx7ImNvcHkiOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IlN5bnRoZXRpYyBzIGNvcnJlY3Rpb24gbW9kZWwuIn0sImtpbmQiOiJzcGVlY2gifSx7ImNvcHkiOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IlN5bnRoZXRpYyByZXNwb25zZSBpbnZpdGF0aW9uLiJ9LCJraW5kIjoiYWN0aW9uIn0seyJjb3B5Ijp7ImtpbmQiOiJhZGRlZCIsInRleHQiOiJTeW50aGV0aWMgcyBjb3JyZWN0aW9uIHJlc3BvbnNlLiJ9LCJraW5kIjoiZXhwZWN0ZWQifSx7ImNvcHkiOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IlN5bnRoZXRpYyBjb3JyZWN0aW9uIHByYWlzZS4ifSwia2luZCI6InByYWlzZSJ9LHsiY29weSI6eyJraW5kIjoiYWRkZWQiLCJ0ZXh0IjoiU3ludGhldGljIHNvdXJjZSByZXRlc3Qgcm91dGUuIn0sImtpbmQiOiJhY3Rpb24ifV0sImlkIjoiZml4dHVyZS5ncmFwaC5sMDEudDA0LmNvcnJlY3Rpb24tcyIsImtpbmQiOiJjb3JyZWN0aW9uIiwibmV4dCI6eyJraW5kIjoiZW5kIn0sInBhcmVudFJvbGUiOiJtb2RlbCIsInNvdXJjZVJlZnMiOlsiZml4dHVyZS5ncmFwaC50NC5jb3JyZWN0aW9uLnMiXX1dLCJudW1iZXIiOjQsInN0YXJ0Tm9kZUlkIjoiZml4dHVyZS5ncmFwaC5sMDEudDA0LnMwMS5yZXNwb25zZS1tIiwidGl0bGUiOnsia2luZCI6ImFkZGVkIiwidGV4dCI6IlN5bnRoZXRpYyB0YXNrIDQifX1dLCJ0aXRsZSI6eyJraW5kIjoiYWRkZWQiLCJ0ZXh0IjoiU3ludGhldGljIGxlc3NvbiAxIn19LCJmb3JtYXRWZXJzaW9uIjoxLCJwYWNrYWdlSGFzaCI6IjQwYWQ1MDdjOWEzYjYzYzg5YjJjNzdkMzg5MWMwN2IzMDU3MDBmYmI4ODFhZmZhYTYzOTQ2NjVlNDA2MDEzMmEifQ=="
+          },
+          "state": "ready",
+          "storage_key": "40ad507c9a3b63c89b2c77d3891c07b305700fbb881affaa6394665e4060132a"
+        }
+      ]
+    },
+    {
+      "name": "profile",
+      "rows": [
+        {
+          "profile_id": "graph-store-2",
+          "generation": 0,
+          "revision": 1,
+          "undo_run_id": "graph-store-5",
+          "preferences_version": 1,
+          "preferences": "{\"version\":1}"
+        }
+      ]
+    },
+    {
+      "name": "schema_migration",
+      "rows": [
+        {
+          "version": 1,
+          "migration_id": "issue-02-initial",
+          "checksum": "b720e50ce599b3abffbc4b3fc89b09c2a8f06ba2811a14b17e0c86af275292bc"
+        },
+        {
+          "version": 2,
+          "migration_id": "issue-03-sound-task-credits",
+          "checksum": "fbb4bf4f07925e646a99aa37674e8129a12788d023642faf649b12d46c0e68e1"
+        }
+      ]
+    },
+    {
+      "name": "session",
+      "rows": [
+        {
+          "session_id": "graph-store-4",
+          "profile_id": "graph-store-2",
+          "generation": 0,
+          "course_id": "fixture.course",
+          "package_hash": "40ad507c9a3b63c89b2c77d3891c07b305700fbb881affaa6394665e4060132a",
+          "lesson_id": "fixture.lesson",
+          "task_id": "fixture.task",
+          "current_run_id": "graph-store-5",
+          "scope_kind": "taskReplay",
+          "scope_target_id": "fixture.task",
+          "status": "active",
+          "last_selected_seq": 1,
+          "return_session_id": null,
+          "revision": 3
+        }
+      ]
+    },
+    {
+      "name": "task_advance",
+      "rows": [
+        {
+          "advance_id": "graph-store-7",
+          "run_id": "graph-store-5",
+          "profile_id": "graph-store-2",
+          "generation": 0,
+          "seq": 1,
+          "previous_advance_id": null,
+          "status": "accepted",
+          "command_id": "graph-store-6",
+          "payload_hash": "e782b27c55a6f83e1dffc10324068d7dab6276765b60303fa2e51c85380063ce",
+          "state_version": 1,
+          "before_state": "{\"acceptedOccurrenceIds\":[],\"checkpointIndex\":0,\"checkpoints\":[{\"context\":{\"kind\":\"normal\"},\"id\":\"checkpoint-1\",\"occurrenceId\":\"occurrence-1\"}],\"kind\":\"graph\",\"nextCheckpointNumber\":\"2\",\"nextOccurrenceNumber\":\"7\",\"occurrences\":[{\"id\":\"occurrence-1\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s01.model-m\"},{\"id\":\"occurrence-2\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s02.response-m\"},{\"id\":\"occurrence-3\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s03.again-m\"},{\"id\":\"occurrence-4\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s04.model-s\"},{\"id\":\"occurrence-5\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s05.response-s\"},{\"id\":\"occurrence-6\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s06.again-s\"}],\"taskId\":\"fixture.task\",\"version\":1}",
+          "after_state": "{\"acceptedOccurrenceIds\":[\"occurrence-1\"],\"checkpointIndex\":1,\"checkpoints\":[{\"context\":{\"kind\":\"normal\"},\"id\":\"checkpoint-1\",\"occurrenceId\":\"occurrence-1\"},{\"context\":{\"kind\":\"normal\"},\"id\":\"checkpoint-2\",\"occurrenceId\":\"occurrence-2\"}],\"kind\":\"graph\",\"nextCheckpointNumber\":\"3\",\"nextOccurrenceNumber\":\"7\",\"occurrences\":[{\"id\":\"occurrence-1\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s01.model-m\"},{\"id\":\"occurrence-2\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s02.response-m\"},{\"id\":\"occurrence-3\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s03.again-m\"},{\"id\":\"occurrence-4\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s04.model-s\"},{\"id\":\"occurrence-5\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s05.response-s\"},{\"id\":\"occurrence-6\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s06.again-s\"}],\"taskId\":\"fixture.task\",\"version\":1}",
+          "before_run_status": "inProgress",
+          "after_run_status": "inProgress",
+          "accepted_run_revision": 1
+        },
+        {
+          "advance_id": "graph-store-10",
+          "run_id": "graph-store-5",
+          "profile_id": "graph-store-2",
+          "generation": 0,
+          "seq": 2,
+          "previous_advance_id": "graph-store-7",
+          "status": "accepted",
+          "command_id": "graph-store-9",
+          "payload_hash": "89e4657754304f1c964ccf6989d8511d753d4cc4a9659d116edd2dd2c7f2ef21",
+          "state_version": 1,
+          "before_state": "{\"acceptedOccurrenceIds\":[\"occurrence-1\"],\"checkpointIndex\":2,\"checkpoints\":[{\"context\":{\"kind\":\"normal\"},\"id\":\"checkpoint-1\",\"occurrenceId\":\"occurrence-1\"},{\"context\":{\"kind\":\"normal\"},\"id\":\"checkpoint-2\",\"occurrenceId\":\"occurrence-2\"},{\"context\":{\"correctionId\":\"fixture.graph.l01.t01.help-m\",\"kind\":\"correctionInstruction\",\"returnOccurrenceId\":\"occurrence-2\",\"suspended\":{\"kind\":\"normal\"},\"triggerOccurrenceId\":\"occurrence-2\"},\"id\":\"checkpoint-3\",\"occurrenceId\":\"occurrence-7\"}],\"kind\":\"graph\",\"nextCheckpointNumber\":\"4\",\"nextOccurrenceNumber\":\"8\",\"occurrences\":[{\"id\":\"occurrence-1\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s01.model-m\"},{\"id\":\"occurrence-2\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s02.response-m\"},{\"id\":\"occurrence-3\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s03.again-m\"},{\"id\":\"occurrence-4\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s04.model-s\"},{\"id\":\"occurrence-5\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s05.response-s\"},{\"id\":\"occurrence-6\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s06.again-s\"},{\"id\":\"occurrence-7\",\"kind\":\"support\",\"nodeId\":\"fixture.graph.l01.t01.correction-m\"}],\"taskId\":\"fixture.task\",\"version\":1}",
+          "after_state": "{\"acceptedOccurrenceIds\":[\"occurrence-1\",\"occurrence-7\"],\"checkpointIndex\":3,\"checkpoints\":[{\"context\":{\"kind\":\"normal\"},\"id\":\"checkpoint-1\",\"occurrenceId\":\"occurrence-1\"},{\"context\":{\"kind\":\"normal\"},\"id\":\"checkpoint-2\",\"occurrenceId\":\"occurrence-2\"},{\"context\":{\"correctionId\":\"fixture.graph.l01.t01.help-m\",\"kind\":\"correctionInstruction\",\"returnOccurrenceId\":\"occurrence-2\",\"suspended\":{\"kind\":\"normal\"},\"triggerOccurrenceId\":\"occurrence-2\"},\"id\":\"checkpoint-3\",\"occurrenceId\":\"occurrence-7\"},{\"context\":{\"correctionId\":\"fixture.graph.l01.t01.help-m\",\"kind\":\"correctionRetest\",\"retestIndex\":0,\"returnOccurrenceId\":\"occurrence-2\",\"suspended\":{\"kind\":\"normal\"},\"triggerOccurrenceId\":\"occurrence-2\"},\"id\":\"checkpoint-4\",\"occurrenceId\":\"occurrence-2\"}],\"kind\":\"graph\",\"nextCheckpointNumber\":\"5\",\"nextOccurrenceNumber\":\"8\",\"occurrences\":[{\"id\":\"occurrence-1\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s01.model-m\"},{\"id\":\"occurrence-2\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s02.response-m\"},{\"id\":\"occurrence-3\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s03.again-m\"},{\"id\":\"occurrence-4\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s04.model-s\"},{\"id\":\"occurrence-5\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s05.response-s\"},{\"id\":\"occurrence-6\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s06.again-s\"},{\"id\":\"occurrence-7\",\"kind\":\"support\",\"nodeId\":\"fixture.graph.l01.t01.correction-m\"}],\"taskId\":\"fixture.task\",\"version\":1}",
+          "before_run_status": "inProgress",
+          "after_run_status": "inProgress",
+          "accepted_run_revision": 3
+        }
+      ]
+    },
+    {
+      "name": "task_credit",
+      "rows": []
+    },
+    {
+      "name": "task_result",
+      "rows": []
+    },
+    {
+      "name": "task_run",
+      "rows": [
+        {
+          "run_id": "graph-store-5",
+          "session_id": "graph-store-4",
+          "profile_id": "graph-store-2",
+          "generation": 0,
+          "course_id": "fixture.course",
+          "package_hash": "40ad507c9a3b63c89b2c77d3891c07b305700fbb881affaa6394665e4060132a",
+          "lesson_id": "fixture.lesson",
+          "task_id": "fixture.task",
+          "ordinal": 0,
+          "status": "inProgress",
+          "state_version": 1,
+          "state": "{\"acceptedOccurrenceIds\":[\"occurrence-1\",\"occurrence-7\"],\"checkpointIndex\":3,\"checkpoints\":[{\"context\":{\"kind\":\"normal\"},\"id\":\"checkpoint-1\",\"occurrenceId\":\"occurrence-1\"},{\"context\":{\"kind\":\"normal\"},\"id\":\"checkpoint-2\",\"occurrenceId\":\"occurrence-2\"},{\"context\":{\"correctionId\":\"fixture.graph.l01.t01.help-m\",\"kind\":\"correctionInstruction\",\"returnOccurrenceId\":\"occurrence-2\",\"suspended\":{\"kind\":\"normal\"},\"triggerOccurrenceId\":\"occurrence-2\"},\"id\":\"checkpoint-3\",\"occurrenceId\":\"occurrence-7\"},{\"context\":{\"correctionId\":\"fixture.graph.l01.t01.help-m\",\"kind\":\"correctionRetest\",\"retestIndex\":0,\"returnOccurrenceId\":\"occurrence-2\",\"suspended\":{\"kind\":\"normal\"},\"triggerOccurrenceId\":\"occurrence-2\"},\"id\":\"checkpoint-4\",\"occurrenceId\":\"occurrence-2\"}],\"kind\":\"graph\",\"nextCheckpointNumber\":\"5\",\"nextOccurrenceNumber\":\"8\",\"occurrences\":[{\"id\":\"occurrence-1\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s01.model-m\"},{\"id\":\"occurrence-2\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s02.response-m\"},{\"id\":\"occurrence-3\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s03.again-m\"},{\"id\":\"occurrence-4\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s04.model-s\"},{\"id\":\"occurrence-5\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s05.response-s\"},{\"id\":\"occurrence-6\",\"kind\":\"normal\",\"nodeId\":\"fixture.graph.l01.t01.s06.again-s\"},{\"id\":\"occurrence-7\",\"kind\":\"support\",\"nodeId\":\"fixture.graph.l01.t01.correction-m\"}],\"taskId\":\"fixture.task\",\"version\":1}",
+          "active_advance_id": "graph-store-10",
+          "next_advance_seq": 3,
+          "revision": 3
+        }
+      ]
+    }
+  ]
+}

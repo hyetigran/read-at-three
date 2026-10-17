@@ -1,3 +1,10 @@
+import {
+  initialControlState,
+  validateControlPosition,
+  evaluateControls,
+  projectControls,
+  controlCompletionProof,
+} from "./control-engine.ts";
 import type {
   DevelopmentPackage,
   TeachingState,
@@ -7,6 +14,8 @@ import type {
   NodeId,
   TaskId,
   GraphAction,
+  ControlTeachingState,
+  ControlCheckpoint,
   TransitionPlan,
   Occurrence,
   OccurrenceId,
@@ -22,6 +31,7 @@ import {
   parseCounter,
   parseId,
   deepFreeze,
+  taskDefinition,
 } from "./content.ts";
 
 export function initialState(
@@ -35,8 +45,13 @@ export function initialState(
       nodeId: content.body.startNodeId,
       acceptedNodeIds: [],
     };
-  const id = taskId ?? content.body.tasks[0]?.id;
+  const firstTask = content.body.tasks[0];
+  const id =
+    taskId ??
+    (firstTask && ("task" in firstTask ? firstTask.task.id : firstTask.id));
   if (!id) throw new Error("Task is unavailable");
+  if (taskDefinition({ content, taskId: id }).kind === "graphControls")
+    return initialControlState({ content, taskId: id });
   const graph = graphTask(content, id);
   const occurrences: Occurrence[] = graph.normalNodeIds.map(
     (nodeId, index) => ({
@@ -92,7 +107,16 @@ function legacyTransition(
         unmetObligations: node.next.unmetObligations,
       };
 }
-export function currentCheckpoint(state: GraphTeachingState): Checkpoint {
+export function currentCheckpoint(state: GraphTeachingState): Checkpoint;
+export function currentCheckpoint(
+  state: ControlTeachingState,
+): ControlCheckpoint;
+export function currentCheckpoint(
+  state: GraphTeachingState | ControlTeachingState,
+): Checkpoint | ControlCheckpoint;
+export function currentCheckpoint(
+  state: GraphTeachingState | ControlTeachingState,
+): Checkpoint | ControlCheckpoint {
   const checkpoint = state.checkpoints[state.checkpointIndex];
   if (!checkpoint) throw new Error("Saved checkpoint is unavailable");
   return checkpoint;
@@ -117,6 +141,14 @@ export function validatePosition(
   state: TeachingState,
   taskId?: TaskId,
 ): void {
+  if (state.kind === "graphControls") {
+    validateControlPosition({
+      content,
+      state,
+      ...(taskId === undefined ? {} : { taskId }),
+    });
+    return;
+  }
   if (state.kind !== "graph") {
     if (content.body.coverage !== "partial-first-m")
       throw new Error("Legacy state needs its exact legacy package");
@@ -363,7 +395,7 @@ export function evaluate(
   nodeId: NodeId,
 ): TeachingState {
   validatePosition(content, state);
-  if (state.kind === "graph")
+  if (state.kind === "graph" || state.kind === "graphControls")
     throw new Error("Graph teaching needs a semantic action");
   if (state.kind === "frontier")
     throw new Error("Partial content frontier cannot advance");
@@ -378,10 +410,20 @@ export function evaluateGraph({
   action,
 }: {
   content: DevelopmentPackage;
-  state: GraphTeachingState;
+  state: GraphTeachingState | ControlTeachingState;
   status: "inProgress" | "completed";
   action: GraphAction;
 }): TransitionPlan {
+  if (state.kind === "graphControls")
+    return evaluateControls({ content, state, status, action });
+  if (
+    action.kind !== "continue" &&
+    action.kind !== "back" &&
+    action.kind !== "repeat" &&
+    action.kind !== "pause" &&
+    action.kind !== "help"
+  )
+    throw new Error("Printed action unavailable");
   validatePosition(content, state);
   const graph = graphTask(content, state.taskId);
   const checkpoint = currentCheckpoint(state);
@@ -586,16 +628,33 @@ export function validateAcceptanceTransition({
   before,
   after,
   occurrenceId,
+  action,
 }: {
   content: DevelopmentPackage;
   taskId: TaskId;
   before: TeachingState;
   after: TeachingState;
   occurrenceId: OccurrenceId | NodeId;
+  action?: GraphAction;
 }): void {
   validatePosition(content, before, taskId);
   validatePosition(content, after, taskId);
-  if (before.kind === "graph") {
+  if (before.kind === "graphControls") {
+    if (after.kind !== "graphControls" || !action)
+      throw new Error("Explicit control acceptance required");
+    const expected = evaluateControls({
+      content,
+      state: before,
+      status: "inProgress",
+      action,
+    });
+    if (
+      (expected.kind !== "acceptance" && expected.kind !== "completion") ||
+      expected.occurrenceId !== occurrenceId ||
+      canonical(expected.after) !== canonical(after)
+    )
+      throw new Error("Control acceptance snapshots do not match command");
+  } else if (before.kind === "graph") {
     if (after.kind !== "graph")
       throw new Error("Acceptance state variant changed");
     const current = currentCheckpoint(before);
@@ -626,6 +685,8 @@ export function project(
   state: TeachingState,
 ): EngineProjection {
   validatePosition(content, state);
+  if (state.kind === "graphControls")
+    return projectControls({ content, state });
   if (state.kind === "graph") {
     const checkpoint = currentCheckpoint(state);
     if (checkpoint.occurrenceId === null) return { kind: "completed" };
@@ -657,6 +718,8 @@ export function completionProof(
   state: TeachingState,
 ): CompletionProof | null {
   validatePosition(content, state);
+  if (state.kind === "graphControls")
+    return controlCompletionProof({ content, state });
   if (state.kind !== "graph") return null;
   return graphCompletionProof(content, state);
 }
@@ -694,7 +757,54 @@ export function validateAcceptanceState({
 }): void {
   validatePosition(content, baseline, taskId);
   validatePosition(content, state, taskId);
-  if (baseline.kind === "graph") {
+  if (baseline.kind === "graphControls") {
+    if (state.kind === "graphControls") {
+      const oldCheckpoints = new Map(
+        baseline.checkpoints.map((cp) => [cp.id, cp]),
+      );
+      for (const cp of state.checkpoints) {
+        const number = /^checkpoint-([1-9][0-9]*)$/.exec(cp.id)?.[1];
+        if (
+          number &&
+          BigInt(number) < BigInt(baseline.nextCheckpointNumber) &&
+          canonical(oldCheckpoints.get(cp.id) ?? null) !== canonical(cp)
+        )
+          throw new Error("Navigation rewrote a saved control checkpoint");
+      }
+      if (
+        state.cycles
+          .slice(baseline.cycles.length)
+          .some((c) =>
+            c.turnOccurrenceIds.some(
+              (id) =>
+                state.occurrences.find((o) => o.id === id)?.obligation !==
+                "support",
+            ),
+          )
+      )
+        throw new Error("Navigation invented an independent cycle");
+      if (
+        controlCompletionProof({ content, state: baseline }) !== null &&
+        (canonical(baseline.checkpoints) !== canonical(state.checkpoints) ||
+          canonical(baseline.occurrences) !== canonical(state.occurrences) ||
+          baseline.nextCheckpointNumber !== state.nextCheckpointNumber)
+      )
+        throw new Error("Completed control history is read only");
+    }
+    if (
+      state.kind !== "graphControls" ||
+      canonical(baseline.acceptedOccurrenceIds) !==
+        canonical(state.acceptedOccurrenceIds) ||
+      canonical(baseline.occurrences) !==
+        canonical(state.occurrences.slice(0, baseline.occurrences.length)) ||
+      canonical(baseline.queues) !== canonical(state.queues) ||
+      canonical(baseline.cycles) !==
+        canonical(state.cycles.slice(0, baseline.cycles.length)) ||
+      canonical(baseline.cycleOutcomes) !== canonical(state.cycleOutcomes) ||
+      BigInt(state.nextCheckpointNumber) < BigInt(baseline.nextCheckpointNumber)
+    )
+      throw new Error("Control navigation changed durable obligations");
+  } else if (baseline.kind === "graph") {
     if (
       state.kind !== "graph" ||
       baseline.taskId !== state.taskId ||
@@ -709,6 +819,7 @@ export function validateAcceptanceState({
       );
   } else if (
     state.kind === "graph" ||
+    state.kind === "graphControls" ||
     canonical(baseline) !== canonical(state)
   ) {
     throw new Error("Legacy acceptance state changed without an advance");

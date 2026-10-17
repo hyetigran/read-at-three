@@ -3,6 +3,8 @@ import type {
   AvailableAction,
   Projection,
   TeachingCommand,
+  ReviewSelectionAction,
+  ReviewChoice,
 } from "@readatthree/teaching";
 import { hashText } from "./hash.ts";
 import { parseResponse, parseWorkerRequestId } from "./protocol.ts";
@@ -144,7 +146,23 @@ export function createBrowserTeachingClient() {
     prepare(projection: Projection, action: AvailableAction) {
       return prepareCommand({
         projection,
-        action,
+        request: { kind: "action", action },
+        ids: () => crypto.randomUUID(),
+        hash: hashText,
+      });
+    },
+    prepareReview({
+      projection,
+      action,
+      choice,
+    }: {
+      projection: Projection;
+      action: ReviewSelectionAction;
+      choice: ReviewChoice;
+    }) {
+      return prepareCommand({
+        projection,
+        request: { kind: "review", action, choice },
         ids: () => crypto.randomUUID(),
         hash: hashText,
       });

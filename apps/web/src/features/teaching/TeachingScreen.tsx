@@ -6,6 +6,12 @@ import type {
   GraphTurn,
   GraphNode,
   TeachingNode,
+  ControlTurn,
+  ControlTurnNode,
+  ParentSpan,
+  ItemId,
+  ReviewChoice,
+  ReviewSelectionAction,
 } from "@readatthree/teaching";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
@@ -16,10 +22,13 @@ import { SoundGlyph } from "./SoundGlyph";
 
 type TeachingScreenProps = {
   projection: CommittedProjection;
-  correctionPreview: GraphNode | null;
+  correctionPreview: GraphNode | ControlTurnNode | null;
   busy: boolean;
   saveError: string | null;
   onAction: (action: AvailableAction) => void;
+  onReview: (
+    input: Readonly<{ action: ReviewSelectionAction; choice: ReviewChoice }>,
+  ) => void;
   onRetry: () => void;
   onOpenRetry: () => void;
 };
@@ -28,6 +37,7 @@ type ActionProps = {
   action: AvailableAction;
   disabled: boolean;
   onAction: TeachingScreenProps["onAction"];
+  primary?: boolean;
 };
 
 function actionKey(action: AvailableAction) {
@@ -39,20 +49,48 @@ function actionKey(action: AvailableAction) {
     : intent.kind;
 }
 
-function ProjectedAction({ action, disabled, onAction }: ActionProps) {
+function ProjectedAction({
+  action,
+  disabled,
+  onAction,
+  primary = action.intent.kind === "continue",
+}: ActionProps) {
   const direction =
-    action.intent.kind === "back"
-      ? "up"
-      : action.intent.kind === "continue"
-        ? "down"
-        : null;
+    action.intent.kind === "back" ? "up" : primary ? "down" : null;
+  return (
+    <ActionButton
+      label={action.label}
+      actionKind={action.intent.kind}
+      direction={direction}
+      primary={primary}
+      disabled={disabled}
+      onActivate={() => onAction(action)}
+    />
+  );
+}
+
+function ActionButton({
+  label,
+  actionKind,
+  direction,
+  primary,
+  disabled,
+  onActivate,
+}: {
+  label: Copy;
+  actionKind: string;
+  direction: "up" | "down" | null;
+  primary: boolean;
+  disabled: boolean;
+  onActivate: () => void;
+}) {
   return (
     <Button
-      className={`teaching-button teaching-action teaching-action-${action.intent.kind}${action.intent.kind === "continue" ? " teaching-continue" : ""}`}
-      data-action={action.intent.kind}
+      className={`teaching-button teaching-action teaching-action-${actionKind}${primary ? " teaching-continue" : ""}`}
+      data-action={actionKind}
       onClick={(event) => {
         if (disabled || event.detail > 1) return;
-        onAction(action);
+        onActivate();
       }}
       onKeyDown={(event) => {
         if (
@@ -70,7 +108,7 @@ function ProjectedAction({ action, disabled, onAction }: ActionProps) {
           />
         </svg>
       ) : null}
-      <CopyText copy={action.label} />
+      <CopyText copy={label} />
     </Button>
   );
 }
@@ -415,29 +453,64 @@ function SilentCue({
   );
 }
 
-function TurnGuidance({
-  turn,
-}: {
-  turn: TeachingNode | GraphTurn | GraphNode;
-}) {
-  if ("guidance" in turn) {
-    return turn.guidance.map((span, index) => (
-      <p className={`teaching-guidance teaching-${span.kind}`} key={index}>
-        <span className="teaching-copy-label">
-          <AddedText>
-            {span.kind === "action"
-              ? "Do"
-              : span.kind === "speech"
-                ? "Say"
-                : span.kind === "praise"
-                  ? "Praise"
-                  : "Listen for"}
-          </AddedText>
-        </span>
-        <CopyText copy={span.copy} />
-      </p>
-    ));
-  }
+type DisplayedTurn =
+  TeachingNode | GraphTurn | GraphNode | ControlTurn | ControlTurnNode;
+
+function GuidanceSpans({ guidance }: { guidance: readonly ParentSpan[] }) {
+  return guidance.map((span, index) => (
+    <p className={`teaching-guidance teaching-${span.kind}`} key={index}>
+      <span className="teaching-copy-label">
+        <AddedText>
+          {span.kind === "action"
+            ? "Do"
+            : span.kind === "speech"
+              ? "Say"
+              : span.kind === "praise"
+                ? "Praise"
+                : "Listen for"}
+        </AddedText>
+      </span>
+      <CopyText copy={span.copy} />
+    </p>
+  ));
+}
+
+function OralTarget() {
+  return (
+    <svg
+      className="teaching-listening-art"
+      viewBox="0 0 200 200"
+      aria-hidden="true"
+    >
+      <circle cx="100" cy="100" r="81" fill="#f5d9d5" />
+      <path
+        d="M77 121q-22-7-22-34a45 45 0 0 1 90 0c0 28-24 28-25 47q0 21-21 21-17 0-20-14"
+        fill="none"
+        stroke="#b78290"
+        strokeWidth="11"
+        strokeLinecap="round"
+      />
+      <path
+        d="M78 95q-2-27 22-27t20 26q-2 12-15 15"
+        stroke="#b78290"
+        strokeWidth="9"
+        fill="none"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function mainAction(actions: readonly AvailableAction[]) {
+  return (
+    actions.find((action) => action.intent.kind === "parentReady") ??
+    actions.find((action) => action.intent.kind === "confirmReviewItem") ??
+    actions.find((action) => action.intent.kind === "continue")
+  );
+}
+
+function TurnGuidance({ turn }: { turn: DisplayedTurn }) {
+  if ("guidance" in turn) return <GuidanceSpans guidance={turn.guidance} />;
   return (
     <>
       <p className="teaching-action">
@@ -473,7 +546,7 @@ function TeachingActivity({
   cueKey,
   onAction,
 }: {
-  turn: TeachingNode | GraphTurn | GraphNode;
+  turn: DisplayedTurn;
   preview: boolean;
   actions: readonly AvailableAction[];
   completed: boolean;
@@ -487,15 +560,22 @@ function TeachingActivity({
     if (guidance.current) guidance.current.scrollTop = 0;
   }, [turn.id, checkpointId]);
   const minimumMs =
-    "minimumMs" in turn.cue ? turn.cue.minimumMs : turn.cue.durationMs;
+    "cue" in turn
+      ? "minimumMs" in turn.cue
+        ? turn.cue.minimumMs
+        : turn.cue.durationMs
+      : null;
+  const oral = "presentation" in turn && turn.presentation.kind === "oral";
+  const primary = mainAction(actions);
   const routeKind = "routeKind" in turn ? turn.routeKind : "normal";
   const navigation = actions.filter(
-    (action) =>
-      action.intent.kind === "back" || action.intent.kind === "continue",
+    (action) => action.intent.kind === "back" || action === primary,
   );
   const support = actions.filter(
     (action) =>
-      action.intent.kind === "repeat" || action.intent.kind === "help",
+      action.intent.kind === "repeat" ||
+      action.intent.kind === "help" ||
+      (action.intent.kind === "continue" && action !== primary),
   );
   return (
     <>
@@ -506,27 +586,43 @@ function TeachingActivity({
               ? "Correction preview · Not saved"
               : completed
                 ? "Completed task · Reviewing saved context"
-                : routeKind === "correctionInstruction"
+                : routeKind === "correction" ||
+                    routeKind === "correctionInstruction"
                   ? "Correction · Follow the source retest"
                   : routeKind === "correctionRetest"
                     ? "Retest"
                     : routeKind === "repeat"
                       ? "Extra practice · Return to the saved turn afterward"
-                      : turn.parentRole === "model"
-                        ? "Parent models"
-                        : "Child responds"}
+                      : "extraPractice" in turn && turn.extraPractice
+                        ? "Extra practice"
+                        : turn.parentRole === "model"
+                          ? "Parent models"
+                          : "Child responds"}
           </AddedText>
           <AddedText>Parent only</AddedText>
         </div>
-        <div ref={guidance} className="teaching-parent-content" tabIndex={0}>
+        <div
+          ref={guidance}
+          className="teaching-parent-content"
+          data-guidance={oral ? "oral" : "printed"}
+          tabIndex={0}
+        >
           <TurnGuidance turn={turn} />
         </div>
       </section>
-      <section className="teaching-arena" aria-label="Sound practice">
+      <section
+        className="teaching-arena"
+        aria-label={oral ? "Oral practice" : "Sound practice"}
+        data-presentation={oral ? "oral" : "printed"}
+      >
         <div className="teaching-target">
-          <SoundGlyph glyph={turn.glyph} />
+          {"glyph" in turn ? <SoundGlyph glyph={turn.glyph} /> : <OralTarget />}
         </div>
-        <SilentCue key={cueKey} disabled={disabled} minimumMs={minimumMs} />
+        {oral ? (
+          <div className="teaching-cue teaching-oral-cue" aria-hidden="true" />
+        ) : (
+          <SilentCue key={cueKey} disabled={disabled} minimumMs={minimumMs} />
+        )}
         <nav className="teaching-parent-controls" aria-label="Parent controls">
           <div className="teaching-navigation-actions">
             {navigation.map((action) => (
@@ -534,6 +630,7 @@ function TeachingActivity({
                 key={actionKey(action)}
                 action={action}
                 disabled={disabled}
+                primary={action === primary}
                 onAction={onAction}
               />
             ))}
@@ -544,10 +641,137 @@ function TeachingActivity({
                 key={actionKey(action)}
                 action={action}
                 disabled={disabled}
+                primary={false}
                 onAction={onAction}
               />
             ))}
           </div>
+        </nav>
+      </section>
+    </>
+  );
+}
+
+type ReviewProjection = Extract<
+  CommittedProjection,
+  { kind: "reviewSelection" }
+>;
+
+function ReviewSelectionActivity({
+  projection,
+  disabled,
+  onAction,
+  onReview,
+}: {
+  projection: ReviewProjection;
+  disabled: boolean;
+  onAction: TeachingScreenProps["onAction"];
+  onReview: TeachingScreenProps["onReview"];
+}) {
+  const savedChoice = projection.committedChoice;
+  const [selected, setSelected] = useState<readonly ItemId[]>(() =>
+    savedChoice?.kind === "items" ? savedChoice.itemIds : [],
+  );
+  const saved = savedChoice !== null;
+  return (
+    <>
+      <section className="teaching-parent-panel" aria-label="Parent guidance">
+        <div className="teaching-parent-heading">
+          <AddedText>
+            {saved ? "Saved review selection" : "Choose words to review"}
+          </AddedText>
+          <AddedText>Parent only</AddedText>
+        </div>
+        <div
+          className="teaching-parent-content"
+          data-guidance="oral"
+          tabIndex={0}
+        >
+          <GuidanceSpans guidance={projection.guidance} />
+          <fieldset
+            className="teaching-review-choices"
+            aria-label="Words to review"
+          >
+            {projection.items.map((item) => (
+              <label className="teaching-review-choice" key={item.itemId}>
+                <input
+                  type="checkbox"
+                  data-review-item={item.itemId}
+                  checked={selected.includes(item.itemId)}
+                  disabled={disabled || saved}
+                  onChange={(event) => {
+                    const checked = event.currentTarget.checked;
+                    setSelected((current) =>
+                      checked
+                        ? [...current, item.itemId]
+                        : current.filter((id) => id !== item.itemId),
+                    );
+                  }}
+                />
+                <CopyText copy={item.label} />
+              </label>
+            ))}
+          </fieldset>
+        </div>
+      </section>
+      <section
+        className="teaching-arena"
+        aria-label="Oral practice"
+        data-presentation="oral"
+      >
+        <div className="teaching-target">
+          <OralTarget />
+        </div>
+        <div className="teaching-cue teaching-oral-cue" aria-hidden="true" />
+        <nav className="teaching-parent-controls" aria-label="Parent controls">
+          <div className="teaching-navigation-actions">
+            {projection.actions
+              .filter(
+                (action) =>
+                  action.intent.kind === "back" ||
+                  action.intent.kind === "continue",
+              )
+              .map((action) => (
+                <ProjectedAction
+                  key={actionKey(action)}
+                  action={action}
+                  disabled={disabled}
+                  onAction={onAction}
+                />
+              ))}
+            {!saved ? (
+              <ActionButton
+                label={projection.selectionAction.selectLabel}
+                actionKind="commitReviewSelection"
+                direction="down"
+                primary
+                disabled={disabled || selected.length === 0}
+                onActivate={() =>
+                  onReview({
+                    action: projection.selectionAction,
+                    choice: { kind: "items", itemIds: [...selected] },
+                  })
+                }
+              />
+            ) : null}
+          </div>
+          {!saved ? (
+            <div className="teaching-support-actions">
+              <ActionButton
+                label={projection.selectionAction.emptyLabel}
+                actionKind="confirmEmptyReview"
+                direction={null}
+                primary={false}
+                disabled={disabled || selected.length !== 0}
+                onActivate={() =>
+                  onReview({
+                    action: projection.selectionAction,
+                    choice: { kind: "none" },
+                  })
+                }
+              />
+            </div>
+          ) : null}
         </nav>
       </section>
     </>
@@ -560,6 +784,7 @@ export function TeachingScreen({
   busy,
   saveError,
   onAction,
+  onReview,
   onRetry,
   onOpenRetry,
 }: TeachingScreenProps) {
@@ -618,8 +843,14 @@ export function TeachingScreen({
       onAction={act}
     />
   );
-  if (projection.kind === "teaching" && projection.sessionStatus !== "paused") {
-    const displayedTurn = correctionPreview ?? projection.turn;
+  if (
+    (projection.kind === "teaching" || projection.kind === "reviewSelection") &&
+    projection.sessionStatus !== "paused"
+  ) {
+    const displayedTurn =
+      projection.kind === "teaching"
+        ? (correctionPreview ?? projection.turn)
+        : null;
     const pause = projection.actions.filter(
       (action) => action.intent.kind === "pause",
     );
@@ -627,8 +858,17 @@ export function TeachingScreen({
       <main
         className="teaching-screen teaching-active"
         aria-busy={busy}
-        data-turn-id={displayedTurn.id}
-        data-committed-turn-id={projection.turn.id}
+        data-turn-id={
+          displayedTurn?.id ??
+          (projection.kind === "reviewSelection"
+            ? projection.reviewId
+            : undefined)
+        }
+        data-committed-turn-id={
+          projection.kind === "teaching"
+            ? projection.turn.id
+            : projection.reviewId
+        }
         data-context={correctionPreview ? "uncommitted" : "committed"}
         data-checkpoint-id={projection.checkpointId ?? undefined}
         data-run-status={projection.runStatus}
@@ -659,30 +899,49 @@ export function TeachingScreen({
             </Button>
           ) : null}
         </ScreenHeading>
-        <TeachingActivity
-          key={JSON.stringify([
-            projection.owner.profileId,
-            projection.owner.generation,
-            projection.sessionId,
-            projection.runId,
-          ])}
-          cueKey={JSON.stringify([
-            projection.owner.profileId,
-            projection.owner.generation,
-            projection.sessionId,
-            projection.runId,
-            projection.checkpointId,
-            projection.revision,
-            projection.turn.id,
-            cueGeneration,
-          ])}
-          turn={displayedTurn}
-          preview={correctionPreview !== null}
-          actions={projection.actions}
-          completed={projection.runStatus === "completed"}
-          disabled={disabled || catalogOpen}
-          onAction={act}
-        />
+        {projection.kind === "teaching" && displayedTurn !== null ? (
+          <TeachingActivity
+            key={JSON.stringify([
+              projection.owner.profileId,
+              projection.owner.generation,
+              projection.sessionId,
+              projection.runId,
+            ])}
+            cueKey={JSON.stringify([
+              projection.owner.profileId,
+              projection.owner.generation,
+              projection.sessionId,
+              projection.runId,
+              projection.checkpointId,
+              projection.revision,
+              projection.turn.id,
+              cueGeneration,
+            ])}
+            turn={displayedTurn}
+            preview={correctionPreview !== null}
+            actions={projection.actions}
+            completed={projection.runStatus === "completed"}
+            disabled={disabled || catalogOpen}
+            onAction={act}
+          />
+        ) : projection.kind === "reviewSelection" ? (
+          <ReviewSelectionActivity
+            key={JSON.stringify([
+              projection.owner.profileId,
+              projection.owner.generation,
+              projection.sessionId,
+              projection.runId,
+              projection.reviewId,
+            ])}
+            projection={projection}
+            disabled={disabled || catalogOpen}
+            onAction={act}
+            onReview={(request) => {
+              setCueGeneration((generation) => generation + 1);
+              onReview(request);
+            }}
+          />
+        ) : null}
         {saveStatus}
         {catalogOpen ? (
           <CatalogDialog onClose={() => setCatalogOpen(false)}>

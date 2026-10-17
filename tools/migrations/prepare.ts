@@ -60,7 +60,9 @@ const sql = await readFile(
   resolve(root, "packages/storage/migrations/0000_initial.sql"),
   "utf8",
 );
-const { taskCredit, taskResult, ...initialSchema } = schema;
+const { taskCredit, taskResult, taskAdvanceV2, ...latestSchema } = schema;
+const initialSchema = { ...latestSchema, taskAdvance: taskAdvanceV2 };
+const v2Schema = { ...initialSchema, taskCredit, taskResult };
 const generatedSnapshot = await generateSQLiteDrizzleJson(initialSchema);
 const generatedStatements = await generateSQLiteMigration(
   await generateSQLiteDrizzleJson({}),
@@ -233,7 +235,7 @@ const creditStatements = creditSql
   .split("--> statement-breakpoint")
   .map((part) => part.trim())
   .filter(Boolean);
-const currentSnapshot = await generateSQLiteDrizzleJson(schema);
+const currentSnapshot = await generateSQLiteDrizzleJson(v2Schema);
 const generatedCredits = await generateSQLiteMigration(
   generatedSnapshot,
   currentSnapshot,
@@ -263,8 +265,75 @@ const upgrades = [
   ...deferredCreditStatements,
   "UPDATE installation SET database_version=2",
 ];
+const latestSnapshot = await generateSQLiteDrizzleJson({
+  ...latestSchema,
+  taskCredit,
+  taskResult,
+});
+const acceptanceStatements = await generateSQLiteMigration(
+  currentSnapshot,
+  latestSnapshot,
+);
+if (
+  canonical(acceptanceStatements) !==
+  canonical(["ALTER TABLE `task_advance` ADD `accepting_command` text;"])
+)
+  throw new Error("Unreviewed accepting command migration");
+const acceptanceSql = await readFile(
+  resolve(root, "packages/storage/migrations/0002_accepting_command.sql"),
+  "utf8",
+);
+if (
+  canonical(
+    acceptanceSql
+      .split("--> statement-breakpoint")
+      .map((s) => s.trim())
+      .filter(Boolean),
+  ) !== canonical(acceptanceStatements)
+)
+  throw new Error("Drizzle accepting-command migration is stale");
+const snapshotPath = resolve(
+  root,
+  "packages/storage/migrations/meta/0002_snapshot.json",
+);
+if (arguments_.includes("--check")) {
+  const storedLatest: unknown = JSON.parse(
+    await readFile(snapshotPath, "utf8"),
+  );
+  if (snapshotContent(storedLatest) !== snapshotContent(latestSnapshot))
+    throw new Error("Drizzle accepting-command snapshot is stale");
+} else {
+  const existing: unknown = await readFile(snapshotPath, "utf8")
+    .then(JSON.parse)
+    .catch(() => null);
+  const id =
+    typeof existing === "object" &&
+    existing !== null &&
+    "id" in existing &&
+    typeof existing.id === "string"
+      ? existing.id
+      : latestSnapshot.id;
+  const prevId =
+    typeof storedCurrentSnapshot === "object" &&
+    storedCurrentSnapshot !== null &&
+    "id" in storedCurrentSnapshot &&
+    typeof storedCurrentSnapshot.id === "string"
+      ? storedCurrentSnapshot.id
+      : undefined;
+  if (!prevId) throw new Error("Missing V2 snapshot identity");
+  await writeFile(
+    snapshotPath,
+    await format(JSON.stringify({ ...latestSnapshot, id, prevId }), {
+      parser: "json",
+    }),
+  );
+}
+const finalStatements = [
+  ...acceptanceStatements,
+  "UPDATE installation SET database_version=3",
+];
 const output = await format(
-  `// Generated from ordered Kit migrations plus reviewed deferred constraints.\n// Reproduce: node --import tsx tools/migrations/prepare.ts\nexport const migrationStatements = ${JSON.stringify(statements)} as const;\nexport const migrations = [{version:1, id:"issue-02-initial", statements:migrationStatements}, {version:2, id:"issue-03-sound-task-credits", statements:${JSON.stringify(upgrades)}}] as const;\n`,
+  `// Generated from ordered Kit migrations plus reviewed deferred constraints.\n// Reproduce: node --import tsx tools/migrations/prepare.ts\nexport const migrationStatements = ${JSON.stringify(statements)} as const;\nexport const migrations = [{version:1, id:"issue-02-initial", statements:migrationStatements}, {version:2, id:"issue-03-sound-task-credits", statements:${JSON.stringify(upgrades)}}, {version:3,id:"issue-04-accepting-command",statements:${JSON.stringify(finalStatements)}}] as const;\n`,
   { parser: "typescript" },
 );
 const path = resolve(root, "packages/storage/src/generated-migration.ts");

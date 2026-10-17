@@ -12,6 +12,8 @@ export {
   parseReceipt,
   graphTask,
   compileTask,
+  taskDefinition,
+  controlTask,
 } from "./content.ts";
 export {
   evaluate,
@@ -30,3 +32,5 @@ export type {
   CommittedProjection as Projection,
   CommandResult as DispatchResult,
 } from "./types.ts";
+
+export { compileControlTask } from "./control-content.ts";

@@ -70,6 +70,9 @@ for (const file of await files(join(root, "packages"))) {
         throw new Error("Computed imports are forbidden in shared packages.");
       dependency(path.node.source.value);
     },
+    TSImportType(path) {
+      dependency(path.node.source.value);
+    },
     ReferencedIdentifier(path) {
       if (
         forbiddenGlobals.has(path.node.name) &&

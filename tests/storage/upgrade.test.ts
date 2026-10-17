@@ -17,7 +17,7 @@ import type { DatabaseSync } from "node:sqlite";
 type FixtureValue = string | number | null | { $bytes: string };
 type Fixture = {
   origin: string;
-  userVersion: 1;
+  userVersion: 1 | 2;
   packageHash: string;
   tables: { name: string; rows: Record<string, FixtureValue>[] }[];
 };
@@ -27,7 +27,7 @@ const validate = new Ajv2020({ strict: true }).compile<Fixture>({
   additionalProperties: false,
   properties: {
     origin: { type: "string" },
-    userVersion: { const: 1 },
+    userVersion: { enum: [1, 2] },
     packageHash: { type: "string", pattern: "^[a-f0-9]{64}$" },
     tables: {
       type: "array",
@@ -62,15 +62,22 @@ const validate = new Ajv2020({ strict: true }).compile<Fixture>({
     },
   },
 });
-async function seed(db: DatabaseSync) {
+async function seed({
+  db,
+  version = 1,
+}: {
+  db: DatabaseSync;
+  version?: 1 | 2;
+}) {
   const raw: unknown = JSON.parse(
-    await readFile("tests/fixtures/storage-v1.json", "utf8"),
+    await readFile(`tests/fixtures/storage-v${version}.json`, "utf8"),
   );
   if (!validate(raw)) throw new Error("V1 capture is invalid");
   db.exec("PRAGMA foreign_keys=OFF");
   db.exec("BEGIN");
   try {
-    for (const statement of migrationStatements) db.exec(statement);
+    for (const migration of migrations.slice(0, version))
+      for (const statement of migration.statements) db.exec(statement);
     for (const table of raw.tables)
       for (const row of table.rows) {
         const columns = Object.keys(row);
@@ -87,7 +94,7 @@ async function seed(db: DatabaseSync) {
           `INSERT INTO ${table.name}(${columns.join(",")}) VALUES(${columns.map(() => "?").join(",")})`,
         ).run(...values);
       }
-    db.exec("PRAGMA user_version=1");
+    db.exec(`PRAGMA user_version=${version}`);
     db.exec("COMMIT");
   } catch (error) {
     db.exec("ROLLBACK");
@@ -107,7 +114,10 @@ function sourceState(db: DatabaseSync) {
       "command_receipt",
     ].map((name) => ({
       name,
-      rows: db.prepare(`SELECT * FROM ${name}`).all(),
+      rows: db
+        .prepare(`SELECT * FROM ${name}`)
+        .all()
+        .map(({ accepting_command, ...row }) => row),
     })),
   );
 }
@@ -115,7 +125,7 @@ function sourceState(db: DatabaseSync) {
 test("real captured V1 data upgrades without rebinding pinned bytes; full task requires explicit new run", async (t) => {
   const f = await storageFixture(t);
   const first = f.connect();
-  const capture = await seed(first.db);
+  const capture = await seed({ db: first.db });
   const before = sourceState(first.db);
   assert.equal(
     await hash(migrationStatements.join("\n")),
@@ -145,11 +155,11 @@ test("real captured V1 data upgrades without rebinding pinned bytes; full task r
       .get(capture.packageHash)?.verified_manifest,
     bytes,
   );
-  assert.equal(first.db.prepare("PRAGMA user_version").get()?.user_version, 2);
+  assert.equal(first.db.prepare("PRAGMA user_version").get()?.user_version, 3);
   assert.equal(
     first.db.prepare("SELECT database_version FROM installation").get()
       ?.database_version,
-    2,
+    3,
   );
   const restart = f.connect();
   assert.deepEqual(await restart.app.open(), view);
@@ -176,7 +186,7 @@ test("each failed V2 migration statement rolls back to exact V1 schema/data and 
   for (const failing of migrations[1].statements) {
     const f = await storageFixture(t);
     const first = f.connect();
-    await seed(first.db);
+    await seed({ db: first.db });
     const before = sourceState(first.db);
     const executor: SqlExecutor = {
       execute: async (sql, parameters) => {
@@ -209,7 +219,7 @@ test("each failed V2 migration statement rolls back to exact V1 schema/data and 
     await initializeDatabase(first.executor, hash);
     assert.equal(
       first.db.prepare("PRAGMA user_version").get()?.user_version,
-      2,
+      3,
     );
     assert.equal(sourceState(first.db), before);
   }
@@ -218,7 +228,7 @@ test("each failed V2 migration statement rolls back to exact V1 schema/data and 
 test("tampered V1 ledger rejects before any upgrade and keeps saved state", async (t) => {
   const f = await storageFixture(t);
   const first = f.connect();
-  await seed(first.db);
+  await seed({ db: first.db });
   const before = sourceState(first.db);
   first.db
     .prepare("UPDATE schema_migration SET checksum=?")
@@ -226,4 +236,151 @@ test("tampered V1 ledger rejects before any upgrade and keeps saved state", asyn
   await assert.rejects(initializeDatabase(first.executor, hash), /checksum/);
   assert.equal(first.db.prepare("PRAGMA user_version").get()?.user_version, 1);
   assert.equal(sourceState(first.db), before);
+});
+
+test("genuine main V2 capture upgrades in place; new oral catalog preserves exact printed correction context and old NULL acceptances", async (t) => {
+  const { controlFixture } = await import("../teaching/control-fixture.ts");
+  const oral = await controlFixture();
+  const f = await storageFixture(t, oral.content);
+  const first = f.connect();
+  const capture = await seed({ db: first.db, version: 2 }),
+    before = sourceState(first.db);
+  const blob = first.db
+    .prepare(
+      "SELECT verified_manifest FROM installed_package WHERE package_hash=?",
+    )
+    .get(capture.packageHash)?.verified_manifest;
+  const view = await first.app.open();
+  assert.equal(view.kind, "teaching");
+  if (view.kind !== "teaching") throw new Error("Lost captured context");
+  assert.equal(view.packageHash, capture.packageHash);
+  assert.equal(
+    "routeKind" in view.turn && view.turn.routeKind,
+    "correctionRetest",
+  );
+  assert.equal(sourceState(first.db), before);
+  assert.equal(
+    first.db.prepare("SELECT active_package_hash FROM course_activation").get()
+      ?.active_package_hash,
+    oral.content.packageHash,
+  );
+  assert.equal(view.catalog.filter((task) => task.available).length, 4);
+  assert.deepEqual(
+    first.db
+      .prepare(
+        "SELECT verified_manifest FROM installed_package WHERE package_hash=?",
+      )
+      .get(capture.packageHash)?.verified_manifest,
+    blob,
+  );
+  assert.equal(
+    first.db
+      .prepare(
+        "SELECT count(*) AS n FROM task_advance WHERE accepting_command IS NULL",
+      )
+      .get()?.n,
+    2,
+  );
+  assert.deepEqual(await f.connect().app.open(), view);
+  await f.act(first.app, "continue");
+  assert.equal((await f.connect().app.open()).kind, "teaching");
+  const older = f.connect({
+    content:
+      f.content.body.coverage === "lesson1-sounds-oral-complete"
+        ? await (
+            await import("../../packages/teaching/src/index.ts")
+          ).parseDevelopmentPackage(
+            JSON.parse(
+              await readFile(
+                "tests/fixtures/graph-development-package.json",
+                "utf8",
+              ),
+            ),
+            hash,
+          )
+        : f.content,
+  });
+  await older.app.open();
+  assert.equal(
+    first.db.prepare("SELECT active_package_hash FROM course_activation").get()
+      ?.active_package_hash,
+    oral.content.packageHash,
+  );
+});
+
+test("every V3 migration write and pre-COMMIT interruption rolls back genuine V2 schema/data; lost acknowledgement retries", async (t) => {
+  const points = [
+    ...migrations[2].statements,
+    "INSERT INTO schema_migration",
+    "PRAGMA user_version=3",
+    "COMMIT",
+  ];
+  for (const point of points) {
+    const f = await storageFixture(t),
+      first = f.connect();
+    await seed({ db: first.db, version: 2 });
+    const before = sourceState(first.db),
+      schemaBefore = canonical(
+        first.db
+          .prepare("SELECT name,sql FROM sqlite_master ORDER BY name")
+          .all(),
+      );
+    let injected = false;
+    const executor: SqlExecutor = {
+      execute: async (sql, parameters) => {
+        if (
+          !injected &&
+          (sql === point ||
+            (point === "INSERT INTO schema_migration" && sql.startsWith(point)))
+        ) {
+          injected = true;
+          throw new Error("Injected V3 migration interruption");
+        }
+        return first.executor.execute(sql, parameters);
+      },
+    };
+    await assert.rejects(initializeDatabase(executor, hash), /Injected V3/);
+    assert.ok(injected);
+    assert.equal(
+      first.db.prepare("PRAGMA user_version").get()?.user_version,
+      2,
+    );
+    assert.equal(sourceState(first.db), before);
+    assert.equal(
+      canonical(
+        first.db
+          .prepare("SELECT name,sql FROM sqlite_master ORDER BY name")
+          .all(),
+      ),
+      schemaBefore,
+    );
+    await initializeDatabase(first.executor, hash);
+    await initializeDatabase(first.executor, hash);
+    assert.equal(
+      first.db.prepare("PRAGMA user_version").get()?.user_version,
+      3,
+    );
+    assert.equal(sourceState(first.db), before);
+  }
+  const f = await storageFixture(t),
+    first = f.connect();
+  await seed({ db: first.db, version: 2 });
+  let lost = false;
+  const executor: SqlExecutor = {
+    execute: async (sql, parameters) => {
+      const result = await first.executor.execute(sql, parameters);
+      if (sql === "COMMIT" && !lost) {
+        lost = true;
+        throw new Error("Lost migration reply");
+      }
+      return result;
+    },
+  };
+  await assert.rejects(initializeDatabase(executor, hash), /Lost migration/);
+  assert.equal(first.db.prepare("PRAGMA user_version").get()?.user_version, 3);
+  await initializeDatabase(first.executor, hash);
+  assert.equal(
+    first.db.prepare("SELECT count(*) AS n FROM schema_migration").get()?.n,
+    3,
+  );
 });

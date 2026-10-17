@@ -11,6 +11,9 @@ import {
 import type {
   AvailableAction,
   GraphNode,
+  ControlTurnNode,
+  ReviewSelectionAction,
+  ReviewChoice,
   Projection,
   TeachingCommand,
 } from "@readatthree/teaching";
@@ -44,6 +47,12 @@ type PreparedAction = Readonly<{
   command: TeachingCommand;
   origin: Projection;
 }>;
+type ActionRequest =
+  | AvailableAction
+  | Readonly<{
+      action: ReviewSelectionAction;
+      choice: ReviewChoice;
+    }>;
 function owns(view: Projection, command: TeachingCommand): boolean {
   return (
     view.kind !== "recovery" &&
@@ -67,9 +76,9 @@ function ReadyApplication({
   const cache = useQueryClient();
   const [queryKey, setQueryKey] = useState(() => keyFor(initial));
   const [save, setSave] = useState<SaveState>({ kind: "idle" });
-  const [correctionPreview, setCorrectionPreview] = useState<GraphNode | null>(
-    null,
-  );
+  const [correctionPreview, setCorrectionPreview] = useState<
+    GraphNode | ControlTurnNode | null
+  >(null);
   const active = useRef(initial);
   const live = useRef(true);
   const operation = useRef<SaveState["kind"]>("idle");
@@ -152,7 +161,7 @@ function ReadyApplication({
         });
     },
   });
-  async function act(action: AvailableAction) {
+  async function act(action: ActionRequest) {
     if (
       operation.current !== "idle" ||
       !isTeachingViewport() ||
@@ -165,7 +174,10 @@ function ReadyApplication({
     );
     saveState({ kind: "preparing" });
     try {
-      const command = await client.prepare(captured, action);
+      const command =
+        "intent" in action
+          ? await client.prepare(captured, action)
+          : await client.prepareReview({ projection: captured, ...action });
       const prepared = { command, origin: captured };
       if (!isCurrent(prepared)) {
         setCorrectionPreview(null);
@@ -231,6 +243,9 @@ function ReadyApplication({
       }
       onAction={(action) => {
         void act(action);
+      }}
+      onReview={(request) => {
+        void act(request);
       }}
       onRetry={() => {
         void retry();
