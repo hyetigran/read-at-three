@@ -60,6 +60,7 @@ import type { TaskPreviewTicket } from "./features/parent/task-preview.ts";
 import { Button } from "./components/ui/button.tsx";
 import { createBrowserTeachingClient } from "./platform/teaching-client.ts";
 import { createWritingController } from "./platform/writing-controller.ts";
+import type { Operation } from "./platform/writing-controller.ts";
 import { isTeachingViewport, subscribeViewport } from "./platform/viewport.ts";
 import "./styles.css";
 import "./teaching.css";
@@ -80,6 +81,32 @@ const controller = createWritingController({
     createCommittedTeaching({ queryClient, repository: client, stageRestore }),
 });
 if (import.meta.hot) import.meta.hot.dispose(() => controller.close());
+type PendingCourseEntry = Readonly<{
+  attempt: number;
+  origin: string;
+  selection: SelectedOwnerWitness;
+  action: CourseAction;
+}>;
+function retainsCourseEntry(entry: PendingCourseEntry, operation: Operation) {
+  if (operation.kind === "inkFailed")
+    return (
+      operation.retry.kind === "action" &&
+      canonical(operation.retry.request) === canonical(entry.action)
+    );
+  if (operation.kind !== "failed") return false;
+  const retained = operation.prepared.operation;
+  const command = retained.command;
+  return (
+    sameParentSelection(retained.selection, entry.selection) &&
+    (command.kind === "select" || command.kind === "writingSelect") &&
+    canonical({
+      kind: command.payload.intent,
+      taskId: command.payload.taskId,
+      packageHash: command.payload.packageHash,
+      sessionId: command.payload.sessionId,
+    }) === canonical(entry.action.intent)
+  );
+}
 function ApplicationShell() {
   const committed = useCommittedTeaching(controller.committed);
   const state = useSyncExternalStore(controller.subscribe, controller.getState);
@@ -93,11 +120,7 @@ function ApplicationShell() {
   const currentLocation = useRef(location);
   currentLocation.current = location;
   const entryAttempt = useRef(0);
-  const pendingEntry = useRef<{
-    origin: string;
-    selection: SelectedOwnerWitness;
-    connection: number;
-  } | null>(null);
+  const pendingEntry = useRef<PendingCourseEntry | null>(null);
   const menuReturn = useRef<{ lessonId: string; entryKey: string } | null>(
     null,
   );
@@ -129,8 +152,6 @@ function ApplicationShell() {
   const connection = client.connectionTicket();
   const projection = committed.visible.data?.projection;
   const selectionKey = selection ? canonical(selection) : null;
-  const lifetimeRef = useRef({ selection, connection });
-  lifetimeRef.current = { selection, connection };
   const selectedProfile = directory?.profiles.find(
     (profile) => canonical(profile.edit.owner) === canonical(selection?.owner),
   );
@@ -159,6 +180,13 @@ function ApplicationShell() {
       location.pathname === "/teaching" ? "teaching" : "other",
     );
   }, [location.key, location.pathname]);
+  useLayoutEffect(() => {
+    if (pendingEntry.current && pendingEntry.current.origin !== location.key) {
+      pendingEntry.current = null;
+      entryAttempt.current++;
+      setEntering(false);
+    }
+  }, [location.key]);
   const parentPath = location.pathname.startsWith("/parent/");
   const validVisit =
     parentVisit &&
@@ -518,14 +546,39 @@ function ApplicationShell() {
       blocker.proceed();
     } else setDeparture("failed");
   }
+  function finishEntry(pending: PendingCourseEntry) {
+    const current = controller.committed.getSnapshot().visible.data;
+    const target = current?.projection;
+    if (
+      pendingEntry.current !== pending ||
+      pending.attempt !== entryAttempt.current ||
+      currentLocation.current.key !== pending.origin ||
+      controller.getState().operation.kind !== "idle" ||
+      !current ||
+      !sameParentSelection(current.directory.selection, pending.selection) ||
+      !target ||
+      target.kind === "entry" ||
+      target.kind === "recovery" ||
+      target.taskId !== pending.action.intent.taskId ||
+      target.packageHash !== pending.action.intent.packageHash ||
+      (pending.action.intent.kind === "resume" &&
+        target.sessionId !== pending.action.intent.sessionId)
+    )
+      return;
+    pendingEntry.current = null;
+    navigate("/teaching");
+  }
   function enter(action: CourseAction) {
     if (busy || saveError) return;
-    const ticket = ++entryAttempt.current;
-    const origin = location.key;
     if (!selection) return;
-    const selected = selection;
+    const pending: PendingCourseEntry = {
+      attempt: ++entryAttempt.current,
+      origin: location.key,
+      selection,
+      action,
+    };
     const connection = client.connectionTicket();
-    pendingEntry.current = { origin, selection: selected, connection };
+    pendingEntry.current = pending;
     const lesson = read?.course.lessons.find((lesson) =>
       lesson.tasks.some((task) => task.id === action.intent.taskId),
     );
@@ -536,34 +589,19 @@ function ApplicationShell() {
       };
     setEntering(true);
     void controller.enter(action).then((saved) => {
-      if (ticket !== entryAttempt.current) return;
+      if (pending.attempt !== entryAttempt.current) return;
       setEntering(false);
-      if (
-        saved &&
-        currentLocation.current.key === origin &&
-        lifetimeRef.current.selection &&
-        sameParentSelection(selected, lifetimeRef.current.selection) &&
-        connection === client.connectionTicket()
-      ) {
-        pendingEntry.current = null;
-        navigate("/teaching");
-      }
+      if (saved && connection === client.connectionTicket())
+        finishEntry(pending);
     });
   }
   async function retryEntry() {
-    await controller.retry();
     const pending = pendingEntry.current;
-    if (
-      pending &&
-      controller.getState().operation.kind === "idle" &&
-      currentLocation.current.key === pending.origin &&
-      lifetimeRef.current.selection &&
-      sameParentSelection(lifetimeRef.current.selection, pending.selection) &&
-      client.connectionTicket() === pending.connection
-    ) {
-      pendingEntry.current = null;
-      navigate("/teaching");
-    }
+    const retained =
+      pending && retainsCourseEntry(pending, controller.getState().operation);
+    if (!retained) pendingEntry.current = null;
+    await controller.retry();
+    if (pending && retained) finishEntry(pending);
   }
   function returnToMenu() {
     if (

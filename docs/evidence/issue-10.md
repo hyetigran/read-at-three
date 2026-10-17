@@ -72,6 +72,8 @@ The private production reader component also passes exact source text and semant
 
 The map profile control now sits beside the app name, with settings at the right edge. This resolves the measured overlap with Lesson 6 at 900 by 600 while retaining every original lesson position and the illustrated animals. Root independently passes six layout cases in each development and production build, covering default and 120-character names at 900 by 600, 1024 by 768 and 1280 by 800. They check all control/pedestal intersections, clipping, number hit access and actual navigation through all six lessons. Root also views the final production captures. Only the map wrapper and its dedicated CSS rule change; reader styles and artwork remain exact.
 
+A separately reproduced task-entry Retry defect is fixed. Recovery may replace the Worker connection while resolving the same retained selection. The shell now opens the requested task after that exact recovery, requires explicit Resume after a rejected reload, and retires entry navigation after route departure, including a return to the same history entry. Root independently reproduces the original failure, then passes four new actual-browser schedules and the existing ten parent cases in each development and production build. Complete operations, selected child, requested task/package and Resume session remain checked through the existing controller authority.
+
 Physical browser process restart, unsupported stored-avatar rendering, active handwriting contact, held cues, live Undo after switching, late callback schedules, preparation availability and the complete earlier browser suite remain pending. These focused checkpoints do not complete issue #10.
 
 ## Original portrait assets
