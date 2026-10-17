@@ -1,3 +1,4 @@
+import { reloadSavedTurn } from "./reload-saved-turn.ts";
 import { chromium, expect, test } from "@playwright/test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -336,7 +337,7 @@ for (const holdFinalize of [false, true]) {
       expect(
         (await requests(page)).filter((request) => request.kind === "dispatch"),
       ).toHaveLength(2);
-      await page.reload();
+      await reloadSavedTurn({ page, turnId: "fixture.graph.l01.t06.m-model" });
       await atWritableWriting(page, "m-model");
       const first = (await latestDocuments(page))[0];
       expect(first?.token.documentId).toBe(original.token.documentId);
@@ -453,7 +454,7 @@ test("warm retained newer tail survives two committed reply losses and Retry ope
     }),
   );
   expect(points.at(-1)?.x).toBeGreaterThan(150);
-  await page.reload();
+  await reloadSavedTurn({ page, turnId: "fixture.graph.l01.t06.m-model" });
   await atWriting(page, "m-model");
   expect((await latestDocuments(page))[0]?.strokes).toHaveLength(1);
 });
@@ -539,7 +540,10 @@ test("each phase survives a full browser process restart and cold committed capt
           .every((stroke) => stroke.status !== "capturing"),
       ).toBe(true);
       const count = documents.flatMap((document) => document.strokes).length;
-      await page.reload();
+      await reloadSavedTurn({
+        page,
+        turnId: `fixture.graph.l01.t06.${phase.suffix}`,
+      });
       await atWriting(page, phase.suffix);
       expect(
         (await latestDocuments(page)).flatMap((document) => document.strokes),
@@ -602,7 +606,7 @@ for (const fault of ["teaching-before-twice", "teaching-after-reconcile"]) {
     ).toHaveLength(2);
     const restored = (await latestDocuments(page))[0];
     expect(restored?.strokes).toHaveLength(3);
-    await page.reload();
+    await reloadSavedTurn({ page, turnId: "fixture.graph.l01.t06.m-tracing" });
     await atWriting(page, "m-tracing");
   });
 }
@@ -743,7 +747,10 @@ for (const path of ["normal", "recovered teaching"]) {
           points[index - 1]?.elapsedMs ?? 0,
         );
       }
-      await page.reload();
+      await reloadSavedTurn({
+        page,
+        turnId: "fixture.graph.l01.t06.m-tracing",
+      });
       await atWriting(page, "m-tracing");
       const reopened = await latestDocuments(page);
       expect(reopened.map((document) => document.token.documentId)).toEqual(
@@ -862,7 +869,7 @@ test("DPR reconstruction changes only pixels and stale document epochs cannot ap
         (request) => request.kind === "dispatchInk",
       ),
     ).toHaveLength(before);
-    await page.reload();
+    await reloadSavedTurn({ page, turnId: "fixture.graph.l01.t06.m-tracing" });
     await atWriting(page, "m-tracing");
     const restored = (await latestDocuments(page))[0];
     expect(restored?.strokes).toEqual(committed.strokes);
@@ -1062,7 +1069,7 @@ test("abrupt browser process loss restores committed checkpoints without promisi
       document.histories.find((history) => history.layer === "model")
         ?.operations,
     ).toHaveLength(1);
-    await page.reload();
+    await reloadSavedTurn({ page, turnId: "fixture.graph.l01.t06.m-model" });
     await atWriting(page, "m-model");
     expect((await latestDocuments(page))[0]?.strokes).toHaveLength(1);
   } finally {
@@ -1225,7 +1232,7 @@ for (const loseAfterDetach of [false, true]) {
       restored?.histories.find((history) => history.layer === "model")
         ?.operations,
     ).toHaveLength(1);
-    await page.reload();
+    await reloadSavedTurn({ page, turnId: "fixture.graph.l01.t06.m-tracing" });
     await atWritableWriting(page, "m-tracing");
     expect((await latestDocuments(page))[0]?.strokes).toHaveLength(1);
   });

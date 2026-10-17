@@ -1,3 +1,4 @@
+import { reloadSavedTurn } from "./reload-saved-turn.ts";
 import { chromium, expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -225,7 +226,10 @@ test("failed correction Ready keeps the committed joint turn and retries the ide
   });
   expect(attempts).toHaveLength(2);
   expect(attempts[0]).toEqual(attempts[1]);
-  await page.reload();
+  await reloadSavedTurn({
+    page,
+    turnId: "fixture.graph.l01.t03.correction-am-together.test",
+  });
   await at({ page, suffix: "correction-am-together.test" });
 });
 
