@@ -1,6 +1,10 @@
+import {
+  captureQueryPublication,
+  historicalWorkQuery,
+} from "@readatthree/react-integration";
 import { useLayoutEffect, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, Settings } from "lucide-react";
 import {
   canonical,
@@ -687,26 +691,29 @@ export function SavedWorkScreen({
   profile?: ProfileSummary | undefined;
   onParents?: ((kind: "settings" | "profiles") => void) | undefined;
 }) {
+  const queryClient = useQueryClient();
   const connection = client.connectionTicket();
+  const checkPublication = captureQueryPublication(
+    queryClient,
+    selection.installationId,
+  );
   const { runId } = useParams();
   const work = read.course.lessons
     .flatMap((lesson) => lesson.tasks.flatMap((task) => task.history))
     .find((work) => work.runId === runId);
   const result = useQuery({
-    queryKey: [
-      "historical-work",
-      selection.installationId,
-      selection.revision,
+    ...historicalWorkQuery({
+      selection,
       connection,
-      read.witness.owner.profileId,
-      read.witness.owner.generation,
-      read.courseId,
-      work?.packageHash,
+      courseId: read.courseId,
+      packageHash: work?.packageHash,
       runId,
-    ],
+    }),
     queryFn: async () => {
       if (!work) throw new Error("Saved work is unavailable.");
+      checkPublication();
       const saved = await client.readWork({ selection, runId: work.runId });
+      checkPublication();
       if (
         connection !== client.connectionTicket() ||
         canonical(saved.selection) !== canonical(selection)

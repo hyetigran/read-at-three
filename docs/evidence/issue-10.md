@@ -1,6 +1,6 @@
 # Issue 10 implementation evidence
 
-Issue #10 is implemented on `issue-10-child-profiles`, based on merged main `b251a02`, with [PR #44](https://github.com/hyetigran/read-at-three/pull/44) linked to close it. Local qualification covers the profile directory, parent preparation, animal onboarding, child switching, saved work and the complete production browser suite. Exact-head CI, the independent production verdict and merge remain pending. The sections below preserve each implementation checkpoint and its limits.
+[PR #44](https://github.com/hyetigran/read-at-three/pull/44) merged as `a18ae2c` on October 17, 2026, and issue #10 is closed. Exact-head CI passed 286 Node tests, 109 development browser tests and 107 production browser tests, with the two existing development-only skips. The independent production verdict is PASS+NOTES. Both merged branch refs are deleted. The sections below preserve earlier checkpoints and their limits.
 
 ## Directory foundation
 
@@ -107,3 +107,11 @@ The final source review has zero documented standards breaches and zero remainin
 The latest workflow instruction requires a GitHub-recognized closing reference in every implementation PR, verification that its issue closes after merge, and deletion of both merged branch refs. Earlier issues #1–#9 and their PR links are verified, and their already-merged local branches are removed after exact merged-tree checks. The active issue #10 branch remains until its own merge.
 
 This feature remains within supplied Lessons 1–6. Book-bearing packages, scans, builds, private test artifacts and captures remain excluded from the public repository. Native adaptation, offline-shell qualification and content publication retain their separate delivery gates.
+
+## Merged delivery
+
+Exact-head CI run [39053977164](https://github.com/hyetigran/read-at-three/actions/runs/39053977164) passes formatting, generated validator/migration freshness, strict types, import boundaries, all 286 Node tests, all 109 development browser tests and the production build with 107 browser passes and two existing development-only skips. There are no test failures. A preceding CI run exhausted its 25-minute job limit; the final workflow allows 40 minutes, and the complete final job succeeds. This change preserves application output bytes.
+
+A fresh independent verifier qualifies actual parent/head built applications and records PASS+NOTES. Its reviewed build is carried to the final head through a byte-exact build comparison after the CI-only change. Final source review retains zero documented Standards breaches and zero remaining Spec findings, with one nonblocking generator-duplication judgment acknowledged. The review and verification use local inherited-model roles, without a cross-model or native-device claim.
+
+The PR closes #10 through its recognized closing reference. GitHub records the merge at 17:59:29 UTC and issue closure one second later. Root verifies that the merged tree equals the qualified final-head tree before updating main. Exact merged-tip checks guard removal of the remote and local issue branch. Both refs are absent afterward. Issue #11 starts on its own branch from this merged main. Ten of the 34 published issues are complete; the full production application and native release remain outstanding.

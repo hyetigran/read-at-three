@@ -24,6 +24,7 @@ import { canonical, resolveAvatar } from "@readatthree/teaching";
 import type {
   CourseAction,
   ProfileAdministrationIntent,
+  ProfileRemovalIntent,
   SelectedOwnerWitness,
 } from "@readatthree/teaching";
 import { TeachingScreen } from "./features/teaching/TeachingScreen.tsx";
@@ -44,6 +45,7 @@ import type { ParentAfter } from "./features/parent/ParentScreens.tsx";
 import { ProfileButton } from "./features/parent/AnimalPortrait.tsx";
 import {
   currentVisit,
+  freshParentAfterRemoval,
   originAddress,
   parentAddress,
   parentRouteAllowed,
@@ -134,6 +136,7 @@ function ApplicationShell() {
     visit: ParentVisit;
     after: ParentAfter;
   } | null>(null);
+  const [removalGatePending, setRemovalGatePending] = useState(false);
   const [departure, setDeparture] = useState<"saving" | "failed" | null>(null);
   const blockedVisit = useRef<Promise<boolean> | null>(null);
   const blocker = useBlocker(({ currentLocation, nextLocation }) => {
@@ -198,13 +201,60 @@ function ApplicationShell() {
     })
       ? parentVisit
       : null;
+  const removalSettled =
+    ((operation.kind === "adopting" || operation.kind === "adoptionFailed") &&
+      operation.receipt.version === 2) ||
+    (pendingAdministration.current?.after === "removal" &&
+      !!directory &&
+      !directory.profiles.some(
+        (profile) =>
+          canonical(profile.edit.owner) ===
+          canonical(
+            pendingAdministration.current?.visit.lifetime.selection.owner,
+          ),
+      ));
+  useLayoutEffect(() => {
+    if (!removalSettled && !removalGatePending) return;
+    if (removalSettled && !removalGatePending) {
+      pendingAdministration.current = null;
+      pendingEntry.current = null;
+      entryAttempt.current++;
+      menuReturn.current = null;
+      returnBookmark.current = null;
+      blockedVisit.current = null;
+      visitRef.current = null;
+      setParentVisit(null);
+      setEntering(false);
+      setRemovalGatePending(true);
+    }
+    if (operation.kind !== "idle" || !selection) return;
+    const fresh = freshParentAfterRemoval({
+      selection,
+      connectionTicket: connection,
+      visitId: ++visitSerial.current,
+      entryKey: location.key,
+    });
+    visitRef.current = fresh;
+    setParentVisit(fresh);
+    setRemovalGatePending(false);
+    navigate("/parent/gate", { replace: true });
+  }, [
+    removalSettled,
+    removalGatePending,
+    operation.kind,
+    selectionKey,
+    connection,
+  ]);
   const committedSwitch =
-    (operation.kind === "adopting" || operation.kind === "adoptionFailed") &&
-    parentVisit &&
-    !sameParentSelection(
-      operation.receipt.selection,
-      parentVisit.lifetime.selection,
-    );
+    removalGatePending ||
+    removalSettled ||
+    ((operation.kind === "adopting" || operation.kind === "adoptionFailed") &&
+      parentVisit &&
+      (!("selection" in operation.receipt) ||
+        !sameParentSelection(
+          operation.receipt.selection,
+          parentVisit.lifetime.selection,
+        )));
   function defaultDestination(): ParentDestination {
     if (directory?.initialSetup.kind === "firstLaunch")
       return directory.preparation.kind === "acknowledged"
@@ -232,6 +282,7 @@ function ApplicationShell() {
         target: profile.edit,
         displayName: profile.preferences.displayName ?? "",
       };
+    if (location.pathname === "/parent/support") return { kind: "support" };
     if (location.pathname === "/parent/preparation")
       return { kind: "preparation", continuation: "return" };
     if (location.pathname === "/parent/profiles/new")
@@ -242,6 +293,7 @@ function ApplicationShell() {
         "/parent/settings",
         "/parent/profiles",
         "/parent/preparation",
+        "/parent/support",
       ].includes(location.pathname)
     )
       return { kind: "unavailable" };
@@ -434,6 +486,25 @@ function ApplicationShell() {
     const live = controller.committed.getSnapshot().visible.data;
     if (!pending || !live || controller.getState().operation.kind !== "idle")
       return;
+    if (pending.after === "removal") {
+      pendingEntry.current = null;
+      entryAttempt.current++;
+      menuReturn.current = null;
+      returnBookmark.current = null;
+      blockedVisit.current = null;
+      pendingAdministration.current = null;
+      const fresh = freshParentAfterRemoval({
+        selection: live.directory.selection,
+        connectionTicket: client.connectionTicket(),
+        visitId: ++visitSerial.current,
+        entryKey: currentLocation.current.key,
+      });
+      visitRef.current = fresh;
+      setParentVisit(fresh);
+      setRemovalGatePending(false);
+      navigate("/parent/gate", { replace: true });
+      return;
+    }
     pendingAdministration.current = null;
     const visit = visitRef.current;
     if (
@@ -466,7 +537,7 @@ function ApplicationShell() {
       navigateParent({ kind: "profiles" });
   }
   async function submitAdministration(
-    intent: ProfileAdministrationIntent,
+    intent: ProfileAdministrationIntent | ProfileRemovalIntent,
     after: ParentAfter,
   ) {
     const visit = visitRef.current;
@@ -635,7 +706,31 @@ function ApplicationShell() {
     (operation.kind === "openingFailed"
       ? { code: "storage-initialization-failed", message: operation.message }
       : null);
-  if (
+  if (committedSwitch)
+    screen = (
+      <main className="course-screen course-parent">
+        <section className="course-message">
+          <h1>
+            <AddedText>Restoring the selected child's saved work</AddedText>
+          </h1>
+          <p>
+            <AddedText>
+              This change is saved. Reading and writing stay paused until
+              restoration finishes.
+            </AddedText>
+          </p>
+          {operation.kind === "adoptionFailed" ? (
+            <Button
+              className="course-primary"
+              onClick={() => void retryParent()}
+            >
+              <AddedText>Retry restoration</AddedText>
+            </Button>
+          ) : null}
+        </section>
+      </main>
+    );
+  else if (
     !projection ||
     !read ||
     !selection ||
@@ -652,30 +747,6 @@ function ApplicationShell() {
       />
     );
   else if (!supported) screen = <WindowRecovery busy={busy} />;
-  else if (committedSwitch)
-    screen = (
-      <main className="course-screen course-parent">
-        <section className="course-message">
-          <h1>
-            <AddedText>Restoring the selected child's saved work</AddedText>
-          </h1>
-          <p>
-            <AddedText>
-              The child change is saved. Reading and writing stay paused until
-              restoration finishes.
-            </AddedText>
-          </p>
-          {operation.kind === "adoptionFailed" ? (
-            <Button
-              className="course-primary"
-              onClick={() => void retryParent()}
-            >
-              <AddedText>Retry restoration</AddedText>
-            </Button>
-          ) : null}
-        </section>
-      </main>
-    );
   else if (
     parentPath &&
     validVisit &&
@@ -688,6 +759,7 @@ function ApplicationShell() {
         preparation={client.readPreparation().availability}
         packageHash={read.witness.activePackageHash}
         busy={busy || saveError !== null}
+        readDiagnostics={client.readDiagnostics}
         onGrant={() => {
           const visit = visitRef.current;
           if (

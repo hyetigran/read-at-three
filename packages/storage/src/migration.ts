@@ -2,7 +2,7 @@ import type { HashFunction } from "../../teaching/src/index.ts";
 import type { SqlExecutor } from "./executor.ts";
 import { migrations } from "./generated-migration.ts";
 export { migrationStatements } from "./generated-migration.ts";
-export const DATABASE_VERSION = 8;
+export const DATABASE_VERSION = 9;
 export type MigrationDataHook = (
   version: number,
 ) => Promise<(() => Promise<void>) | undefined>;
@@ -97,7 +97,24 @@ export async function initializeDatabase(
         row[2] !== checksums[migration.version - 1]
       )
         throw new Error("Database migration checksum mismatch");
-      for (const statement of migration.statements) {
+      for (const original of migration.statements) {
+        const replacement =
+          appliedVersion >= 9 && original.startsWith("CREATE ")
+            ? migrations[8]?.statements.find((candidate) => {
+                const name =
+                  /^CREATE (?:UNIQUE )?(?:TABLE|INDEX) [`"]?([a-z_]+)/.exec(
+                    original,
+                  )?.[1];
+                return (
+                  name &&
+                  candidate.startsWith("CREATE ") &&
+                  /^CREATE (?:UNIQUE )?(?:TABLE|INDEX) [`"]?([a-z_]+)/.exec(
+                    candidate,
+                  )?.[1] === name
+                );
+              })
+            : undefined;
+        const statement = replacement ?? original;
         if (!statement.startsWith("CREATE ")) continue;
         const name = /^CREATE (?:UNIQUE )?(?:TABLE|INDEX) [`"]?([a-z_]+)/.exec(
           statement,

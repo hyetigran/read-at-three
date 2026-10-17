@@ -91,7 +91,102 @@ const payload = {
     acknowledgePreparation: { properties: { hash: string } },
   },
 } satisfies SomeJTDSchemaType;
+const removalPayload = {
+  discriminator,
+  mapping: {
+    resetProfile: { properties: { target, departure } },
+    deleteProfile: {
+      properties: {
+        target,
+        departure,
+        successor: {
+          discriminator,
+          mapping: {
+            existing: { properties: { owner } },
+            replacement: {
+              properties: { owner, preferences: preferencesInput },
+            },
+          },
+        },
+      },
+    },
+  },
+} satisfies SomeJTDSchemaType;
+const diagnosticCategories: (
+  | "storage-unavailable"
+  | "storage-corrupt"
+  | "quota"
+  | "write-failed"
+  | "read-failed"
+  | "recovery"
+  | "unsupported"
+  | "timing"
+)[] = [
+  "storage-unavailable",
+  "storage-corrupt",
+  "quota",
+  "write-failed",
+  "read-failed",
+  "recovery",
+  "unsupported",
+  "timing",
+];
+const diagnosticOperations: (
+  "startup" | "read" | "teaching" | "ink" | "administration" | "support"
+)[] = ["startup", "read", "teaching", "ink", "administration", "support"];
+export const diagnosticEventSchema = {
+  properties: {
+    category: { enum: diagnosticCategories },
+    operation: { enum: diagnosticOperations },
+    count: { type: "uint32" },
+    durationMs: { type: "uint32" },
+  },
+} satisfies SomeJTDSchemaType;
 export const profileValidationSchemas = {
+  validateDiagnosticEvent: diagnosticEventSchema,
+  validateDiagnosticRing: {
+    properties: {
+      version: { type: "uint8" },
+      omitted: { type: "float64" },
+      records: { elements: diagnosticEventSchema },
+    },
+  },
+  validateProfileRemovalCommand: {
+    properties: {
+      version,
+      commandId: string,
+      scope: administration,
+      selection,
+      payloadHash: string,
+      payload: removalPayload,
+    },
+  },
+  validateProfileResetReceipt: {
+    properties: {
+      kind: { enum: [committed] },
+      version,
+      commandId: string,
+      payloadHash: string,
+      administration,
+      selection,
+      effect: {
+        properties: { kind: { enum: ["reset" satisfies "reset"] }, target },
+      },
+    },
+  },
+  validateProfileDeletionReceipt: {
+    properties: {
+      kind: { enum: [committed] },
+      version,
+      commandId: string,
+      payloadHash: string,
+      administration,
+      expectedRevision: string,
+      effect: {
+        properties: { kind: { enum: ["deleted" satisfies "deleted"] } },
+      },
+    },
+  },
   validateLocalPreferences: preferencesSchema,
   validatePreparationPolicy: {
     discriminator,
@@ -172,4 +267,19 @@ export type RawProfileAdministrationCommand = JTDDataType<
 >;
 export type RawProfileAdministrationReceipt = JTDDataType<
   typeof profileValidationSchemas.validateProfileAdministrationReceipt
+>;
+
+export type RawProfileRemovalCommand = JTDDataType<
+  typeof profileValidationSchemas.validateProfileRemovalCommand
+>;
+export type RawProfileResetReceipt = JTDDataType<
+  typeof profileValidationSchemas.validateProfileResetReceipt
+>;
+export type RawProfileDeletionReceipt = JTDDataType<
+  typeof profileValidationSchemas.validateProfileDeletionReceipt
+>;
+
+export type RawDiagnosticEvent = JTDDataType<typeof diagnosticEventSchema>;
+export type RawDiagnosticRing = JTDDataType<
+  typeof profileValidationSchemas.validateDiagnosticRing
 >;

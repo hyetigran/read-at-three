@@ -1,5 +1,7 @@
 import {
   parsePreparationInput,
+  parseDiagnosticEvent,
+  parseDiagnosticRing,
   parseCurrentApplicationRead,
   parseCurrentResult,
   parseDepartureWitness,
@@ -27,6 +29,8 @@ import {
 } from "@readatthree/teaching";
 import type {
   CommandResult,
+  DiagnosticEvent,
+  DiagnosticRead,
   CommitReceipt,
   InkReceipt,
   CurrentApplicationRead,
@@ -47,6 +51,19 @@ import type {
   RawPreparationInput,
 } from "@readatthree/teaching";
 
+export type LocalSupportMetadata = Readonly<{
+  versions: Readonly<{
+    application: string;
+    database: number;
+    inkCodec: number;
+  }>;
+  capabilities: Readonly<{
+    opfs: boolean;
+    storeLock: boolean;
+    sqliteBigInt: boolean;
+  }>;
+}>;
+
 export type WorkerRequestId = string & { readonly __brand: "WorkerRequestId" };
 type Input<Method extends keyof SelectedApplication> = Parameters<
   SelectedApplication[Method]
@@ -59,6 +76,8 @@ export type WorkerRequest = { id: WorkerRequestId } & (
       opening: SelectedRecoveryOpening;
     }
   | { kind: "readDirectory" }
+  | { kind: "readDiagnostics" }
+  | { kind: "recordDiagnostic"; event: DiagnosticEvent }
   | { kind: "read"; input: Input<"readApplication"> }
   | { kind: "readWork"; input: Input<"readWork"> }
   | { kind: "readInk"; input: Input<"readInk"> }
@@ -73,6 +92,11 @@ export type WorkerRequest = { id: WorkerRequestId } & (
 );
 export type WorkerResponse = { id: WorkerRequestId } & (
   | { kind: "directory" | "reconciled"; value: ProfileDirectory }
+  | {
+      kind: "diagnostics";
+      value: DiagnosticRead;
+      metadata: LocalSupportMetadata;
+    }
   | { kind: "application"; value: CurrentApplicationRead }
   | { kind: "work"; value: CurrentResult<HistoricalWork> }
   | { kind: "practiceControls"; value: CurrentResult<PracticeControlsSummary> }
@@ -115,7 +139,10 @@ export function parseRequest(input: unknown): WorkerRequest {
         opening: parseSelectedRecoveryOpening(value.opening),
       };
     case "readDirectory":
+    case "readDiagnostics":
       return { id, kind: value.kind };
+    case "recordDiagnostic":
+      return { id, kind: value.kind, event: parseDiagnosticEvent(value.event) };
     case "read":
       return {
         id,
@@ -208,6 +235,25 @@ export function parseResponse(input: unknown): WorkerResponse {
         id,
         kind: value.kind,
         value: parseProfileDirectory(value.value),
+      };
+    case "diagnostics":
+      if (
+        value.metadata.versions.application.length > 64 ||
+        !/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/.test(
+          value.metadata.versions.application,
+        ) ||
+        value.metadata.versions.database < 1 ||
+        value.metadata.versions.inkCodec !== 1
+      )
+        throw new Error("Unsupported local support version metadata.");
+      return {
+        id,
+        kind: value.kind,
+        value: {
+          persistence: value.value.persistence,
+          ring: parseDiagnosticRing(value.value.ring),
+        },
+        metadata: value.metadata,
       };
     case "application":
       return {

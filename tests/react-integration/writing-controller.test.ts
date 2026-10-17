@@ -944,7 +944,7 @@ test("ordinary cold opening retains actual stored recovery through one held Retr
 test("failed cold opening exposes recovery without teaching or input and retries through the real replacement connection", async (t) => {
   const f = await controllerFixture(t, { deferOpen: true });
   const before = f.db.prepare("SELECT * FROM task_run ORDER BY run_id").all();
-  f.db.exec("PRAGMA user_version=9");
+  f.db.exec("PRAGMA user_version=10");
   f.lose();
   await f.controller.open();
   const state = f.controller.getState();
@@ -958,8 +958,8 @@ test("failed cold opening exposes recovery without teaching or input and retries
     f.db.prepare("SELECT * FROM task_run ORDER BY run_id").all(),
     before,
   );
-  assert.equal(f.db.prepare("PRAGMA user_version").get()?.user_version, 9);
-  f.db.exec("PRAGMA user_version=8");
+  assert.equal(f.db.prepare("PRAGMA user_version").get()?.user_version, 10);
+  f.db.exec("PRAGMA user_version=9");
   f.lose();
   await f.controller.retry();
   assert.equal(f.controller.getState().operation.kind, "idle");
@@ -1013,3 +1013,276 @@ test("same-selection connection replacement retires a delayed restore and old co
     1,
   );
 });
+
+test("reset drains active contact then retires its visible documents, cached directory and delayed callbacks", async (t) => {
+  const f = await controllerFixture(t);
+  const directory = controllerDirectory(f.controller);
+  const profile = directory.profiles.find(
+    (profile) =>
+      profile.edit.owner.profileId === directory.selection.owner.profileId,
+  );
+  assert.ok(profile);
+  const token = f.board.snapshot.token;
+  const contact = f.controller.begin(
+    token.documentId,
+    { x: 30, y: 40, elapsedMs: 0 },
+    performance.now(),
+  );
+  assert.ok(contact);
+  f.controller.append(contact, [{ x: 50, y: 60, elapsedMs: 10 }]);
+  const outcome = await f.controller.administer({
+    kind: "resetProfile",
+    directory: directory.administration,
+    target: profile.edit,
+  });
+  assert.equal(outcome.kind, "visible");
+  const reset = controllerDirectory(f.controller);
+  assert.equal(
+    reset.selection.owner.profileId,
+    directory.selection.owner.profileId,
+  );
+  assert.equal(reset.selection.owner.generation, "1");
+  assert.equal(
+    f.controller.committed.getSnapshot().visible.data?.projection.kind,
+    "entry",
+  );
+  assert.deepEqual(f.controller.getBoard(), []);
+  assert.deepEqual(f.controller.practiceControls.getSnapshot(), {
+    kind: "readOnly",
+  });
+  const before = f.db.prepare("SELECT * FROM ink_stroke").all();
+  f.controller.append(contact, [{ x: 70, y: 80, elapsedMs: 20 }]);
+  f.controller.finish(contact, "finished");
+  await f.controller.interrupt();
+  assert.deepEqual(f.db.prepare("SELECT * FROM ink_stroke").all(), before);
+  assert.deepEqual(before, []);
+  assert.equal(
+    f.db.prepare("SELECT count(*) AS count FROM task_run").get()?.count,
+    0,
+  );
+  for (const query of f.queryClient.getQueryCache().getAll()) {
+    if (query.meta?.readingDomain === "directory")
+      assert.equal(query.meta.generation, "1");
+  }
+});
+
+test("unselected removal returns before pausing or draining the selected child's active ink", async (t) => {
+  const f = await controllerFixture(t);
+  const directoryA = controllerDirectory(f.controller),
+    ownerA = directoryA.selection.owner;
+  const created = await f.controller.administer({
+    kind: "createAndSelect",
+    directory: directoryA.administration,
+    preferences: { avatarId: "fox" },
+  });
+  assert.equal(created.kind, "visible");
+  const directoryB = controllerDirectory(f.controller),
+    ownerB = directoryB.selection.owner;
+  await choose(f.controller, ownerA);
+  await resumeController(f.controller);
+  const directory = controllerDirectory(f.controller),
+    targetB = directory.profiles.find(
+      (profile) => profile.edit.owner.profileId === ownerB.profileId,
+    );
+  assert.ok(targetB);
+  const contact = f.controller.begin(
+    f.board.snapshot.token.documentId,
+    { x: 20, y: 20, elapsedMs: 0 },
+    performance.now(),
+  );
+  assert.ok(contact);
+  const before = f.controller.committed.getSnapshot().visible.data;
+  const deliveries = f.administrativeDeliveries.length;
+  const outcome = await f.controller.administer({
+    kind: "resetProfile",
+    directory: directory.administration,
+    target: targetB.edit,
+  });
+  assert.deepEqual(outcome, { kind: "held" });
+  assert.equal(f.administrativeDeliveries.length, deliveries);
+  assert.strictEqual(f.controller.committed.getSnapshot().visible.data, before);
+  assert.equal(f.controller.canWrite(), true);
+  f.controller.append(contact, [{ x: 25, y: 25, elapsedMs: 10 }]);
+  f.controller.finish(contact, "finished");
+  await f.controller.interrupt();
+  assert.ok(
+    f.controller
+      .getBoard()
+      .some((board) =>
+        board.strokes.some(
+          (stroke) =>
+            stroke.strokeId === contact.strokeId && stroke.points.length === 2,
+        ),
+      ),
+  );
+});
+
+test("known deletion clears outgoing visible ink and retains only its redacted receipt when incoming restore fails", async (t) => {
+  const f = await controllerFixture(t),
+    ownerA = controllerDirectory(f.controller).selection.owner;
+  await f.controller.administer({
+    kind: "createAndSelect",
+    directory: controllerDirectory(f.controller).administration,
+    preferences: { avatarId: "owl" },
+  });
+  const ownerB = controllerDirectory(f.controller).selection.owner;
+  await f.start(f.app);
+  await f.controller.retry();
+  const bInk = await f.current(f.app);
+  await choose(f.controller, ownerA);
+  const directory = controllerDirectory(f.controller),
+    target = directory.profiles.find(
+      (profile) => profile.edit.owner.profileId === ownerA.profileId,
+    );
+  assert.ok(target);
+  let fail = true;
+  f.beforeInkRead(async (input) => {
+    if (fail && input.selection.owner.profileId === ownerB.profileId) {
+      fail = false;
+      throw new Error("Incoming canonical restoration unavailable");
+    }
+  });
+  const outcome = await f.controller.administer({
+    kind: "deleteProfile",
+    directory: directory.administration,
+    target: target.edit,
+    successor: { kind: "existing", owner: ownerB },
+  });
+  assert.deepEqual(outcome, { kind: "held" });
+  const failed = f.controller.getState().operation;
+  assert.equal(failed.kind, "adoptionFailed");
+  if (failed.kind !== "adoptionFailed")
+    assert.fail("Known redacted receipt required");
+  assert.equal("selection" in failed.receipt, false);
+  assert.equal("command" in failed, false);
+  assert.deepEqual(failed.receipt.effect, { kind: "deleted" });
+  assert.equal(f.controller.committed.getSnapshot().visible.data, undefined);
+  assert.deepEqual(f.controller.getBoard(), []);
+  assert.equal(f.controller.canWrite(), false);
+  assert.equal(
+    (await f.app.readDirectory()).profiles.some(
+      (profile) => profile.edit.owner.profileId === ownerA.profileId,
+    ),
+    false,
+  );
+  const delivered = f.administrativeDeliveries.length;
+  await f.controller.retry();
+  assert.equal(f.controller.getState().operation.kind, "idle");
+  assert.equal(f.administrativeDeliveries.length, delivered);
+  assert.deepEqual(controllerDirectory(f.controller).selection.owner, ownerB);
+  assert.deepEqual(
+    (await f.current(f.app)).snapshot.strokes,
+    bInk.snapshot.strokes,
+  );
+  assert.ok(f.controller.getBoard().length > 0);
+});
+
+for (const boundary of ["beforeCommit", "afterCommit", "workerLoss"] as const) {
+  test(`final deletion uses one explicit fresh replacement and exact Retry after ${boundary}`, async (t) => {
+    const f = await controllerFixture(t),
+      directory = controllerDirectory(f.controller);
+    const target = directory.profiles.find(
+      (profile) =>
+        profile.edit.owner.profileId === directory.selection.owner.profileId,
+    );
+    assert.ok(target);
+    let armed = true;
+    if (boundary === "beforeCommit") {
+      f.beforeAdmin(async () =>
+        f.sqlHook(async (sql, work) => {
+          if (sql === "COMMIT" && armed) {
+            armed = false;
+            throw new Error("Before removal commit");
+          }
+          return work();
+        }),
+      );
+    } else {
+      f.afterAdmin(async () => {
+        if (!armed) return;
+        armed = false;
+        if (boundary === "workerLoss") f.lose();
+        throw new Error("Removal acknowledgement lost");
+      });
+    }
+    const outcome = await f.controller.administer({
+      kind: "deleteProfile",
+      directory: directory.administration,
+      target: target.edit,
+      successor: { kind: "replacement", preferences: { avatarId: "cat" } },
+    });
+    assert.deepEqual(outcome, { kind: "held" });
+    assert.equal(f.controller.getState().operation.kind, "adminFailed");
+    const command = f.administrativeDeliveries.at(-1);
+    assert.ok(
+      command?.version === 2 && command.payload.kind === "deleteProfile",
+    );
+    await f.controller.retry();
+    assert.equal(f.controller.getState().operation.kind, "idle");
+    const restored = controllerDirectory(f.controller);
+    assert.equal(restored.profiles.length, 1);
+    assert.notEqual(
+      restored.selection.owner.profileId,
+      directory.selection.owner.profileId,
+    );
+    assert.deepEqual(restored.selection.owner, command.payload.successor.owner);
+    assert.equal(restored.selection.owner.generation, "0");
+    assert.deepEqual(f.controller.getBoard(), []);
+    assert.equal(
+      f.db.prepare("SELECT count(*) AS count FROM task_run").get()?.count,
+      0,
+    );
+    if (boundary === "workerLoss")
+      assert.equal(f.administrativeDeliveries.length, 1);
+    else assert.deepEqual(f.administrativeDeliveries.at(-1), command);
+  });
+}
+
+for (const workerLoss of [false, true]) {
+  test(`lost reset acknowledgement reloads the resulting generation after stale Retry with workerLoss=${workerLoss}`, async (t) => {
+    const f = await controllerFixture(t),
+      directory = controllerDirectory(f.controller);
+    const target = directory.profiles.find(
+      (profile) =>
+        profile.edit.owner.profileId === directory.selection.owner.profileId,
+    );
+    assert.ok(target);
+    let armed = true;
+    f.afterAdmin(async () => {
+      if (!armed) return;
+      armed = false;
+      if (workerLoss) f.lose();
+      throw new Error("Reset acknowledgement lost");
+    });
+    const outcome = await f.controller.administer({
+      kind: "resetProfile",
+      directory: directory.administration,
+      target: target.edit,
+    });
+    assert.deepEqual(outcome, { kind: "held" });
+    assert.equal(f.controller.getState().operation.kind, "adminFailed");
+    assert.equal((await f.app.readDirectory()).selection.owner.generation, "1");
+    await f.controller.retry();
+    assert.equal(f.controller.getState().operation.kind, "idle");
+    assert.equal(
+      controllerDirectory(f.controller).selection.owner.generation,
+      "1",
+    );
+    assert.deepEqual(f.controller.getBoard(), []);
+    assert.equal(
+      f.db.prepare("SELECT count(*) AS count FROM task_run").get()?.count,
+      0,
+    );
+    assert.equal(
+      f.queryClient
+        .getQueryCache()
+        .getAll()
+        .some(
+          (query) =>
+            query.meta?.profileId === target.edit.owner.profileId &&
+            query.meta.generation === "0",
+        ),
+      false,
+    );
+  });
+}

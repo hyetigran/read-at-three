@@ -1,19 +1,34 @@
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
-import { createTeachingApplication } from "@readatthree/storage";
+import applicationPackage from "../../../../package.json";
+import {
+  createTeachingApplication,
+  DATABASE_VERSION,
+} from "@readatthree/storage";
 import type { SqlExecutor } from "@readatthree/storage";
 import {
   parseRuntimePackage,
   parsePreparationAvailability,
   preparationPolicy,
 } from "@readatthree/teaching";
-import type { CourseId, SelectedApplication } from "@readatthree/teaching";
+import type {
+  CourseId,
+  SelectedApplication,
+  LocalSupportApplication,
+  DiagnosticEvent,
+  InkChunk,
+} from "@readatthree/teaching";
 import { hashText } from "./hash.ts";
 import { parseRequest } from "./protocol.ts";
-import type { WorkerResponse } from "./protocol.ts";
+import type {
+  WorkerRequest,
+  WorkerResponse,
+  LocalSupportMetadata,
+} from "./protocol.ts";
 
 type OpenedStore = Readonly<{
-  app: SelectedApplication;
+  app: SelectedApplication & LocalSupportApplication;
   courseId: CourseId;
+  support: LocalSupportMetadata;
 }>;
 let application: Promise<OpenedStore> | undefined;
 
@@ -68,6 +83,18 @@ function bootstrap(
             };
             resolve({
               courseId: verified.body.courseId,
+              support: {
+                versions: {
+                  application: applicationPackage.version,
+                  database: DATABASE_VERSION,
+                  inkCodec: 1 satisfies InkChunk["codecVersion"],
+                },
+                capabilities: {
+                  opfs: true,
+                  storeLock: true,
+                  sqliteBigInt: true,
+                },
+              },
               app: createTeachingApplication({
                 executor,
                 content: verified,
@@ -89,11 +116,12 @@ function bootstrap(
 self.addEventListener("message", (event: MessageEvent<unknown>) => {
   const request = parseRequest(event.data);
   void (async () => {
+    const started = performance.now();
     try {
       if (request.kind === "openRecovery")
         application ??= bootstrap(request.content, request.preparation);
       if (!application) throw new Error("The local store has not been opened.");
-      const { app, courseId } = await application;
+      const { app, support } = await application;
       let response: WorkerResponse;
       switch (request.kind) {
         case "openRecovery":
@@ -101,6 +129,22 @@ self.addEventListener("message", (event: MessageEvent<unknown>) => {
             id: request.id,
             kind: "inventory",
             value: await app.openRecovery(request.opening),
+          };
+          break;
+        case "readDiagnostics":
+          response = {
+            id: request.id,
+            kind: "diagnostics",
+            value: await app.readDiagnostics(),
+            metadata: support,
+          };
+          break;
+        case "recordDiagnostic":
+          response = {
+            id: request.id,
+            kind: "diagnostics",
+            value: await app.recordDiagnostic(request.event),
+            metadata: support,
           };
           break;
         case "readDirectory":
@@ -205,7 +249,40 @@ self.addEventListener("message", (event: MessageEvent<unknown>) => {
         }
       }
       self.postMessage(response);
+      if (
+        request.kind !== "readDiagnostics" &&
+        request.kind !== "recordDiagnostic"
+      )
+        void app
+          .recordDiagnostic({
+            category: "timing",
+            operation: diagnosticOperation(request),
+            count: 1,
+            durationMs: Math.min(
+              600000,
+              Math.max(0, Math.round(performance.now() - started)),
+            ),
+          })
+          .catch(() => {});
     } catch {
+      if (
+        application &&
+        request.kind !== "readDiagnostics" &&
+        request.kind !== "recordDiagnostic"
+      )
+        void application
+          .then(({ app }) =>
+            app.recordDiagnostic({
+              category:
+                diagnosticOperation(request) === "read"
+                  ? "read-failed"
+                  : "write-failed",
+              operation: diagnosticOperation(request),
+              count: 1,
+              durationMs: 0,
+            }),
+          )
+          .catch(() => {});
       self.postMessage({
         id: request.id,
         kind: "failed",
@@ -215,3 +292,36 @@ self.addEventListener("message", (event: MessageEvent<unknown>) => {
     }
   })();
 });
+
+function diagnosticOperation(
+  request: WorkerRequest,
+): DiagnosticEvent["operation"] {
+  switch (request.kind) {
+    case "openRecovery":
+      return "startup";
+    case "execute":
+      return request.operation.kind === "ink" ? "ink" : "teaching";
+    case "administer":
+    case "recoverAdministration":
+      return "administration";
+    case "recoverInk":
+      return "ink";
+    case "recoverTeaching":
+    case "reconcileRecovery":
+      return "teaching";
+    case "read":
+    case "readWork":
+    case "readInk":
+    case "readDirectory":
+    case "readDeparture":
+    case "readPracticeControls":
+      return "read";
+    case "readDiagnostics":
+    case "recordDiagnostic":
+      return "support";
+    default: {
+      const exhaustive: never = request;
+      return exhaustive;
+    }
+  }
+}

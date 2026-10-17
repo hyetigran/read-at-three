@@ -3,6 +3,7 @@ import {
   prepareWritingControl,
   parseSelectedOperation,
   prepareProfileAdministration,
+  prepareProfileRemoval,
   summarizePractice,
   inkAdmissionAnchor,
   inkStrokeMetadataReservation,
@@ -44,6 +45,8 @@ import type {
   SelectedInkOperation,
   ProfileDirectory,
   ProfileAdministrationIntent,
+  ProfileRemovalIntent,
+  ProfileRemovalCommand,
   ProfileAdministrationCommand,
   ProfileAdministrationReceipt,
   CommandRejection,
@@ -74,7 +77,10 @@ export type Operation =
   | { kind: "pending"; prepared: PreparedAction }
   | { kind: "failed"; prepared: PreparedAction; message: string }
   | { kind: "inkFailed"; message: string; retry: InkRetry }
-  | { kind: "adminPreparing"; intent: ProfileAdministrationIntent }
+  | {
+      kind: "adminPreparing";
+      intent: ProfileAdministrationIntent | ProfileRemovalIntent;
+    }
   | { kind: "adminSaving"; command: ProfileAdministrationCommand }
   | {
       kind: "adminFailed";
@@ -193,7 +199,7 @@ export function createWritingController({
   let opening: Promise<void> | null = null;
   let started = false;
   let draining: Promise<void> | null = null;
-  const queue = createInkCommandQueue();
+  let queue = createInkCommandQueue();
   const teaching = createTeaching(stageRestore);
   function refreshExpectation(): ReadExpectation {
     const current = teaching.current();
@@ -974,7 +980,10 @@ export function createWritingController({
       )
         minimumAdministration = receipt.administration.revision;
       const directory = await readDirectory(ticket);
-      if (canonical(directory.selection) !== canonical(receipt.selection)) {
+      if (
+        "selection" in receipt &&
+        canonical(directory.selection) !== canonical(receipt.selection)
+      ) {
         if (
           canonical(teaching.current()?.directory.selection) ===
           canonical(directory.selection)
@@ -1021,6 +1030,55 @@ export function createWritingController({
       return { kind: "held" };
     }
   }
+  function retireRemoval(command: ProfileRemovalCommand) {
+    fence();
+    teaching.retireProfile({
+      installationId: command.scope.installationId,
+      owner: command.payload.target.owner,
+      kind: command.payload.kind === "resetProfile" ? "reset" : "delete",
+    });
+    documents.clear();
+    spool = [];
+    active = null;
+    queue = createInkCommandQueue();
+    semanticReservation = 0;
+    discovered = null;
+    directorySerial++;
+    publish({ correctionPreview: null });
+    paint();
+  }
+  async function readAfterRetiredRejection(
+    command: ProfileRemovalCommand,
+    ticket: number,
+  ) {
+    const directory = await readDirectory(ticket);
+    if (
+      directory.profiles.some(
+        (profile) =>
+          canonical(profile.edit.owner) ===
+          canonical(command.payload.target.owner),
+      )
+    )
+      return;
+    retireRemoval(command);
+    publish({ operation: { kind: "opening" } });
+    try {
+      discovered = directory;
+      await teaching.read({
+        expectation: {
+          kind: "opening",
+          selection: directory.selection,
+          minimumAdministration: directory.administration.revision,
+        },
+      });
+      checkOperation(ticket);
+      publish({ operation: { kind: "idle" } });
+      reopenInput();
+    } catch {
+      if (operationSerial === ticket && !closed)
+        publish({ operation: { kind: "openingFailed", message: saveMessage } });
+    }
+  }
   async function saveAdministration(
     command: ProfileAdministrationCommand,
     ticket: number,
@@ -1035,7 +1093,13 @@ export function createWritingController({
       if (receipt.kind === "rejected") {
         fence();
         publish({ operation: { kind: "rejected", message: receipt.message } });
+        if (command.version === 2)
+          await readAfterRetiredRejection(command, ticket);
         return receipt;
+      }
+      if (command.version === 2) {
+        retireRemoval(command);
+        publish({ operation: { kind: "adopting", receipt } });
       }
       return adopt(receipt, ticket);
     } catch {
@@ -1049,15 +1113,24 @@ export function createWritingController({
     }
   }
   async function administer(
-    intent: ProfileAdministrationIntent,
+    intent: ProfileAdministrationIntent | ProfileRemovalIntent,
   ): Promise<AdministrationOutcome> {
     await waitForOperation();
     if (state.operation.kind !== "idle") return { kind: "held" };
     const selection =
       teaching.current()?.directory.selection ?? discovered?.selection;
     if (!selection) return { kind: "held" };
+    const removing =
+      intent.kind === "resetProfile" || intent.kind === "deleteProfile";
+    if (
+      removing &&
+      canonical(intent.target.owner) !== canonical(selection.owner)
+    )
+      return { kind: "held" };
     const switching =
-      intent.kind === "selectProfile" || intent.kind === "createAndSelect";
+      intent.kind === "selectProfile" ||
+      intent.kind === "createAndSelect" ||
+      removing;
     if (switching) {
       routeSuspended = true;
       fence();
@@ -1075,13 +1148,19 @@ export function createWritingController({
         );
       const common = { selection, ids, hash: hashText };
       const command =
-        intent.kind === "selectProfile" || intent.kind === "createAndSelect"
-          ? await prepareProfileAdministration({
+        intent.kind === "resetProfile" || intent.kind === "deleteProfile"
+          ? await prepareProfileRemoval({
               ...common,
               intent,
               departure: await client.readDeparture({ selection }),
             })
-          : await prepareProfileAdministration({ ...common, intent });
+          : intent.kind === "selectProfile" || intent.kind === "createAndSelect"
+            ? await prepareProfileAdministration({
+                ...common,
+                intent,
+                departure: await client.readDeparture({ selection }),
+              })
+            : await prepareProfileAdministration({ ...common, intent });
       checkOperation(ticket);
       return saveAdministration(command, ticket);
     } catch {
@@ -1131,7 +1210,15 @@ export function createWritingController({
             message: recovery.administrative?.message ?? saveMessage,
           },
         });
+        if (operation.command.version === 2)
+          await readAfterRetiredRejection(operation.command, ticket);
         return;
+      }
+      if (operation.command.version === 2) {
+        retireRemoval(operation.command);
+        publish({
+          operation: { kind: "adopting", receipt: recovery.administrative },
+        });
       }
       await adopt(recovery.administrative, ticket);
     } catch {

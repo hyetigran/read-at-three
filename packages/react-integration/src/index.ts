@@ -16,3 +16,11 @@ export type {
   RestoreTeaching,
   TeachingRepository,
 } from "./teaching.ts";
+export {
+  captureQueryPublication,
+  teachingQuery,
+  committedTeachingQuery,
+  historicalWorkQuery,
+  retireProfileQueries,
+} from "./query-domain.ts";
+export type { TeachingQueryDomain } from "./query-domain.ts";

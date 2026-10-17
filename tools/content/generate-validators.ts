@@ -76,6 +76,11 @@ const declarations =
     )
     .join("\n");
 const profileDomains = {
+  validateDiagnosticEvent: "RawDiagnosticEvent",
+  validateDiagnosticRing: "RawDiagnosticRing",
+  validateProfileRemovalCommand: "RawProfileRemovalCommand",
+  validateProfileResetReceipt: "RawProfileResetReceipt",
+  validateProfileDeletionReceipt: "RawProfileDeletionReceipt",
   validateLocalPreferences: "RawPreferences",
   validatePreparationPolicy: "RawPreparationPolicy",
   validateProfileDirectory: "RawProfileDirectory",

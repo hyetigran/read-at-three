@@ -53,7 +53,7 @@ test("a fresh directory persists one anonymous selected child and requires the s
   assert.equal(
     reopened.db.prepare("SELECT database_version FROM installation").get()
       ?.database_version,
-    8,
+    9,
   );
 });
 
@@ -148,7 +148,7 @@ test("constructed untouched V7 migration preserves the anonymous child and requi
     first.db.prepare("SELECT preferences FROM profile").get()?.preferences,
     preferences,
   );
-  assert.equal(first.db.prepare("PRAGMA user_version").get()?.user_version, 8);
+  assert.equal(first.db.prepare("PRAGMA user_version").get()?.user_version, 9);
   assert.equal(
     first.db
       .prepare("SELECT count(*) AS count FROM profile_administration_receipt")
@@ -338,19 +338,38 @@ test("a V8 failure immediately before actual migration COMMIT preserves the enti
   });
   assert.equal(
     recovered.db.prepare("PRAGMA user_version").get()?.user_version,
-    8,
+    9,
   );
 });
 
-test("V8 selection and administration tables enforce full ownership, supported versions and revision steps", async (t) => {
+test("V9 selection and administration tables enforce deferred ownership, supported versions and revision steps", async (t) => {
   const fixture = await storageFixture(t);
   const { app, db } = fixture.connect();
   const before = await app.readDirectory();
+  const originalSelection = db
+    .prepare("SELECT * FROM installation_profile_state")
+    .all();
+  for (const sql of [
+    "UPDATE installation_profile_state SET generation=1",
+    "UPDATE installation_profile_state SET profile_id='another-child'",
+  ]) {
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      db.exec(sql);
+      assert.equal(db.prepare("PRAGMA foreign_key_check").all().length, 1);
+      assert.throws(() => db.exec("COMMIT"), /FOREIGN KEY constraint failed/);
+    } finally {
+      db.exec("ROLLBACK");
+    }
+    assert.deepEqual(
+      db.prepare("SELECT * FROM installation_profile_state").all(),
+      originalSelection,
+    );
+    assert.deepEqual(await app.readDirectory(), before);
+  }
   db.exec("BEGIN IMMEDIATE");
   try {
     for (const sql of [
-      "UPDATE installation_profile_state SET generation=1",
-      "UPDATE installation_profile_state SET profile_id='another-child'",
       "UPDATE installation_profile_state SET installation_id='another-installation'",
       "UPDATE installation_profile_state SET selection_revision=-1",
       "UPDATE installation_profile_state SET initial_setup_mode='unknown'",
@@ -374,12 +393,12 @@ test("V8 selection and administration tables enforce full ownership, supported v
     ];
     for (const [index, value] of [
       [0, "foreign-installation"],
-      [2, 2],
+      [2, 3],
       [3, "not-json"],
       [4, -1],
       [5, 2],
       [6, "bad-hash"],
-      [7, 2],
+      [7, 3],
       [8, "not-json"],
     ] satisfies readonly (readonly [number, string | number])[]) {
       const invalid = parameters.map((parameter, position) =>
@@ -409,6 +428,30 @@ test("V8 selection and administration tables enforce full ownership, supported v
           "{}",
         ),
       /UNIQUE constraint failed/,
+    );
+    insert.run(
+      installationId,
+      "version-two-command",
+      2,
+      "{}",
+      1,
+      2,
+      "1".repeat(64),
+      2,
+      "{}",
+    );
+    assert.deepEqual(
+      db
+        .prepare(
+          "SELECT command_version,result_version,expected_revision,resulting_revision FROM profile_administration_receipt WHERE command_id='version-two-command'",
+        )
+        .get(),
+      Object.assign(Object.create(null), {
+        command_version: 2,
+        result_version: 2,
+        expected_revision: 1,
+        resulting_revision: 2,
+      }),
     );
   } finally {
     db.exec("ROLLBACK");

@@ -1,3 +1,4 @@
+import { decodePersonalReceipt } from "./personal-receipt.ts";
 import {
   durableReceipt,
   validateAcceptanceHistory,
@@ -9,6 +10,8 @@ import { and, eq, asc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/sqlite-proxy";
 import {
   canonical,
+  appendDiagnostic,
+  parseDiagnosticRing,
   lessonForTask,
   cumulativeExtension,
   resolvedTask,
@@ -42,6 +45,9 @@ import {
   RetiredSelectionError,
 } from "../../teaching/src/index.ts";
 import type {
+  DiagnosticRead,
+  DiagnosticRing,
+  LocalSupportApplication,
   CommitReceipt,
   CommittedProjection,
   RuntimePackage,
@@ -78,6 +84,7 @@ import type {
   ProfileDirectory,
   ProfileAdministrationCommand,
   ProfileAdministrationReceipt,
+  ProfileDeletionReceipt,
   CommandResult,
   RecoveryResult,
 } from "../../teaching/src/index.ts";
@@ -133,18 +140,47 @@ export function createTeachingApplication({
   ids: IdFactory;
   hash: HashFunction;
   preparation?: PreparationPolicy;
-}): SelectedApplication {
+}): SelectedApplication & LocalSupportApplication {
   const db = drizzle(async (sql, parameters, method) => {
     if (method === "get")
       throw new Error("Repository must use array-row reads");
     return executor.execute(sql, sqlValues(parameters));
   });
-  const profileDirectory = createProfileDirectory({ db, preparation });
+  const profileDirectory = createProfileDirectory({
+    db,
+    executor,
+    preparation,
+  });
   let tail: Promise<unknown> = Promise.resolve();
   function exclusive<T>(work: () => Promise<T>): Promise<T> {
     const next = tail.then(work);
     tail = next.catch(() => undefined);
     return next;
+  }
+  let diagnosticDurable = true;
+  let diagnosticMemory: DiagnosticRing = {
+    version: 1,
+    omitted: 0,
+    records: [],
+  };
+  async function diagnostics(): Promise<DiagnosticRead> {
+    if (!diagnosticDurable)
+      return { persistence: "memoryOnly", ring: diagnosticMemory };
+    try {
+      await ensureInitialized();
+      const rows = await db.select().from(schema.localDiagnostics).all();
+      const row = rows[0];
+      if (rows.length > 1 || (row && Number(row.singleton) !== 1))
+        throw new Error("Diagnostic storage is unsupported");
+      const ring = row
+        ? parseDiagnosticRing(JSON.parse(row.payload))
+        : diagnosticMemory;
+      diagnosticMemory = ring;
+      return { persistence: "durable", ring };
+    } catch {
+      diagnosticDurable = false;
+      return { persistence: "memoryOnly", ring: diagnosticMemory };
+    }
   }
   const verified = new Map<PackageHash, RuntimePackage>();
   async function warmPackages() {
@@ -881,7 +917,9 @@ export function createTeachingApplication({
       row.ownerGeneration !== command.owner.generation
     )
       throw new Error("Saved receipt ownership is invalid");
-    const result = parseReceipt(JSON.parse(row.result));
+    const result = decodePersonalReceipt(row);
+    if (result.kind !== "committed")
+      throw new Error("Personal command identity belongs to another protocol");
     if (
       result.commandId !== row.commandId ||
       result.owner.profileId !== row.ownerProfileId ||
@@ -1626,7 +1664,15 @@ export function createTeachingApplication({
     phase: "ink" | "teaching" | "administration" | "finalize";
     settled: Set<StrokeId>;
   };
-  let recovery: { kind: "unopened" } | { kind: "ready" } | ClosedRecovery = {
+  let recovery:
+    | { kind: "unopened" }
+    | { kind: "ready" }
+    | {
+        kind: "administrationSettled";
+        id: string;
+        receipt: ProfileDeletionReceipt;
+      }
+    | ClosedRecovery = {
     kind: "unopened",
   };
   function afterInk(opening: SelectedRecoveryOpening): ClosedRecovery["phase"] {
@@ -1838,6 +1884,31 @@ export function createTeachingApplication({
           };
         });
       }),
+    recordDiagnostic: (event) =>
+      exclusive(async () => {
+        const previous = await diagnostics();
+        const ring = appendDiagnostic(previous.ring, event);
+        try {
+          await transaction(executor, async () => {
+            await db
+              .insert(schema.localDiagnostics)
+              .values({ singleton: 1, payload: canonical(ring) })
+              .onConflictDoUpdate({
+                target: schema.localDiagnostics.singleton,
+                set: { payload: canonical(ring) },
+              })
+              .run();
+          });
+          diagnosticMemory = ring;
+          diagnosticDurable = true;
+          return { persistence: "durable", ring };
+        } catch {
+          diagnosticDurable = false;
+          diagnosticMemory = ring;
+          return { persistence: "memoryOnly", ring };
+        }
+      }),
+    readDiagnostics: () => exclusive(diagnostics),
     readDirectory: () => exclusive(discoverDirectory),
     readDeparture: (input) =>
       exclusive(async () => {
@@ -1998,6 +2069,28 @@ export function createTeachingApplication({
       exclusive(async () => {
         const opening = parseSelectedRecoveryOpening(input);
         await ensureInitialized();
+        if (
+          recovery.kind === "administrationSettled" &&
+          opening.kind === "warm"
+        ) {
+          if (
+            !opening.administration ||
+            opening.administration.commandId !== recovery.receipt.commandId ||
+            opening.administration.payloadHash !==
+              recovery.receipt.payloadHash ||
+            opening.administration.scope.installationId !==
+              recovery.receipt.administration.installationId
+          )
+            throw new Error(
+              "Settled administrative recovery declaration changed",
+            );
+          return parseSelectedRecoveryInventory({
+            kind: "closed",
+            recoveryId: recovery.id,
+            captures: await ink.inventory(),
+            directory: await profileDirectory.read(),
+          });
+        }
         if (
           recovery.kind === "closed" &&
           recovery.opening.kind === "warm" &&
@@ -2240,6 +2333,32 @@ export function createTeachingApplication({
         const active = recovery;
         const directory = await profileDirectory.read();
         if (
+          active.kind === "administrationSettled" &&
+          active.id === input.recoveryId
+        ) {
+          if (
+            (await hash(profileAdministrationPreimage(command))) !==
+              command.payloadHash ||
+            command.commandId !== active.receipt.commandId ||
+            command.payloadHash !== active.receipt.payloadHash ||
+            command.scope.installationId !==
+              active.receipt.administration.installationId
+          )
+            return recoveryResult<ProfileAdministrationReceipt>(
+              directory.selection,
+              rejectOperation(
+                "command-identity",
+                "Settled administration identity changed.",
+              ),
+              "receiptOnly",
+            );
+          return recoveryResult<ProfileAdministrationReceipt>(
+            directory.selection,
+            active.receipt,
+            "receiptOnly",
+          );
+        }
+        if (
           active.kind !== "closed" ||
           active.id !== input.recoveryId ||
           active.opening.kind !== "warm"
@@ -2315,13 +2434,36 @@ export function createTeachingApplication({
             "receiptOnly",
           );
         });
-        if (active.phase === "administration") active.phase = "finalize";
+        if (
+          result.result.kind === "profileCommitted" &&
+          result.result.version === 2 &&
+          "expectedRevision" in result.result &&
+          result.result.effect.kind === "deleted"
+        )
+          recovery = {
+            kind: "administrationSettled",
+            id: active.id,
+            receipt: result.result,
+          };
+        else if (active.phase === "administration") active.phase = "finalize";
         return result;
       }),
     reconcileRecovery: (input) =>
       exclusive(async () => {
         const choice = parseRecoveryChoice(input.choice);
         const active = recovery;
+        if (
+          active.kind === "administrationSettled" &&
+          active.id === input.recoveryId &&
+          choice.kind === "warm"
+        ) {
+          await transaction(executor, async () => {
+            await ink.recoverOrphans();
+            await ink.fenceAll();
+          });
+          recovery = { kind: "ready" };
+          return profileDirectory.read();
+        }
         if (
           active.kind !== "closed" ||
           active.id !== input.recoveryId ||
