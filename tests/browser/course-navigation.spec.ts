@@ -1,3 +1,7 @@
+import {
+  installInitialSetupObservation,
+  completeInitialSetup,
+} from "./parent-setup.ts";
 import { expect, test } from "@playwright/test";
 import {
   atWriting,
@@ -16,7 +20,9 @@ test("six source-ordered lesson menus expose all 45 truthful modules without sta
   page,
 }) => {
   await probe(page);
+  await installInitialSetupObservation(page);
   await page.goto("/");
+  await completeInitialSetup({ page });
   await expect(page.locator(".course-pedestal")).toHaveCount(6);
   for (const [index, count] of [6, 7, 8, 7, 9, 8].entries()) {
     await page
@@ -63,7 +69,9 @@ for (const viewport of [
     page,
   }) => {
     await page.setViewportSize(viewport);
+    await installInitialSetupObservation(page);
     await page.goto("/");
+    await completeInitialSetup({ page });
     await expect(page.locator(".course-pedestal")).toHaveCount(6);
     const mapGeometry = await page.evaluate(() => {
       const nodes = [...document.querySelectorAll(".course-pedestal")];
@@ -268,6 +276,9 @@ test("earlier handwriting opens read-only without selecting work or changing the
 test("the adult word gate expires on exit and reload, and direct settings URLs cannot grant access", async ({
   page,
 }) => {
+  await installInitialSetupObservation(page);
+  await page.goto("/");
+  await completeInitialSetup({ page });
   await page.goto("/parent/settings?approved=true");
   await expect(page).toHaveURL(/\/parent\/gate$/);
   await expect(
@@ -339,7 +350,9 @@ test("late explicit selection cannot navigate or reopen an outdated menu", async
   page,
 }) => {
   await probe(page);
+  await installInitialSetupObservation(page);
   await page.goto("/");
+  await completeInitialSetup({ page });
   await page.getByRole("link", { name: "Lesson 1", exact: true }).click();
   await page.evaluate("window.armWritingFault('hold-teaching')");
   await page.getByRole("button", { name: "Start Task 6", exact: true }).click();

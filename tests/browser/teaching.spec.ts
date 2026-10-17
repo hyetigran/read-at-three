@@ -1,3 +1,7 @@
+import {
+  installInitialSetupObservation,
+  completeInitialSetup,
+} from "./parent-setup.ts";
 import { test, expect, chromium } from "@playwright/test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -14,7 +18,9 @@ const base =
     : "http://127.0.0.1:5174";
 async function start(page: Page) {
   await useLegacyContent(page);
+  await installInitialSetupObservation(page);
   await page.goto(base);
+  await completeInitialSetup({ page });
   await page.getByRole("link", { name: "Lesson 1", exact: true }).click();
   await page.getByRole("button", { name: "Start", exact: true }).click();
   await expect(page.getByText("Fixture model.", { exact: true })).toBeVisible();

@@ -640,16 +640,11 @@ export function createWritingController({
           : { kind: "cold" },
     });
     discovered = directory;
-    const current = await client.read({
-      selection: directory.selection,
-      target: { kind: "cursor" },
-    });
     connected = true;
     return {
       result: attempt?.result ?? null,
       administrative: administrative?.result ?? null,
       directory,
-      projection: current.projection,
     };
   }
   async function open(): Promise<void> {
@@ -1213,14 +1208,23 @@ export function createWritingController({
         const current = teaching.current();
         if (!current)
           throw new Error("The retained reading course is unavailable.");
+        const reconciledRead =
+          recovery &&
+          operation.prepared.operation.command.kind === "writingControl"
+            ? await client.read({
+                selection: recovery.directory.selection,
+                target: { kind: "cursor" },
+              })
+            : null;
+        checkOperation(ticket);
         await teaching.read({
           expectation: {
             kind: "receipt",
             courseId: current.courseId,
             prepared: operation.prepared,
             receipt: result,
-            restoreBinding: recovery
-              ? { kind: "reconciled", projection: recovery.projection }
+            restoreBinding: reconciledRead
+              ? { kind: "reconciled", projection: reconciledRead.projection }
               : { kind: "normal" },
           },
         });

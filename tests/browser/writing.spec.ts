@@ -1,3 +1,4 @@
+import { completeInitialSetup } from "./parent-setup.ts";
 import { reloadSavedTurn } from "./reload-saved-turn.ts";
 import { chromium, expect, test } from "@playwright/test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -430,7 +431,7 @@ for (const holdFinalize of [false, true]) {
           return command;
         }),
       ).toEqual([
-        ["select", "profile", "0", "start", "fixture.graph.l01.t06", null],
+        ["select", "profile", "1", "start", "fixture.graph.l01.t06", null],
         [
           "writingNavigate",
           "session",
@@ -452,7 +453,7 @@ for (const holdFinalize of [false, true]) {
         [
           "writingSelect",
           "profile",
-          "1",
+          "2",
           "resume",
           "fixture.graph.l01.t06",
           projection.sessionId,
@@ -469,7 +470,7 @@ for (const holdFinalize of [false, true]) {
         [
           "writingSelect",
           "profile",
-          "2",
+          "3",
           "resume",
           "fixture.graph.l01.t06",
           projection.sessionId,
@@ -563,7 +564,7 @@ for (const holdFinalize of [false, true]) {
                   id: projection.owner.profileId,
                   generation: projection.owner.generation,
                 },
-                expectedRevision: "3",
+                expectedRevision: "4",
                 intent: "resume",
                 taskId: "fixture.graph.l01.t06",
                 sessionId: projection.sessionId,
@@ -847,8 +848,8 @@ for (const path of ["normal", "recovered teaching"]) {
         profileRevision: selected.value.application.projection.profileRevision,
         sessionRevision: selected.value.application.projection.revision,
       }).toEqual({
-        receiptRevision: "1",
-        profileRevision: "1",
+        receiptRevision: "2",
+        profileRevision: "2",
         sessionRevision: "0",
       });
       await writingAction(page);
@@ -1027,7 +1028,7 @@ for (const path of ["normal", "recovered teaching"]) {
             id: selected.value.application.projection.owner.profileId,
             generation: selected.value.application.projection.owner.generation,
           },
-          expectedRevision: "1",
+          expectedRevision: "2",
           payload: {
             packageHash: selected.value.application.projection.packageHash,
             intent: "resume",
@@ -1283,8 +1284,8 @@ test("task selection uses closed exact Retry, Resume keeps documents and Replay 
       selectedProjection.value.application.projection.profileRevision,
     sessionRevision: selectedProjection.value.application.projection.revision,
   }).toEqual({
-    receiptRevision: "2",
-    profileRevision: "2",
+    receiptRevision: "3",
+    profileRevision: "3",
     sessionRevision: "0",
   });
   await page.getByRole("button", { name: "Activities", exact: true }).click();
@@ -1338,7 +1339,7 @@ test("task selection uses closed exact Retry, Resume keeps documents and Replay 
       generation:
         selectedProjection.value.application.projection.owner.generation,
     },
-    expectedRevision: "1",
+    expectedRevision: "2",
     payload: {
       intent: "start",
       taskId: "fixture.graph.l01.t02",
@@ -1440,6 +1441,7 @@ for (const loseAfterDetach of [false, true]) {
       });
     });
     await page.goto(`${writingBase}/query-remount`);
+    await completeInitialSetup({ page, entry: "consumer" });
     await page
       .getByRole("button", { name: "Start Task 6", exact: true })
       .click();

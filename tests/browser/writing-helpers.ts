@@ -1,3 +1,9 @@
+import {
+  installInitialSetupObservation,
+  completeInitialSetup,
+  scenarioRequests,
+  scenarioResponses,
+} from "./parent-setup.ts";
 import { expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { parseCurrentResult, parseInkSnapshot } from "@readatthree/teaching";
@@ -80,6 +86,7 @@ export async function probe(page: Page) {
       }
     };
   `);
+  await installInitialSetupObservation(page);
 }
 export async function requests(page: Page) {
   const evidence: unknown = await page.evaluate(
@@ -87,7 +94,7 @@ export async function requests(page: Page) {
   );
   if (!Array.isArray(evidence))
     throw new Error("Writing request evidence missing");
-  return evidence.map(parseRequest);
+  return scenarioRequests(page, evidence.map(parseRequest));
 }
 export async function snapshots(page: Page) {
   const evidence: unknown = await page.evaluate(
@@ -105,7 +112,7 @@ export async function responses(page: Page) {
   );
   if (!Array.isArray(evidence))
     throw new Error("Writing response evidence missing");
-  return evidence.map(parseResponse);
+  return scenarioResponses(page, evidence.map(parseResponse));
 }
 export async function latestDocuments(page: Page) {
   const values = await snapshots(page);
@@ -162,7 +169,9 @@ export async function writingAction(page: Page, name = "Continue") {
   await expect(page.locator("main")).toHaveAttribute("aria-busy", "false");
 }
 export async function startWriting(page: Page) {
+  await installInitialSetupObservation(page);
   await page.goto(writingBase);
+  await completeInitialSetup({ page });
   await page.getByRole("link", { name: "Lesson 1", exact: true }).click();
   await page.getByRole("button", { name: "Start Task 6", exact: true }).click();
   await atWriting(page, "m-sound");

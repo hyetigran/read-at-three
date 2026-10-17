@@ -1,3 +1,7 @@
+import {
+  installInitialSetupObservation,
+  completeInitialSetup,
+} from "./parent-setup.ts";
 import { test, expect } from "@playwright/test";
 import { useLegacyContent } from "./legacy-content.ts";
 test.beforeEach(async ({ context }) => {
@@ -11,7 +15,9 @@ for (const reducedMotion of motionModes) {
     page,
   }) => {
     await page.emulateMedia({ reducedMotion });
+    await installInitialSetupObservation(page);
     await page.goto("/");
+    await completeInitialSetup({ page });
     await page.getByRole("link", { name: "Lesson 1", exact: true }).click();
     await page.getByRole("button", { name: "Start", exact: true }).click();
     await expect(

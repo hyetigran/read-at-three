@@ -1,3 +1,7 @@
+import {
+  installInitialSetupObservation,
+  completeInitialSetup,
+} from "./parent-setup.ts";
 import { expect, test } from "@playwright/test";
 import { useLegacyContent } from "./legacy-content.ts";
 
@@ -52,6 +56,9 @@ for (const { code, title } of [
   test(`repository ${code} recovery keeps its category and explanation through held Retry`, async ({
     page,
   }) => {
+    await installInitialSetupObservation(page);
+    await page.goto("/");
+    await completeInitialSetup({ page });
     await page.addInitScript(`
       const NativeWorker = window.Worker;
       let injected = false;

@@ -1,3 +1,7 @@
+import {
+  installInitialSetupObservation,
+  completeInitialSetup,
+} from "./parent-setup.ts";
 import { reloadSavedTurn } from "./reload-saved-turn.ts";
 import { chromium, expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
@@ -33,7 +37,9 @@ async function act({ page, name = "Continue" }: { page: Page; name?: string }) {
 }
 
 async function start(page: Page) {
+  await installInitialSetupObservation(page);
   await page.goto(base);
+  await completeInitialSetup({ page });
   await page.getByRole("link", { name: "Lesson 1", exact: true }).click();
   await page.getByRole("button", { name: "Start Task 3", exact: true }).click();
   await at({ page, suffix: "am-model" });

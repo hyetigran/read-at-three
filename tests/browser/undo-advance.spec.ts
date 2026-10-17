@@ -1,3 +1,7 @@
+import {
+  installInitialSetupObservation,
+  completeInitialSetup,
+} from "./parent-setup.ts";
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { reloadSavedTurn } from "./reload-saved-turn.ts";
@@ -32,7 +36,9 @@ for (const viewport of [
     page,
   }) => {
     await page.setViewportSize(viewport);
+    await installInitialSetupObservation(page);
     await page.goto("/");
+    await completeInitialSetup({ page });
     await page.getByRole("link", { name: "Lesson 1", exact: true }).click();
     await page
       .locator('[data-task-number="1"]')

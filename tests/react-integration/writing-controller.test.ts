@@ -871,6 +871,76 @@ test("a superseded administrative receipt resolves without adopting its retired 
   assert.equal(f.administrativeDeliveries.length, 1);
 });
 
+test("ordinary cold opening retains actual stored recovery through one held Retry read and restores canonical work", async (t) => {
+  const f = await controllerFixture(t, { deferOpen: true });
+  const saved = await f.current(f.app);
+  f.db.exec(
+    "CREATE TEMP TABLE opening_saved_cursor AS SELECT * FROM course_cursor",
+  );
+  let reads = 0;
+  let holdNext = false;
+  const entered = deferred();
+  const release = deferred();
+  f.beforeRead(async () => {
+    reads++;
+    if (reads === 1) f.db.exec("DELETE FROM course_cursor");
+    if (holdNext) {
+      holdNext = false;
+      entered.release();
+      await release.promise;
+    }
+  });
+  await f.controller.open();
+  const failed = f.controller.committed.getSnapshot();
+  const failure = failed.recovery;
+  assert.ok(
+    failure,
+    JSON.stringify({
+      operation: f.controller.getState().operation,
+      reads,
+      events: f.events,
+      readStatus: failed.read.status,
+    }),
+  );
+  assert.equal(failure.code, "invalid-position");
+  assert.equal(
+    failure.message,
+    "Saved teaching and its exact content package could not be verified.",
+  );
+  assert.strictEqual(failed.read.error, failure);
+  assert.equal(failed.visible.data, undefined);
+  assert.equal(f.controller.getState().operation.kind, "openingFailed");
+  assert.equal(f.controller.canWrite(), false);
+  assert.equal(reads, 1);
+  f.db.exec("INSERT INTO course_cursor SELECT * FROM opening_saved_cursor");
+  holdNext = true;
+  const retrying = f.controller.retry();
+  await entered.promise;
+  assert.deepEqual(f.controller.getState().operation, { kind: "opening" });
+  assert.strictEqual(f.controller.committed.getSnapshot().recovery, failure);
+  assert.equal(
+    f.controller.committed.getSnapshot().read.fetchStatus,
+    "fetching",
+  );
+  assert.equal(f.controller.committed.getSnapshot().visible.data, undefined);
+  assert.equal(f.controller.canWrite(), false);
+  release.release();
+  await retrying;
+  assert.equal(reads, 2);
+  assert.deepEqual(f.controller.getState().operation, { kind: "idle" });
+  assert.equal(f.controller.committed.getSnapshot().recovery, null);
+  const restored =
+    f.controller.committed.getSnapshot().visible.data?.projection;
+  assert.equal(restored?.kind, "writing");
+  if (restored?.kind !== "writing")
+    assert.fail("Actual saved writing is required");
+  assert.equal(restored.turn.id, "fixture.writing.turn.3");
+  const canonical = await f.current(f.app);
+  assert.deepEqual(canonical.snapshot.strokes, saved.snapshot.strokes);
+  assert.deepEqual(canonical.snapshot.histories, saved.snapshot.histories);
+  assert.deepEqual(f.teachingDeliveries, []);
+});
+
 test("failed cold opening exposes recovery without teaching or input and retries through the real replacement connection", async (t) => {
   const f = await controllerFixture(t, { deferOpen: true });
   const before = f.db.prepare("SELECT * FROM task_run ORDER BY run_id").all();
