@@ -1,6 +1,6 @@
 # Issue 10 implementation evidence
 
-Issue #10 is in progress on `issue-10-child-profiles`, based on merged main `b251a02`. Commits `3ca6538`, `2e4ead5` and `75b678a` implement the directory foundation, profile administration and original portrait assets. Commit `dbc5daa` implements selected-owner operations and controller adoption. The preparation compiler and provider are implemented. Preparation screens and avatar UI remain pending.
+Issue #10 is in progress on `issue-10-child-profiles`, based on merged main `b251a02`. Commits `3ca6538`, `2e4ead5` and `75b678a` implement the directory foundation, profile administration and original portrait assets. Commit `dbc5daa` implements selected-owner operations and controller adoption. The preparation compiler, provider and initial parent setup screens are implemented. Broader profile interaction and complete browser regression qualification remain pending.
 
 ## Directory foundation
 
@@ -49,6 +49,16 @@ Vite serves and emits the same verified preparation resources. Public tests use 
 Root independently passes all 283 Node tests, with zero failures or skips, plus strict root, web and Worker checks. Trusted-validator, migration and import-boundary checks pass. The focused browser test passes against actual Worker and OPFS storage in both development and production builds. It acknowledges the exact verified document, confirms the existing anonymous child, starts teaching through public commands and reopens the saved state. Missing and invalid guidance preserve that established teaching and reject a new acknowledgement. Separate actual-client tests hold old fetches across connection replacement and confirm the replacement retains its selection and document. Local build checks preserve curriculum bytes and the complete preparation asset closure.
 
 These checks qualify the provider and Worker integration. Preparation presentation, onboarding, profile controls and the full existing teaching-browser suite remain pending. The earlier fixed-head saved-work comparison is not rerun for this provider-only change. Native, physical-device, offline-shell and publication qualification remain separate.
+
+## Initial parent setup screens
+
+A transient parent visit binds the reading gate, internal destination and return bookmark to the complete selected-child lifetime and browser connection. Direct parent URLs require a fresh gate. The structured preparation reader uses the verified document and preserves its source text and semantic emphasis. Added labels and recovery messages are highlighted. The animal chooser uses eight native radio inputs and the shared bundled portrait renderer. Continuing setup confirms the existing anonymous child through the existing controller and durable administration command.
+
+The first actual browser tracer was committed while the unchanged application still failed to show the required fresh setup gate. The subsequent independent root checks pass three cases in development and the production build, using real Chromium, Worker and OPFS storage. They cover exact preparation acknowledgement, Rabbit default, keyboard selection of Fox, no write from a pending choice, same-owner initial confirmation, portrait persistence after reload and renewed gating of direct settings access. Setup issues no teaching command.
+
+Two additional failures were reproduced before correction. Retry after a stale preparation command previously advanced to the animal form after reloading; it now stays in the guide without another administration attempt. An actual diagram decode failure previously lacked recovery; it now disables acknowledgement, shows highlighted recovery and retries the same verified payload before acknowledgement can proceed. The initial rejection probe observed the page too early, so its apparent pass was discarded and the final route was checked after the operation settled.
+
+Strict root, web and Worker checks and both pure parent-visit tests pass. The 14 original browser files remain unchanged, including all 516 expectation matchers and one ordinary `toString` call in the preservation inventory. The complete earlier teaching-browser suite has not run through the new setup flow yet. Profile creation and editing, cancellation, physical process restart, selection races, same-child return navigation, source typography and both landscape sizes still require their broader verification unit. These focused results do not complete issue #10.
 
 ## Original portrait assets
 

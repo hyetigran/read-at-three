@@ -9,7 +9,6 @@ import {
 import { createRoot } from "react-dom/client";
 import {
   createBrowserRouter,
-  Navigate,
   Outlet,
   RouterProvider,
   useBlocker,
@@ -21,8 +20,12 @@ import {
   createCommittedTeaching,
   useCommittedTeaching,
 } from "@readatthree/react-integration";
-import { canonical } from "@readatthree/teaching";
-import type { CourseAction, Owner } from "@readatthree/teaching";
+import { canonical, resolveAvatar } from "@readatthree/teaching";
+import type {
+  CourseAction,
+  ProfileAdministrationIntent,
+  SelectedOwnerWitness,
+} from "@readatthree/teaching";
 import { TeachingScreen } from "./features/teaching/TeachingScreen.tsx";
 import {
   RecoveryScreen,
@@ -33,11 +36,27 @@ import {
   menuEntryKey,
   LessonMap,
   LessonMenu,
-  ParentGate,
-  ParentSettings,
   SavedWorkScreen,
   Unavailable,
 } from "./features/course/CourseScreens.tsx";
+import { ParentScreens } from "./features/parent/ParentScreens.tsx";
+import type { ParentAfter } from "./features/parent/ParentScreens.tsx";
+import { ProfileButton } from "./features/parent/AnimalPortrait.tsx";
+import {
+  currentVisit,
+  originAddress,
+  parentAddress,
+  parentRouteAllowed,
+  returnFocusId,
+  sameParentSelection,
+} from "./features/parent/parent-visit.ts";
+import type {
+  ParentDestination,
+  ParentOrigin,
+  ParentVisit,
+  ReturnFocus,
+} from "./features/parent/parent-visit.ts";
+import type { TaskPreviewTicket } from "./features/parent/task-preview.ts";
 import { Button } from "./components/ui/button.tsx";
 import { createBrowserTeachingClient } from "./platform/teaching-client.ts";
 import { createWritingController } from "./platform/writing-controller.ts";
@@ -45,6 +64,7 @@ import { isTeachingViewport, subscribeViewport } from "./platform/viewport.ts";
 import "./styles.css";
 import "./teaching.css";
 import "./course.css";
+import "./features/parent/parent.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -73,27 +93,27 @@ function ApplicationShell() {
   const currentLocation = useRef(location);
   currentLocation.current = location;
   const entryAttempt = useRef(0);
-  const pendingEntry = useRef<{ origin: string; owner: string | null } | null>(
-    null,
-  );
+  const pendingEntry = useRef<{
+    origin: string;
+    selection: SelectedOwnerWitness;
+    connection: number;
+  } | null>(null);
   const menuReturn = useRef<{ lessonId: string; entryKey: string } | null>(
     null,
   );
   const [entering, setEntering] = useState(false);
-  const grant = useRef<{
-    owner: string;
-    destination: "/parent/settings";
+  const [parentVisit, setParentVisit] = useState<ParentVisit | null>(null);
+  const visitRef = useRef(parentVisit);
+  visitRef.current = parentVisit;
+  const visitSerial = useRef(0);
+  const returnBookmark = useRef<ParentOrigin | null>(null);
+  const pendingAdministration = useRef<{
+    visit: ParentVisit;
+    after: ParentAfter;
   } | null>(null);
   const [departure, setDeparture] = useState<"saving" | "failed" | null>(null);
   const blockedVisit = useRef<Promise<boolean> | null>(null);
   const blocker = useBlocker(({ currentLocation, nextLocation }) => {
-    if (
-      (currentLocation.pathname === "/parent/settings" &&
-        nextLocation.pathname !== "/parent/settings") ||
-      (nextLocation.pathname !== "/parent/settings" &&
-        nextLocation.pathname !== "/parent/gate")
-    )
-      grant.current = null;
     if (
       currentLocation.pathname !== "/teaching" ||
       (currentLocation.pathname === nextLocation.pathname &&
@@ -104,21 +124,31 @@ function ApplicationShell() {
     return true;
   });
   const read = committed.visible.data?.application;
-  const selection = committed.visible.data?.directory.selection;
+  const directory = committed.visible.data?.directory;
+  const selection = directory?.selection;
+  const connection = client.connectionTicket();
   const projection = committed.visible.data?.projection;
-  const ownerKey = read ? canonical(read.witness.owner) : null;
-  const ownerRef = useRef(ownerKey);
-  ownerRef.current = ownerKey;
+  const selectionKey = selection ? canonical(selection) : null;
+  const lifetimeRef = useRef({ selection, connection });
+  lifetimeRef.current = { selection, connection };
+  const selectedProfile = directory?.profiles.find(
+    (profile) => canonical(profile.edit.owner) === canonical(selection?.owner),
+  );
   const operation = state.operation;
   const busy =
     entering ||
     operation.kind === "opening" ||
     operation.kind === "pending" ||
-    operation.kind === "preparing";
+    operation.kind === "preparing" ||
+    operation.kind === "adminPreparing" ||
+    operation.kind === "adminSaving" ||
+    operation.kind === "adopting";
   const saveError =
     operation.kind === "failed" ||
     operation.kind === "inkFailed" ||
-    operation.kind === "rejected"
+    operation.kind === "rejected" ||
+    operation.kind === "adminFailed" ||
+    operation.kind === "adoptionFailed"
       ? operation.message
       : null;
   useEffect(() => {
@@ -129,16 +159,338 @@ function ApplicationShell() {
       location.pathname === "/teaching" ? "teaching" : "other",
     );
   }, [location.key, location.pathname]);
-  useLayoutEffect(() => {
+  const parentPath = location.pathname.startsWith("/parent/");
+  const validVisit =
+    parentVisit &&
+    selection &&
+    currentVisit({
+      visit: parentVisit,
+      selection,
+      connectionTicket: connection,
+    })
+      ? parentVisit
+      : null;
+  const committedSwitch =
+    (operation.kind === "adopting" || operation.kind === "adoptionFailed") &&
+    parentVisit &&
+    !sameParentSelection(
+      operation.receipt.selection,
+      parentVisit.lifetime.selection,
+    );
+  function defaultDestination(): ParentDestination {
+    if (directory?.initialSetup.kind === "firstLaunch")
+      return directory.preparation.kind === "acknowledged"
+        ? { kind: "initialProfile", preferences: { avatarId: "rabbit" } }
+        : { kind: "preparation", continuation: "initialProfile" };
+    const match = location.pathname.match(
+      /^\/parent\/profiles\/([^/]+)\/(animal|name)$/,
+    );
+    const profile =
+      match &&
+      directory?.profiles.find(
+        (profile) =>
+          encodeURIComponent(profile.edit.owner.profileId) === match[1],
+      );
+    if (match && !profile) return { kind: "unavailable" };
+    if (profile && match?.[2] === "animal")
+      return {
+        kind: "editAvatar",
+        target: profile.edit,
+        avatarId: resolveAvatar({ savedId: profile.preferences.avatarId }),
+      };
+    if (profile && match?.[2] === "name")
+      return {
+        kind: "editName",
+        target: profile.edit,
+        displayName: profile.preferences.displayName ?? "",
+      };
+    if (location.pathname === "/parent/preparation")
+      return { kind: "preparation", continuation: "return" };
+    if (location.pathname === "/parent/profiles/new")
+      return { kind: "createProfile", preferences: { avatarId: "rabbit" } };
     if (
-      location.pathname !== "/parent/settings" &&
-      location.pathname !== "/parent/gate"
+      ![
+        "/parent/gate",
+        "/parent/settings",
+        "/parent/profiles",
+        "/parent/preparation",
+      ].includes(location.pathname)
     )
-      grant.current = null;
-  }, [location.pathname]);
+      return { kind: "unavailable" };
+    return location.pathname.startsWith("/parent/profiles")
+      ? { kind: "profiles" }
+      : { kind: "settings" };
+  }
   useLayoutEffect(() => {
-    if (grant.current?.owner !== ownerKey) grant.current = null;
-  }, [ownerKey]);
+    if (!read || !directory || !selection || !supported || committedSwitch)
+      return;
+    if (parentVisit && !validVisit) {
+      setParentVisit(null);
+      navigate("/", { replace: true });
+      return;
+    }
+    if (!parentPath && directory.initialSetup.kind !== "firstLaunch") {
+      if (parentVisit) setParentVisit(null);
+      return;
+    }
+    if (!parentVisit) {
+      setParentVisit({
+        lifetime: {
+          selection,
+          connectionTicket: connection,
+          visitId: ++visitSerial.current,
+        },
+        origin: {
+          kind: "map",
+          entryKey: location.key,
+          focus: { kind: "none" },
+        },
+        routeAttempt: 0,
+        destination: defaultDestination(),
+        gate: { kind: "locked" },
+      });
+      if (location.pathname !== "/parent/gate")
+        navigate("/parent/gate", { replace: true });
+    } else if (!parentRouteAllowed(parentVisit, location.pathname)) {
+      setParentVisit({
+        ...parentVisit,
+        lifetime: { ...parentVisit.lifetime, visitId: ++visitSerial.current },
+        gate: { kind: "locked" },
+        destination: defaultDestination(),
+        routeAttempt: parentVisit.routeAttempt + 1,
+      });
+      navigate("/parent/gate", { replace: true });
+    }
+  }, [
+    location.key,
+    selectionKey,
+    connection,
+    directory?.initialSetup.kind,
+    supported,
+    committedSwitch,
+  ]);
+  useLayoutEffect(() => {
+    const bookmark = returnBookmark.current;
+    if (!bookmark || location.pathname !== originAddress(bookmark)) return;
+    if (bookmark.kind === "menu") {
+      const container = document.querySelector("[data-menu-scroll]");
+      if (container instanceof HTMLElement)
+        container.scrollTop = bookmark.scrollTop;
+    } else if (bookmark.kind === "savedWork") {
+      const container = document.querySelector(".course-saved-content");
+      if (container instanceof HTMLElement)
+        container.scrollTop = bookmark.scrollTop;
+    }
+    const id = returnFocusId(bookmark.focus);
+    if (id) document.getElementById(id)?.focus({ preventScroll: true });
+    returnBookmark.current = null;
+  }, [location.key]);
+  function captureOrigin(destination: "settings" | "profiles"): ParentOrigin {
+    const focus: ReturnFocus = { kind: "parentButton", destination };
+    if (
+      read &&
+      projection &&
+      projection.kind !== "entry" &&
+      projection.kind !== "recovery" &&
+      location.pathname === "/teaching"
+    )
+      return {
+        kind: "teaching",
+        sessionId: projection.sessionId,
+        runId: projection.runId,
+        packageHash: projection.packageHash,
+        focus,
+      };
+    const lesson = read?.course.lessons.find(
+      (lesson) => location.pathname === `/lessons/${lesson.lessonId}`,
+    );
+    if (lesson) {
+      const container = document.querySelector("[data-menu-scroll]");
+      return {
+        kind: "menu",
+        lessonId: lesson.lessonId,
+        entryKey: menuEntryKey(location),
+        scrollTop: container instanceof HTMLElement ? container.scrollTop : 0,
+        focus,
+      };
+    }
+    const work = read?.course.lessons
+      .flatMap((lesson) => lesson.tasks.flatMap((task) => task.history))
+      .find((work) => location.pathname === `/work/${work.runId}`);
+    if (work) {
+      const container = document.querySelector(".course-saved-content");
+      return {
+        kind: "savedWork",
+        runId: work.runId,
+        lessonId: work.lessonId,
+        scrollTop: container instanceof HTMLElement ? container.scrollTop : 0,
+        focus,
+      };
+    }
+    return { kind: "map", entryKey: location.key, focus };
+  }
+  function openParents(kind: "settings" | "profiles") {
+    if (!selection || busy || saveError) return;
+    setParentVisit({
+      lifetime: {
+        selection,
+        connectionTicket: client.connectionTicket(),
+        visitId: ++visitSerial.current,
+      },
+      origin: captureOrigin(kind),
+      routeAttempt: 0,
+      destination: { kind },
+      gate: { kind: "locked" },
+    });
+    navigate("/parent/gate");
+  }
+  function navigateParent(destination: ParentDestination) {
+    const visit = visitRef.current;
+    if (
+      !visit ||
+      !selection ||
+      !currentVisit({
+        visit,
+        selection,
+        connectionTicket: client.connectionTicket(),
+      })
+    )
+      return;
+    setParentVisit({
+      ...visit,
+      destination,
+      routeAttempt: visit.routeAttempt + 1,
+    });
+    navigate(parentAddress(destination), { replace: true });
+  }
+  function returnFromParents() {
+    const visit = visitRef.current;
+    if (!visit || busy) return;
+    setParentVisit(null);
+    pendingAdministration.current = null;
+    if (directory?.initialSetup.kind === "firstLaunch") {
+      navigate("/", { replace: true });
+      return;
+    }
+    returnBookmark.current = visit.origin;
+    navigate(originAddress(visit.origin), {
+      state:
+        visit.origin.kind === "menu"
+          ? { menuEntryKey: visit.origin.entryKey }
+          : null,
+    });
+  }
+  function previewCurrent(ticket: TaskPreviewTicket) {
+    const visit = visitRef.current;
+    const live = controller.committed.getSnapshot().visible.data;
+    return (
+      !!visit &&
+      !!live &&
+      currentVisit({
+        visit,
+        selection: live.directory.selection,
+        connectionTicket: client.connectionTicket(),
+      }) &&
+      visit.lifetime.visitId === ticket.lifetime.visitId &&
+      visit.routeAttempt === ticket.routeAttempt &&
+      sameParentSelection(
+        visit.lifetime.selection,
+        ticket.lifetime.selection,
+      ) &&
+      live.application?.witness.activePackageHash === ticket.packageHash
+    );
+  }
+  function finishAdministration() {
+    const pending = pendingAdministration.current;
+    const live = controller.committed.getSnapshot().visible.data;
+    if (!pending || !live || controller.getState().operation.kind !== "idle")
+      return;
+    pendingAdministration.current = null;
+    const visit = visitRef.current;
+    if (
+      !visit ||
+      visit.lifetime.visitId !== pending.visit.lifetime.visitId ||
+      !currentLocation.current.pathname.startsWith("/parent/")
+    )
+      return;
+    if (
+      pending.after === "map" ||
+      !sameParentSelection(
+        live.directory.selection,
+        pending.visit.lifetime.selection,
+      )
+    ) {
+      setParentVisit(null);
+      navigate("/", { replace: true });
+      return;
+    }
+    if (pending.after === "profiles") navigateParent({ kind: "profiles" });
+    else if (live.directory.initialSetup.kind === "firstLaunch")
+      navigateParent({
+        kind: "initialProfile",
+        preferences: { avatarId: "rabbit" },
+      });
+    else if (
+      visit.destination.kind === "preparation" &&
+      visit.destination.continuation === "profiles"
+    )
+      navigateParent({ kind: "profiles" });
+  }
+  async function submitAdministration(
+    intent: ProfileAdministrationIntent,
+    after: ParentAfter,
+  ) {
+    const visit = visitRef.current;
+    if (
+      !visit ||
+      !selection ||
+      busy ||
+      !currentVisit({
+        visit,
+        selection,
+        connectionTicket: client.connectionTicket(),
+      })
+    )
+      return;
+    pendingAdministration.current = { visit, after };
+    const outcome = await controller.administer(intent);
+    if (outcome.kind === "visible" || outcome.kind === "resolved")
+      finishAdministration();
+  }
+  async function retryParent() {
+    const retained = controller.getState().operation;
+    await controller.retry();
+    if (retained.kind === "adminFailed" || retained.kind === "adoptionFailed") {
+      finishAdministration();
+      return;
+    }
+    pendingAdministration.current = null;
+    const live = controller.committed.getSnapshot().visible.data;
+    const visit = visitRef.current;
+    if (
+      !live ||
+      !visit ||
+      controller.getState().operation.kind !== "idle" ||
+      !currentVisit({
+        visit,
+        selection: live.directory.selection,
+        connectionTicket: client.connectionTicket(),
+      })
+    )
+      return;
+    const destination = visit.destination;
+    if ("target" in destination) {
+      const target = live.directory.profiles.find(
+        (profile) =>
+          canonical(profile.edit.owner) === canonical(destination.target.owner),
+      );
+      if (target)
+        setParentVisit({
+          ...visit,
+          destination: { ...destination, target: target.edit },
+        });
+    }
+  }
   useEffect(() => {
     if (blocker.state !== "blocked") return;
     let active = true;
@@ -170,8 +522,10 @@ function ApplicationShell() {
     if (busy || saveError) return;
     const ticket = ++entryAttempt.current;
     const origin = location.key;
-    const owner = ownerKey;
-    pendingEntry.current = { origin, owner };
+    if (!selection) return;
+    const selected = selection;
+    const connection = client.connectionTicket();
+    pendingEntry.current = { origin, selection: selected, connection };
     const lesson = read?.course.lessons.find((lesson) =>
       lesson.tasks.some((task) => task.id === action.intent.taskId),
     );
@@ -187,7 +541,9 @@ function ApplicationShell() {
       if (
         saved &&
         currentLocation.current.key === origin &&
-        owner === ownerRef.current
+        lifetimeRef.current.selection &&
+        sameParentSelection(selected, lifetimeRef.current.selection) &&
+        connection === client.connectionTicket()
       ) {
         pendingEntry.current = null;
         navigate("/teaching");
@@ -201,7 +557,9 @@ function ApplicationShell() {
       pending &&
       controller.getState().operation.kind === "idle" &&
       currentLocation.current.key === pending.origin &&
-      ownerRef.current === pending.owner
+      lifetimeRef.current.selection &&
+      sameParentSelection(lifetimeRef.current.selection, pending.selection) &&
+      client.connectionTicket() === pending.connection
     ) {
       pendingEntry.current = null;
       navigate("/teaching");
@@ -238,7 +596,14 @@ function ApplicationShell() {
     (operation.kind === "openingFailed"
       ? { code: "storage-initialization-failed", message: operation.message }
       : null);
-  if (!projection || !read || !selection || recovery)
+  if (
+    !projection ||
+    !read ||
+    !selection ||
+    !directory ||
+    !selectedProfile ||
+    recovery
+  )
     screen = (
       <RecoveryScreen
         recovery={recovery}
@@ -248,10 +613,119 @@ function ApplicationShell() {
       />
     );
   else if (!supported) screen = <WindowRecovery busy={busy} />;
+  else if (committedSwitch)
+    screen = (
+      <main className="course-screen course-parent">
+        <section className="course-message">
+          <h1>
+            <AddedText>Restoring the selected child's saved work</AddedText>
+          </h1>
+          <p>
+            <AddedText>
+              The child change is saved. Reading and writing stay paused until
+              restoration finishes.
+            </AddedText>
+          </p>
+          {operation.kind === "adoptionFailed" ? (
+            <Button
+              className="course-primary"
+              onClick={() => void retryParent()}
+            >
+              <AddedText>Retry restoration</AddedText>
+            </Button>
+          ) : null}
+        </section>
+      </main>
+    );
+  else if (
+    parentPath &&
+    validVisit &&
+    parentRouteAllowed(validVisit, location.pathname)
+  )
+    screen = (
+      <ParentScreens
+        visit={validVisit}
+        directory={directory}
+        preparation={client.readPreparation().availability}
+        packageHash={read.witness.activePackageHash}
+        busy={busy || saveError !== null}
+        onGrant={() => {
+          const visit = visitRef.current;
+          if (
+            !visit ||
+            !currentVisit({
+              visit,
+              selection,
+              connectionTicket: client.connectionTicket(),
+            })
+          )
+            return;
+          const destination =
+            directory.initialSetup.kind === "firstLaunch"
+              ? directory.preparation.kind === "acknowledged"
+                ? ({
+                    kind: "initialProfile",
+                    preferences: { avatarId: "rabbit" },
+                  } satisfies ParentDestination)
+                : ({
+                    kind: "preparation",
+                    continuation: "initialProfile",
+                  } satisfies ParentDestination)
+              : directory.preparation.kind !== "acknowledged" &&
+                  visit.destination.kind !== "settings" &&
+                  visit.destination.kind !== "preparation"
+                ? ({
+                    kind: "preparation",
+                    continuation: "profiles",
+                  } satisfies ParentDestination)
+                : visit.destination;
+          setParentVisit({
+            ...visit,
+            gate: { kind: "granted" },
+            destination,
+            routeAttempt: visit.routeAttempt + 1,
+          });
+          navigate(parentAddress(destination), { replace: true });
+        }}
+        onNavigate={navigateParent}
+        onDraft={(destination) =>
+          setParentVisit((visit) => (visit ? { ...visit, destination } : null))
+        }
+        onReturn={returnFromParents}
+        onSubmit={(intent, after) => void submitAdministration(intent, after)}
+        connectionTicket={client.connectionTicket}
+        isCurrent={previewCurrent}
+      />
+    );
+  else if (directory.initialSetup.kind === "firstLaunch" || parentPath)
+    screen = (
+      <main className="course-screen">
+        <p role="status">
+          <AddedText>Opening parent access…</AddedText>
+        </p>
+      </main>
+    );
   else if (location.pathname === "/")
-    screen = <LessonMap read={read} onEntry={enter} busy={busy} />;
+    screen = (
+      <LessonMap
+        read={read}
+        onEntry={enter}
+        busy={busy}
+        profile={selectedProfile}
+        onParents={openParents}
+      />
+    );
   else if (location.pathname.startsWith("/lessons/"))
-    screen = <LessonMenu read={read} onEntry={enter} busy={busy} />;
+    screen = (
+      <LessonMenu
+        read={read}
+        onEntry={enter}
+        busy={busy}
+        profile={selectedProfile}
+        onParents={openParents}
+        navigationLifetime={canonical([selection, connection])}
+      />
+    );
   else if (location.pathname === "/teaching")
     screen =
       projection.kind === "entry" || projection.kind === "recovery" ? (
@@ -274,33 +748,25 @@ function ApplicationShell() {
             )?.number ?? 1
           }
           inputSuspended={state.inputSuspended}
+          parentAccess={
+            <ProfileButton
+              profile={selectedProfile}
+              disabled={busy}
+              onClick={() => openParents("profiles")}
+            />
+          }
         />
       );
   else if (location.pathname.startsWith("/work/"))
     screen = (
-      <SavedWorkScreen read={read} client={client} selection={selection} />
-    );
-  else if (location.pathname === "/parent/gate")
-    screen = (
-      <ParentGate
-        owner={read.witness.owner}
-        onGrant={(owner: Owner) => {
-          grant.current = {
-            owner: canonical(owner),
-            destination: "/parent/settings",
-          };
-          navigate("/parent/settings", { replace: true });
-        }}
+      <SavedWorkScreen
+        read={read}
+        client={client}
+        selection={selection}
+        profile={selectedProfile}
+        onParents={openParents}
       />
     );
-  else if (location.pathname === "/parent/settings")
-    screen =
-      grant.current?.owner === ownerKey &&
-      grant.current.destination === "/parent/settings" ? (
-        <ParentSettings />
-      ) : (
-        <Navigate to="/parent/gate" replace />
-      );
   else screen = <Unavailable title="Page unavailable" />;
   return (
     <>
@@ -330,10 +796,25 @@ function ApplicationShell() {
       ) : saveError && location.pathname !== "/teaching" ? (
         <aside className="course-navigation-status" role="alert">
           <p>
-            <AddedText>{saveError}</AddedText>
+            <AddedText>
+              {operation.kind === "adoptionFailed"
+                ? "This change is saved. Retry to restore the committed profile and saved work."
+                : saveError}
+            </AddedText>
           </p>
-          <Button className="course-primary" onClick={() => void retryEntry()}>
-            <AddedText>Retry save</AddedText>
+          <Button
+            className="course-primary"
+            onClick={() =>
+              void (pendingAdministration.current
+                ? retryParent()
+                : retryEntry())
+            }
+          >
+            <AddedText>
+              {operation.kind === "adoptionFailed"
+                ? "Retry restoration"
+                : "Retry save"}
+            </AddedText>
           </Button>
         </aside>
       ) : null}
@@ -350,6 +831,7 @@ const router = createBrowserRouter([
       { path: "/work/:runId", element: <></> },
       { path: "/parent/gate", element: <></> },
       { path: "/parent/settings", element: <></> },
+      { path: "/parent/*", element: <></> },
       { path: "*", element: <></> },
     ],
   },
