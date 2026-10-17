@@ -392,6 +392,7 @@ test("Help projects only the applicable immutable correction without changing sa
   assert("correctionPreview" in help);
   assert.equal(help.correctionPreview.id, "support-m");
   assert.equal(help.correctionPreview.kind, "correction");
+  assert("glyph" in help.correctionPreview);
   assert.equal(help.correctionPreview.glyph, "m");
   assert.deepEqual(help.correctionPreview.sourceRefs, ["synthetic-source"]);
   assert.deepEqual(

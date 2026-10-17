@@ -1,3 +1,4 @@
+import { validateBoardNode, resolvePrintedPresentation } from "./printed.ts";
 import { guidanceCopies, requirePlainGuidance } from "./guidance.ts";
 import type { RuntimePackage } from "./course-content.ts";
 import { resolvedTask } from "./course-content.ts";
@@ -34,7 +35,8 @@ import type {
   CommitReceipt,
   Counter,
   GraphTask,
-  GraphNode,
+  BoardTask,
+  PrintedNode,
   CorrectionSpec,
   TaskId,
   CorrectionId,
@@ -187,6 +189,23 @@ export function parseProjection(
         for (const token of input.documents) parseDocumentToken(token);
     }
   }
+  if (input.kind !== "recovery") {
+    if (
+      input.kind === "teaching" &&
+      "presentation" in input.turn &&
+      input.turn.presentation.kind === "printedBoard" &&
+      input.turn.kind !== "turn"
+    )
+      validateBoardNode(input.turn);
+    for (const action of input.actions)
+      if (
+        "correctionPreview" in action &&
+        "presentation" in action.correctionPreview &&
+        action.correctionPreview.presentation.kind === "printedBoard" &&
+        action.correctionPreview.kind !== "turn"
+      )
+        validateBoardNode(action.correctionPreview);
+  }
   return deepFreeze(input);
 }
 export function parseDispatchResult(
@@ -202,16 +221,34 @@ export function parseDispatchResult(
 }
 
 export type CompiledTask = Readonly<{
-  task: GraphTask;
-  nodes: ReadonlyMap<NodeId, GraphNode>;
+  task: GraphTask | BoardTask;
+  nodes: ReadonlyMap<NodeId, PrintedNode>;
   normalNodeIds: readonly NodeId[];
   corrections: ReadonlyMap<CorrectionId, CorrectionSpec>;
 }>;
-const compiledTasks = new WeakMap<GraphTask, CompiledTask>();
-export function compileTask(task: GraphTask): CompiledTask {
+const compiledTasks = new WeakMap<GraphTask | BoardTask, CompiledTask>();
+export function compileTask(task: GraphTask | BoardTask): CompiledTask {
   const cached = compiledTasks.get(task);
   if (cached) return cached;
-  const nodes = new Map(task.nodes.map((node) => [node.id, node]));
+  const nodes = new Map<NodeId, PrintedNode>(
+    task.nodes.map((node) => [node.id, node]),
+  );
+  const board = task.nodes.find((node) => "presentation" in node);
+  if (board && "presentation" in board) {
+    for (const node of task.nodes) {
+      if (
+        !("presentation" in node) ||
+        canonical(node.presentation.board) !==
+          canonical(board.presentation.board)
+      )
+        throw new Error("Printed task must retain one stable reviewed board");
+      if (
+        (node.kind === "correction") !==
+        (node.presentation.cue.kind === "none")
+      )
+        throw new Error("Only correction instructions are cue-free");
+    }
+  }
   if (nodes.size !== task.nodes.length) throw new Error("Duplicate graph node");
   const normalNodeIds: NodeId[] = [];
   let next: NodeId | null = task.startNodeId;
@@ -247,7 +284,7 @@ export function compileTask(task: GraphTask): CompiledTask {
         !eligible ||
         eligible.kind !== "normal" ||
         eligible.parentRole !== "listen" ||
-        eligible.glyph !== instruction.glyph
+        focusedGlyph(eligible) !== focusedGlyph(instruction)
       )
         throw new Error("Correction eligibility is invalid");
     }
@@ -279,6 +316,7 @@ export function compileTask(task: GraphTask): CompiledTask {
   )
     throw new Error("Unreachable correction instruction");
   for (const node of task.nodes) {
+    if ("presentation" in node) validateBoardNode(node);
     for (const span of node.guidance) {
       if (
         guidanceCopies(span).some(
@@ -300,11 +338,15 @@ export function graphTask(
   if (
     content.body.coverage === "course-development" ||
     content.body.coverage === "course-development-v2" ||
+    content.body.coverage === "course-development-v3" ||
     content.body.coverage === "lesson1-sounds-oral-complete" ||
     content.body.coverage === "lesson1-complete"
   ) {
     const entry = resolvedTask({ content, taskId })?.entry;
-    if (!entry || entry.kind !== "printedGraphV1")
+    if (
+      !entry ||
+      (entry.kind !== "printedGraphV1" && entry.kind !== "printedGraphV2")
+    )
       throw new Error("Printed task is not available in exact package");
     return compileTask(entry.task);
   }
@@ -325,6 +367,7 @@ export function taskDefinition({
   if (
     content.body.coverage === "course-development" ||
     content.body.coverage === "course-development-v2" ||
+    content.body.coverage === "course-development-v3" ||
     content.body.coverage === "lesson1-sounds-oral-complete" ||
     content.body.coverage === "lesson1-complete"
   ) {
@@ -358,4 +401,30 @@ export function controlTask({
   const entry = taskDefinition({ content, taskId });
   if (entry.kind !== "graphControls") throw new Error("Control task required");
   return entry.graph;
+}
+
+export function focusedGlyph(node: PrintedNode) {
+  return "presentation" in node ? node.presentation.focus : node.glyph;
+}
+export function projectPrintedPreview(node: PrintedNode): PrintedNode {
+  return "presentation" in node
+    ? { ...node, presentation: resolvePrintedPresentation(node.presentation) }
+    : node;
+}
+export function projectPrintedTurn({
+  node,
+  occurrence,
+  checkpoint,
+}: {
+  node: PrintedNode;
+  occurrence: import("./types.ts").Occurrence;
+  checkpoint: import("./types.ts").Checkpoint;
+}): import("./types.ts").GraphTurn | import("./types.ts").BoardTurn {
+  return {
+    ...projectPrintedPreview(node),
+    extraPractice: occurrence.kind !== "normal",
+    routeKind: checkpoint.context.kind,
+    occurrenceId: occurrence.id,
+    checkpointId: checkpoint.id,
+  };
 }

@@ -1,3 +1,4 @@
+import { printedBoardAssetHash } from "./printed-assets.ts";
 import { activityArtKeys } from "./course-art.ts";
 import {
   writingTaskSchema,
@@ -96,6 +97,37 @@ const graphNode = record({
     ],
   },
 });
+const boardPresentation = record({
+  kind: { const: "printedBoard" },
+  board: record({
+    assetId: { enum: ["single-a", "vertical-mas", "two-above-one-mas"] },
+    reviewId: { const: "printed-boards-l03-v1" },
+    assetHash: { const: printedBoardAssetHash },
+  }),
+  focus: { enum: ["m", "a", "s"] },
+  cue: {
+    oneOf: [
+      record({ kind: { const: "none" } }),
+      record({
+        kind: { const: "underSymbolHold" },
+        hold: { const: "parentControlled" },
+      }),
+      record({
+        kind: { const: "endpointSweep" },
+        preparation: { enum: ["touchStart", "parentControlledStartHold"] },
+      }),
+    ],
+  },
+});
+const {
+  glyph: _graphGlyph,
+  cue: _graphCue,
+  ...boardNodeFields
+} = graphNode.properties;
+const boardNode = record({
+  ...boardNodeFields,
+  presentation: boardPresentation,
+});
 const correction = record({
   id,
   eligibleNodeIds: { ...ids, minItems: 1 },
@@ -118,6 +150,10 @@ const graphTask = record({
   startNodeId: id,
   nodes: list(graphNode, 100, 1),
   corrections: list(correction, 100),
+});
+const boardTask = record({
+  ...graphTask.properties,
+  nodes: list(boardNode, 100, 1),
 });
 const packageCommon = {
   courseId: id,
@@ -427,7 +463,7 @@ const cumulativePackageV1Schema = record({
     ),
   }),
 });
-const cumulativePackageSchema = {
+const oldCumulativePackageSchema = {
   oneOf: [
     cumulativePackageV1Schema,
     {
@@ -484,6 +520,63 @@ const cumulativePackageSchema = {
       },
     },
   ],
+};
+const cumulativeV2 = oldCumulativePackageSchema.oneOf[1];
+if (!cumulativeV2 || !("properties" in cumulativeV2))
+  throw new Error("V2 schema missing");
+const v2Body = cumulativeV2.properties.body;
+const v2Lessons = v2Body.properties.lessons;
+const cumulativeV3 = {
+  ...cumulativeV2,
+  properties: {
+    ...cumulativeV2.properties,
+    body: {
+      ...v2Body,
+      properties: {
+        ...v2Body.properties,
+        coverage: { const: "course-development-v3" },
+        contentSchemaVersion: { const: 3 },
+        requiredEngineCapabilities: {
+          type: "array",
+          items: {
+            type: "string",
+            enum: [
+              "writing-practice-plan-v2",
+              "guidance-runs-v2",
+              "printed-board-cues-v2",
+            ],
+          },
+          minItems: 3,
+          maxItems: 3,
+          uniqueItems: true,
+        },
+        lessons: {
+          ...v2Lessons,
+          items: {
+            ...v2Lessons.items,
+            properties: {
+              ...v2Lessons.items.properties,
+              tasks: list(
+                {
+                  oneOf: [
+                    ...v2Lessons.items.properties.tasks.items.oneOf,
+                    record({
+                      kind: { const: "printedGraphV2" },
+                      task: boardTask,
+                    }),
+                  ],
+                },
+                100,
+              ),
+            },
+          },
+        },
+      },
+    },
+  },
+};
+const cumulativePackageSchema = {
+  oneOf: [...oldCumulativePackageSchema.oneOf, cumulativeV3],
 };
 const normalContext = record({ kind: { const: "normal" } });
 const repeatContext = record({
@@ -597,7 +690,7 @@ const action = {
     record({
       label: copy,
       intent: helpIntent,
-      correctionPreview: { oneOf: [graphNode, controlTurnNode] },
+      correctionPreview: { oneOf: [graphNode, boardNode, controlTurnNode] },
     }),
   ],
 };
@@ -709,6 +802,15 @@ const graphTurn = record({
   occurrenceId: id,
   checkpointId: id,
 });
+const boardTurn = record({
+  ...boardNode.properties,
+  extraPractice: { type: "boolean" },
+  routeKind: {
+    enum: ["normal", "repeat", "correctionInstruction", "correctionRetest"],
+  },
+  occurrenceId: id,
+  checkpointId: id,
+});
 const projectionSchema = {
   oneOf: [
     record({ ...commonProjection, kind: { const: "entry" } }),
@@ -719,6 +821,7 @@ const projectionSchema = {
         oneOf: [
           legacyNode,
           graphTurn,
+          boardTurn,
           record({
             ...controlTurnNode.properties,
             extraPractice: { type: "boolean" },

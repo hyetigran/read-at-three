@@ -1,9 +1,10 @@
+import { PrintedBoardActivity } from "./PrintedBoardActivity";
 import type {
   AvailableAction,
   CommittedProjection,
   Copy,
   GraphTurn,
-  GraphNode,
+  PrintedNode,
   TeachingNode,
   ControlTurn,
   ControlTurnNode,
@@ -25,7 +26,7 @@ import type { WritingController } from "@/platform/writing-controller";
 type TeachingScreenProps = {
   projection: CommittedProjection;
   writingController: WritingController;
-  correctionPreview: GraphNode | ControlTurnNode | null;
+  correctionPreview: PrintedNode | ControlTurnNode | null;
   busy: boolean;
   saveError: string | null;
   onAction: (action: AvailableAction) => void;
@@ -313,7 +314,7 @@ function SilentCue({
 }
 
 type DisplayedTurn =
-  TeachingNode | GraphTurn | GraphNode | ControlTurn | ControlTurnNode;
+  TeachingNode | GraphTurn | PrintedNode | ControlTurn | ControlTurnNode;
 
 const parentRoleLabels = {
   model: "Parent models",
@@ -414,6 +415,7 @@ function TeachingActivity({
   completed,
   disabled,
   cueKey,
+  retireCue,
   onAction,
 }: {
   turn: DisplayedTurn;
@@ -422,6 +424,7 @@ function TeachingActivity({
   completed: boolean;
   disabled: boolean;
   cueKey: string;
+  retireCue: import("react").RefObject<() => void>;
   onAction: TeachingScreenProps["onAction"];
 }) {
   const guidance = useRef<HTMLDivElement>(null);
@@ -434,6 +437,10 @@ function TeachingActivity({
       ? "minimumMs" in turn.cue
         ? turn.cue.minimumMs
         : turn.cue.durationMs
+      : null;
+  const board =
+    "presentation" in turn && turn.presentation.kind === "printedBoard"
+      ? turn.presentation
       : null;
   const oral = "presentation" in turn && turn.presentation.kind === "oral";
   const primary = mainAction(actions);
@@ -476,17 +483,39 @@ function TeachingActivity({
           tabIndex={0}
         >
           <TurnGuidance turn={turn} />
+          {board?.cue.kind === "endpointSweep" &&
+          board.cue.preparation === "parentControlledStartHold" ? (
+            <p>
+              <AddedText>
+                Hold the first ball while you get ready. Release to sweep to the
+                arrow end.
+              </AddedText>
+            </p>
+          ) : null}
         </div>
       </section>
       <section
         className="teaching-arena"
         aria-label={oral ? "Oral practice" : "Sound practice"}
-        data-presentation={oral ? "oral" : "printed"}
+        data-presentation={board ? "printedBoard" : oral ? "oral" : "printed"}
       >
-        <div className="teaching-target">
-          {"glyph" in turn ? <SoundGlyph glyph={turn.glyph} /> : <OralTarget />}
-        </div>
-        {oral ? (
+        {board ? (
+          <PrintedBoardActivity
+            key={cueKey}
+            presentation={board}
+            disabled={disabled || preview}
+            retire={retireCue}
+          />
+        ) : (
+          <div className="teaching-target">
+            {"glyph" in turn ? (
+              <SoundGlyph glyph={turn.glyph} />
+            ) : (
+              <OralTarget />
+            )}
+          </div>
+        )}
+        {board ? null : oral ? (
           <div className="teaching-cue teaching-oral-cue" aria-hidden="true" />
         ) : (
           <SilentCue key={cueKey} disabled={disabled} minimumMs={minimumMs} />
@@ -819,9 +848,11 @@ export function TeachingScreen({
     () => false,
   );
   const [cueGeneration, setCueGeneration] = useState(0);
+  const retireCue = useRef<() => void>(() => {});
   const disabled =
     busy || saveError !== null || correctionPreview !== null || inputSuspended;
   function act(action: AvailableAction) {
+    retireCue.current();
     setCueGeneration((generation) => generation + 1);
     onAction(action);
   }
@@ -852,7 +883,7 @@ export function TeachingScreen({
     );
     return (
       <main
-        className={`teaching-screen teaching-active${projection.kind === "writing" || projection.kind === "writingResult" ? " teaching-writing" : ""}`}
+        className={`teaching-screen teaching-active${projection.kind === "teaching" && "presentation" in projection.turn && projection.turn.presentation.kind === "printedBoard" ? " teaching-printed-board" : ""}${projection.kind === "writing" || projection.kind === "writingResult" ? " teaching-writing" : ""}`}
         aria-busy={busy}
         data-turn-id={
           displayedTurn?.id ??
@@ -900,6 +931,7 @@ export function TeachingScreen({
               className="teaching-button teaching-catalog-toggle"
               onClick={() => {
                 setCueGeneration((generation) => generation + 1);
+                retireCue.current();
                 onLessonMenu();
               }}
               disabled={busy}
@@ -924,6 +956,7 @@ export function TeachingScreen({
               projection.sessionId,
               projection.runId,
             ])}
+            retireCue={retireCue}
             cueKey={JSON.stringify([
               projection.owner.profileId,
               projection.owner.generation,

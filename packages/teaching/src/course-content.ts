@@ -39,6 +39,15 @@ export type CumulativeDevelopmentBody = CumulativeBodyFields &
   Readonly<
     | { coverage: "course-development" }
     | {
+        coverage: "course-development-v3";
+        contentSchemaVersion: 3;
+        requiredEngineCapabilities: readonly (
+          | "writing-practice-plan-v2"
+          | "guidance-runs-v2"
+          | "printed-board-cues-v2"
+        )[];
+      }
+    | {
         coverage: "course-development-v2";
         contentSchemaVersion: 2;
         requiredEngineCapabilities: readonly (
@@ -47,7 +56,8 @@ export type CumulativeDevelopmentBody = CumulativeBodyFields &
       }
   >;
 export function packageMetadata(content: RuntimePackage) {
-  return content.body.coverage === "course-development-v2"
+  return content.body.coverage === "course-development-v2" ||
+    content.body.coverage === "course-development-v3"
     ? {
         contentSchemaVersion: content.body.contentSchemaVersion,
         capabilities: content.body.requiredEngineCapabilities,
@@ -91,7 +101,8 @@ function resolveLessons(content: RuntimePackage): readonly ResolvedLesson[] {
   const body = content.body;
   if (
     body.coverage === "course-development" ||
-    body.coverage === "course-development-v2"
+    body.coverage === "course-development-v2" ||
+    body.coverage === "course-development-v3"
   )
     return body.lessons.map((lesson) => ({
       kind: "resolvedLesson",
@@ -226,6 +237,11 @@ export async function parseRuntimePackage(
         throw new Error("Cumulative task membership is invalid");
       seen.add(task.id);
       switch (entry.kind) {
+        case "printedGraphV2":
+          if (input.body.coverage !== "course-development-v3")
+            throw new Error("Printed boards require capability");
+          compileTask(entry.task);
+          break;
         case "printedGraphV1":
           compileTask(entry.task);
           break;
@@ -243,7 +259,10 @@ export async function parseRuntimePackage(
           compileWritingTask(entry.task);
           break;
         case "writingPracticePlanV2":
-          if (input.body.coverage !== "course-development-v2")
+          if (
+            input.body.coverage !== "course-development-v2" &&
+            input.body.coverage !== "course-development-v3"
+          )
             throw new Error("Writing plan requires capability");
           compileWritingPlan(entry.task);
           break;
@@ -265,7 +284,8 @@ export function cumulativeExtension({
 }): boolean {
   if (
     (candidate.body.coverage !== "course-development" &&
-      candidate.body.coverage !== "course-development-v2") ||
+      candidate.body.coverage !== "course-development-v2" &&
+      candidate.body.coverage !== "course-development-v3") ||
     previous.body.courseId !== candidate.body.courseId
   )
     return false;

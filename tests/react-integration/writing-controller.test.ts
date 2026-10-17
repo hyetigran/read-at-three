@@ -950,7 +950,7 @@ test("ordinary cold opening retains actual stored recovery through one held Retr
 test("failed cold opening exposes recovery without teaching or input and retries through the real replacement connection", async (t) => {
   const f = await controllerFixture(t, { deferOpen: true });
   const before = f.db.prepare("SELECT * FROM task_run ORDER BY run_id").all();
-  f.db.exec("PRAGMA user_version=11");
+  f.db.exec("PRAGMA user_version=12");
   f.lose();
   await f.controller.open();
   const state = f.controller.getState();
@@ -964,8 +964,8 @@ test("failed cold opening exposes recovery without teaching or input and retries
     f.db.prepare("SELECT * FROM task_run ORDER BY run_id").all(),
     before,
   );
-  assert.equal(f.db.prepare("PRAGMA user_version").get()?.user_version, 11);
-  f.db.exec("PRAGMA user_version=10");
+  assert.equal(f.db.prepare("PRAGMA user_version").get()?.user_version, 12);
+  f.db.exec("PRAGMA user_version=11");
   f.lose();
   await f.controller.retry();
   assert.equal(f.controller.getState().operation.kind, "idle");
