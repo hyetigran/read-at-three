@@ -568,28 +568,15 @@ export function evaluateGraph({
       throw new Error(`Unknown action ${String(exhaustive)}`);
     }
   }
-  const isComplete = required.every((entry) =>
-    after.acceptedOccurrenceIds.includes(entry.id),
-  );
   validatePosition(content, after);
   if (occurrenceId === null) return deepFreeze({ kind: "navigation", after });
-  if (!wasComplete && isComplete)
+  const completion = wasComplete ? null : graphCompletionProof(content, after);
+  if (completion !== null)
     return deepFreeze({
       kind: "completion",
       after,
       occurrenceId,
-      completion: {
-        taskId: state.taskId,
-        packageHash: content.packageHash,
-        requiredOccurrenceIds: required.map((entry) => entry.id),
-        sourceRefs: [
-          ...new Set(
-            graph.task.nodes
-              .filter((node) => node.kind === "normal")
-              .flatMap((node) => node.sourceRefs),
-          ),
-        ],
-      },
+      completion,
     });
   return deepFreeze({ kind: "acceptance", after, occurrenceId });
 }
@@ -671,6 +658,12 @@ export function completionProof(
 ): CompletionProof | null {
   validatePosition(content, state);
   if (state.kind !== "graph") return null;
+  return graphCompletionProof(content, state);
+}
+function graphCompletionProof(
+  content: DevelopmentPackage,
+  state: GraphTeachingState,
+): CompletionProof | null {
   const graph = graphTask(content, state.taskId);
   const required = graph.normalNodeIds.map((id) => normalOccurrence(state, id));
   if (required.some((entry) => !state.acceptedOccurrenceIds.includes(entry.id)))
