@@ -1,6 +1,6 @@
 # Issue 10 implementation evidence
 
-Issue #10 is in progress on `issue-10-child-profiles`, based on merged main `b251a02`. Commits `3ca6538`, `2e4ead5` and `75b678a` implement the directory foundation, profile administration and original portrait assets. Commit `dbc5daa` implements selected-owner operations and controller adoption. Preparation screens and avatar UI remain pending.
+Issue #10 is in progress on `issue-10-child-profiles`, based on merged main `b251a02`. Commits `3ca6538`, `2e4ead5` and `75b678a` implement the directory foundation, profile administration and original portrait assets. Commit `dbc5daa` implements selected-owner operations and controller adoption. The preparation compiler and provider are implemented. Preparation screens and avatar UI remain pending.
 
 ## Directory foundation
 
@@ -37,6 +37,18 @@ Warm recovery freezes complete declarations and resolves retained ink, teaching 
 The controller distinguishes a lost acknowledgement from failed restoration after a known commit. Retry preserves the original command or restores the already selected child without creating or selecting again. Directory, teaching, restored ink and controls publish together. Incoming controls retain the correct selected witness for subsequent queries. Tests exercise editing B during A's live contact, pre/post-COMMIT failures, Worker replacement, failed incoming ink restoration, superseded receipts, monotonic directory revisions, returned writing Undo and late callbacks.
 
 Root independently passes all 275 Node tests with zero failures or skips. Strict root, web and Worker checks, trusted-validator checks, migration checks and import boundaries pass against unchanged frozen working-tree bytes. Independent review reproduced two defects in controls publication and retained-receipt coherence; both have concrete failing and passing regressions. A subsequent comment-only cleanup removes generator notices through their emitters and proves every generated executable byte and SQL/checksum array unchanged. Browser migration compiles and collects all 82 existing tests; two unsupported-storage UI checks pass. Full teaching/writing browser execution awaits the validated preparation provider and legitimate setup flow. Production preparation remains explicitly unavailable at this checkpoint.
+
+## Preparation compiler and provider
+
+The portable preparation parser validates structured paragraphs, lists, tables, emphasis ranges, internal references and a complete inert SVG asset closure. Schema-derived boundaries, canonical body and review hashes, and an immutable verified document bind acknowledgement policy to the actual document. A fabricated reviewed flag cannot supply that policy. Missing or invalid preparation stays explicitly unavailable.
+
+The private compiler rechecks pinned source PDFs, transcriptions, reviewed spans, renders and diagrams. Its output contains nine sections, 70 selected parent references and 97 whole or sliced source-text fields. Root independently compares all 97 fields against the original reviewed records, including exact slices, source metadata and section order. Both SVG payloads remain byte-exact. Separate alteration checks reject changed composition, review, transcription and diagram inputs, plus a missing diagram. Original source and curriculum packages remain unchanged. This establishes engineering compilation, not content-publication approval.
+
+Vite serves and emits the same verified preparation resources. Public tests use an honestly synthetic, wholly app-origin document with actual body and review hashes. The browser and Worker independently verify the package before the existing application receives its preparation policy. Connection tickets retire late fetches and document availability. No database, migration, historical command or writer behavior changes in this unit.
+
+Root independently passes all 283 Node tests, with zero failures or skips, plus strict root, web and Worker checks. Trusted-validator, migration and import-boundary checks pass. The focused browser test passes against actual Worker and OPFS storage in both development and production builds. It acknowledges the exact verified document, confirms the existing anonymous child, starts teaching through public commands and reopens the saved state. Missing and invalid guidance preserve that established teaching and reject a new acknowledgement. Separate actual-client tests hold old fetches across connection replacement and confirm the replacement retains its selection and document. Local build checks preserve curriculum bytes and the complete preparation asset closure.
+
+These checks qualify the provider and Worker integration. Preparation presentation, onboarding, profile controls and the full existing teaching-browser suite remain pending. The earlier fixed-head saved-work comparison is not rerun for this provider-only change. Native, physical-device, offline-shell and publication qualification remain separate.
 
 ## Original portrait assets
 

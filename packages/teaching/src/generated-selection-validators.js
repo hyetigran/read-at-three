@@ -5192,7 +5192,20 @@ const schema37 = {
   discriminator: "kind",
   mapping: {
     openRecovery: {
-      properties: { id: { type: "string" }, content: {}, opening: {} },
+      properties: {
+        id: { type: "string" },
+        content: {},
+        preparation: {
+          discriminator: "kind",
+          mapping: {
+            unavailable: {
+              properties: { reason: { enum: ["missing", "invalid"] } },
+            },
+            available: { properties: { package: {} } },
+          },
+        },
+        opening: {},
+      },
     },
     readDirectory: { properties: { id: { type: "string" } } },
     read: {
@@ -5516,33 +5529,245 @@ function validate65(
           }
           errors++;
         }
-        for (const key0 in data) {
+        if (data.preparation !== undefined) {
+          let data1 = data.preparation;
+          let valid4 = false;
+          if (data1 && typeof data1 == "object" && !Array.isArray(data1)) {
+            const tag1 = data1.kind;
+            if (tag1 === undefined) {
+              const err3 = {
+                instancePath: instancePath + "/preparation",
+                schemaPath:
+                  "/mapping/openRecovery/properties/preparation/discriminator",
+                keyword: "discriminator",
+                params: { error: "tag", tag: "kind", tagValue: tag1 },
+                message: 'tag "kind" must be string',
+              };
+              if (vErrors === null) {
+                vErrors = [err3];
+              } else {
+                vErrors.push(err3);
+              }
+              errors++;
+            } else if (typeof tag1 == "string") {
+              if (tag1 === "unavailable") {
+                const _errs3 = errors;
+                let valid6 = false;
+                valid6 = true;
+                if (data1.reason !== undefined) {
+                  let data2 = data1.reason;
+                  if (!(
+                    typeof data2 == "string" &&
+                    (data2 === "missing" || data2 === "invalid")
+                  )) {
+                    const err4 = {
+                      instancePath: instancePath + "/preparation/reason",
+                      schemaPath:
+                        "/mapping/openRecovery/properties/preparation/mapping/unavailable/properties/reason/enum",
+                      keyword: "enum",
+                      params: {
+                        allowedValues:
+                          schema37.mapping.openRecovery.properties.preparation
+                            .mapping.unavailable.properties.reason.enum,
+                      },
+                      message: "must be equal to one of the allowed values",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err4];
+                    } else {
+                      vErrors.push(err4);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err5 = {
+                    instancePath: instancePath + "/preparation",
+                    schemaPath:
+                      "/mapping/openRecovery/properties/preparation/mapping/unavailable/properties/reason",
+                    keyword: "properties",
+                    params: { error: "missing", missingProperty: "reason" },
+                    message: "must have property 'reason'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err5];
+                  } else {
+                    vErrors.push(err5);
+                  }
+                  errors++;
+                }
+                for (const key0 in data1) {
+                  if (key0 !== "kind" && key0 !== "reason") {
+                    const err6 = {
+                      instancePath:
+                        instancePath +
+                        "/preparation/" +
+                        key0.replace(/~/g, "~0").replace(/\//g, "~1"),
+                      schemaPath:
+                        "/mapping/openRecovery/properties/preparation/mapping/unavailable",
+                      keyword: "properties",
+                      params: { error: "additional", additionalProperty: key0 },
+                      message: "must NOT have additional properties",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err6];
+                    } else {
+                      vErrors.push(err6);
+                    }
+                    errors++;
+                  }
+                }
+                if (!valid6) {
+                  const err7 = {
+                    instancePath: instancePath + "/preparation",
+                    schemaPath:
+                      "/mapping/openRecovery/properties/preparation/mapping/unavailable/properties",
+                    keyword: "properties",
+                    params: { type: "object", nullable: false },
+                    message: "must be object",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err7];
+                  } else {
+                    vErrors.push(err7);
+                  }
+                  errors++;
+                }
+                var valid5 = _errs3 === errors;
+                valid4 = valid5;
+              } else if (tag1 === "available") {
+                const _errs5 = errors;
+                let valid10 = false;
+                valid10 = true;
+                for (const key1 in data1) {
+                  if (key1 !== "kind" && key1 !== "package") {
+                    const err8 = {
+                      instancePath:
+                        instancePath +
+                        "/preparation/" +
+                        key1.replace(/~/g, "~0").replace(/\//g, "~1"),
+                      schemaPath:
+                        "/mapping/openRecovery/properties/preparation/mapping/available",
+                      keyword: "properties",
+                      params: { error: "additional", additionalProperty: key1 },
+                      message: "must NOT have additional properties",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err8];
+                    } else {
+                      vErrors.push(err8);
+                    }
+                    errors++;
+                  }
+                }
+                if (!valid10) {
+                  const err9 = {
+                    instancePath: instancePath + "/preparation",
+                    schemaPath:
+                      "/mapping/openRecovery/properties/preparation/mapping/available/properties",
+                    keyword: "properties",
+                    params: { type: "object", nullable: false },
+                    message: "must be object",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err9];
+                  } else {
+                    vErrors.push(err9);
+                  }
+                  errors++;
+                }
+                var valid9 = _errs5 === errors;
+                valid4 = valid9;
+              } else {
+                const err10 = {
+                  instancePath: instancePath + "/preparation/kind",
+                  schemaPath:
+                    "/mapping/openRecovery/properties/preparation/mapping",
+                  keyword: "discriminator",
+                  params: { error: "mapping", tag: "kind", tagValue: tag1 },
+                  message: 'value of tag "kind" must be in mapping',
+                };
+                if (vErrors === null) {
+                  vErrors = [err10];
+                } else {
+                  vErrors.push(err10);
+                }
+                errors++;
+              }
+            } else {
+              const err11 = {
+                instancePath: instancePath + "/preparation/kind",
+                schemaPath:
+                  "/mapping/openRecovery/properties/preparation/discriminator",
+                keyword: "discriminator",
+                params: { error: "tag", tag: "kind", tagValue: tag1 },
+                message: 'tag "kind" must be string',
+              };
+              if (vErrors === null) {
+                vErrors = [err11];
+              } else {
+                vErrors.push(err11);
+              }
+              errors++;
+            }
+          } else if (!valid4) {
+            const err12 = {
+              instancePath: instancePath + "/preparation",
+              schemaPath:
+                "/mapping/openRecovery/properties/preparation/discriminator",
+              keyword: "discriminator",
+              params: { type: "object", nullable: false },
+              message: "must be object",
+            };
+            if (vErrors === null) {
+              vErrors = [err12];
+            } else {
+              vErrors.push(err12);
+            }
+            errors++;
+          }
+        } else {
+          const err13 = {
+            instancePath,
+            schemaPath: "/mapping/openRecovery/properties/preparation",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "preparation" },
+            message: "must have property 'preparation'",
+          };
+          if (vErrors === null) {
+            vErrors = [err13];
+          } else {
+            vErrors.push(err13);
+          }
+          errors++;
+        }
+        for (const key2 in data) {
           if (
-            key0 !== "kind" &&
-            key0 !== "id" &&
-            key0 !== "content" &&
-            key0 !== "opening"
+            key2 !== "kind" &&
+            key2 !== "id" &&
+            key2 !== "content" &&
+            key2 !== "preparation" &&
+            key2 !== "opening"
           ) {
-            const err3 = {
+            const err14 = {
               instancePath:
                 instancePath +
                 "/" +
-                key0.replace(/~/g, "~0").replace(/\//g, "~1"),
+                key2.replace(/~/g, "~0").replace(/\//g, "~1"),
               schemaPath: "/mapping/openRecovery",
               keyword: "properties",
-              params: { error: "additional", additionalProperty: key0 },
+              params: { error: "additional", additionalProperty: key2 },
               message: "must NOT have additional properties",
             };
             if (vErrors === null) {
-              vErrors = [err3];
+              vErrors = [err14];
             } else {
-              vErrors.push(err3);
+              vErrors.push(err14);
             }
             errors++;
           }
         }
         if (!valid2) {
-          const err4 = {
+          const err15 = {
             instancePath,
             schemaPath: "/mapping/openRecovery/properties",
             keyword: "properties",
@@ -5550,21 +5775,21 @@ function validate65(
             message: "must be object",
           };
           if (vErrors === null) {
-            vErrors = [err4];
+            vErrors = [err15];
           } else {
-            vErrors.push(err4);
+            vErrors.push(err15);
           }
           errors++;
         }
         var valid1 = _errs0 === errors;
         valid0 = valid1;
       } else if (tag0 === "readDirectory") {
-        const _errs2 = errors;
-        let valid6 = false;
-        valid6 = true;
+        const _errs6 = errors;
+        let valid15 = false;
+        valid15 = true;
         if (data.id !== undefined) {
           if (!(typeof data.id == "string")) {
-            const err5 = {
+            const err16 = {
               instancePath: instancePath + "/id",
               schemaPath: "/mapping/readDirectory/properties/id/type",
               keyword: "type",
@@ -5572,14 +5797,14 @@ function validate65(
               message: "must be string",
             };
             if (vErrors === null) {
-              vErrors = [err5];
+              vErrors = [err16];
             } else {
-              vErrors.push(err5);
+              vErrors.push(err16);
             }
             errors++;
           }
         } else {
-          const err6 = {
+          const err17 = {
             instancePath,
             schemaPath: "/mapping/readDirectory/properties/id",
             keyword: "properties",
@@ -5587,34 +5812,34 @@ function validate65(
             message: "must have property 'id'",
           };
           if (vErrors === null) {
-            vErrors = [err6];
+            vErrors = [err17];
           } else {
-            vErrors.push(err6);
+            vErrors.push(err17);
           }
           errors++;
         }
-        for (const key1 in data) {
-          if (key1 !== "kind" && key1 !== "id") {
-            const err7 = {
+        for (const key3 in data) {
+          if (key3 !== "kind" && key3 !== "id") {
+            const err18 = {
               instancePath:
                 instancePath +
                 "/" +
-                key1.replace(/~/g, "~0").replace(/\//g, "~1"),
+                key3.replace(/~/g, "~0").replace(/\//g, "~1"),
               schemaPath: "/mapping/readDirectory",
               keyword: "properties",
-              params: { error: "additional", additionalProperty: key1 },
+              params: { error: "additional", additionalProperty: key3 },
               message: "must NOT have additional properties",
             };
             if (vErrors === null) {
-              vErrors = [err7];
+              vErrors = [err18];
             } else {
-              vErrors.push(err7);
+              vErrors.push(err18);
             }
             errors++;
           }
         }
-        if (!valid6) {
-          const err8 = {
+        if (!valid15) {
+          const err19 = {
             instancePath,
             schemaPath: "/mapping/readDirectory/properties",
             keyword: "properties",
@@ -5622,21 +5847,21 @@ function validate65(
             message: "must be object",
           };
           if (vErrors === null) {
-            vErrors = [err8];
+            vErrors = [err19];
           } else {
-            vErrors.push(err8);
+            vErrors.push(err19);
           }
           errors++;
         }
-        var valid5 = _errs2 === errors;
-        valid0 = valid5;
+        var valid14 = _errs6 === errors;
+        valid0 = valid14;
       } else if (tag0 === "read") {
-        const _errs4 = errors;
-        let valid10 = false;
-        valid10 = true;
+        const _errs8 = errors;
+        let valid19 = false;
+        valid19 = true;
         if (data.id !== undefined) {
           if (!(typeof data.id == "string")) {
-            const err9 = {
+            const err20 = {
               instancePath: instancePath + "/id",
               schemaPath: "/mapping/read/properties/id/type",
               keyword: "type",
@@ -5644,14 +5869,14 @@ function validate65(
               message: "must be string",
             };
             if (vErrors === null) {
-              vErrors = [err9];
+              vErrors = [err20];
             } else {
-              vErrors.push(err9);
+              vErrors.push(err20);
             }
             errors++;
           }
         } else {
-          const err10 = {
+          const err21 = {
             instancePath,
             schemaPath: "/mapping/read/properties/id",
             keyword: "properties",
@@ -5659,25 +5884,25 @@ function validate65(
             message: "must have property 'id'",
           };
           if (vErrors === null) {
-            vErrors = [err10];
+            vErrors = [err21];
           } else {
-            vErrors.push(err10);
+            vErrors.push(err21);
           }
           errors++;
         }
         if (data.input !== undefined) {
-          let data3 = data.input;
-          let valid12 = false;
-          if (data3 && typeof data3 == "object" && !Array.isArray(data3)) {
-            valid12 = true;
-            if (data3.selection !== undefined) {
-              let data4 = data3.selection;
-              let valid14 = false;
-              if (data4 && typeof data4 == "object" && !Array.isArray(data4)) {
-                valid14 = true;
-                if (data4.installationId !== undefined) {
-                  if (!(typeof data4.installationId == "string")) {
-                    const err11 = {
+          let data5 = data.input;
+          let valid21 = false;
+          if (data5 && typeof data5 == "object" && !Array.isArray(data5)) {
+            valid21 = true;
+            if (data5.selection !== undefined) {
+              let data6 = data5.selection;
+              let valid23 = false;
+              if (data6 && typeof data6 == "object" && !Array.isArray(data6)) {
+                valid23 = true;
+                if (data6.installationId !== undefined) {
+                  if (!(typeof data6.installationId == "string")) {
+                    const err22 = {
                       instancePath:
                         instancePath + "/input/selection/installationId",
                       schemaPath:
@@ -5687,14 +5912,14 @@ function validate65(
                       message: "must be string",
                     };
                     if (vErrors === null) {
-                      vErrors = [err11];
+                      vErrors = [err22];
                     } else {
-                      vErrors.push(err11);
+                      vErrors.push(err22);
                     }
                     errors++;
                   }
                 } else {
-                  const err12 = {
+                  const err23 = {
                     instancePath: instancePath + "/input/selection",
                     schemaPath:
                       "/mapping/read/properties/input/properties/selection/properties/installationId",
@@ -5706,15 +5931,15 @@ function validate65(
                     message: "must have property 'installationId'",
                   };
                   if (vErrors === null) {
-                    vErrors = [err12];
+                    vErrors = [err23];
                   } else {
-                    vErrors.push(err12);
+                    vErrors.push(err23);
                   }
                   errors++;
                 }
-                if (data4.revision !== undefined) {
-                  if (!(typeof data4.revision == "string")) {
-                    const err13 = {
+                if (data6.revision !== undefined) {
+                  if (!(typeof data6.revision == "string")) {
+                    const err24 = {
                       instancePath: instancePath + "/input/selection/revision",
                       schemaPath:
                         "/mapping/read/properties/input/properties/selection/properties/revision/type",
@@ -5723,14 +5948,14 @@ function validate65(
                       message: "must be string",
                     };
                     if (vErrors === null) {
-                      vErrors = [err13];
+                      vErrors = [err24];
                     } else {
-                      vErrors.push(err13);
+                      vErrors.push(err24);
                     }
                     errors++;
                   }
                 } else {
-                  const err14 = {
+                  const err25 = {
                     instancePath: instancePath + "/input/selection",
                     schemaPath:
                       "/mapping/read/properties/input/properties/selection/properties/revision",
@@ -5739,24 +5964,24 @@ function validate65(
                     message: "must have property 'revision'",
                   };
                   if (vErrors === null) {
-                    vErrors = [err14];
+                    vErrors = [err25];
                   } else {
-                    vErrors.push(err14);
+                    vErrors.push(err25);
                   }
                   errors++;
                 }
-                if (data4.owner !== undefined) {
-                  let data7 = data4.owner;
-                  let valid16 = false;
+                if (data6.owner !== undefined) {
+                  let data9 = data6.owner;
+                  let valid25 = false;
                   if (
-                    data7 &&
-                    typeof data7 == "object" &&
-                    !Array.isArray(data7)
+                    data9 &&
+                    typeof data9 == "object" &&
+                    !Array.isArray(data9)
                   ) {
-                    valid16 = true;
-                    if (data7.profileId !== undefined) {
-                      if (!(typeof data7.profileId == "string")) {
-                        const err15 = {
+                    valid25 = true;
+                    if (data9.profileId !== undefined) {
+                      if (!(typeof data9.profileId == "string")) {
+                        const err26 = {
                           instancePath:
                             instancePath + "/input/selection/owner/profileId",
                           schemaPath:
@@ -5766,14 +5991,14 @@ function validate65(
                           message: "must be string",
                         };
                         if (vErrors === null) {
-                          vErrors = [err15];
+                          vErrors = [err26];
                         } else {
-                          vErrors.push(err15);
+                          vErrors.push(err26);
                         }
                         errors++;
                       }
                     } else {
-                      const err16 = {
+                      const err27 = {
                         instancePath: instancePath + "/input/selection/owner",
                         schemaPath:
                           "/mapping/read/properties/input/properties/selection/properties/owner/properties/profileId",
@@ -5785,15 +6010,15 @@ function validate65(
                         message: "must have property 'profileId'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err16];
+                        vErrors = [err27];
                       } else {
-                        vErrors.push(err16);
+                        vErrors.push(err27);
                       }
                       errors++;
                     }
-                    if (data7.generation !== undefined) {
-                      if (!(typeof data7.generation == "string")) {
-                        const err17 = {
+                    if (data9.generation !== undefined) {
+                      if (!(typeof data9.generation == "string")) {
+                        const err28 = {
                           instancePath:
                             instancePath + "/input/selection/owner/generation",
                           schemaPath:
@@ -5803,14 +6028,14 @@ function validate65(
                           message: "must be string",
                         };
                         if (vErrors === null) {
-                          vErrors = [err17];
+                          vErrors = [err28];
                         } else {
-                          vErrors.push(err17);
+                          vErrors.push(err28);
                         }
                         errors++;
                       }
                     } else {
-                      const err18 = {
+                      const err29 = {
                         instancePath: instancePath + "/input/selection/owner",
                         schemaPath:
                           "/mapping/read/properties/input/properties/selection/properties/owner/properties/generation",
@@ -5822,165 +6047,21 @@ function validate65(
                         message: "must have property 'generation'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err18];
+                        vErrors = [err29];
                       } else {
-                        vErrors.push(err18);
+                        vErrors.push(err29);
                       }
                       errors++;
                     }
-                    for (const key2 in data7) {
-                      if (key2 !== "profileId" && key2 !== "generation") {
-                        const err19 = {
+                    for (const key4 in data9) {
+                      if (key4 !== "profileId" && key4 !== "generation") {
+                        const err30 = {
                           instancePath:
                             instancePath +
                             "/input/selection/owner/" +
-                            key2.replace(/~/g, "~0").replace(/\//g, "~1"),
-                          schemaPath:
-                            "/mapping/read/properties/input/properties/selection/properties/owner",
-                          keyword: "properties",
-                          params: {
-                            error: "additional",
-                            additionalProperty: key2,
-                          },
-                          message: "must NOT have additional properties",
-                        };
-                        if (vErrors === null) {
-                          vErrors = [err19];
-                        } else {
-                          vErrors.push(err19);
-                        }
-                        errors++;
-                      }
-                    }
-                  }
-                  if (!valid16) {
-                    const err20 = {
-                      instancePath: instancePath + "/input/selection/owner",
-                      schemaPath:
-                        "/mapping/read/properties/input/properties/selection/properties/owner/properties",
-                      keyword: "properties",
-                      params: { type: "object", nullable: false },
-                      message: "must be object",
-                    };
-                    if (vErrors === null) {
-                      vErrors = [err20];
-                    } else {
-                      vErrors.push(err20);
-                    }
-                    errors++;
-                  }
-                } else {
-                  const err21 = {
-                    instancePath: instancePath + "/input/selection",
-                    schemaPath:
-                      "/mapping/read/properties/input/properties/selection/properties/owner",
-                    keyword: "properties",
-                    params: { error: "missing", missingProperty: "owner" },
-                    message: "must have property 'owner'",
-                  };
-                  if (vErrors === null) {
-                    vErrors = [err21];
-                  } else {
-                    vErrors.push(err21);
-                  }
-                  errors++;
-                }
-                for (const key3 in data4) {
-                  if (
-                    key3 !== "installationId" &&
-                    key3 !== "revision" &&
-                    key3 !== "owner"
-                  ) {
-                    const err22 = {
-                      instancePath:
-                        instancePath +
-                        "/input/selection/" +
-                        key3.replace(/~/g, "~0").replace(/\//g, "~1"),
-                      schemaPath:
-                        "/mapping/read/properties/input/properties/selection",
-                      keyword: "properties",
-                      params: { error: "additional", additionalProperty: key3 },
-                      message: "must NOT have additional properties",
-                    };
-                    if (vErrors === null) {
-                      vErrors = [err22];
-                    } else {
-                      vErrors.push(err22);
-                    }
-                    errors++;
-                  }
-                }
-              }
-              if (!valid14) {
-                const err23 = {
-                  instancePath: instancePath + "/input/selection",
-                  schemaPath:
-                    "/mapping/read/properties/input/properties/selection/properties",
-                  keyword: "properties",
-                  params: { type: "object", nullable: false },
-                  message: "must be object",
-                };
-                if (vErrors === null) {
-                  vErrors = [err23];
-                } else {
-                  vErrors.push(err23);
-                }
-                errors++;
-              }
-            } else {
-              const err24 = {
-                instancePath: instancePath + "/input",
-                schemaPath:
-                  "/mapping/read/properties/input/properties/selection",
-                keyword: "properties",
-                params: { error: "missing", missingProperty: "selection" },
-                message: "must have property 'selection'",
-              };
-              if (vErrors === null) {
-                vErrors = [err24];
-              } else {
-                vErrors.push(err24);
-              }
-              errors++;
-            }
-            if (data3.target !== undefined) {
-              let data10 = data3.target;
-              let valid20 = false;
-              if (
-                data10 &&
-                typeof data10 == "object" &&
-                !Array.isArray(data10)
-              ) {
-                const tag1 = data10.kind;
-                if (tag1 === undefined) {
-                  const err25 = {
-                    instancePath: instancePath + "/input/target",
-                    schemaPath:
-                      "/mapping/read/properties/input/properties/target/discriminator",
-                    keyword: "discriminator",
-                    params: { error: "tag", tag: "kind", tagValue: tag1 },
-                    message: 'tag "kind" must be string',
-                  };
-                  if (vErrors === null) {
-                    vErrors = [err25];
-                  } else {
-                    vErrors.push(err25);
-                  }
-                  errors++;
-                } else if (typeof tag1 == "string") {
-                  if (tag1 === "cursor") {
-                    const _errs14 = errors;
-                    let valid22 = false;
-                    valid22 = true;
-                    for (const key4 in data10) {
-                      if (key4 !== "kind") {
-                        const err26 = {
-                          instancePath:
-                            instancePath +
-                            "/input/target/" +
                             key4.replace(/~/g, "~0").replace(/\//g, "~1"),
                           schemaPath:
-                            "/mapping/read/properties/input/properties/target/mapping/cursor",
+                            "/mapping/read/properties/input/properties/selection/properties/owner",
                           keyword: "properties",
                           params: {
                             error: "additional",
@@ -5989,151 +6070,80 @@ function validate65(
                           message: "must NOT have additional properties",
                         };
                         if (vErrors === null) {
-                          vErrors = [err26];
+                          vErrors = [err30];
                         } else {
-                          vErrors.push(err26);
+                          vErrors.push(err30);
                         }
                         errors++;
                       }
                     }
-                    if (!valid22) {
-                      const err27 = {
-                        instancePath: instancePath + "/input/target",
-                        schemaPath:
-                          "/mapping/read/properties/input/properties/target/mapping/cursor/properties",
-                        keyword: "properties",
-                        params: { type: "object", nullable: false },
-                        message: "must be object",
-                      };
-                      if (vErrors === null) {
-                        vErrors = [err27];
-                      } else {
-                        vErrors.push(err27);
-                      }
-                      errors++;
-                    }
-                    var valid21 = _errs14 === errors;
-                    valid20 = valid21;
-                  } else if (tag1 === "accepted") {
-                    const _errs15 = errors;
-                    let valid26 = false;
-                    valid26 = true;
-                    for (const key5 in data10) {
-                      if (key5 !== "kind" && key5 !== "receipt") {
-                        const err28 = {
-                          instancePath:
-                            instancePath +
-                            "/input/target/" +
-                            key5.replace(/~/g, "~0").replace(/\//g, "~1"),
-                          schemaPath:
-                            "/mapping/read/properties/input/properties/target/mapping/accepted",
-                          keyword: "properties",
-                          params: {
-                            error: "additional",
-                            additionalProperty: key5,
-                          },
-                          message: "must NOT have additional properties",
-                        };
-                        if (vErrors === null) {
-                          vErrors = [err28];
-                        } else {
-                          vErrors.push(err28);
-                        }
-                        errors++;
-                      }
-                    }
-                    if (!valid26) {
-                      const err29 = {
-                        instancePath: instancePath + "/input/target",
-                        schemaPath:
-                          "/mapping/read/properties/input/properties/target/mapping/accepted/properties",
-                        keyword: "properties",
-                        params: { type: "object", nullable: false },
-                        message: "must be object",
-                      };
-                      if (vErrors === null) {
-                        vErrors = [err29];
-                      } else {
-                        vErrors.push(err29);
-                      }
-                      errors++;
-                    }
-                    var valid25 = _errs15 === errors;
-                    valid20 = valid25;
-                  } else {
-                    const err30 = {
-                      instancePath: instancePath + "/input/target/kind",
+                  }
+                  if (!valid25) {
+                    const err31 = {
+                      instancePath: instancePath + "/input/selection/owner",
                       schemaPath:
-                        "/mapping/read/properties/input/properties/target/mapping",
-                      keyword: "discriminator",
-                      params: { error: "mapping", tag: "kind", tagValue: tag1 },
-                      message: 'value of tag "kind" must be in mapping',
+                        "/mapping/read/properties/input/properties/selection/properties/owner/properties",
+                      keyword: "properties",
+                      params: { type: "object", nullable: false },
+                      message: "must be object",
                     };
                     if (vErrors === null) {
-                      vErrors = [err30];
+                      vErrors = [err31];
                     } else {
-                      vErrors.push(err30);
+                      vErrors.push(err31);
                     }
                     errors++;
                   }
                 } else {
-                  const err31 = {
-                    instancePath: instancePath + "/input/target/kind",
+                  const err32 = {
+                    instancePath: instancePath + "/input/selection",
                     schemaPath:
-                      "/mapping/read/properties/input/properties/target/discriminator",
-                    keyword: "discriminator",
-                    params: { error: "tag", tag: "kind", tagValue: tag1 },
-                    message: 'tag "kind" must be string',
+                      "/mapping/read/properties/input/properties/selection/properties/owner",
+                    keyword: "properties",
+                    params: { error: "missing", missingProperty: "owner" },
+                    message: "must have property 'owner'",
                   };
                   if (vErrors === null) {
-                    vErrors = [err31];
+                    vErrors = [err32];
                   } else {
-                    vErrors.push(err31);
+                    vErrors.push(err32);
                   }
                   errors++;
                 }
-              } else if (!valid20) {
-                const err32 = {
-                  instancePath: instancePath + "/input/target",
+                for (const key5 in data6) {
+                  if (
+                    key5 !== "installationId" &&
+                    key5 !== "revision" &&
+                    key5 !== "owner"
+                  ) {
+                    const err33 = {
+                      instancePath:
+                        instancePath +
+                        "/input/selection/" +
+                        key5.replace(/~/g, "~0").replace(/\//g, "~1"),
+                      schemaPath:
+                        "/mapping/read/properties/input/properties/selection",
+                      keyword: "properties",
+                      params: { error: "additional", additionalProperty: key5 },
+                      message: "must NOT have additional properties",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err33];
+                    } else {
+                      vErrors.push(err33);
+                    }
+                    errors++;
+                  }
+                }
+              }
+              if (!valid23) {
+                const err34 = {
+                  instancePath: instancePath + "/input/selection",
                   schemaPath:
-                    "/mapping/read/properties/input/properties/target/discriminator",
-                  keyword: "discriminator",
+                    "/mapping/read/properties/input/properties/selection/properties",
+                  keyword: "properties",
                   params: { type: "object", nullable: false },
                   message: "must be object",
-                };
-                if (vErrors === null) {
-                  vErrors = [err32];
-                } else {
-                  vErrors.push(err32);
-                }
-                errors++;
-              }
-            } else {
-              const err33 = {
-                instancePath: instancePath + "/input",
-                schemaPath: "/mapping/read/properties/input/properties/target",
-                keyword: "properties",
-                params: { error: "missing", missingProperty: "target" },
-                message: "must have property 'target'",
-              };
-              if (vErrors === null) {
-                vErrors = [err33];
-              } else {
-                vErrors.push(err33);
-              }
-              errors++;
-            }
-            for (const key6 in data3) {
-              if (key6 !== "selection" && key6 !== "target") {
-                const err34 = {
-                  instancePath:
-                    instancePath +
-                    "/input/" +
-                    key6.replace(/~/g, "~0").replace(/\//g, "~1"),
-                  schemaPath: "/mapping/read/properties/input",
-                  keyword: "properties",
-                  params: { error: "additional", additionalProperty: key6 },
-                  message: "must NOT have additional properties",
                 };
                 if (vErrors === null) {
                   vErrors = [err34];
@@ -6142,134 +6152,147 @@ function validate65(
                 }
                 errors++;
               }
-            }
-          }
-          if (!valid12) {
-            const err35 = {
-              instancePath: instancePath + "/input",
-              schemaPath: "/mapping/read/properties/input/properties",
-              keyword: "properties",
-              params: { type: "object", nullable: false },
-              message: "must be object",
-            };
-            if (vErrors === null) {
-              vErrors = [err35];
             } else {
-              vErrors.push(err35);
+              const err35 = {
+                instancePath: instancePath + "/input",
+                schemaPath:
+                  "/mapping/read/properties/input/properties/selection",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "selection" },
+                message: "must have property 'selection'",
+              };
+              if (vErrors === null) {
+                vErrors = [err35];
+              } else {
+                vErrors.push(err35);
+              }
+              errors++;
             }
-            errors++;
-          }
-        } else {
-          const err36 = {
-            instancePath,
-            schemaPath: "/mapping/read/properties/input",
-            keyword: "properties",
-            params: { error: "missing", missingProperty: "input" },
-            message: "must have property 'input'",
-          };
-          if (vErrors === null) {
-            vErrors = [err36];
-          } else {
-            vErrors.push(err36);
-          }
-          errors++;
-        }
-        for (const key7 in data) {
-          if (key7 !== "kind" && key7 !== "id" && key7 !== "input") {
-            const err37 = {
-              instancePath:
-                instancePath +
-                "/" +
-                key7.replace(/~/g, "~0").replace(/\//g, "~1"),
-              schemaPath: "/mapping/read",
-              keyword: "properties",
-              params: { error: "additional", additionalProperty: key7 },
-              message: "must NOT have additional properties",
-            };
-            if (vErrors === null) {
-              vErrors = [err37];
-            } else {
-              vErrors.push(err37);
-            }
-            errors++;
-          }
-        }
-        if (!valid10) {
-          const err38 = {
-            instancePath,
-            schemaPath: "/mapping/read/properties",
-            keyword: "properties",
-            params: { type: "object", nullable: false },
-            message: "must be object",
-          };
-          if (vErrors === null) {
-            vErrors = [err38];
-          } else {
-            vErrors.push(err38);
-          }
-          errors++;
-        }
-        var valid9 = _errs4 === errors;
-        valid0 = valid9;
-      } else if (tag0 === "readWork") {
-        const _errs16 = errors;
-        let valid32 = false;
-        valid32 = true;
-        if (data.id !== undefined) {
-          if (!(typeof data.id == "string")) {
-            const err39 = {
-              instancePath: instancePath + "/id",
-              schemaPath: "/mapping/readWork/properties/id/type",
-              keyword: "type",
-              params: { type: "string", nullable: false },
-              message: "must be string",
-            };
-            if (vErrors === null) {
-              vErrors = [err39];
-            } else {
-              vErrors.push(err39);
-            }
-            errors++;
-          }
-        } else {
-          const err40 = {
-            instancePath,
-            schemaPath: "/mapping/readWork/properties/id",
-            keyword: "properties",
-            params: { error: "missing", missingProperty: "id" },
-            message: "must have property 'id'",
-          };
-          if (vErrors === null) {
-            vErrors = [err40];
-          } else {
-            vErrors.push(err40);
-          }
-          errors++;
-        }
-        if (data.input !== undefined) {
-          let data12 = data.input;
-          let valid34 = false;
-          if (data12 && typeof data12 == "object" && !Array.isArray(data12)) {
-            valid34 = true;
-            if (data12.selection !== undefined) {
-              let data13 = data12.selection;
-              let valid36 = false;
+            if (data5.target !== undefined) {
+              let data12 = data5.target;
+              let valid29 = false;
               if (
-                data13 &&
-                typeof data13 == "object" &&
-                !Array.isArray(data13)
+                data12 &&
+                typeof data12 == "object" &&
+                !Array.isArray(data12)
               ) {
-                valid36 = true;
-                if (data13.installationId !== undefined) {
-                  if (!(typeof data13.installationId == "string")) {
+                const tag2 = data12.kind;
+                if (tag2 === undefined) {
+                  const err36 = {
+                    instancePath: instancePath + "/input/target",
+                    schemaPath:
+                      "/mapping/read/properties/input/properties/target/discriminator",
+                    keyword: "discriminator",
+                    params: { error: "tag", tag: "kind", tagValue: tag2 },
+                    message: 'tag "kind" must be string',
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err36];
+                  } else {
+                    vErrors.push(err36);
+                  }
+                  errors++;
+                } else if (typeof tag2 == "string") {
+                  if (tag2 === "cursor") {
+                    const _errs18 = errors;
+                    let valid31 = false;
+                    valid31 = true;
+                    for (const key6 in data12) {
+                      if (key6 !== "kind") {
+                        const err37 = {
+                          instancePath:
+                            instancePath +
+                            "/input/target/" +
+                            key6.replace(/~/g, "~0").replace(/\//g, "~1"),
+                          schemaPath:
+                            "/mapping/read/properties/input/properties/target/mapping/cursor",
+                          keyword: "properties",
+                          params: {
+                            error: "additional",
+                            additionalProperty: key6,
+                          },
+                          message: "must NOT have additional properties",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err37];
+                        } else {
+                          vErrors.push(err37);
+                        }
+                        errors++;
+                      }
+                    }
+                    if (!valid31) {
+                      const err38 = {
+                        instancePath: instancePath + "/input/target",
+                        schemaPath:
+                          "/mapping/read/properties/input/properties/target/mapping/cursor/properties",
+                        keyword: "properties",
+                        params: { type: "object", nullable: false },
+                        message: "must be object",
+                      };
+                      if (vErrors === null) {
+                        vErrors = [err38];
+                      } else {
+                        vErrors.push(err38);
+                      }
+                      errors++;
+                    }
+                    var valid30 = _errs18 === errors;
+                    valid29 = valid30;
+                  } else if (tag2 === "accepted") {
+                    const _errs19 = errors;
+                    let valid35 = false;
+                    valid35 = true;
+                    for (const key7 in data12) {
+                      if (key7 !== "kind" && key7 !== "receipt") {
+                        const err39 = {
+                          instancePath:
+                            instancePath +
+                            "/input/target/" +
+                            key7.replace(/~/g, "~0").replace(/\//g, "~1"),
+                          schemaPath:
+                            "/mapping/read/properties/input/properties/target/mapping/accepted",
+                          keyword: "properties",
+                          params: {
+                            error: "additional",
+                            additionalProperty: key7,
+                          },
+                          message: "must NOT have additional properties",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err39];
+                        } else {
+                          vErrors.push(err39);
+                        }
+                        errors++;
+                      }
+                    }
+                    if (!valid35) {
+                      const err40 = {
+                        instancePath: instancePath + "/input/target",
+                        schemaPath:
+                          "/mapping/read/properties/input/properties/target/mapping/accepted/properties",
+                        keyword: "properties",
+                        params: { type: "object", nullable: false },
+                        message: "must be object",
+                      };
+                      if (vErrors === null) {
+                        vErrors = [err40];
+                      } else {
+                        vErrors.push(err40);
+                      }
+                      errors++;
+                    }
+                    var valid34 = _errs19 === errors;
+                    valid29 = valid34;
+                  } else {
                     const err41 = {
-                      instancePath:
-                        instancePath + "/input/selection/installationId",
+                      instancePath: instancePath + "/input/target/kind",
                       schemaPath:
-                        "/mapping/readWork/properties/input/properties/selection/properties/installationId/type",
-                      keyword: "type",
-                      params: { type: "string", nullable: false },
-                      message: "must be string",
+                        "/mapping/read/properties/input/properties/target/mapping",
+                      keyword: "discriminator",
+                      params: { error: "mapping", tag: "kind", tagValue: tag2 },
+                      message: 'value of tag "kind" must be in mapping',
                     };
                     if (vErrors === null) {
                       vErrors = [err41];
@@ -6280,6 +6303,208 @@ function validate65(
                   }
                 } else {
                   const err42 = {
+                    instancePath: instancePath + "/input/target/kind",
+                    schemaPath:
+                      "/mapping/read/properties/input/properties/target/discriminator",
+                    keyword: "discriminator",
+                    params: { error: "tag", tag: "kind", tagValue: tag2 },
+                    message: 'tag "kind" must be string',
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err42];
+                  } else {
+                    vErrors.push(err42);
+                  }
+                  errors++;
+                }
+              } else if (!valid29) {
+                const err43 = {
+                  instancePath: instancePath + "/input/target",
+                  schemaPath:
+                    "/mapping/read/properties/input/properties/target/discriminator",
+                  keyword: "discriminator",
+                  params: { type: "object", nullable: false },
+                  message: "must be object",
+                };
+                if (vErrors === null) {
+                  vErrors = [err43];
+                } else {
+                  vErrors.push(err43);
+                }
+                errors++;
+              }
+            } else {
+              const err44 = {
+                instancePath: instancePath + "/input",
+                schemaPath: "/mapping/read/properties/input/properties/target",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "target" },
+                message: "must have property 'target'",
+              };
+              if (vErrors === null) {
+                vErrors = [err44];
+              } else {
+                vErrors.push(err44);
+              }
+              errors++;
+            }
+            for (const key8 in data5) {
+              if (key8 !== "selection" && key8 !== "target") {
+                const err45 = {
+                  instancePath:
+                    instancePath +
+                    "/input/" +
+                    key8.replace(/~/g, "~0").replace(/\//g, "~1"),
+                  schemaPath: "/mapping/read/properties/input",
+                  keyword: "properties",
+                  params: { error: "additional", additionalProperty: key8 },
+                  message: "must NOT have additional properties",
+                };
+                if (vErrors === null) {
+                  vErrors = [err45];
+                } else {
+                  vErrors.push(err45);
+                }
+                errors++;
+              }
+            }
+          }
+          if (!valid21) {
+            const err46 = {
+              instancePath: instancePath + "/input",
+              schemaPath: "/mapping/read/properties/input/properties",
+              keyword: "properties",
+              params: { type: "object", nullable: false },
+              message: "must be object",
+            };
+            if (vErrors === null) {
+              vErrors = [err46];
+            } else {
+              vErrors.push(err46);
+            }
+            errors++;
+          }
+        } else {
+          const err47 = {
+            instancePath,
+            schemaPath: "/mapping/read/properties/input",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "input" },
+            message: "must have property 'input'",
+          };
+          if (vErrors === null) {
+            vErrors = [err47];
+          } else {
+            vErrors.push(err47);
+          }
+          errors++;
+        }
+        for (const key9 in data) {
+          if (key9 !== "kind" && key9 !== "id" && key9 !== "input") {
+            const err48 = {
+              instancePath:
+                instancePath +
+                "/" +
+                key9.replace(/~/g, "~0").replace(/\//g, "~1"),
+              schemaPath: "/mapping/read",
+              keyword: "properties",
+              params: { error: "additional", additionalProperty: key9 },
+              message: "must NOT have additional properties",
+            };
+            if (vErrors === null) {
+              vErrors = [err48];
+            } else {
+              vErrors.push(err48);
+            }
+            errors++;
+          }
+        }
+        if (!valid19) {
+          const err49 = {
+            instancePath,
+            schemaPath: "/mapping/read/properties",
+            keyword: "properties",
+            params: { type: "object", nullable: false },
+            message: "must be object",
+          };
+          if (vErrors === null) {
+            vErrors = [err49];
+          } else {
+            vErrors.push(err49);
+          }
+          errors++;
+        }
+        var valid18 = _errs8 === errors;
+        valid0 = valid18;
+      } else if (tag0 === "readWork") {
+        const _errs20 = errors;
+        let valid41 = false;
+        valid41 = true;
+        if (data.id !== undefined) {
+          if (!(typeof data.id == "string")) {
+            const err50 = {
+              instancePath: instancePath + "/id",
+              schemaPath: "/mapping/readWork/properties/id/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err50];
+            } else {
+              vErrors.push(err50);
+            }
+            errors++;
+          }
+        } else {
+          const err51 = {
+            instancePath,
+            schemaPath: "/mapping/readWork/properties/id",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "id" },
+            message: "must have property 'id'",
+          };
+          if (vErrors === null) {
+            vErrors = [err51];
+          } else {
+            vErrors.push(err51);
+          }
+          errors++;
+        }
+        if (data.input !== undefined) {
+          let data14 = data.input;
+          let valid43 = false;
+          if (data14 && typeof data14 == "object" && !Array.isArray(data14)) {
+            valid43 = true;
+            if (data14.selection !== undefined) {
+              let data15 = data14.selection;
+              let valid45 = false;
+              if (
+                data15 &&
+                typeof data15 == "object" &&
+                !Array.isArray(data15)
+              ) {
+                valid45 = true;
+                if (data15.installationId !== undefined) {
+                  if (!(typeof data15.installationId == "string")) {
+                    const err52 = {
+                      instancePath:
+                        instancePath + "/input/selection/installationId",
+                      schemaPath:
+                        "/mapping/readWork/properties/input/properties/selection/properties/installationId/type",
+                      keyword: "type",
+                      params: { type: "string", nullable: false },
+                      message: "must be string",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err52];
+                    } else {
+                      vErrors.push(err52);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err53 = {
                     instancePath: instancePath + "/input/selection",
                     schemaPath:
                       "/mapping/readWork/properties/input/properties/selection/properties/installationId",
@@ -6291,15 +6516,15 @@ function validate65(
                     message: "must have property 'installationId'",
                   };
                   if (vErrors === null) {
-                    vErrors = [err42];
+                    vErrors = [err53];
                   } else {
-                    vErrors.push(err42);
+                    vErrors.push(err53);
                   }
                   errors++;
                 }
-                if (data13.revision !== undefined) {
-                  if (!(typeof data13.revision == "string")) {
-                    const err43 = {
+                if (data15.revision !== undefined) {
+                  if (!(typeof data15.revision == "string")) {
+                    const err54 = {
                       instancePath: instancePath + "/input/selection/revision",
                       schemaPath:
                         "/mapping/readWork/properties/input/properties/selection/properties/revision/type",
@@ -6308,14 +6533,14 @@ function validate65(
                       message: "must be string",
                     };
                     if (vErrors === null) {
-                      vErrors = [err43];
+                      vErrors = [err54];
                     } else {
-                      vErrors.push(err43);
+                      vErrors.push(err54);
                     }
                     errors++;
                   }
                 } else {
-                  const err44 = {
+                  const err55 = {
                     instancePath: instancePath + "/input/selection",
                     schemaPath:
                       "/mapping/readWork/properties/input/properties/selection/properties/revision",
@@ -6324,24 +6549,24 @@ function validate65(
                     message: "must have property 'revision'",
                   };
                   if (vErrors === null) {
-                    vErrors = [err44];
+                    vErrors = [err55];
                   } else {
-                    vErrors.push(err44);
+                    vErrors.push(err55);
                   }
                   errors++;
                 }
-                if (data13.owner !== undefined) {
-                  let data16 = data13.owner;
-                  let valid38 = false;
+                if (data15.owner !== undefined) {
+                  let data18 = data15.owner;
+                  let valid47 = false;
                   if (
-                    data16 &&
-                    typeof data16 == "object" &&
-                    !Array.isArray(data16)
+                    data18 &&
+                    typeof data18 == "object" &&
+                    !Array.isArray(data18)
                   ) {
-                    valid38 = true;
-                    if (data16.profileId !== undefined) {
-                      if (!(typeof data16.profileId == "string")) {
-                        const err45 = {
+                    valid47 = true;
+                    if (data18.profileId !== undefined) {
+                      if (!(typeof data18.profileId == "string")) {
+                        const err56 = {
                           instancePath:
                             instancePath + "/input/selection/owner/profileId",
                           schemaPath:
@@ -6351,14 +6576,14 @@ function validate65(
                           message: "must be string",
                         };
                         if (vErrors === null) {
-                          vErrors = [err45];
+                          vErrors = [err56];
                         } else {
-                          vErrors.push(err45);
+                          vErrors.push(err56);
                         }
                         errors++;
                       }
                     } else {
-                      const err46 = {
+                      const err57 = {
                         instancePath: instancePath + "/input/selection/owner",
                         schemaPath:
                           "/mapping/readWork/properties/input/properties/selection/properties/owner/properties/profileId",
@@ -6370,15 +6595,15 @@ function validate65(
                         message: "must have property 'profileId'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err46];
+                        vErrors = [err57];
                       } else {
-                        vErrors.push(err46);
+                        vErrors.push(err57);
                       }
                       errors++;
                     }
-                    if (data16.generation !== undefined) {
-                      if (!(typeof data16.generation == "string")) {
-                        const err47 = {
+                    if (data18.generation !== undefined) {
+                      if (!(typeof data18.generation == "string")) {
+                        const err58 = {
                           instancePath:
                             instancePath + "/input/selection/owner/generation",
                           schemaPath:
@@ -6388,14 +6613,14 @@ function validate65(
                           message: "must be string",
                         };
                         if (vErrors === null) {
-                          vErrors = [err47];
+                          vErrors = [err58];
                         } else {
-                          vErrors.push(err47);
+                          vErrors.push(err58);
                         }
                         errors++;
                       }
                     } else {
-                      const err48 = {
+                      const err59 = {
                         instancePath: instancePath + "/input/selection/owner",
                         schemaPath:
                           "/mapping/readWork/properties/input/properties/selection/properties/owner/properties/generation",
@@ -6407,39 +6632,39 @@ function validate65(
                         message: "must have property 'generation'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err48];
+                        vErrors = [err59];
                       } else {
-                        vErrors.push(err48);
+                        vErrors.push(err59);
                       }
                       errors++;
                     }
-                    for (const key8 in data16) {
-                      if (key8 !== "profileId" && key8 !== "generation") {
-                        const err49 = {
+                    for (const key10 in data18) {
+                      if (key10 !== "profileId" && key10 !== "generation") {
+                        const err60 = {
                           instancePath:
                             instancePath +
                             "/input/selection/owner/" +
-                            key8.replace(/~/g, "~0").replace(/\//g, "~1"),
+                            key10.replace(/~/g, "~0").replace(/\//g, "~1"),
                           schemaPath:
                             "/mapping/readWork/properties/input/properties/selection/properties/owner",
                           keyword: "properties",
                           params: {
                             error: "additional",
-                            additionalProperty: key8,
+                            additionalProperty: key10,
                           },
                           message: "must NOT have additional properties",
                         };
                         if (vErrors === null) {
-                          vErrors = [err49];
+                          vErrors = [err60];
                         } else {
-                          vErrors.push(err49);
+                          vErrors.push(err60);
                         }
                         errors++;
                       }
                     }
                   }
-                  if (!valid38) {
-                    const err50 = {
+                  if (!valid47) {
+                    const err61 = {
                       instancePath: instancePath + "/input/selection/owner",
                       schemaPath:
                         "/mapping/readWork/properties/input/properties/selection/properties/owner/properties",
@@ -6448,14 +6673,14 @@ function validate65(
                       message: "must be object",
                     };
                     if (vErrors === null) {
-                      vErrors = [err50];
+                      vErrors = [err61];
                     } else {
-                      vErrors.push(err50);
+                      vErrors.push(err61);
                     }
                     errors++;
                   }
                 } else {
-                  const err51 = {
+                  const err62 = {
                     instancePath: instancePath + "/input/selection",
                     schemaPath:
                       "/mapping/readWork/properties/input/properties/selection/properties/owner",
@@ -6464,40 +6689,43 @@ function validate65(
                     message: "must have property 'owner'",
                   };
                   if (vErrors === null) {
-                    vErrors = [err51];
+                    vErrors = [err62];
                   } else {
-                    vErrors.push(err51);
+                    vErrors.push(err62);
                   }
                   errors++;
                 }
-                for (const key9 in data13) {
+                for (const key11 in data15) {
                   if (
-                    key9 !== "installationId" &&
-                    key9 !== "revision" &&
-                    key9 !== "owner"
+                    key11 !== "installationId" &&
+                    key11 !== "revision" &&
+                    key11 !== "owner"
                   ) {
-                    const err52 = {
+                    const err63 = {
                       instancePath:
                         instancePath +
                         "/input/selection/" +
-                        key9.replace(/~/g, "~0").replace(/\//g, "~1"),
+                        key11.replace(/~/g, "~0").replace(/\//g, "~1"),
                       schemaPath:
                         "/mapping/readWork/properties/input/properties/selection",
                       keyword: "properties",
-                      params: { error: "additional", additionalProperty: key9 },
+                      params: {
+                        error: "additional",
+                        additionalProperty: key11,
+                      },
                       message: "must NOT have additional properties",
                     };
                     if (vErrors === null) {
-                      vErrors = [err52];
+                      vErrors = [err63];
                     } else {
-                      vErrors.push(err52);
+                      vErrors.push(err63);
                     }
                     errors++;
                   }
                 }
               }
-              if (!valid36) {
-                const err53 = {
+              if (!valid45) {
+                const err64 = {
                   instancePath: instancePath + "/input/selection",
                   schemaPath:
                     "/mapping/readWork/properties/input/properties/selection/properties",
@@ -6506,14 +6734,14 @@ function validate65(
                   message: "must be object",
                 };
                 if (vErrors === null) {
-                  vErrors = [err53];
+                  vErrors = [err64];
                 } else {
-                  vErrors.push(err53);
+                  vErrors.push(err64);
                 }
                 errors++;
               }
             } else {
-              const err54 = {
+              const err65 = {
                 instancePath: instancePath + "/input",
                 schemaPath:
                   "/mapping/readWork/properties/input/properties/selection",
@@ -6522,15 +6750,15 @@ function validate65(
                 message: "must have property 'selection'",
               };
               if (vErrors === null) {
-                vErrors = [err54];
+                vErrors = [err65];
               } else {
-                vErrors.push(err54);
+                vErrors.push(err65);
               }
               errors++;
             }
-            if (data12.runId !== undefined) {
-              if (!(typeof data12.runId == "string")) {
-                const err55 = {
+            if (data14.runId !== undefined) {
+              if (!(typeof data14.runId == "string")) {
+                const err66 = {
                   instancePath: instancePath + "/input/runId",
                   schemaPath:
                     "/mapping/readWork/properties/input/properties/runId/type",
@@ -6539,14 +6767,14 @@ function validate65(
                   message: "must be string",
                 };
                 if (vErrors === null) {
-                  vErrors = [err55];
+                  vErrors = [err66];
                 } else {
-                  vErrors.push(err55);
+                  vErrors.push(err66);
                 }
                 errors++;
               }
             } else {
-              const err56 = {
+              const err67 = {
                 instancePath: instancePath + "/input",
                 schemaPath:
                   "/mapping/readWork/properties/input/properties/runId",
@@ -6555,35 +6783,35 @@ function validate65(
                 message: "must have property 'runId'",
               };
               if (vErrors === null) {
-                vErrors = [err56];
+                vErrors = [err67];
               } else {
-                vErrors.push(err56);
+                vErrors.push(err67);
               }
               errors++;
             }
-            for (const key10 in data12) {
-              if (key10 !== "selection" && key10 !== "runId") {
-                const err57 = {
+            for (const key12 in data14) {
+              if (key12 !== "selection" && key12 !== "runId") {
+                const err68 = {
                   instancePath:
                     instancePath +
                     "/input/" +
-                    key10.replace(/~/g, "~0").replace(/\//g, "~1"),
+                    key12.replace(/~/g, "~0").replace(/\//g, "~1"),
                   schemaPath: "/mapping/readWork/properties/input",
                   keyword: "properties",
-                  params: { error: "additional", additionalProperty: key10 },
+                  params: { error: "additional", additionalProperty: key12 },
                   message: "must NOT have additional properties",
                 };
                 if (vErrors === null) {
-                  vErrors = [err57];
+                  vErrors = [err68];
                 } else {
-                  vErrors.push(err57);
+                  vErrors.push(err68);
                 }
                 errors++;
               }
             }
           }
-          if (!valid34) {
-            const err58 = {
+          if (!valid43) {
+            const err69 = {
               instancePath: instancePath + "/input",
               schemaPath: "/mapping/readWork/properties/input/properties",
               keyword: "properties",
@@ -6591,14 +6819,14 @@ function validate65(
               message: "must be object",
             };
             if (vErrors === null) {
-              vErrors = [err58];
+              vErrors = [err69];
             } else {
-              vErrors.push(err58);
+              vErrors.push(err69);
             }
             errors++;
           }
         } else {
-          const err59 = {
+          const err70 = {
             instancePath,
             schemaPath: "/mapping/readWork/properties/input",
             keyword: "properties",
@@ -6606,34 +6834,34 @@ function validate65(
             message: "must have property 'input'",
           };
           if (vErrors === null) {
-            vErrors = [err59];
+            vErrors = [err70];
           } else {
-            vErrors.push(err59);
+            vErrors.push(err70);
           }
           errors++;
         }
-        for (const key11 in data) {
-          if (key11 !== "kind" && key11 !== "id" && key11 !== "input") {
-            const err60 = {
+        for (const key13 in data) {
+          if (key13 !== "kind" && key13 !== "id" && key13 !== "input") {
+            const err71 = {
               instancePath:
                 instancePath +
                 "/" +
-                key11.replace(/~/g, "~0").replace(/\//g, "~1"),
+                key13.replace(/~/g, "~0").replace(/\//g, "~1"),
               schemaPath: "/mapping/readWork",
               keyword: "properties",
-              params: { error: "additional", additionalProperty: key11 },
+              params: { error: "additional", additionalProperty: key13 },
               message: "must NOT have additional properties",
             };
             if (vErrors === null) {
-              vErrors = [err60];
+              vErrors = [err71];
             } else {
-              vErrors.push(err60);
+              vErrors.push(err71);
             }
             errors++;
           }
         }
-        if (!valid32) {
-          const err61 = {
+        if (!valid41) {
+          const err72 = {
             instancePath,
             schemaPath: "/mapping/readWork/properties",
             keyword: "properties",
@@ -6641,21 +6869,21 @@ function validate65(
             message: "must be object",
           };
           if (vErrors === null) {
-            vErrors = [err61];
+            vErrors = [err72];
           } else {
-            vErrors.push(err61);
+            vErrors.push(err72);
           }
           errors++;
         }
-        var valid31 = _errs16 === errors;
-        valid0 = valid31;
+        var valid40 = _errs20 === errors;
+        valid0 = valid40;
       } else if (tag0 === "readInk") {
-        const _errs26 = errors;
-        let valid45 = false;
-        valid45 = true;
+        const _errs30 = errors;
+        let valid54 = false;
+        valid54 = true;
         if (data.id !== undefined) {
           if (!(typeof data.id == "string")) {
-            const err62 = {
+            const err73 = {
               instancePath: instancePath + "/id",
               schemaPath: "/mapping/readInk/properties/id/type",
               keyword: "type",
@@ -6663,14 +6891,14 @@ function validate65(
               message: "must be string",
             };
             if (vErrors === null) {
-              vErrors = [err62];
+              vErrors = [err73];
             } else {
-              vErrors.push(err62);
+              vErrors.push(err73);
             }
             errors++;
           }
         } else {
-          const err63 = {
+          const err74 = {
             instancePath,
             schemaPath: "/mapping/readInk/properties/id",
             keyword: "properties",
@@ -6678,29 +6906,29 @@ function validate65(
             message: "must have property 'id'",
           };
           if (vErrors === null) {
-            vErrors = [err63];
+            vErrors = [err74];
           } else {
-            vErrors.push(err63);
+            vErrors.push(err74);
           }
           errors++;
         }
         if (data.input !== undefined) {
-          let data21 = data.input;
-          let valid47 = false;
-          if (data21 && typeof data21 == "object" && !Array.isArray(data21)) {
-            valid47 = true;
-            if (data21.selection !== undefined) {
-              let data22 = data21.selection;
-              let valid49 = false;
+          let data23 = data.input;
+          let valid56 = false;
+          if (data23 && typeof data23 == "object" && !Array.isArray(data23)) {
+            valid56 = true;
+            if (data23.selection !== undefined) {
+              let data24 = data23.selection;
+              let valid58 = false;
               if (
-                data22 &&
-                typeof data22 == "object" &&
-                !Array.isArray(data22)
+                data24 &&
+                typeof data24 == "object" &&
+                !Array.isArray(data24)
               ) {
-                valid49 = true;
-                if (data22.installationId !== undefined) {
-                  if (!(typeof data22.installationId == "string")) {
-                    const err64 = {
+                valid58 = true;
+                if (data24.installationId !== undefined) {
+                  if (!(typeof data24.installationId == "string")) {
+                    const err75 = {
                       instancePath:
                         instancePath + "/input/selection/installationId",
                       schemaPath:
@@ -6710,14 +6938,14 @@ function validate65(
                       message: "must be string",
                     };
                     if (vErrors === null) {
-                      vErrors = [err64];
+                      vErrors = [err75];
                     } else {
-                      vErrors.push(err64);
+                      vErrors.push(err75);
                     }
                     errors++;
                   }
                 } else {
-                  const err65 = {
+                  const err76 = {
                     instancePath: instancePath + "/input/selection",
                     schemaPath:
                       "/mapping/readInk/properties/input/properties/selection/properties/installationId",
@@ -6729,15 +6957,15 @@ function validate65(
                     message: "must have property 'installationId'",
                   };
                   if (vErrors === null) {
-                    vErrors = [err65];
+                    vErrors = [err76];
                   } else {
-                    vErrors.push(err65);
+                    vErrors.push(err76);
                   }
                   errors++;
                 }
-                if (data22.revision !== undefined) {
-                  if (!(typeof data22.revision == "string")) {
-                    const err66 = {
+                if (data24.revision !== undefined) {
+                  if (!(typeof data24.revision == "string")) {
+                    const err77 = {
                       instancePath: instancePath + "/input/selection/revision",
                       schemaPath:
                         "/mapping/readInk/properties/input/properties/selection/properties/revision/type",
@@ -6746,14 +6974,14 @@ function validate65(
                       message: "must be string",
                     };
                     if (vErrors === null) {
-                      vErrors = [err66];
+                      vErrors = [err77];
                     } else {
-                      vErrors.push(err66);
+                      vErrors.push(err77);
                     }
                     errors++;
                   }
                 } else {
-                  const err67 = {
+                  const err78 = {
                     instancePath: instancePath + "/input/selection",
                     schemaPath:
                       "/mapping/readInk/properties/input/properties/selection/properties/revision",
@@ -6762,24 +6990,24 @@ function validate65(
                     message: "must have property 'revision'",
                   };
                   if (vErrors === null) {
-                    vErrors = [err67];
+                    vErrors = [err78];
                   } else {
-                    vErrors.push(err67);
+                    vErrors.push(err78);
                   }
                   errors++;
                 }
-                if (data22.owner !== undefined) {
-                  let data25 = data22.owner;
-                  let valid51 = false;
+                if (data24.owner !== undefined) {
+                  let data27 = data24.owner;
+                  let valid60 = false;
                   if (
-                    data25 &&
-                    typeof data25 == "object" &&
-                    !Array.isArray(data25)
+                    data27 &&
+                    typeof data27 == "object" &&
+                    !Array.isArray(data27)
                   ) {
-                    valid51 = true;
-                    if (data25.profileId !== undefined) {
-                      if (!(typeof data25.profileId == "string")) {
-                        const err68 = {
+                    valid60 = true;
+                    if (data27.profileId !== undefined) {
+                      if (!(typeof data27.profileId == "string")) {
+                        const err79 = {
                           instancePath:
                             instancePath + "/input/selection/owner/profileId",
                           schemaPath:
@@ -6789,14 +7017,14 @@ function validate65(
                           message: "must be string",
                         };
                         if (vErrors === null) {
-                          vErrors = [err68];
+                          vErrors = [err79];
                         } else {
-                          vErrors.push(err68);
+                          vErrors.push(err79);
                         }
                         errors++;
                       }
                     } else {
-                      const err69 = {
+                      const err80 = {
                         instancePath: instancePath + "/input/selection/owner",
                         schemaPath:
                           "/mapping/readInk/properties/input/properties/selection/properties/owner/properties/profileId",
@@ -6808,15 +7036,15 @@ function validate65(
                         message: "must have property 'profileId'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err69];
+                        vErrors = [err80];
                       } else {
-                        vErrors.push(err69);
+                        vErrors.push(err80);
                       }
                       errors++;
                     }
-                    if (data25.generation !== undefined) {
-                      if (!(typeof data25.generation == "string")) {
-                        const err70 = {
+                    if (data27.generation !== undefined) {
+                      if (!(typeof data27.generation == "string")) {
+                        const err81 = {
                           instancePath:
                             instancePath + "/input/selection/owner/generation",
                           schemaPath:
@@ -6826,14 +7054,14 @@ function validate65(
                           message: "must be string",
                         };
                         if (vErrors === null) {
-                          vErrors = [err70];
+                          vErrors = [err81];
                         } else {
-                          vErrors.push(err70);
+                          vErrors.push(err81);
                         }
                         errors++;
                       }
                     } else {
-                      const err71 = {
+                      const err82 = {
                         instancePath: instancePath + "/input/selection/owner",
                         schemaPath:
                           "/mapping/readInk/properties/input/properties/selection/properties/owner/properties/generation",
@@ -6845,39 +7073,39 @@ function validate65(
                         message: "must have property 'generation'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err71];
+                        vErrors = [err82];
                       } else {
-                        vErrors.push(err71);
+                        vErrors.push(err82);
                       }
                       errors++;
                     }
-                    for (const key12 in data25) {
-                      if (key12 !== "profileId" && key12 !== "generation") {
-                        const err72 = {
+                    for (const key14 in data27) {
+                      if (key14 !== "profileId" && key14 !== "generation") {
+                        const err83 = {
                           instancePath:
                             instancePath +
                             "/input/selection/owner/" +
-                            key12.replace(/~/g, "~0").replace(/\//g, "~1"),
+                            key14.replace(/~/g, "~0").replace(/\//g, "~1"),
                           schemaPath:
                             "/mapping/readInk/properties/input/properties/selection/properties/owner",
                           keyword: "properties",
                           params: {
                             error: "additional",
-                            additionalProperty: key12,
+                            additionalProperty: key14,
                           },
                           message: "must NOT have additional properties",
                         };
                         if (vErrors === null) {
-                          vErrors = [err72];
+                          vErrors = [err83];
                         } else {
-                          vErrors.push(err72);
+                          vErrors.push(err83);
                         }
                         errors++;
                       }
                     }
                   }
-                  if (!valid51) {
-                    const err73 = {
+                  if (!valid60) {
+                    const err84 = {
                       instancePath: instancePath + "/input/selection/owner",
                       schemaPath:
                         "/mapping/readInk/properties/input/properties/selection/properties/owner/properties",
@@ -6886,14 +7114,14 @@ function validate65(
                       message: "must be object",
                     };
                     if (vErrors === null) {
-                      vErrors = [err73];
+                      vErrors = [err84];
                     } else {
-                      vErrors.push(err73);
+                      vErrors.push(err84);
                     }
                     errors++;
                   }
                 } else {
-                  const err74 = {
+                  const err85 = {
                     instancePath: instancePath + "/input/selection",
                     schemaPath:
                       "/mapping/readInk/properties/input/properties/selection/properties/owner",
@@ -6902,43 +7130,43 @@ function validate65(
                     message: "must have property 'owner'",
                   };
                   if (vErrors === null) {
-                    vErrors = [err74];
+                    vErrors = [err85];
                   } else {
-                    vErrors.push(err74);
+                    vErrors.push(err85);
                   }
                   errors++;
                 }
-                for (const key13 in data22) {
+                for (const key15 in data24) {
                   if (
-                    key13 !== "installationId" &&
-                    key13 !== "revision" &&
-                    key13 !== "owner"
+                    key15 !== "installationId" &&
+                    key15 !== "revision" &&
+                    key15 !== "owner"
                   ) {
-                    const err75 = {
+                    const err86 = {
                       instancePath:
                         instancePath +
                         "/input/selection/" +
-                        key13.replace(/~/g, "~0").replace(/\//g, "~1"),
+                        key15.replace(/~/g, "~0").replace(/\//g, "~1"),
                       schemaPath:
                         "/mapping/readInk/properties/input/properties/selection",
                       keyword: "properties",
                       params: {
                         error: "additional",
-                        additionalProperty: key13,
+                        additionalProperty: key15,
                       },
                       message: "must NOT have additional properties",
                     };
                     if (vErrors === null) {
-                      vErrors = [err75];
+                      vErrors = [err86];
                     } else {
-                      vErrors.push(err75);
+                      vErrors.push(err86);
                     }
                     errors++;
                   }
                 }
               }
-              if (!valid49) {
-                const err76 = {
+              if (!valid58) {
+                const err87 = {
                   instancePath: instancePath + "/input/selection",
                   schemaPath:
                     "/mapping/readInk/properties/input/properties/selection/properties",
@@ -6947,14 +7175,14 @@ function validate65(
                   message: "must be object",
                 };
                 if (vErrors === null) {
-                  vErrors = [err76];
+                  vErrors = [err87];
                 } else {
-                  vErrors.push(err76);
+                  vErrors.push(err87);
                 }
                 errors++;
               }
             } else {
-              const err77 = {
+              const err88 = {
                 instancePath: instancePath + "/input",
                 schemaPath:
                   "/mapping/readInk/properties/input/properties/selection",
@@ -6963,35 +7191,35 @@ function validate65(
                 message: "must have property 'selection'",
               };
               if (vErrors === null) {
-                vErrors = [err77];
+                vErrors = [err88];
               } else {
-                vErrors.push(err77);
+                vErrors.push(err88);
               }
               errors++;
             }
-            for (const key14 in data21) {
-              if (key14 !== "selection" && key14 !== "token") {
-                const err78 = {
+            for (const key16 in data23) {
+              if (key16 !== "selection" && key16 !== "token") {
+                const err89 = {
                   instancePath:
                     instancePath +
                     "/input/" +
-                    key14.replace(/~/g, "~0").replace(/\//g, "~1"),
+                    key16.replace(/~/g, "~0").replace(/\//g, "~1"),
                   schemaPath: "/mapping/readInk/properties/input",
                   keyword: "properties",
-                  params: { error: "additional", additionalProperty: key14 },
+                  params: { error: "additional", additionalProperty: key16 },
                   message: "must NOT have additional properties",
                 };
                 if (vErrors === null) {
-                  vErrors = [err78];
+                  vErrors = [err89];
                 } else {
-                  vErrors.push(err78);
+                  vErrors.push(err89);
                 }
                 errors++;
               }
             }
           }
-          if (!valid47) {
-            const err79 = {
+          if (!valid56) {
+            const err90 = {
               instancePath: instancePath + "/input",
               schemaPath: "/mapping/readInk/properties/input/properties",
               keyword: "properties",
@@ -6999,14 +7227,14 @@ function validate65(
               message: "must be object",
             };
             if (vErrors === null) {
-              vErrors = [err79];
+              vErrors = [err90];
             } else {
-              vErrors.push(err79);
+              vErrors.push(err90);
             }
             errors++;
           }
         } else {
-          const err80 = {
+          const err91 = {
             instancePath,
             schemaPath: "/mapping/readInk/properties/input",
             keyword: "properties",
@@ -7014,34 +7242,34 @@ function validate65(
             message: "must have property 'input'",
           };
           if (vErrors === null) {
-            vErrors = [err80];
+            vErrors = [err91];
           } else {
-            vErrors.push(err80);
+            vErrors.push(err91);
           }
           errors++;
         }
-        for (const key15 in data) {
-          if (key15 !== "kind" && key15 !== "id" && key15 !== "input") {
-            const err81 = {
+        for (const key17 in data) {
+          if (key17 !== "kind" && key17 !== "id" && key17 !== "input") {
+            const err92 = {
               instancePath:
                 instancePath +
                 "/" +
-                key15.replace(/~/g, "~0").replace(/\//g, "~1"),
+                key17.replace(/~/g, "~0").replace(/\//g, "~1"),
               schemaPath: "/mapping/readInk",
               keyword: "properties",
-              params: { error: "additional", additionalProperty: key15 },
+              params: { error: "additional", additionalProperty: key17 },
               message: "must NOT have additional properties",
             };
             if (vErrors === null) {
-              vErrors = [err81];
+              vErrors = [err92];
             } else {
-              vErrors.push(err81);
+              vErrors.push(err92);
             }
             errors++;
           }
         }
-        if (!valid45) {
-          const err82 = {
+        if (!valid54) {
+          const err93 = {
             instancePath,
             schemaPath: "/mapping/readInk/properties",
             keyword: "properties",
@@ -7049,21 +7277,21 @@ function validate65(
             message: "must be object",
           };
           if (vErrors === null) {
-            vErrors = [err82];
+            vErrors = [err93];
           } else {
-            vErrors.push(err82);
+            vErrors.push(err93);
           }
           errors++;
         }
-        var valid44 = _errs26 === errors;
-        valid0 = valid44;
+        var valid53 = _errs30 === errors;
+        valid0 = valid53;
       } else if (tag0 === "readPracticeControls") {
-        const _errs35 = errors;
-        let valid58 = false;
-        valid58 = true;
+        const _errs39 = errors;
+        let valid67 = false;
+        valid67 = true;
         if (data.id !== undefined) {
           if (!(typeof data.id == "string")) {
-            const err83 = {
+            const err94 = {
               instancePath: instancePath + "/id",
               schemaPath: "/mapping/readPracticeControls/properties/id/type",
               keyword: "type",
@@ -7071,14 +7299,14 @@ function validate65(
               message: "must be string",
             };
             if (vErrors === null) {
-              vErrors = [err83];
+              vErrors = [err94];
             } else {
-              vErrors.push(err83);
+              vErrors.push(err94);
             }
             errors++;
           }
         } else {
-          const err84 = {
+          const err95 = {
             instancePath,
             schemaPath: "/mapping/readPracticeControls/properties/id",
             keyword: "properties",
@@ -7086,29 +7314,29 @@ function validate65(
             message: "must have property 'id'",
           };
           if (vErrors === null) {
-            vErrors = [err84];
+            vErrors = [err95];
           } else {
-            vErrors.push(err84);
+            vErrors.push(err95);
           }
           errors++;
         }
         if (data.input !== undefined) {
-          let data29 = data.input;
-          let valid60 = false;
-          if (data29 && typeof data29 == "object" && !Array.isArray(data29)) {
-            valid60 = true;
-            if (data29.selection !== undefined) {
-              let data30 = data29.selection;
-              let valid62 = false;
+          let data31 = data.input;
+          let valid69 = false;
+          if (data31 && typeof data31 == "object" && !Array.isArray(data31)) {
+            valid69 = true;
+            if (data31.selection !== undefined) {
+              let data32 = data31.selection;
+              let valid71 = false;
               if (
-                data30 &&
-                typeof data30 == "object" &&
-                !Array.isArray(data30)
+                data32 &&
+                typeof data32 == "object" &&
+                !Array.isArray(data32)
               ) {
-                valid62 = true;
-                if (data30.installationId !== undefined) {
-                  if (!(typeof data30.installationId == "string")) {
-                    const err85 = {
+                valid71 = true;
+                if (data32.installationId !== undefined) {
+                  if (!(typeof data32.installationId == "string")) {
+                    const err96 = {
                       instancePath:
                         instancePath + "/input/selection/installationId",
                       schemaPath:
@@ -7118,14 +7346,14 @@ function validate65(
                       message: "must be string",
                     };
                     if (vErrors === null) {
-                      vErrors = [err85];
+                      vErrors = [err96];
                     } else {
-                      vErrors.push(err85);
+                      vErrors.push(err96);
                     }
                     errors++;
                   }
                 } else {
-                  const err86 = {
+                  const err97 = {
                     instancePath: instancePath + "/input/selection",
                     schemaPath:
                       "/mapping/readPracticeControls/properties/input/properties/selection/properties/installationId",
@@ -7137,15 +7365,15 @@ function validate65(
                     message: "must have property 'installationId'",
                   };
                   if (vErrors === null) {
-                    vErrors = [err86];
+                    vErrors = [err97];
                   } else {
-                    vErrors.push(err86);
+                    vErrors.push(err97);
                   }
                   errors++;
                 }
-                if (data30.revision !== undefined) {
-                  if (!(typeof data30.revision == "string")) {
-                    const err87 = {
+                if (data32.revision !== undefined) {
+                  if (!(typeof data32.revision == "string")) {
+                    const err98 = {
                       instancePath: instancePath + "/input/selection/revision",
                       schemaPath:
                         "/mapping/readPracticeControls/properties/input/properties/selection/properties/revision/type",
@@ -7154,14 +7382,14 @@ function validate65(
                       message: "must be string",
                     };
                     if (vErrors === null) {
-                      vErrors = [err87];
+                      vErrors = [err98];
                     } else {
-                      vErrors.push(err87);
+                      vErrors.push(err98);
                     }
                     errors++;
                   }
                 } else {
-                  const err88 = {
+                  const err99 = {
                     instancePath: instancePath + "/input/selection",
                     schemaPath:
                       "/mapping/readPracticeControls/properties/input/properties/selection/properties/revision",
@@ -7170,24 +7398,24 @@ function validate65(
                     message: "must have property 'revision'",
                   };
                   if (vErrors === null) {
-                    vErrors = [err88];
+                    vErrors = [err99];
                   } else {
-                    vErrors.push(err88);
+                    vErrors.push(err99);
                   }
                   errors++;
                 }
-                if (data30.owner !== undefined) {
-                  let data33 = data30.owner;
-                  let valid64 = false;
+                if (data32.owner !== undefined) {
+                  let data35 = data32.owner;
+                  let valid73 = false;
                   if (
-                    data33 &&
-                    typeof data33 == "object" &&
-                    !Array.isArray(data33)
+                    data35 &&
+                    typeof data35 == "object" &&
+                    !Array.isArray(data35)
                   ) {
-                    valid64 = true;
-                    if (data33.profileId !== undefined) {
-                      if (!(typeof data33.profileId == "string")) {
-                        const err89 = {
+                    valid73 = true;
+                    if (data35.profileId !== undefined) {
+                      if (!(typeof data35.profileId == "string")) {
+                        const err100 = {
                           instancePath:
                             instancePath + "/input/selection/owner/profileId",
                           schemaPath:
@@ -7197,14 +7425,14 @@ function validate65(
                           message: "must be string",
                         };
                         if (vErrors === null) {
-                          vErrors = [err89];
+                          vErrors = [err100];
                         } else {
-                          vErrors.push(err89);
+                          vErrors.push(err100);
                         }
                         errors++;
                       }
                     } else {
-                      const err90 = {
+                      const err101 = {
                         instancePath: instancePath + "/input/selection/owner",
                         schemaPath:
                           "/mapping/readPracticeControls/properties/input/properties/selection/properties/owner/properties/profileId",
@@ -7216,15 +7444,15 @@ function validate65(
                         message: "must have property 'profileId'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err90];
+                        vErrors = [err101];
                       } else {
-                        vErrors.push(err90);
+                        vErrors.push(err101);
                       }
                       errors++;
                     }
-                    if (data33.generation !== undefined) {
-                      if (!(typeof data33.generation == "string")) {
-                        const err91 = {
+                    if (data35.generation !== undefined) {
+                      if (!(typeof data35.generation == "string")) {
+                        const err102 = {
                           instancePath:
                             instancePath + "/input/selection/owner/generation",
                           schemaPath:
@@ -7234,14 +7462,14 @@ function validate65(
                           message: "must be string",
                         };
                         if (vErrors === null) {
-                          vErrors = [err91];
+                          vErrors = [err102];
                         } else {
-                          vErrors.push(err91);
+                          vErrors.push(err102);
                         }
                         errors++;
                       }
                     } else {
-                      const err92 = {
+                      const err103 = {
                         instancePath: instancePath + "/input/selection/owner",
                         schemaPath:
                           "/mapping/readPracticeControls/properties/input/properties/selection/properties/owner/properties/generation",
@@ -7253,39 +7481,39 @@ function validate65(
                         message: "must have property 'generation'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err92];
+                        vErrors = [err103];
                       } else {
-                        vErrors.push(err92);
+                        vErrors.push(err103);
                       }
                       errors++;
                     }
-                    for (const key16 in data33) {
-                      if (key16 !== "profileId" && key16 !== "generation") {
-                        const err93 = {
+                    for (const key18 in data35) {
+                      if (key18 !== "profileId" && key18 !== "generation") {
+                        const err104 = {
                           instancePath:
                             instancePath +
                             "/input/selection/owner/" +
-                            key16.replace(/~/g, "~0").replace(/\//g, "~1"),
+                            key18.replace(/~/g, "~0").replace(/\//g, "~1"),
                           schemaPath:
                             "/mapping/readPracticeControls/properties/input/properties/selection/properties/owner",
                           keyword: "properties",
                           params: {
                             error: "additional",
-                            additionalProperty: key16,
+                            additionalProperty: key18,
                           },
                           message: "must NOT have additional properties",
                         };
                         if (vErrors === null) {
-                          vErrors = [err93];
+                          vErrors = [err104];
                         } else {
-                          vErrors.push(err93);
+                          vErrors.push(err104);
                         }
                         errors++;
                       }
                     }
                   }
-                  if (!valid64) {
-                    const err94 = {
+                  if (!valid73) {
+                    const err105 = {
                       instancePath: instancePath + "/input/selection/owner",
                       schemaPath:
                         "/mapping/readPracticeControls/properties/input/properties/selection/properties/owner/properties",
@@ -7294,14 +7522,14 @@ function validate65(
                       message: "must be object",
                     };
                     if (vErrors === null) {
-                      vErrors = [err94];
+                      vErrors = [err105];
                     } else {
-                      vErrors.push(err94);
+                      vErrors.push(err105);
                     }
                     errors++;
                   }
                 } else {
-                  const err95 = {
+                  const err106 = {
                     instancePath: instancePath + "/input/selection",
                     schemaPath:
                       "/mapping/readPracticeControls/properties/input/properties/selection/properties/owner",
@@ -7310,43 +7538,43 @@ function validate65(
                     message: "must have property 'owner'",
                   };
                   if (vErrors === null) {
-                    vErrors = [err95];
+                    vErrors = [err106];
                   } else {
-                    vErrors.push(err95);
+                    vErrors.push(err106);
                   }
                   errors++;
                 }
-                for (const key17 in data30) {
+                for (const key19 in data32) {
                   if (
-                    key17 !== "installationId" &&
-                    key17 !== "revision" &&
-                    key17 !== "owner"
+                    key19 !== "installationId" &&
+                    key19 !== "revision" &&
+                    key19 !== "owner"
                   ) {
-                    const err96 = {
+                    const err107 = {
                       instancePath:
                         instancePath +
                         "/input/selection/" +
-                        key17.replace(/~/g, "~0").replace(/\//g, "~1"),
+                        key19.replace(/~/g, "~0").replace(/\//g, "~1"),
                       schemaPath:
                         "/mapping/readPracticeControls/properties/input/properties/selection",
                       keyword: "properties",
                       params: {
                         error: "additional",
-                        additionalProperty: key17,
+                        additionalProperty: key19,
                       },
                       message: "must NOT have additional properties",
                     };
                     if (vErrors === null) {
-                      vErrors = [err96];
+                      vErrors = [err107];
                     } else {
-                      vErrors.push(err96);
+                      vErrors.push(err107);
                     }
                     errors++;
                   }
                 }
               }
-              if (!valid62) {
-                const err97 = {
+              if (!valid71) {
+                const err108 = {
                   instancePath: instancePath + "/input/selection",
                   schemaPath:
                     "/mapping/readPracticeControls/properties/input/properties/selection/properties",
@@ -7355,14 +7583,14 @@ function validate65(
                   message: "must be object",
                 };
                 if (vErrors === null) {
-                  vErrors = [err97];
+                  vErrors = [err108];
                 } else {
-                  vErrors.push(err97);
+                  vErrors.push(err108);
                 }
                 errors++;
               }
             } else {
-              const err98 = {
+              const err109 = {
                 instancePath: instancePath + "/input",
                 schemaPath:
                   "/mapping/readPracticeControls/properties/input/properties/selection",
@@ -7371,35 +7599,35 @@ function validate65(
                 message: "must have property 'selection'",
               };
               if (vErrors === null) {
-                vErrors = [err98];
+                vErrors = [err109];
               } else {
-                vErrors.push(err98);
+                vErrors.push(err109);
               }
               errors++;
             }
-            for (const key18 in data29) {
-              if (key18 !== "selection" && key18 !== "binding") {
-                const err99 = {
+            for (const key20 in data31) {
+              if (key20 !== "selection" && key20 !== "binding") {
+                const err110 = {
                   instancePath:
                     instancePath +
                     "/input/" +
-                    key18.replace(/~/g, "~0").replace(/\//g, "~1"),
+                    key20.replace(/~/g, "~0").replace(/\//g, "~1"),
                   schemaPath: "/mapping/readPracticeControls/properties/input",
                   keyword: "properties",
-                  params: { error: "additional", additionalProperty: key18 },
+                  params: { error: "additional", additionalProperty: key20 },
                   message: "must NOT have additional properties",
                 };
                 if (vErrors === null) {
-                  vErrors = [err99];
+                  vErrors = [err110];
                 } else {
-                  vErrors.push(err99);
+                  vErrors.push(err110);
                 }
                 errors++;
               }
             }
           }
-          if (!valid60) {
-            const err100 = {
+          if (!valid69) {
+            const err111 = {
               instancePath: instancePath + "/input",
               schemaPath:
                 "/mapping/readPracticeControls/properties/input/properties",
@@ -7408,14 +7636,14 @@ function validate65(
               message: "must be object",
             };
             if (vErrors === null) {
-              vErrors = [err100];
+              vErrors = [err111];
             } else {
-              vErrors.push(err100);
+              vErrors.push(err111);
             }
             errors++;
           }
         } else {
-          const err101 = {
+          const err112 = {
             instancePath,
             schemaPath: "/mapping/readPracticeControls/properties/input",
             keyword: "properties",
@@ -7423,34 +7651,34 @@ function validate65(
             message: "must have property 'input'",
           };
           if (vErrors === null) {
-            vErrors = [err101];
+            vErrors = [err112];
           } else {
-            vErrors.push(err101);
+            vErrors.push(err112);
           }
           errors++;
         }
-        for (const key19 in data) {
-          if (key19 !== "kind" && key19 !== "id" && key19 !== "input") {
-            const err102 = {
+        for (const key21 in data) {
+          if (key21 !== "kind" && key21 !== "id" && key21 !== "input") {
+            const err113 = {
               instancePath:
                 instancePath +
                 "/" +
-                key19.replace(/~/g, "~0").replace(/\//g, "~1"),
+                key21.replace(/~/g, "~0").replace(/\//g, "~1"),
               schemaPath: "/mapping/readPracticeControls",
               keyword: "properties",
-              params: { error: "additional", additionalProperty: key19 },
+              params: { error: "additional", additionalProperty: key21 },
               message: "must NOT have additional properties",
             };
             if (vErrors === null) {
-              vErrors = [err102];
+              vErrors = [err113];
             } else {
-              vErrors.push(err102);
+              vErrors.push(err113);
             }
             errors++;
           }
         }
-        if (!valid58) {
-          const err103 = {
+        if (!valid67) {
+          const err114 = {
             instancePath,
             schemaPath: "/mapping/readPracticeControls/properties",
             keyword: "properties",
@@ -7458,21 +7686,21 @@ function validate65(
             message: "must be object",
           };
           if (vErrors === null) {
-            vErrors = [err103];
+            vErrors = [err114];
           } else {
-            vErrors.push(err103);
+            vErrors.push(err114);
           }
           errors++;
         }
-        var valid57 = _errs35 === errors;
-        valid0 = valid57;
+        var valid66 = _errs39 === errors;
+        valid0 = valid66;
       } else if (tag0 === "execute") {
-        const _errs44 = errors;
-        let valid71 = false;
-        valid71 = true;
+        const _errs48 = errors;
+        let valid80 = false;
+        valid80 = true;
         if (data.id !== undefined) {
           if (!(typeof data.id == "string")) {
-            const err104 = {
+            const err115 = {
               instancePath: instancePath + "/id",
               schemaPath: "/mapping/execute/properties/id/type",
               keyword: "type",
@@ -7480,14 +7708,14 @@ function validate65(
               message: "must be string",
             };
             if (vErrors === null) {
-              vErrors = [err104];
+              vErrors = [err115];
             } else {
-              vErrors.push(err104);
+              vErrors.push(err115);
             }
             errors++;
           }
         } else {
-          const err105 = {
+          const err116 = {
             instancePath,
             schemaPath: "/mapping/execute/properties/id",
             keyword: "properties",
@@ -7495,49 +7723,49 @@ function validate65(
             message: "must have property 'id'",
           };
           if (vErrors === null) {
-            vErrors = [err105];
+            vErrors = [err116];
           } else {
-            vErrors.push(err105);
+            vErrors.push(err116);
           }
           errors++;
         }
         if (data.operation !== undefined) {
-          let data37 = data.operation;
-          let valid73 = false;
-          if (data37 && typeof data37 == "object" && !Array.isArray(data37)) {
-            const tag2 = data37.kind;
-            if (tag2 === undefined) {
-              const err106 = {
+          let data39 = data.operation;
+          let valid82 = false;
+          if (data39 && typeof data39 == "object" && !Array.isArray(data39)) {
+            const tag3 = data39.kind;
+            if (tag3 === undefined) {
+              const err117 = {
                 instancePath: instancePath + "/operation",
                 schemaPath:
                   "/mapping/execute/properties/operation/discriminator",
                 keyword: "discriminator",
-                params: { error: "tag", tag: "kind", tagValue: tag2 },
+                params: { error: "tag", tag: "kind", tagValue: tag3 },
                 message: 'tag "kind" must be string',
               };
               if (vErrors === null) {
-                vErrors = [err106];
+                vErrors = [err117];
               } else {
-                vErrors.push(err106);
+                vErrors.push(err117);
               }
               errors++;
-            } else if (typeof tag2 == "string") {
-              if (tag2 === "teaching") {
-                const _errs47 = errors;
-                let valid75 = false;
-                valid75 = true;
-                if (data37.selection !== undefined) {
-                  let data38 = data37.selection;
-                  let valid77 = false;
+            } else if (typeof tag3 == "string") {
+              if (tag3 === "teaching") {
+                const _errs51 = errors;
+                let valid84 = false;
+                valid84 = true;
+                if (data39.selection !== undefined) {
+                  let data40 = data39.selection;
+                  let valid86 = false;
                   if (
-                    data38 &&
-                    typeof data38 == "object" &&
-                    !Array.isArray(data38)
+                    data40 &&
+                    typeof data40 == "object" &&
+                    !Array.isArray(data40)
                   ) {
-                    valid77 = true;
-                    if (data38.installationId !== undefined) {
-                      if (!(typeof data38.installationId == "string")) {
-                        const err107 = {
+                    valid86 = true;
+                    if (data40.installationId !== undefined) {
+                      if (!(typeof data40.installationId == "string")) {
+                        const err118 = {
                           instancePath:
                             instancePath +
                             "/operation/selection/installationId",
@@ -7548,14 +7776,14 @@ function validate65(
                           message: "must be string",
                         };
                         if (vErrors === null) {
-                          vErrors = [err107];
+                          vErrors = [err118];
                         } else {
-                          vErrors.push(err107);
+                          vErrors.push(err118);
                         }
                         errors++;
                       }
                     } else {
-                      const err108 = {
+                      const err119 = {
                         instancePath: instancePath + "/operation/selection",
                         schemaPath:
                           "/mapping/execute/properties/operation/mapping/teaching/properties/selection/properties/installationId",
@@ -7567,15 +7795,15 @@ function validate65(
                         message: "must have property 'installationId'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err108];
+                        vErrors = [err119];
                       } else {
-                        vErrors.push(err108);
+                        vErrors.push(err119);
                       }
                       errors++;
                     }
-                    if (data38.revision !== undefined) {
-                      if (!(typeof data38.revision == "string")) {
-                        const err109 = {
+                    if (data40.revision !== undefined) {
+                      if (!(typeof data40.revision == "string")) {
+                        const err120 = {
                           instancePath:
                             instancePath + "/operation/selection/revision",
                           schemaPath:
@@ -7585,14 +7813,14 @@ function validate65(
                           message: "must be string",
                         };
                         if (vErrors === null) {
-                          vErrors = [err109];
+                          vErrors = [err120];
                         } else {
-                          vErrors.push(err109);
+                          vErrors.push(err120);
                         }
                         errors++;
                       }
                     } else {
-                      const err110 = {
+                      const err121 = {
                         instancePath: instancePath + "/operation/selection",
                         schemaPath:
                           "/mapping/execute/properties/operation/mapping/teaching/properties/selection/properties/revision",
@@ -7604,24 +7832,24 @@ function validate65(
                         message: "must have property 'revision'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err110];
+                        vErrors = [err121];
                       } else {
-                        vErrors.push(err110);
+                        vErrors.push(err121);
                       }
                       errors++;
                     }
-                    if (data38.owner !== undefined) {
-                      let data41 = data38.owner;
-                      let valid79 = false;
+                    if (data40.owner !== undefined) {
+                      let data43 = data40.owner;
+                      let valid88 = false;
                       if (
-                        data41 &&
-                        typeof data41 == "object" &&
-                        !Array.isArray(data41)
+                        data43 &&
+                        typeof data43 == "object" &&
+                        !Array.isArray(data43)
                       ) {
-                        valid79 = true;
-                        if (data41.profileId !== undefined) {
-                          if (!(typeof data41.profileId == "string")) {
-                            const err111 = {
+                        valid88 = true;
+                        if (data43.profileId !== undefined) {
+                          if (!(typeof data43.profileId == "string")) {
+                            const err122 = {
                               instancePath:
                                 instancePath +
                                 "/operation/selection/owner/profileId",
@@ -7632,14 +7860,14 @@ function validate65(
                               message: "must be string",
                             };
                             if (vErrors === null) {
-                              vErrors = [err111];
+                              vErrors = [err122];
                             } else {
-                              vErrors.push(err111);
+                              vErrors.push(err122);
                             }
                             errors++;
                           }
                         } else {
-                          const err112 = {
+                          const err123 = {
                             instancePath:
                               instancePath + "/operation/selection/owner",
                             schemaPath:
@@ -7652,15 +7880,15 @@ function validate65(
                             message: "must have property 'profileId'",
                           };
                           if (vErrors === null) {
-                            vErrors = [err112];
+                            vErrors = [err123];
                           } else {
-                            vErrors.push(err112);
+                            vErrors.push(err123);
                           }
                           errors++;
                         }
-                        if (data41.generation !== undefined) {
-                          if (!(typeof data41.generation == "string")) {
-                            const err113 = {
+                        if (data43.generation !== undefined) {
+                          if (!(typeof data43.generation == "string")) {
+                            const err124 = {
                               instancePath:
                                 instancePath +
                                 "/operation/selection/owner/generation",
@@ -7671,14 +7899,14 @@ function validate65(
                               message: "must be string",
                             };
                             if (vErrors === null) {
-                              vErrors = [err113];
+                              vErrors = [err124];
                             } else {
-                              vErrors.push(err113);
+                              vErrors.push(err124);
                             }
                             errors++;
                           }
                         } else {
-                          const err114 = {
+                          const err125 = {
                             instancePath:
                               instancePath + "/operation/selection/owner",
                             schemaPath:
@@ -7691,39 +7919,39 @@ function validate65(
                             message: "must have property 'generation'",
                           };
                           if (vErrors === null) {
-                            vErrors = [err114];
+                            vErrors = [err125];
                           } else {
-                            vErrors.push(err114);
+                            vErrors.push(err125);
                           }
                           errors++;
                         }
-                        for (const key20 in data41) {
-                          if (key20 !== "profileId" && key20 !== "generation") {
-                            const err115 = {
+                        for (const key22 in data43) {
+                          if (key22 !== "profileId" && key22 !== "generation") {
+                            const err126 = {
                               instancePath:
                                 instancePath +
                                 "/operation/selection/owner/" +
-                                key20.replace(/~/g, "~0").replace(/\//g, "~1"),
+                                key22.replace(/~/g, "~0").replace(/\//g, "~1"),
                               schemaPath:
                                 "/mapping/execute/properties/operation/mapping/teaching/properties/selection/properties/owner",
                               keyword: "properties",
                               params: {
                                 error: "additional",
-                                additionalProperty: key20,
+                                additionalProperty: key22,
                               },
                               message: "must NOT have additional properties",
                             };
                             if (vErrors === null) {
-                              vErrors = [err115];
+                              vErrors = [err126];
                             } else {
-                              vErrors.push(err115);
+                              vErrors.push(err126);
                             }
                             errors++;
                           }
                         }
                       }
-                      if (!valid79) {
-                        const err116 = {
+                      if (!valid88) {
+                        const err127 = {
                           instancePath:
                             instancePath + "/operation/selection/owner",
                           schemaPath:
@@ -7733,14 +7961,14 @@ function validate65(
                           message: "must be object",
                         };
                         if (vErrors === null) {
-                          vErrors = [err116];
+                          vErrors = [err127];
                         } else {
-                          vErrors.push(err116);
+                          vErrors.push(err127);
                         }
                         errors++;
                       }
                     } else {
-                      const err117 = {
+                      const err128 = {
                         instancePath: instancePath + "/operation/selection",
                         schemaPath:
                           "/mapping/execute/properties/operation/mapping/teaching/properties/selection/properties/owner",
@@ -7749,43 +7977,43 @@ function validate65(
                         message: "must have property 'owner'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err117];
+                        vErrors = [err128];
                       } else {
-                        vErrors.push(err117);
+                        vErrors.push(err128);
                       }
                       errors++;
                     }
-                    for (const key21 in data38) {
+                    for (const key23 in data40) {
                       if (
-                        key21 !== "installationId" &&
-                        key21 !== "revision" &&
-                        key21 !== "owner"
+                        key23 !== "installationId" &&
+                        key23 !== "revision" &&
+                        key23 !== "owner"
                       ) {
-                        const err118 = {
+                        const err129 = {
                           instancePath:
                             instancePath +
                             "/operation/selection/" +
-                            key21.replace(/~/g, "~0").replace(/\//g, "~1"),
+                            key23.replace(/~/g, "~0").replace(/\//g, "~1"),
                           schemaPath:
                             "/mapping/execute/properties/operation/mapping/teaching/properties/selection",
                           keyword: "properties",
                           params: {
                             error: "additional",
-                            additionalProperty: key21,
+                            additionalProperty: key23,
                           },
                           message: "must NOT have additional properties",
                         };
                         if (vErrors === null) {
-                          vErrors = [err118];
+                          vErrors = [err129];
                         } else {
-                          vErrors.push(err118);
+                          vErrors.push(err129);
                         }
                         errors++;
                       }
                     }
                   }
-                  if (!valid77) {
-                    const err119 = {
+                  if (!valid86) {
+                    const err130 = {
                       instancePath: instancePath + "/operation/selection",
                       schemaPath:
                         "/mapping/execute/properties/operation/mapping/teaching/properties/selection/properties",
@@ -7794,14 +8022,14 @@ function validate65(
                       message: "must be object",
                     };
                     if (vErrors === null) {
-                      vErrors = [err119];
+                      vErrors = [err130];
                     } else {
-                      vErrors.push(err119);
+                      vErrors.push(err130);
                     }
                     errors++;
                   }
                 } else {
-                  const err120 = {
+                  const err131 = {
                     instancePath: instancePath + "/operation",
                     schemaPath:
                       "/mapping/execute/properties/operation/mapping/teaching/properties/selection",
@@ -7810,42 +8038,42 @@ function validate65(
                     message: "must have property 'selection'",
                   };
                   if (vErrors === null) {
-                    vErrors = [err120];
+                    vErrors = [err131];
                   } else {
-                    vErrors.push(err120);
+                    vErrors.push(err131);
                   }
                   errors++;
                 }
-                for (const key22 in data37) {
+                for (const key24 in data39) {
                   if (
-                    key22 !== "kind" &&
-                    key22 !== "selection" &&
-                    key22 !== "command"
+                    key24 !== "kind" &&
+                    key24 !== "selection" &&
+                    key24 !== "command"
                   ) {
-                    const err121 = {
+                    const err132 = {
                       instancePath:
                         instancePath +
                         "/operation/" +
-                        key22.replace(/~/g, "~0").replace(/\//g, "~1"),
+                        key24.replace(/~/g, "~0").replace(/\//g, "~1"),
                       schemaPath:
                         "/mapping/execute/properties/operation/mapping/teaching",
                       keyword: "properties",
                       params: {
                         error: "additional",
-                        additionalProperty: key22,
+                        additionalProperty: key24,
                       },
                       message: "must NOT have additional properties",
                     };
                     if (vErrors === null) {
-                      vErrors = [err121];
+                      vErrors = [err132];
                     } else {
-                      vErrors.push(err121);
+                      vErrors.push(err132);
                     }
                     errors++;
                   }
                 }
-                if (!valid75) {
-                  const err122 = {
+                if (!valid84) {
+                  const err133 = {
                     instancePath: instancePath + "/operation",
                     schemaPath:
                       "/mapping/execute/properties/operation/mapping/teaching/properties",
@@ -7854,30 +8082,30 @@ function validate65(
                     message: "must be object",
                   };
                   if (vErrors === null) {
-                    vErrors = [err122];
+                    vErrors = [err133];
                   } else {
-                    vErrors.push(err122);
+                    vErrors.push(err133);
                   }
                   errors++;
                 }
-                var valid74 = _errs47 === errors;
-                valid73 = valid74;
-              } else if (tag2 === "ink") {
-                const _errs54 = errors;
-                let valid85 = false;
-                valid85 = true;
-                if (data37.selection !== undefined) {
-                  let data44 = data37.selection;
-                  let valid87 = false;
+                var valid83 = _errs51 === errors;
+                valid82 = valid83;
+              } else if (tag3 === "ink") {
+                const _errs58 = errors;
+                let valid94 = false;
+                valid94 = true;
+                if (data39.selection !== undefined) {
+                  let data46 = data39.selection;
+                  let valid96 = false;
                   if (
-                    data44 &&
-                    typeof data44 == "object" &&
-                    !Array.isArray(data44)
+                    data46 &&
+                    typeof data46 == "object" &&
+                    !Array.isArray(data46)
                   ) {
-                    valid87 = true;
-                    if (data44.installationId !== undefined) {
-                      if (!(typeof data44.installationId == "string")) {
-                        const err123 = {
+                    valid96 = true;
+                    if (data46.installationId !== undefined) {
+                      if (!(typeof data46.installationId == "string")) {
+                        const err134 = {
                           instancePath:
                             instancePath +
                             "/operation/selection/installationId",
@@ -7888,14 +8116,14 @@ function validate65(
                           message: "must be string",
                         };
                         if (vErrors === null) {
-                          vErrors = [err123];
+                          vErrors = [err134];
                         } else {
-                          vErrors.push(err123);
+                          vErrors.push(err134);
                         }
                         errors++;
                       }
                     } else {
-                      const err124 = {
+                      const err135 = {
                         instancePath: instancePath + "/operation/selection",
                         schemaPath:
                           "/mapping/execute/properties/operation/mapping/ink/properties/selection/properties/installationId",
@@ -7907,15 +8135,15 @@ function validate65(
                         message: "must have property 'installationId'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err124];
+                        vErrors = [err135];
                       } else {
-                        vErrors.push(err124);
+                        vErrors.push(err135);
                       }
                       errors++;
                     }
-                    if (data44.revision !== undefined) {
-                      if (!(typeof data44.revision == "string")) {
-                        const err125 = {
+                    if (data46.revision !== undefined) {
+                      if (!(typeof data46.revision == "string")) {
+                        const err136 = {
                           instancePath:
                             instancePath + "/operation/selection/revision",
                           schemaPath:
@@ -7925,14 +8153,14 @@ function validate65(
                           message: "must be string",
                         };
                         if (vErrors === null) {
-                          vErrors = [err125];
+                          vErrors = [err136];
                         } else {
-                          vErrors.push(err125);
+                          vErrors.push(err136);
                         }
                         errors++;
                       }
                     } else {
-                      const err126 = {
+                      const err137 = {
                         instancePath: instancePath + "/operation/selection",
                         schemaPath:
                           "/mapping/execute/properties/operation/mapping/ink/properties/selection/properties/revision",
@@ -7944,24 +8172,24 @@ function validate65(
                         message: "must have property 'revision'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err126];
+                        vErrors = [err137];
                       } else {
-                        vErrors.push(err126);
+                        vErrors.push(err137);
                       }
                       errors++;
                     }
-                    if (data44.owner !== undefined) {
-                      let data47 = data44.owner;
-                      let valid89 = false;
+                    if (data46.owner !== undefined) {
+                      let data49 = data46.owner;
+                      let valid98 = false;
                       if (
-                        data47 &&
-                        typeof data47 == "object" &&
-                        !Array.isArray(data47)
+                        data49 &&
+                        typeof data49 == "object" &&
+                        !Array.isArray(data49)
                       ) {
-                        valid89 = true;
-                        if (data47.profileId !== undefined) {
-                          if (!(typeof data47.profileId == "string")) {
-                            const err127 = {
+                        valid98 = true;
+                        if (data49.profileId !== undefined) {
+                          if (!(typeof data49.profileId == "string")) {
+                            const err138 = {
                               instancePath:
                                 instancePath +
                                 "/operation/selection/owner/profileId",
@@ -7972,14 +8200,14 @@ function validate65(
                               message: "must be string",
                             };
                             if (vErrors === null) {
-                              vErrors = [err127];
+                              vErrors = [err138];
                             } else {
-                              vErrors.push(err127);
+                              vErrors.push(err138);
                             }
                             errors++;
                           }
                         } else {
-                          const err128 = {
+                          const err139 = {
                             instancePath:
                               instancePath + "/operation/selection/owner",
                             schemaPath:
@@ -7992,15 +8220,15 @@ function validate65(
                             message: "must have property 'profileId'",
                           };
                           if (vErrors === null) {
-                            vErrors = [err128];
+                            vErrors = [err139];
                           } else {
-                            vErrors.push(err128);
+                            vErrors.push(err139);
                           }
                           errors++;
                         }
-                        if (data47.generation !== undefined) {
-                          if (!(typeof data47.generation == "string")) {
-                            const err129 = {
+                        if (data49.generation !== undefined) {
+                          if (!(typeof data49.generation == "string")) {
+                            const err140 = {
                               instancePath:
                                 instancePath +
                                 "/operation/selection/owner/generation",
@@ -8011,14 +8239,14 @@ function validate65(
                               message: "must be string",
                             };
                             if (vErrors === null) {
-                              vErrors = [err129];
+                              vErrors = [err140];
                             } else {
-                              vErrors.push(err129);
+                              vErrors.push(err140);
                             }
                             errors++;
                           }
                         } else {
-                          const err130 = {
+                          const err141 = {
                             instancePath:
                               instancePath + "/operation/selection/owner",
                             schemaPath:
@@ -8031,39 +8259,39 @@ function validate65(
                             message: "must have property 'generation'",
                           };
                           if (vErrors === null) {
-                            vErrors = [err130];
+                            vErrors = [err141];
                           } else {
-                            vErrors.push(err130);
+                            vErrors.push(err141);
                           }
                           errors++;
                         }
-                        for (const key23 in data47) {
-                          if (key23 !== "profileId" && key23 !== "generation") {
-                            const err131 = {
+                        for (const key25 in data49) {
+                          if (key25 !== "profileId" && key25 !== "generation") {
+                            const err142 = {
                               instancePath:
                                 instancePath +
                                 "/operation/selection/owner/" +
-                                key23.replace(/~/g, "~0").replace(/\//g, "~1"),
+                                key25.replace(/~/g, "~0").replace(/\//g, "~1"),
                               schemaPath:
                                 "/mapping/execute/properties/operation/mapping/ink/properties/selection/properties/owner",
                               keyword: "properties",
                               params: {
                                 error: "additional",
-                                additionalProperty: key23,
+                                additionalProperty: key25,
                               },
                               message: "must NOT have additional properties",
                             };
                             if (vErrors === null) {
-                              vErrors = [err131];
+                              vErrors = [err142];
                             } else {
-                              vErrors.push(err131);
+                              vErrors.push(err142);
                             }
                             errors++;
                           }
                         }
                       }
-                      if (!valid89) {
-                        const err132 = {
+                      if (!valid98) {
+                        const err143 = {
                           instancePath:
                             instancePath + "/operation/selection/owner",
                           schemaPath:
@@ -8073,14 +8301,14 @@ function validate65(
                           message: "must be object",
                         };
                         if (vErrors === null) {
-                          vErrors = [err132];
+                          vErrors = [err143];
                         } else {
-                          vErrors.push(err132);
+                          vErrors.push(err143);
                         }
                         errors++;
                       }
                     } else {
-                      const err133 = {
+                      const err144 = {
                         instancePath: instancePath + "/operation/selection",
                         schemaPath:
                           "/mapping/execute/properties/operation/mapping/ink/properties/selection/properties/owner",
@@ -8089,43 +8317,43 @@ function validate65(
                         message: "must have property 'owner'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err133];
+                        vErrors = [err144];
                       } else {
-                        vErrors.push(err133);
+                        vErrors.push(err144);
                       }
                       errors++;
                     }
-                    for (const key24 in data44) {
+                    for (const key26 in data46) {
                       if (
-                        key24 !== "installationId" &&
-                        key24 !== "revision" &&
-                        key24 !== "owner"
+                        key26 !== "installationId" &&
+                        key26 !== "revision" &&
+                        key26 !== "owner"
                       ) {
-                        const err134 = {
+                        const err145 = {
                           instancePath:
                             instancePath +
                             "/operation/selection/" +
-                            key24.replace(/~/g, "~0").replace(/\//g, "~1"),
+                            key26.replace(/~/g, "~0").replace(/\//g, "~1"),
                           schemaPath:
                             "/mapping/execute/properties/operation/mapping/ink/properties/selection",
                           keyword: "properties",
                           params: {
                             error: "additional",
-                            additionalProperty: key24,
+                            additionalProperty: key26,
                           },
                           message: "must NOT have additional properties",
                         };
                         if (vErrors === null) {
-                          vErrors = [err134];
+                          vErrors = [err145];
                         } else {
-                          vErrors.push(err134);
+                          vErrors.push(err145);
                         }
                         errors++;
                       }
                     }
                   }
-                  if (!valid87) {
-                    const err135 = {
+                  if (!valid96) {
+                    const err146 = {
                       instancePath: instancePath + "/operation/selection",
                       schemaPath:
                         "/mapping/execute/properties/operation/mapping/ink/properties/selection/properties",
@@ -8134,14 +8362,14 @@ function validate65(
                       message: "must be object",
                     };
                     if (vErrors === null) {
-                      vErrors = [err135];
+                      vErrors = [err146];
                     } else {
-                      vErrors.push(err135);
+                      vErrors.push(err146);
                     }
                     errors++;
                   }
                 } else {
-                  const err136 = {
+                  const err147 = {
                     instancePath: instancePath + "/operation",
                     schemaPath:
                       "/mapping/execute/properties/operation/mapping/ink/properties/selection",
@@ -8150,42 +8378,42 @@ function validate65(
                     message: "must have property 'selection'",
                   };
                   if (vErrors === null) {
-                    vErrors = [err136];
+                    vErrors = [err147];
                   } else {
-                    vErrors.push(err136);
+                    vErrors.push(err147);
                   }
                   errors++;
                 }
-                for (const key25 in data37) {
+                for (const key27 in data39) {
                   if (
-                    key25 !== "kind" &&
-                    key25 !== "selection" &&
-                    key25 !== "command"
+                    key27 !== "kind" &&
+                    key27 !== "selection" &&
+                    key27 !== "command"
                   ) {
-                    const err137 = {
+                    const err148 = {
                       instancePath:
                         instancePath +
                         "/operation/" +
-                        key25.replace(/~/g, "~0").replace(/\//g, "~1"),
+                        key27.replace(/~/g, "~0").replace(/\//g, "~1"),
                       schemaPath:
                         "/mapping/execute/properties/operation/mapping/ink",
                       keyword: "properties",
                       params: {
                         error: "additional",
-                        additionalProperty: key25,
+                        additionalProperty: key27,
                       },
                       message: "must NOT have additional properties",
                     };
                     if (vErrors === null) {
-                      vErrors = [err137];
+                      vErrors = [err148];
                     } else {
-                      vErrors.push(err137);
+                      vErrors.push(err148);
                     }
                     errors++;
                   }
                 }
-                if (!valid85) {
-                  const err138 = {
+                if (!valid94) {
+                  const err149 = {
                     instancePath: instancePath + "/operation",
                     schemaPath:
                       "/mapping/execute/properties/operation/mapping/ink/properties",
@@ -8194,47 +8422,47 @@ function validate65(
                     message: "must be object",
                   };
                   if (vErrors === null) {
-                    vErrors = [err138];
+                    vErrors = [err149];
                   } else {
-                    vErrors.push(err138);
+                    vErrors.push(err149);
                   }
                   errors++;
                 }
-                var valid84 = _errs54 === errors;
-                valid73 = valid84;
+                var valid93 = _errs58 === errors;
+                valid82 = valid93;
               } else {
-                const err139 = {
+                const err150 = {
                   instancePath: instancePath + "/operation/kind",
                   schemaPath: "/mapping/execute/properties/operation/mapping",
                   keyword: "discriminator",
-                  params: { error: "mapping", tag: "kind", tagValue: tag2 },
+                  params: { error: "mapping", tag: "kind", tagValue: tag3 },
                   message: 'value of tag "kind" must be in mapping',
                 };
                 if (vErrors === null) {
-                  vErrors = [err139];
+                  vErrors = [err150];
                 } else {
-                  vErrors.push(err139);
+                  vErrors.push(err150);
                 }
                 errors++;
               }
             } else {
-              const err140 = {
+              const err151 = {
                 instancePath: instancePath + "/operation/kind",
                 schemaPath:
                   "/mapping/execute/properties/operation/discriminator",
                 keyword: "discriminator",
-                params: { error: "tag", tag: "kind", tagValue: tag2 },
+                params: { error: "tag", tag: "kind", tagValue: tag3 },
                 message: 'tag "kind" must be string',
               };
               if (vErrors === null) {
-                vErrors = [err140];
+                vErrors = [err151];
               } else {
-                vErrors.push(err140);
+                vErrors.push(err151);
               }
               errors++;
             }
-          } else if (!valid73) {
-            const err141 = {
+          } else if (!valid82) {
+            const err152 = {
               instancePath: instancePath + "/operation",
               schemaPath: "/mapping/execute/properties/operation/discriminator",
               keyword: "discriminator",
@@ -8242,14 +8470,14 @@ function validate65(
               message: "must be object",
             };
             if (vErrors === null) {
-              vErrors = [err141];
+              vErrors = [err152];
             } else {
-              vErrors.push(err141);
+              vErrors.push(err152);
             }
             errors++;
           }
         } else {
-          const err142 = {
+          const err153 = {
             instancePath,
             schemaPath: "/mapping/execute/properties/operation",
             keyword: "properties",
@@ -8257,34 +8485,34 @@ function validate65(
             message: "must have property 'operation'",
           };
           if (vErrors === null) {
-            vErrors = [err142];
+            vErrors = [err153];
           } else {
-            vErrors.push(err142);
+            vErrors.push(err153);
           }
           errors++;
         }
-        for (const key26 in data) {
-          if (key26 !== "kind" && key26 !== "id" && key26 !== "operation") {
-            const err143 = {
+        for (const key28 in data) {
+          if (key28 !== "kind" && key28 !== "id" && key28 !== "operation") {
+            const err154 = {
               instancePath:
                 instancePath +
                 "/" +
-                key26.replace(/~/g, "~0").replace(/\//g, "~1"),
+                key28.replace(/~/g, "~0").replace(/\//g, "~1"),
               schemaPath: "/mapping/execute",
               keyword: "properties",
-              params: { error: "additional", additionalProperty: key26 },
+              params: { error: "additional", additionalProperty: key28 },
               message: "must NOT have additional properties",
             };
             if (vErrors === null) {
-              vErrors = [err143];
+              vErrors = [err154];
             } else {
-              vErrors.push(err143);
+              vErrors.push(err154);
             }
             errors++;
           }
         }
-        if (!valid71) {
-          const err144 = {
+        if (!valid80) {
+          const err155 = {
             instancePath,
             schemaPath: "/mapping/execute/properties",
             keyword: "properties",
@@ -8292,21 +8520,21 @@ function validate65(
             message: "must be object",
           };
           if (vErrors === null) {
-            vErrors = [err144];
+            vErrors = [err155];
           } else {
-            vErrors.push(err144);
+            vErrors.push(err155);
           }
           errors++;
         }
-        var valid70 = _errs44 === errors;
-        valid0 = valid70;
+        var valid79 = _errs48 === errors;
+        valid0 = valid79;
       } else if (tag0 === "administer") {
-        const _errs61 = errors;
-        let valid96 = false;
-        valid96 = true;
+        const _errs65 = errors;
+        let valid105 = false;
+        valid105 = true;
         if (data.id !== undefined) {
           if (!(typeof data.id == "string")) {
-            const err145 = {
+            const err156 = {
               instancePath: instancePath + "/id",
               schemaPath: "/mapping/administer/properties/id/type",
               keyword: "type",
@@ -8314,14 +8542,14 @@ function validate65(
               message: "must be string",
             };
             if (vErrors === null) {
-              vErrors = [err145];
+              vErrors = [err156];
             } else {
-              vErrors.push(err145);
+              vErrors.push(err156);
             }
             errors++;
           }
         } else {
-          const err146 = {
+          const err157 = {
             instancePath,
             schemaPath: "/mapping/administer/properties/id",
             keyword: "properties",
@@ -8329,34 +8557,34 @@ function validate65(
             message: "must have property 'id'",
           };
           if (vErrors === null) {
-            vErrors = [err146];
+            vErrors = [err157];
           } else {
-            vErrors.push(err146);
+            vErrors.push(err157);
           }
           errors++;
         }
-        for (const key27 in data) {
-          if (key27 !== "kind" && key27 !== "id" && key27 !== "command") {
-            const err147 = {
+        for (const key29 in data) {
+          if (key29 !== "kind" && key29 !== "id" && key29 !== "command") {
+            const err158 = {
               instancePath:
                 instancePath +
                 "/" +
-                key27.replace(/~/g, "~0").replace(/\//g, "~1"),
+                key29.replace(/~/g, "~0").replace(/\//g, "~1"),
               schemaPath: "/mapping/administer",
               keyword: "properties",
-              params: { error: "additional", additionalProperty: key27 },
+              params: { error: "additional", additionalProperty: key29 },
               message: "must NOT have additional properties",
             };
             if (vErrors === null) {
-              vErrors = [err147];
+              vErrors = [err158];
             } else {
-              vErrors.push(err147);
+              vErrors.push(err158);
             }
             errors++;
           }
         }
-        if (!valid96) {
-          const err148 = {
+        if (!valid105) {
+          const err159 = {
             instancePath,
             schemaPath: "/mapping/administer/properties",
             keyword: "properties",
@@ -8364,21 +8592,21 @@ function validate65(
             message: "must be object",
           };
           if (vErrors === null) {
-            vErrors = [err148];
+            vErrors = [err159];
           } else {
-            vErrors.push(err148);
+            vErrors.push(err159);
           }
           errors++;
         }
-        var valid95 = _errs61 === errors;
-        valid0 = valid95;
+        var valid104 = _errs65 === errors;
+        valid0 = valid104;
       } else if (tag0 === "readDeparture") {
-        const _errs63 = errors;
-        let valid100 = false;
-        valid100 = true;
+        const _errs67 = errors;
+        let valid109 = false;
+        valid109 = true;
         if (data.id !== undefined) {
           if (!(typeof data.id == "string")) {
-            const err149 = {
+            const err160 = {
               instancePath: instancePath + "/id",
               schemaPath: "/mapping/readDeparture/properties/id/type",
               keyword: "type",
@@ -8386,14 +8614,14 @@ function validate65(
               message: "must be string",
             };
             if (vErrors === null) {
-              vErrors = [err149];
+              vErrors = [err160];
             } else {
-              vErrors.push(err149);
+              vErrors.push(err160);
             }
             errors++;
           }
         } else {
-          const err150 = {
+          const err161 = {
             instancePath,
             schemaPath: "/mapping/readDeparture/properties/id",
             keyword: "properties",
@@ -8401,20 +8629,20 @@ function validate65(
             message: "must have property 'id'",
           };
           if (vErrors === null) {
-            vErrors = [err150];
+            vErrors = [err161];
           } else {
-            vErrors.push(err150);
+            vErrors.push(err161);
           }
           errors++;
         }
         if (data.selection !== undefined) {
-          let data52 = data.selection;
-          let valid102 = false;
-          if (data52 && typeof data52 == "object" && !Array.isArray(data52)) {
-            valid102 = true;
-            if (data52.installationId !== undefined) {
-              if (!(typeof data52.installationId == "string")) {
-                const err151 = {
+          let data54 = data.selection;
+          let valid111 = false;
+          if (data54 && typeof data54 == "object" && !Array.isArray(data54)) {
+            valid111 = true;
+            if (data54.installationId !== undefined) {
+              if (!(typeof data54.installationId == "string")) {
+                const err162 = {
                   instancePath: instancePath + "/selection/installationId",
                   schemaPath:
                     "/mapping/readDeparture/properties/selection/properties/installationId/type",
@@ -8423,14 +8651,14 @@ function validate65(
                   message: "must be string",
                 };
                 if (vErrors === null) {
-                  vErrors = [err151];
+                  vErrors = [err162];
                 } else {
-                  vErrors.push(err151);
+                  vErrors.push(err162);
                 }
                 errors++;
               }
             } else {
-              const err152 = {
+              const err163 = {
                 instancePath: instancePath + "/selection",
                 schemaPath:
                   "/mapping/readDeparture/properties/selection/properties/installationId",
@@ -8439,15 +8667,15 @@ function validate65(
                 message: "must have property 'installationId'",
               };
               if (vErrors === null) {
-                vErrors = [err152];
+                vErrors = [err163];
               } else {
-                vErrors.push(err152);
+                vErrors.push(err163);
               }
               errors++;
             }
-            if (data52.revision !== undefined) {
-              if (!(typeof data52.revision == "string")) {
-                const err153 = {
+            if (data54.revision !== undefined) {
+              if (!(typeof data54.revision == "string")) {
+                const err164 = {
                   instancePath: instancePath + "/selection/revision",
                   schemaPath:
                     "/mapping/readDeparture/properties/selection/properties/revision/type",
@@ -8456,14 +8684,14 @@ function validate65(
                   message: "must be string",
                 };
                 if (vErrors === null) {
-                  vErrors = [err153];
+                  vErrors = [err164];
                 } else {
-                  vErrors.push(err153);
+                  vErrors.push(err164);
                 }
                 errors++;
               }
             } else {
-              const err154 = {
+              const err165 = {
                 instancePath: instancePath + "/selection",
                 schemaPath:
                   "/mapping/readDeparture/properties/selection/properties/revision",
@@ -8472,24 +8700,24 @@ function validate65(
                 message: "must have property 'revision'",
               };
               if (vErrors === null) {
-                vErrors = [err154];
+                vErrors = [err165];
               } else {
-                vErrors.push(err154);
+                vErrors.push(err165);
               }
               errors++;
             }
-            if (data52.owner !== undefined) {
-              let data55 = data52.owner;
-              let valid104 = false;
+            if (data54.owner !== undefined) {
+              let data57 = data54.owner;
+              let valid113 = false;
               if (
-                data55 &&
-                typeof data55 == "object" &&
-                !Array.isArray(data55)
+                data57 &&
+                typeof data57 == "object" &&
+                !Array.isArray(data57)
               ) {
-                valid104 = true;
-                if (data55.profileId !== undefined) {
-                  if (!(typeof data55.profileId == "string")) {
-                    const err155 = {
+                valid113 = true;
+                if (data57.profileId !== undefined) {
+                  if (!(typeof data57.profileId == "string")) {
+                    const err166 = {
                       instancePath: instancePath + "/selection/owner/profileId",
                       schemaPath:
                         "/mapping/readDeparture/properties/selection/properties/owner/properties/profileId/type",
@@ -8498,14 +8726,14 @@ function validate65(
                       message: "must be string",
                     };
                     if (vErrors === null) {
-                      vErrors = [err155];
+                      vErrors = [err166];
                     } else {
-                      vErrors.push(err155);
+                      vErrors.push(err166);
                     }
                     errors++;
                   }
                 } else {
-                  const err156 = {
+                  const err167 = {
                     instancePath: instancePath + "/selection/owner",
                     schemaPath:
                       "/mapping/readDeparture/properties/selection/properties/owner/properties/profileId",
@@ -8514,15 +8742,15 @@ function validate65(
                     message: "must have property 'profileId'",
                   };
                   if (vErrors === null) {
-                    vErrors = [err156];
+                    vErrors = [err167];
                   } else {
-                    vErrors.push(err156);
+                    vErrors.push(err167);
                   }
                   errors++;
                 }
-                if (data55.generation !== undefined) {
-                  if (!(typeof data55.generation == "string")) {
-                    const err157 = {
+                if (data57.generation !== undefined) {
+                  if (!(typeof data57.generation == "string")) {
+                    const err168 = {
                       instancePath:
                         instancePath + "/selection/owner/generation",
                       schemaPath:
@@ -8532,14 +8760,14 @@ function validate65(
                       message: "must be string",
                     };
                     if (vErrors === null) {
-                      vErrors = [err157];
+                      vErrors = [err168];
                     } else {
-                      vErrors.push(err157);
+                      vErrors.push(err168);
                     }
                     errors++;
                   }
                 } else {
-                  const err158 = {
+                  const err169 = {
                     instancePath: instancePath + "/selection/owner",
                     schemaPath:
                       "/mapping/readDeparture/properties/selection/properties/owner/properties/generation",
@@ -8548,39 +8776,39 @@ function validate65(
                     message: "must have property 'generation'",
                   };
                   if (vErrors === null) {
-                    vErrors = [err158];
+                    vErrors = [err169];
                   } else {
-                    vErrors.push(err158);
+                    vErrors.push(err169);
                   }
                   errors++;
                 }
-                for (const key28 in data55) {
-                  if (key28 !== "profileId" && key28 !== "generation") {
-                    const err159 = {
+                for (const key30 in data57) {
+                  if (key30 !== "profileId" && key30 !== "generation") {
+                    const err170 = {
                       instancePath:
                         instancePath +
                         "/selection/owner/" +
-                        key28.replace(/~/g, "~0").replace(/\//g, "~1"),
+                        key30.replace(/~/g, "~0").replace(/\//g, "~1"),
                       schemaPath:
                         "/mapping/readDeparture/properties/selection/properties/owner",
                       keyword: "properties",
                       params: {
                         error: "additional",
-                        additionalProperty: key28,
+                        additionalProperty: key30,
                       },
                       message: "must NOT have additional properties",
                     };
                     if (vErrors === null) {
-                      vErrors = [err159];
+                      vErrors = [err170];
                     } else {
-                      vErrors.push(err159);
+                      vErrors.push(err170);
                     }
                     errors++;
                   }
                 }
               }
-              if (!valid104) {
-                const err160 = {
+              if (!valid113) {
+                const err171 = {
                   instancePath: instancePath + "/selection/owner",
                   schemaPath:
                     "/mapping/readDeparture/properties/selection/properties/owner/properties",
@@ -8589,14 +8817,14 @@ function validate65(
                   message: "must be object",
                 };
                 if (vErrors === null) {
-                  vErrors = [err160];
+                  vErrors = [err171];
                 } else {
-                  vErrors.push(err160);
+                  vErrors.push(err171);
                 }
                 errors++;
               }
             } else {
-              const err161 = {
+              const err172 = {
                 instancePath: instancePath + "/selection",
                 schemaPath:
                   "/mapping/readDeparture/properties/selection/properties/owner",
@@ -8605,39 +8833,39 @@ function validate65(
                 message: "must have property 'owner'",
               };
               if (vErrors === null) {
-                vErrors = [err161];
+                vErrors = [err172];
               } else {
-                vErrors.push(err161);
+                vErrors.push(err172);
               }
               errors++;
             }
-            for (const key29 in data52) {
+            for (const key31 in data54) {
               if (
-                key29 !== "installationId" &&
-                key29 !== "revision" &&
-                key29 !== "owner"
+                key31 !== "installationId" &&
+                key31 !== "revision" &&
+                key31 !== "owner"
               ) {
-                const err162 = {
+                const err173 = {
                   instancePath:
                     instancePath +
                     "/selection/" +
-                    key29.replace(/~/g, "~0").replace(/\//g, "~1"),
+                    key31.replace(/~/g, "~0").replace(/\//g, "~1"),
                   schemaPath: "/mapping/readDeparture/properties/selection",
                   keyword: "properties",
-                  params: { error: "additional", additionalProperty: key29 },
+                  params: { error: "additional", additionalProperty: key31 },
                   message: "must NOT have additional properties",
                 };
                 if (vErrors === null) {
-                  vErrors = [err162];
+                  vErrors = [err173];
                 } else {
-                  vErrors.push(err162);
+                  vErrors.push(err173);
                 }
                 errors++;
               }
             }
           }
-          if (!valid102) {
-            const err163 = {
+          if (!valid111) {
+            const err174 = {
               instancePath: instancePath + "/selection",
               schemaPath:
                 "/mapping/readDeparture/properties/selection/properties",
@@ -8646,14 +8874,14 @@ function validate65(
               message: "must be object",
             };
             if (vErrors === null) {
-              vErrors = [err163];
+              vErrors = [err174];
             } else {
-              vErrors.push(err163);
+              vErrors.push(err174);
             }
             errors++;
           }
         } else {
-          const err164 = {
+          const err175 = {
             instancePath,
             schemaPath: "/mapping/readDeparture/properties/selection",
             keyword: "properties",
@@ -8661,34 +8889,34 @@ function validate65(
             message: "must have property 'selection'",
           };
           if (vErrors === null) {
-            vErrors = [err164];
+            vErrors = [err175];
           } else {
-            vErrors.push(err164);
+            vErrors.push(err175);
           }
           errors++;
         }
-        for (const key30 in data) {
-          if (key30 !== "kind" && key30 !== "id" && key30 !== "selection") {
-            const err165 = {
+        for (const key32 in data) {
+          if (key32 !== "kind" && key32 !== "id" && key32 !== "selection") {
+            const err176 = {
               instancePath:
                 instancePath +
                 "/" +
-                key30.replace(/~/g, "~0").replace(/\//g, "~1"),
+                key32.replace(/~/g, "~0").replace(/\//g, "~1"),
               schemaPath: "/mapping/readDeparture",
               keyword: "properties",
-              params: { error: "additional", additionalProperty: key30 },
+              params: { error: "additional", additionalProperty: key32 },
               message: "must NOT have additional properties",
             };
             if (vErrors === null) {
-              vErrors = [err165];
+              vErrors = [err176];
             } else {
-              vErrors.push(err165);
+              vErrors.push(err176);
             }
             errors++;
           }
         }
-        if (!valid100) {
-          const err166 = {
+        if (!valid109) {
+          const err177 = {
             instancePath,
             schemaPath: "/mapping/readDeparture/properties",
             keyword: "properties",
@@ -8696,21 +8924,21 @@ function validate65(
             message: "must be object",
           };
           if (vErrors === null) {
-            vErrors = [err166];
+            vErrors = [err177];
           } else {
-            vErrors.push(err166);
+            vErrors.push(err177);
           }
           errors++;
         }
-        var valid99 = _errs63 === errors;
-        valid0 = valid99;
+        var valid108 = _errs67 === errors;
+        valid0 = valid108;
       } else if (tag0 === "recoverInk") {
-        const _errs71 = errors;
-        let valid110 = false;
-        valid110 = true;
+        const _errs75 = errors;
+        let valid119 = false;
+        valid119 = true;
         if (data.id !== undefined) {
           if (!(typeof data.id == "string")) {
-            const err167 = {
+            const err178 = {
               instancePath: instancePath + "/id",
               schemaPath: "/mapping/recoverInk/properties/id/type",
               keyword: "type",
@@ -8718,14 +8946,14 @@ function validate65(
               message: "must be string",
             };
             if (vErrors === null) {
-              vErrors = [err167];
+              vErrors = [err178];
             } else {
-              vErrors.push(err167);
+              vErrors.push(err178);
             }
             errors++;
           }
         } else {
-          const err168 = {
+          const err179 = {
             instancePath,
             schemaPath: "/mapping/recoverInk/properties/id",
             keyword: "properties",
@@ -8733,15 +8961,15 @@ function validate65(
             message: "must have property 'id'",
           };
           if (vErrors === null) {
-            vErrors = [err168];
+            vErrors = [err179];
           } else {
-            vErrors.push(err168);
+            vErrors.push(err179);
           }
           errors++;
         }
         if (data.recoveryId !== undefined) {
           if (!(typeof data.recoveryId == "string")) {
-            const err169 = {
+            const err180 = {
               instancePath: instancePath + "/recoveryId",
               schemaPath: "/mapping/recoverInk/properties/recoveryId/type",
               keyword: "type",
@@ -8749,14 +8977,14 @@ function validate65(
               message: "must be string",
             };
             if (vErrors === null) {
-              vErrors = [err169];
+              vErrors = [err180];
             } else {
-              vErrors.push(err169);
+              vErrors.push(err180);
             }
             errors++;
           }
         } else {
-          const err170 = {
+          const err181 = {
             instancePath,
             schemaPath: "/mapping/recoverInk/properties/recoveryId",
             keyword: "properties",
@@ -8764,49 +8992,49 @@ function validate65(
             message: "must have property 'recoveryId'",
           };
           if (vErrors === null) {
-            vErrors = [err170];
+            vErrors = [err181];
           } else {
-            vErrors.push(err170);
+            vErrors.push(err181);
           }
           errors++;
         }
         if (data.operation !== undefined) {
-          let data60 = data.operation;
-          let valid112 = false;
-          if (data60 && typeof data60 == "object" && !Array.isArray(data60)) {
-            const tag3 = data60.kind;
-            if (tag3 === undefined) {
-              const err171 = {
+          let data62 = data.operation;
+          let valid121 = false;
+          if (data62 && typeof data62 == "object" && !Array.isArray(data62)) {
+            const tag4 = data62.kind;
+            if (tag4 === undefined) {
+              const err182 = {
                 instancePath: instancePath + "/operation",
                 schemaPath:
                   "/mapping/recoverInk/properties/operation/discriminator",
                 keyword: "discriminator",
-                params: { error: "tag", tag: "kind", tagValue: tag3 },
+                params: { error: "tag", tag: "kind", tagValue: tag4 },
                 message: 'tag "kind" must be string',
               };
               if (vErrors === null) {
-                vErrors = [err171];
+                vErrors = [err182];
               } else {
-                vErrors.push(err171);
+                vErrors.push(err182);
               }
               errors++;
-            } else if (typeof tag3 == "string") {
-              if (tag3 === "teaching") {
-                const _errs75 = errors;
-                let valid114 = false;
-                valid114 = true;
-                if (data60.selection !== undefined) {
-                  let data61 = data60.selection;
-                  let valid116 = false;
+            } else if (typeof tag4 == "string") {
+              if (tag4 === "teaching") {
+                const _errs79 = errors;
+                let valid123 = false;
+                valid123 = true;
+                if (data62.selection !== undefined) {
+                  let data63 = data62.selection;
+                  let valid125 = false;
                   if (
-                    data61 &&
-                    typeof data61 == "object" &&
-                    !Array.isArray(data61)
+                    data63 &&
+                    typeof data63 == "object" &&
+                    !Array.isArray(data63)
                   ) {
-                    valid116 = true;
-                    if (data61.installationId !== undefined) {
-                      if (!(typeof data61.installationId == "string")) {
-                        const err172 = {
+                    valid125 = true;
+                    if (data63.installationId !== undefined) {
+                      if (!(typeof data63.installationId == "string")) {
+                        const err183 = {
                           instancePath:
                             instancePath +
                             "/operation/selection/installationId",
@@ -8817,14 +9045,14 @@ function validate65(
                           message: "must be string",
                         };
                         if (vErrors === null) {
-                          vErrors = [err172];
+                          vErrors = [err183];
                         } else {
-                          vErrors.push(err172);
+                          vErrors.push(err183);
                         }
                         errors++;
                       }
                     } else {
-                      const err173 = {
+                      const err184 = {
                         instancePath: instancePath + "/operation/selection",
                         schemaPath:
                           "/mapping/recoverInk/properties/operation/mapping/teaching/properties/selection/properties/installationId",
@@ -8836,15 +9064,15 @@ function validate65(
                         message: "must have property 'installationId'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err173];
+                        vErrors = [err184];
                       } else {
-                        vErrors.push(err173);
+                        vErrors.push(err184);
                       }
                       errors++;
                     }
-                    if (data61.revision !== undefined) {
-                      if (!(typeof data61.revision == "string")) {
-                        const err174 = {
+                    if (data63.revision !== undefined) {
+                      if (!(typeof data63.revision == "string")) {
+                        const err185 = {
                           instancePath:
                             instancePath + "/operation/selection/revision",
                           schemaPath:
@@ -8854,14 +9082,14 @@ function validate65(
                           message: "must be string",
                         };
                         if (vErrors === null) {
-                          vErrors = [err174];
+                          vErrors = [err185];
                         } else {
-                          vErrors.push(err174);
+                          vErrors.push(err185);
                         }
                         errors++;
                       }
                     } else {
-                      const err175 = {
+                      const err186 = {
                         instancePath: instancePath + "/operation/selection",
                         schemaPath:
                           "/mapping/recoverInk/properties/operation/mapping/teaching/properties/selection/properties/revision",
@@ -8873,24 +9101,24 @@ function validate65(
                         message: "must have property 'revision'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err175];
+                        vErrors = [err186];
                       } else {
-                        vErrors.push(err175);
+                        vErrors.push(err186);
                       }
                       errors++;
                     }
-                    if (data61.owner !== undefined) {
-                      let data64 = data61.owner;
-                      let valid118 = false;
+                    if (data63.owner !== undefined) {
+                      let data66 = data63.owner;
+                      let valid127 = false;
                       if (
-                        data64 &&
-                        typeof data64 == "object" &&
-                        !Array.isArray(data64)
+                        data66 &&
+                        typeof data66 == "object" &&
+                        !Array.isArray(data66)
                       ) {
-                        valid118 = true;
-                        if (data64.profileId !== undefined) {
-                          if (!(typeof data64.profileId == "string")) {
-                            const err176 = {
+                        valid127 = true;
+                        if (data66.profileId !== undefined) {
+                          if (!(typeof data66.profileId == "string")) {
+                            const err187 = {
                               instancePath:
                                 instancePath +
                                 "/operation/selection/owner/profileId",
@@ -8901,14 +9129,14 @@ function validate65(
                               message: "must be string",
                             };
                             if (vErrors === null) {
-                              vErrors = [err176];
+                              vErrors = [err187];
                             } else {
-                              vErrors.push(err176);
+                              vErrors.push(err187);
                             }
                             errors++;
                           }
                         } else {
-                          const err177 = {
+                          const err188 = {
                             instancePath:
                               instancePath + "/operation/selection/owner",
                             schemaPath:
@@ -8921,15 +9149,15 @@ function validate65(
                             message: "must have property 'profileId'",
                           };
                           if (vErrors === null) {
-                            vErrors = [err177];
+                            vErrors = [err188];
                           } else {
-                            vErrors.push(err177);
+                            vErrors.push(err188);
                           }
                           errors++;
                         }
-                        if (data64.generation !== undefined) {
-                          if (!(typeof data64.generation == "string")) {
-                            const err178 = {
+                        if (data66.generation !== undefined) {
+                          if (!(typeof data66.generation == "string")) {
+                            const err189 = {
                               instancePath:
                                 instancePath +
                                 "/operation/selection/owner/generation",
@@ -8940,14 +9168,14 @@ function validate65(
                               message: "must be string",
                             };
                             if (vErrors === null) {
-                              vErrors = [err178];
+                              vErrors = [err189];
                             } else {
-                              vErrors.push(err178);
+                              vErrors.push(err189);
                             }
                             errors++;
                           }
                         } else {
-                          const err179 = {
+                          const err190 = {
                             instancePath:
                               instancePath + "/operation/selection/owner",
                             schemaPath:
@@ -8960,39 +9188,39 @@ function validate65(
                             message: "must have property 'generation'",
                           };
                           if (vErrors === null) {
-                            vErrors = [err179];
+                            vErrors = [err190];
                           } else {
-                            vErrors.push(err179);
+                            vErrors.push(err190);
                           }
                           errors++;
                         }
-                        for (const key31 in data64) {
-                          if (key31 !== "profileId" && key31 !== "generation") {
-                            const err180 = {
+                        for (const key33 in data66) {
+                          if (key33 !== "profileId" && key33 !== "generation") {
+                            const err191 = {
                               instancePath:
                                 instancePath +
                                 "/operation/selection/owner/" +
-                                key31.replace(/~/g, "~0").replace(/\//g, "~1"),
+                                key33.replace(/~/g, "~0").replace(/\//g, "~1"),
                               schemaPath:
                                 "/mapping/recoverInk/properties/operation/mapping/teaching/properties/selection/properties/owner",
                               keyword: "properties",
                               params: {
                                 error: "additional",
-                                additionalProperty: key31,
+                                additionalProperty: key33,
                               },
                               message: "must NOT have additional properties",
                             };
                             if (vErrors === null) {
-                              vErrors = [err180];
+                              vErrors = [err191];
                             } else {
-                              vErrors.push(err180);
+                              vErrors.push(err191);
                             }
                             errors++;
                           }
                         }
                       }
-                      if (!valid118) {
-                        const err181 = {
+                      if (!valid127) {
+                        const err192 = {
                           instancePath:
                             instancePath + "/operation/selection/owner",
                           schemaPath:
@@ -9002,14 +9230,14 @@ function validate65(
                           message: "must be object",
                         };
                         if (vErrors === null) {
-                          vErrors = [err181];
+                          vErrors = [err192];
                         } else {
-                          vErrors.push(err181);
+                          vErrors.push(err192);
                         }
                         errors++;
                       }
                     } else {
-                      const err182 = {
+                      const err193 = {
                         instancePath: instancePath + "/operation/selection",
                         schemaPath:
                           "/mapping/recoverInk/properties/operation/mapping/teaching/properties/selection/properties/owner",
@@ -9018,43 +9246,43 @@ function validate65(
                         message: "must have property 'owner'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err182];
+                        vErrors = [err193];
                       } else {
-                        vErrors.push(err182);
+                        vErrors.push(err193);
                       }
                       errors++;
                     }
-                    for (const key32 in data61) {
+                    for (const key34 in data63) {
                       if (
-                        key32 !== "installationId" &&
-                        key32 !== "revision" &&
-                        key32 !== "owner"
+                        key34 !== "installationId" &&
+                        key34 !== "revision" &&
+                        key34 !== "owner"
                       ) {
-                        const err183 = {
+                        const err194 = {
                           instancePath:
                             instancePath +
                             "/operation/selection/" +
-                            key32.replace(/~/g, "~0").replace(/\//g, "~1"),
+                            key34.replace(/~/g, "~0").replace(/\//g, "~1"),
                           schemaPath:
                             "/mapping/recoverInk/properties/operation/mapping/teaching/properties/selection",
                           keyword: "properties",
                           params: {
                             error: "additional",
-                            additionalProperty: key32,
+                            additionalProperty: key34,
                           },
                           message: "must NOT have additional properties",
                         };
                         if (vErrors === null) {
-                          vErrors = [err183];
+                          vErrors = [err194];
                         } else {
-                          vErrors.push(err183);
+                          vErrors.push(err194);
                         }
                         errors++;
                       }
                     }
                   }
-                  if (!valid116) {
-                    const err184 = {
+                  if (!valid125) {
+                    const err195 = {
                       instancePath: instancePath + "/operation/selection",
                       schemaPath:
                         "/mapping/recoverInk/properties/operation/mapping/teaching/properties/selection/properties",
@@ -9063,14 +9291,14 @@ function validate65(
                       message: "must be object",
                     };
                     if (vErrors === null) {
-                      vErrors = [err184];
+                      vErrors = [err195];
                     } else {
-                      vErrors.push(err184);
+                      vErrors.push(err195);
                     }
                     errors++;
                   }
                 } else {
-                  const err185 = {
+                  const err196 = {
                     instancePath: instancePath + "/operation",
                     schemaPath:
                       "/mapping/recoverInk/properties/operation/mapping/teaching/properties/selection",
@@ -9079,42 +9307,42 @@ function validate65(
                     message: "must have property 'selection'",
                   };
                   if (vErrors === null) {
-                    vErrors = [err185];
+                    vErrors = [err196];
                   } else {
-                    vErrors.push(err185);
+                    vErrors.push(err196);
                   }
                   errors++;
                 }
-                for (const key33 in data60) {
+                for (const key35 in data62) {
                   if (
-                    key33 !== "kind" &&
-                    key33 !== "selection" &&
-                    key33 !== "command"
+                    key35 !== "kind" &&
+                    key35 !== "selection" &&
+                    key35 !== "command"
                   ) {
-                    const err186 = {
+                    const err197 = {
                       instancePath:
                         instancePath +
                         "/operation/" +
-                        key33.replace(/~/g, "~0").replace(/\//g, "~1"),
+                        key35.replace(/~/g, "~0").replace(/\//g, "~1"),
                       schemaPath:
                         "/mapping/recoverInk/properties/operation/mapping/teaching",
                       keyword: "properties",
                       params: {
                         error: "additional",
-                        additionalProperty: key33,
+                        additionalProperty: key35,
                       },
                       message: "must NOT have additional properties",
                     };
                     if (vErrors === null) {
-                      vErrors = [err186];
+                      vErrors = [err197];
                     } else {
-                      vErrors.push(err186);
+                      vErrors.push(err197);
                     }
                     errors++;
                   }
                 }
-                if (!valid114) {
-                  const err187 = {
+                if (!valid123) {
+                  const err198 = {
                     instancePath: instancePath + "/operation",
                     schemaPath:
                       "/mapping/recoverInk/properties/operation/mapping/teaching/properties",
@@ -9123,30 +9351,30 @@ function validate65(
                     message: "must be object",
                   };
                   if (vErrors === null) {
-                    vErrors = [err187];
+                    vErrors = [err198];
                   } else {
-                    vErrors.push(err187);
+                    vErrors.push(err198);
                   }
                   errors++;
                 }
-                var valid113 = _errs75 === errors;
-                valid112 = valid113;
-              } else if (tag3 === "ink") {
-                const _errs82 = errors;
-                let valid124 = false;
-                valid124 = true;
-                if (data60.selection !== undefined) {
-                  let data67 = data60.selection;
-                  let valid126 = false;
+                var valid122 = _errs79 === errors;
+                valid121 = valid122;
+              } else if (tag4 === "ink") {
+                const _errs86 = errors;
+                let valid133 = false;
+                valid133 = true;
+                if (data62.selection !== undefined) {
+                  let data69 = data62.selection;
+                  let valid135 = false;
                   if (
-                    data67 &&
-                    typeof data67 == "object" &&
-                    !Array.isArray(data67)
+                    data69 &&
+                    typeof data69 == "object" &&
+                    !Array.isArray(data69)
                   ) {
-                    valid126 = true;
-                    if (data67.installationId !== undefined) {
-                      if (!(typeof data67.installationId == "string")) {
-                        const err188 = {
+                    valid135 = true;
+                    if (data69.installationId !== undefined) {
+                      if (!(typeof data69.installationId == "string")) {
+                        const err199 = {
                           instancePath:
                             instancePath +
                             "/operation/selection/installationId",
@@ -9157,14 +9385,14 @@ function validate65(
                           message: "must be string",
                         };
                         if (vErrors === null) {
-                          vErrors = [err188];
+                          vErrors = [err199];
                         } else {
-                          vErrors.push(err188);
+                          vErrors.push(err199);
                         }
                         errors++;
                       }
                     } else {
-                      const err189 = {
+                      const err200 = {
                         instancePath: instancePath + "/operation/selection",
                         schemaPath:
                           "/mapping/recoverInk/properties/operation/mapping/ink/properties/selection/properties/installationId",
@@ -9176,15 +9404,15 @@ function validate65(
                         message: "must have property 'installationId'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err189];
+                        vErrors = [err200];
                       } else {
-                        vErrors.push(err189);
+                        vErrors.push(err200);
                       }
                       errors++;
                     }
-                    if (data67.revision !== undefined) {
-                      if (!(typeof data67.revision == "string")) {
-                        const err190 = {
+                    if (data69.revision !== undefined) {
+                      if (!(typeof data69.revision == "string")) {
+                        const err201 = {
                           instancePath:
                             instancePath + "/operation/selection/revision",
                           schemaPath:
@@ -9194,14 +9422,14 @@ function validate65(
                           message: "must be string",
                         };
                         if (vErrors === null) {
-                          vErrors = [err190];
+                          vErrors = [err201];
                         } else {
-                          vErrors.push(err190);
+                          vErrors.push(err201);
                         }
                         errors++;
                       }
                     } else {
-                      const err191 = {
+                      const err202 = {
                         instancePath: instancePath + "/operation/selection",
                         schemaPath:
                           "/mapping/recoverInk/properties/operation/mapping/ink/properties/selection/properties/revision",
@@ -9213,24 +9441,24 @@ function validate65(
                         message: "must have property 'revision'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err191];
+                        vErrors = [err202];
                       } else {
-                        vErrors.push(err191);
+                        vErrors.push(err202);
                       }
                       errors++;
                     }
-                    if (data67.owner !== undefined) {
-                      let data70 = data67.owner;
-                      let valid128 = false;
+                    if (data69.owner !== undefined) {
+                      let data72 = data69.owner;
+                      let valid137 = false;
                       if (
-                        data70 &&
-                        typeof data70 == "object" &&
-                        !Array.isArray(data70)
+                        data72 &&
+                        typeof data72 == "object" &&
+                        !Array.isArray(data72)
                       ) {
-                        valid128 = true;
-                        if (data70.profileId !== undefined) {
-                          if (!(typeof data70.profileId == "string")) {
-                            const err192 = {
+                        valid137 = true;
+                        if (data72.profileId !== undefined) {
+                          if (!(typeof data72.profileId == "string")) {
+                            const err203 = {
                               instancePath:
                                 instancePath +
                                 "/operation/selection/owner/profileId",
@@ -9241,14 +9469,14 @@ function validate65(
                               message: "must be string",
                             };
                             if (vErrors === null) {
-                              vErrors = [err192];
+                              vErrors = [err203];
                             } else {
-                              vErrors.push(err192);
+                              vErrors.push(err203);
                             }
                             errors++;
                           }
                         } else {
-                          const err193 = {
+                          const err204 = {
                             instancePath:
                               instancePath + "/operation/selection/owner",
                             schemaPath:
@@ -9261,15 +9489,15 @@ function validate65(
                             message: "must have property 'profileId'",
                           };
                           if (vErrors === null) {
-                            vErrors = [err193];
+                            vErrors = [err204];
                           } else {
-                            vErrors.push(err193);
+                            vErrors.push(err204);
                           }
                           errors++;
                         }
-                        if (data70.generation !== undefined) {
-                          if (!(typeof data70.generation == "string")) {
-                            const err194 = {
+                        if (data72.generation !== undefined) {
+                          if (!(typeof data72.generation == "string")) {
+                            const err205 = {
                               instancePath:
                                 instancePath +
                                 "/operation/selection/owner/generation",
@@ -9280,14 +9508,14 @@ function validate65(
                               message: "must be string",
                             };
                             if (vErrors === null) {
-                              vErrors = [err194];
+                              vErrors = [err205];
                             } else {
-                              vErrors.push(err194);
+                              vErrors.push(err205);
                             }
                             errors++;
                           }
                         } else {
-                          const err195 = {
+                          const err206 = {
                             instancePath:
                               instancePath + "/operation/selection/owner",
                             schemaPath:
@@ -9300,39 +9528,39 @@ function validate65(
                             message: "must have property 'generation'",
                           };
                           if (vErrors === null) {
-                            vErrors = [err195];
+                            vErrors = [err206];
                           } else {
-                            vErrors.push(err195);
+                            vErrors.push(err206);
                           }
                           errors++;
                         }
-                        for (const key34 in data70) {
-                          if (key34 !== "profileId" && key34 !== "generation") {
-                            const err196 = {
+                        for (const key36 in data72) {
+                          if (key36 !== "profileId" && key36 !== "generation") {
+                            const err207 = {
                               instancePath:
                                 instancePath +
                                 "/operation/selection/owner/" +
-                                key34.replace(/~/g, "~0").replace(/\//g, "~1"),
+                                key36.replace(/~/g, "~0").replace(/\//g, "~1"),
                               schemaPath:
                                 "/mapping/recoverInk/properties/operation/mapping/ink/properties/selection/properties/owner",
                               keyword: "properties",
                               params: {
                                 error: "additional",
-                                additionalProperty: key34,
+                                additionalProperty: key36,
                               },
                               message: "must NOT have additional properties",
                             };
                             if (vErrors === null) {
-                              vErrors = [err196];
+                              vErrors = [err207];
                             } else {
-                              vErrors.push(err196);
+                              vErrors.push(err207);
                             }
                             errors++;
                           }
                         }
                       }
-                      if (!valid128) {
-                        const err197 = {
+                      if (!valid137) {
+                        const err208 = {
                           instancePath:
                             instancePath + "/operation/selection/owner",
                           schemaPath:
@@ -9342,14 +9570,14 @@ function validate65(
                           message: "must be object",
                         };
                         if (vErrors === null) {
-                          vErrors = [err197];
+                          vErrors = [err208];
                         } else {
-                          vErrors.push(err197);
+                          vErrors.push(err208);
                         }
                         errors++;
                       }
                     } else {
-                      const err198 = {
+                      const err209 = {
                         instancePath: instancePath + "/operation/selection",
                         schemaPath:
                           "/mapping/recoverInk/properties/operation/mapping/ink/properties/selection/properties/owner",
@@ -9358,43 +9586,43 @@ function validate65(
                         message: "must have property 'owner'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err198];
+                        vErrors = [err209];
                       } else {
-                        vErrors.push(err198);
+                        vErrors.push(err209);
                       }
                       errors++;
                     }
-                    for (const key35 in data67) {
+                    for (const key37 in data69) {
                       if (
-                        key35 !== "installationId" &&
-                        key35 !== "revision" &&
-                        key35 !== "owner"
+                        key37 !== "installationId" &&
+                        key37 !== "revision" &&
+                        key37 !== "owner"
                       ) {
-                        const err199 = {
+                        const err210 = {
                           instancePath:
                             instancePath +
                             "/operation/selection/" +
-                            key35.replace(/~/g, "~0").replace(/\//g, "~1"),
+                            key37.replace(/~/g, "~0").replace(/\//g, "~1"),
                           schemaPath:
                             "/mapping/recoverInk/properties/operation/mapping/ink/properties/selection",
                           keyword: "properties",
                           params: {
                             error: "additional",
-                            additionalProperty: key35,
+                            additionalProperty: key37,
                           },
                           message: "must NOT have additional properties",
                         };
                         if (vErrors === null) {
-                          vErrors = [err199];
+                          vErrors = [err210];
                         } else {
-                          vErrors.push(err199);
+                          vErrors.push(err210);
                         }
                         errors++;
                       }
                     }
                   }
-                  if (!valid126) {
-                    const err200 = {
+                  if (!valid135) {
+                    const err211 = {
                       instancePath: instancePath + "/operation/selection",
                       schemaPath:
                         "/mapping/recoverInk/properties/operation/mapping/ink/properties/selection/properties",
@@ -9403,14 +9631,14 @@ function validate65(
                       message: "must be object",
                     };
                     if (vErrors === null) {
-                      vErrors = [err200];
+                      vErrors = [err211];
                     } else {
-                      vErrors.push(err200);
+                      vErrors.push(err211);
                     }
                     errors++;
                   }
                 } else {
-                  const err201 = {
+                  const err212 = {
                     instancePath: instancePath + "/operation",
                     schemaPath:
                       "/mapping/recoverInk/properties/operation/mapping/ink/properties/selection",
@@ -9419,42 +9647,42 @@ function validate65(
                     message: "must have property 'selection'",
                   };
                   if (vErrors === null) {
-                    vErrors = [err201];
+                    vErrors = [err212];
                   } else {
-                    vErrors.push(err201);
+                    vErrors.push(err212);
                   }
                   errors++;
                 }
-                for (const key36 in data60) {
+                for (const key38 in data62) {
                   if (
-                    key36 !== "kind" &&
-                    key36 !== "selection" &&
-                    key36 !== "command"
+                    key38 !== "kind" &&
+                    key38 !== "selection" &&
+                    key38 !== "command"
                   ) {
-                    const err202 = {
+                    const err213 = {
                       instancePath:
                         instancePath +
                         "/operation/" +
-                        key36.replace(/~/g, "~0").replace(/\//g, "~1"),
+                        key38.replace(/~/g, "~0").replace(/\//g, "~1"),
                       schemaPath:
                         "/mapping/recoverInk/properties/operation/mapping/ink",
                       keyword: "properties",
                       params: {
                         error: "additional",
-                        additionalProperty: key36,
+                        additionalProperty: key38,
                       },
                       message: "must NOT have additional properties",
                     };
                     if (vErrors === null) {
-                      vErrors = [err202];
+                      vErrors = [err213];
                     } else {
-                      vErrors.push(err202);
+                      vErrors.push(err213);
                     }
                     errors++;
                   }
                 }
-                if (!valid124) {
-                  const err203 = {
+                if (!valid133) {
+                  const err214 = {
                     instancePath: instancePath + "/operation",
                     schemaPath:
                       "/mapping/recoverInk/properties/operation/mapping/ink/properties",
@@ -9463,48 +9691,48 @@ function validate65(
                     message: "must be object",
                   };
                   if (vErrors === null) {
-                    vErrors = [err203];
+                    vErrors = [err214];
                   } else {
-                    vErrors.push(err203);
+                    vErrors.push(err214);
                   }
                   errors++;
                 }
-                var valid123 = _errs82 === errors;
-                valid112 = valid123;
+                var valid132 = _errs86 === errors;
+                valid121 = valid132;
               } else {
-                const err204 = {
+                const err215 = {
                   instancePath: instancePath + "/operation/kind",
                   schemaPath:
                     "/mapping/recoverInk/properties/operation/mapping",
                   keyword: "discriminator",
-                  params: { error: "mapping", tag: "kind", tagValue: tag3 },
+                  params: { error: "mapping", tag: "kind", tagValue: tag4 },
                   message: 'value of tag "kind" must be in mapping',
                 };
                 if (vErrors === null) {
-                  vErrors = [err204];
+                  vErrors = [err215];
                 } else {
-                  vErrors.push(err204);
+                  vErrors.push(err215);
                 }
                 errors++;
               }
             } else {
-              const err205 = {
+              const err216 = {
                 instancePath: instancePath + "/operation/kind",
                 schemaPath:
                   "/mapping/recoverInk/properties/operation/discriminator",
                 keyword: "discriminator",
-                params: { error: "tag", tag: "kind", tagValue: tag3 },
+                params: { error: "tag", tag: "kind", tagValue: tag4 },
                 message: 'tag "kind" must be string',
               };
               if (vErrors === null) {
-                vErrors = [err205];
+                vErrors = [err216];
               } else {
-                vErrors.push(err205);
+                vErrors.push(err216);
               }
               errors++;
             }
-          } else if (!valid112) {
-            const err206 = {
+          } else if (!valid121) {
+            const err217 = {
               instancePath: instancePath + "/operation",
               schemaPath:
                 "/mapping/recoverInk/properties/operation/discriminator",
@@ -9513,14 +9741,14 @@ function validate65(
               message: "must be object",
             };
             if (vErrors === null) {
-              vErrors = [err206];
+              vErrors = [err217];
             } else {
-              vErrors.push(err206);
+              vErrors.push(err217);
             }
             errors++;
           }
         } else {
-          const err207 = {
+          const err218 = {
             instancePath,
             schemaPath: "/mapping/recoverInk/properties/operation",
             keyword: "properties",
@@ -9528,39 +9756,39 @@ function validate65(
             message: "must have property 'operation'",
           };
           if (vErrors === null) {
-            vErrors = [err207];
+            vErrors = [err218];
           } else {
-            vErrors.push(err207);
+            vErrors.push(err218);
           }
           errors++;
         }
-        for (const key37 in data) {
+        for (const key39 in data) {
           if (
-            key37 !== "kind" &&
-            key37 !== "id" &&
-            key37 !== "recoveryId" &&
-            key37 !== "operation"
+            key39 !== "kind" &&
+            key39 !== "id" &&
+            key39 !== "recoveryId" &&
+            key39 !== "operation"
           ) {
-            const err208 = {
+            const err219 = {
               instancePath:
                 instancePath +
                 "/" +
-                key37.replace(/~/g, "~0").replace(/\//g, "~1"),
+                key39.replace(/~/g, "~0").replace(/\//g, "~1"),
               schemaPath: "/mapping/recoverInk",
               keyword: "properties",
-              params: { error: "additional", additionalProperty: key37 },
+              params: { error: "additional", additionalProperty: key39 },
               message: "must NOT have additional properties",
             };
             if (vErrors === null) {
-              vErrors = [err208];
+              vErrors = [err219];
             } else {
-              vErrors.push(err208);
+              vErrors.push(err219);
             }
             errors++;
           }
         }
-        if (!valid110) {
-          const err209 = {
+        if (!valid119) {
+          const err220 = {
             instancePath,
             schemaPath: "/mapping/recoverInk/properties",
             keyword: "properties",
@@ -9568,21 +9796,21 @@ function validate65(
             message: "must be object",
           };
           if (vErrors === null) {
-            vErrors = [err209];
+            vErrors = [err220];
           } else {
-            vErrors.push(err209);
+            vErrors.push(err220);
           }
           errors++;
         }
-        var valid109 = _errs71 === errors;
-        valid0 = valid109;
+        var valid118 = _errs75 === errors;
+        valid0 = valid118;
       } else if (tag0 === "recoverTeaching") {
-        const _errs89 = errors;
-        let valid135 = false;
-        valid135 = true;
+        const _errs93 = errors;
+        let valid144 = false;
+        valid144 = true;
         if (data.id !== undefined) {
           if (!(typeof data.id == "string")) {
-            const err210 = {
+            const err221 = {
               instancePath: instancePath + "/id",
               schemaPath: "/mapping/recoverTeaching/properties/id/type",
               keyword: "type",
@@ -9590,14 +9818,14 @@ function validate65(
               message: "must be string",
             };
             if (vErrors === null) {
-              vErrors = [err210];
+              vErrors = [err221];
             } else {
-              vErrors.push(err210);
+              vErrors.push(err221);
             }
             errors++;
           }
         } else {
-          const err211 = {
+          const err222 = {
             instancePath,
             schemaPath: "/mapping/recoverTeaching/properties/id",
             keyword: "properties",
@@ -9605,15 +9833,15 @@ function validate65(
             message: "must have property 'id'",
           };
           if (vErrors === null) {
-            vErrors = [err211];
+            vErrors = [err222];
           } else {
-            vErrors.push(err211);
+            vErrors.push(err222);
           }
           errors++;
         }
         if (data.recoveryId !== undefined) {
           if (!(typeof data.recoveryId == "string")) {
-            const err212 = {
+            const err223 = {
               instancePath: instancePath + "/recoveryId",
               schemaPath: "/mapping/recoverTeaching/properties/recoveryId/type",
               keyword: "type",
@@ -9621,14 +9849,14 @@ function validate65(
               message: "must be string",
             };
             if (vErrors === null) {
-              vErrors = [err212];
+              vErrors = [err223];
             } else {
-              vErrors.push(err212);
+              vErrors.push(err223);
             }
             errors++;
           }
         } else {
-          const err213 = {
+          const err224 = {
             instancePath,
             schemaPath: "/mapping/recoverTeaching/properties/recoveryId",
             keyword: "properties",
@@ -9636,49 +9864,49 @@ function validate65(
             message: "must have property 'recoveryId'",
           };
           if (vErrors === null) {
-            vErrors = [err213];
+            vErrors = [err224];
           } else {
-            vErrors.push(err213);
+            vErrors.push(err224);
           }
           errors++;
         }
         if (data.operation !== undefined) {
-          let data75 = data.operation;
-          let valid137 = false;
-          if (data75 && typeof data75 == "object" && !Array.isArray(data75)) {
-            const tag4 = data75.kind;
-            if (tag4 === undefined) {
-              const err214 = {
+          let data77 = data.operation;
+          let valid146 = false;
+          if (data77 && typeof data77 == "object" && !Array.isArray(data77)) {
+            const tag5 = data77.kind;
+            if (tag5 === undefined) {
+              const err225 = {
                 instancePath: instancePath + "/operation",
                 schemaPath:
                   "/mapping/recoverTeaching/properties/operation/discriminator",
                 keyword: "discriminator",
-                params: { error: "tag", tag: "kind", tagValue: tag4 },
+                params: { error: "tag", tag: "kind", tagValue: tag5 },
                 message: 'tag "kind" must be string',
               };
               if (vErrors === null) {
-                vErrors = [err214];
+                vErrors = [err225];
               } else {
-                vErrors.push(err214);
+                vErrors.push(err225);
               }
               errors++;
-            } else if (typeof tag4 == "string") {
-              if (tag4 === "teaching") {
-                const _errs93 = errors;
-                let valid139 = false;
-                valid139 = true;
-                if (data75.selection !== undefined) {
-                  let data76 = data75.selection;
-                  let valid141 = false;
+            } else if (typeof tag5 == "string") {
+              if (tag5 === "teaching") {
+                const _errs97 = errors;
+                let valid148 = false;
+                valid148 = true;
+                if (data77.selection !== undefined) {
+                  let data78 = data77.selection;
+                  let valid150 = false;
                   if (
-                    data76 &&
-                    typeof data76 == "object" &&
-                    !Array.isArray(data76)
+                    data78 &&
+                    typeof data78 == "object" &&
+                    !Array.isArray(data78)
                   ) {
-                    valid141 = true;
-                    if (data76.installationId !== undefined) {
-                      if (!(typeof data76.installationId == "string")) {
-                        const err215 = {
+                    valid150 = true;
+                    if (data78.installationId !== undefined) {
+                      if (!(typeof data78.installationId == "string")) {
+                        const err226 = {
                           instancePath:
                             instancePath +
                             "/operation/selection/installationId",
@@ -9689,14 +9917,14 @@ function validate65(
                           message: "must be string",
                         };
                         if (vErrors === null) {
-                          vErrors = [err215];
+                          vErrors = [err226];
                         } else {
-                          vErrors.push(err215);
+                          vErrors.push(err226);
                         }
                         errors++;
                       }
                     } else {
-                      const err216 = {
+                      const err227 = {
                         instancePath: instancePath + "/operation/selection",
                         schemaPath:
                           "/mapping/recoverTeaching/properties/operation/mapping/teaching/properties/selection/properties/installationId",
@@ -9708,15 +9936,15 @@ function validate65(
                         message: "must have property 'installationId'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err216];
+                        vErrors = [err227];
                       } else {
-                        vErrors.push(err216);
+                        vErrors.push(err227);
                       }
                       errors++;
                     }
-                    if (data76.revision !== undefined) {
-                      if (!(typeof data76.revision == "string")) {
-                        const err217 = {
+                    if (data78.revision !== undefined) {
+                      if (!(typeof data78.revision == "string")) {
+                        const err228 = {
                           instancePath:
                             instancePath + "/operation/selection/revision",
                           schemaPath:
@@ -9726,14 +9954,14 @@ function validate65(
                           message: "must be string",
                         };
                         if (vErrors === null) {
-                          vErrors = [err217];
+                          vErrors = [err228];
                         } else {
-                          vErrors.push(err217);
+                          vErrors.push(err228);
                         }
                         errors++;
                       }
                     } else {
-                      const err218 = {
+                      const err229 = {
                         instancePath: instancePath + "/operation/selection",
                         schemaPath:
                           "/mapping/recoverTeaching/properties/operation/mapping/teaching/properties/selection/properties/revision",
@@ -9745,24 +9973,24 @@ function validate65(
                         message: "must have property 'revision'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err218];
+                        vErrors = [err229];
                       } else {
-                        vErrors.push(err218);
+                        vErrors.push(err229);
                       }
                       errors++;
                     }
-                    if (data76.owner !== undefined) {
-                      let data79 = data76.owner;
-                      let valid143 = false;
+                    if (data78.owner !== undefined) {
+                      let data81 = data78.owner;
+                      let valid152 = false;
                       if (
-                        data79 &&
-                        typeof data79 == "object" &&
-                        !Array.isArray(data79)
+                        data81 &&
+                        typeof data81 == "object" &&
+                        !Array.isArray(data81)
                       ) {
-                        valid143 = true;
-                        if (data79.profileId !== undefined) {
-                          if (!(typeof data79.profileId == "string")) {
-                            const err219 = {
+                        valid152 = true;
+                        if (data81.profileId !== undefined) {
+                          if (!(typeof data81.profileId == "string")) {
+                            const err230 = {
                               instancePath:
                                 instancePath +
                                 "/operation/selection/owner/profileId",
@@ -9773,14 +10001,14 @@ function validate65(
                               message: "must be string",
                             };
                             if (vErrors === null) {
-                              vErrors = [err219];
+                              vErrors = [err230];
                             } else {
-                              vErrors.push(err219);
+                              vErrors.push(err230);
                             }
                             errors++;
                           }
                         } else {
-                          const err220 = {
+                          const err231 = {
                             instancePath:
                               instancePath + "/operation/selection/owner",
                             schemaPath:
@@ -9793,15 +10021,15 @@ function validate65(
                             message: "must have property 'profileId'",
                           };
                           if (vErrors === null) {
-                            vErrors = [err220];
+                            vErrors = [err231];
                           } else {
-                            vErrors.push(err220);
+                            vErrors.push(err231);
                           }
                           errors++;
                         }
-                        if (data79.generation !== undefined) {
-                          if (!(typeof data79.generation == "string")) {
-                            const err221 = {
+                        if (data81.generation !== undefined) {
+                          if (!(typeof data81.generation == "string")) {
+                            const err232 = {
                               instancePath:
                                 instancePath +
                                 "/operation/selection/owner/generation",
@@ -9812,14 +10040,14 @@ function validate65(
                               message: "must be string",
                             };
                             if (vErrors === null) {
-                              vErrors = [err221];
+                              vErrors = [err232];
                             } else {
-                              vErrors.push(err221);
+                              vErrors.push(err232);
                             }
                             errors++;
                           }
                         } else {
-                          const err222 = {
+                          const err233 = {
                             instancePath:
                               instancePath + "/operation/selection/owner",
                             schemaPath:
@@ -9832,39 +10060,39 @@ function validate65(
                             message: "must have property 'generation'",
                           };
                           if (vErrors === null) {
-                            vErrors = [err222];
+                            vErrors = [err233];
                           } else {
-                            vErrors.push(err222);
+                            vErrors.push(err233);
                           }
                           errors++;
                         }
-                        for (const key38 in data79) {
-                          if (key38 !== "profileId" && key38 !== "generation") {
-                            const err223 = {
+                        for (const key40 in data81) {
+                          if (key40 !== "profileId" && key40 !== "generation") {
+                            const err234 = {
                               instancePath:
                                 instancePath +
                                 "/operation/selection/owner/" +
-                                key38.replace(/~/g, "~0").replace(/\//g, "~1"),
+                                key40.replace(/~/g, "~0").replace(/\//g, "~1"),
                               schemaPath:
                                 "/mapping/recoverTeaching/properties/operation/mapping/teaching/properties/selection/properties/owner",
                               keyword: "properties",
                               params: {
                                 error: "additional",
-                                additionalProperty: key38,
+                                additionalProperty: key40,
                               },
                               message: "must NOT have additional properties",
                             };
                             if (vErrors === null) {
-                              vErrors = [err223];
+                              vErrors = [err234];
                             } else {
-                              vErrors.push(err223);
+                              vErrors.push(err234);
                             }
                             errors++;
                           }
                         }
                       }
-                      if (!valid143) {
-                        const err224 = {
+                      if (!valid152) {
+                        const err235 = {
                           instancePath:
                             instancePath + "/operation/selection/owner",
                           schemaPath:
@@ -9874,14 +10102,14 @@ function validate65(
                           message: "must be object",
                         };
                         if (vErrors === null) {
-                          vErrors = [err224];
+                          vErrors = [err235];
                         } else {
-                          vErrors.push(err224);
+                          vErrors.push(err235);
                         }
                         errors++;
                       }
                     } else {
-                      const err225 = {
+                      const err236 = {
                         instancePath: instancePath + "/operation/selection",
                         schemaPath:
                           "/mapping/recoverTeaching/properties/operation/mapping/teaching/properties/selection/properties/owner",
@@ -9890,43 +10118,43 @@ function validate65(
                         message: "must have property 'owner'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err225];
+                        vErrors = [err236];
                       } else {
-                        vErrors.push(err225);
+                        vErrors.push(err236);
                       }
                       errors++;
                     }
-                    for (const key39 in data76) {
+                    for (const key41 in data78) {
                       if (
-                        key39 !== "installationId" &&
-                        key39 !== "revision" &&
-                        key39 !== "owner"
+                        key41 !== "installationId" &&
+                        key41 !== "revision" &&
+                        key41 !== "owner"
                       ) {
-                        const err226 = {
+                        const err237 = {
                           instancePath:
                             instancePath +
                             "/operation/selection/" +
-                            key39.replace(/~/g, "~0").replace(/\//g, "~1"),
+                            key41.replace(/~/g, "~0").replace(/\//g, "~1"),
                           schemaPath:
                             "/mapping/recoverTeaching/properties/operation/mapping/teaching/properties/selection",
                           keyword: "properties",
                           params: {
                             error: "additional",
-                            additionalProperty: key39,
+                            additionalProperty: key41,
                           },
                           message: "must NOT have additional properties",
                         };
                         if (vErrors === null) {
-                          vErrors = [err226];
+                          vErrors = [err237];
                         } else {
-                          vErrors.push(err226);
+                          vErrors.push(err237);
                         }
                         errors++;
                       }
                     }
                   }
-                  if (!valid141) {
-                    const err227 = {
+                  if (!valid150) {
+                    const err238 = {
                       instancePath: instancePath + "/operation/selection",
                       schemaPath:
                         "/mapping/recoverTeaching/properties/operation/mapping/teaching/properties/selection/properties",
@@ -9935,14 +10163,14 @@ function validate65(
                       message: "must be object",
                     };
                     if (vErrors === null) {
-                      vErrors = [err227];
+                      vErrors = [err238];
                     } else {
-                      vErrors.push(err227);
+                      vErrors.push(err238);
                     }
                     errors++;
                   }
                 } else {
-                  const err228 = {
+                  const err239 = {
                     instancePath: instancePath + "/operation",
                     schemaPath:
                       "/mapping/recoverTeaching/properties/operation/mapping/teaching/properties/selection",
@@ -9951,42 +10179,42 @@ function validate65(
                     message: "must have property 'selection'",
                   };
                   if (vErrors === null) {
-                    vErrors = [err228];
+                    vErrors = [err239];
                   } else {
-                    vErrors.push(err228);
+                    vErrors.push(err239);
                   }
                   errors++;
                 }
-                for (const key40 in data75) {
+                for (const key42 in data77) {
                   if (
-                    key40 !== "kind" &&
-                    key40 !== "selection" &&
-                    key40 !== "command"
+                    key42 !== "kind" &&
+                    key42 !== "selection" &&
+                    key42 !== "command"
                   ) {
-                    const err229 = {
+                    const err240 = {
                       instancePath:
                         instancePath +
                         "/operation/" +
-                        key40.replace(/~/g, "~0").replace(/\//g, "~1"),
+                        key42.replace(/~/g, "~0").replace(/\//g, "~1"),
                       schemaPath:
                         "/mapping/recoverTeaching/properties/operation/mapping/teaching",
                       keyword: "properties",
                       params: {
                         error: "additional",
-                        additionalProperty: key40,
+                        additionalProperty: key42,
                       },
                       message: "must NOT have additional properties",
                     };
                     if (vErrors === null) {
-                      vErrors = [err229];
+                      vErrors = [err240];
                     } else {
-                      vErrors.push(err229);
+                      vErrors.push(err240);
                     }
                     errors++;
                   }
                 }
-                if (!valid139) {
-                  const err230 = {
+                if (!valid148) {
+                  const err241 = {
                     instancePath: instancePath + "/operation",
                     schemaPath:
                       "/mapping/recoverTeaching/properties/operation/mapping/teaching/properties",
@@ -9995,30 +10223,30 @@ function validate65(
                     message: "must be object",
                   };
                   if (vErrors === null) {
-                    vErrors = [err230];
+                    vErrors = [err241];
                   } else {
-                    vErrors.push(err230);
+                    vErrors.push(err241);
                   }
                   errors++;
                 }
-                var valid138 = _errs93 === errors;
-                valid137 = valid138;
-              } else if (tag4 === "ink") {
-                const _errs100 = errors;
-                let valid149 = false;
-                valid149 = true;
-                if (data75.selection !== undefined) {
-                  let data82 = data75.selection;
-                  let valid151 = false;
+                var valid147 = _errs97 === errors;
+                valid146 = valid147;
+              } else if (tag5 === "ink") {
+                const _errs104 = errors;
+                let valid158 = false;
+                valid158 = true;
+                if (data77.selection !== undefined) {
+                  let data84 = data77.selection;
+                  let valid160 = false;
                   if (
-                    data82 &&
-                    typeof data82 == "object" &&
-                    !Array.isArray(data82)
+                    data84 &&
+                    typeof data84 == "object" &&
+                    !Array.isArray(data84)
                   ) {
-                    valid151 = true;
-                    if (data82.installationId !== undefined) {
-                      if (!(typeof data82.installationId == "string")) {
-                        const err231 = {
+                    valid160 = true;
+                    if (data84.installationId !== undefined) {
+                      if (!(typeof data84.installationId == "string")) {
+                        const err242 = {
                           instancePath:
                             instancePath +
                             "/operation/selection/installationId",
@@ -10029,14 +10257,14 @@ function validate65(
                           message: "must be string",
                         };
                         if (vErrors === null) {
-                          vErrors = [err231];
+                          vErrors = [err242];
                         } else {
-                          vErrors.push(err231);
+                          vErrors.push(err242);
                         }
                         errors++;
                       }
                     } else {
-                      const err232 = {
+                      const err243 = {
                         instancePath: instancePath + "/operation/selection",
                         schemaPath:
                           "/mapping/recoverTeaching/properties/operation/mapping/ink/properties/selection/properties/installationId",
@@ -10048,15 +10276,15 @@ function validate65(
                         message: "must have property 'installationId'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err232];
+                        vErrors = [err243];
                       } else {
-                        vErrors.push(err232);
+                        vErrors.push(err243);
                       }
                       errors++;
                     }
-                    if (data82.revision !== undefined) {
-                      if (!(typeof data82.revision == "string")) {
-                        const err233 = {
+                    if (data84.revision !== undefined) {
+                      if (!(typeof data84.revision == "string")) {
+                        const err244 = {
                           instancePath:
                             instancePath + "/operation/selection/revision",
                           schemaPath:
@@ -10066,14 +10294,14 @@ function validate65(
                           message: "must be string",
                         };
                         if (vErrors === null) {
-                          vErrors = [err233];
+                          vErrors = [err244];
                         } else {
-                          vErrors.push(err233);
+                          vErrors.push(err244);
                         }
                         errors++;
                       }
                     } else {
-                      const err234 = {
+                      const err245 = {
                         instancePath: instancePath + "/operation/selection",
                         schemaPath:
                           "/mapping/recoverTeaching/properties/operation/mapping/ink/properties/selection/properties/revision",
@@ -10085,24 +10313,24 @@ function validate65(
                         message: "must have property 'revision'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err234];
+                        vErrors = [err245];
                       } else {
-                        vErrors.push(err234);
+                        vErrors.push(err245);
                       }
                       errors++;
                     }
-                    if (data82.owner !== undefined) {
-                      let data85 = data82.owner;
-                      let valid153 = false;
+                    if (data84.owner !== undefined) {
+                      let data87 = data84.owner;
+                      let valid162 = false;
                       if (
-                        data85 &&
-                        typeof data85 == "object" &&
-                        !Array.isArray(data85)
+                        data87 &&
+                        typeof data87 == "object" &&
+                        !Array.isArray(data87)
                       ) {
-                        valid153 = true;
-                        if (data85.profileId !== undefined) {
-                          if (!(typeof data85.profileId == "string")) {
-                            const err235 = {
+                        valid162 = true;
+                        if (data87.profileId !== undefined) {
+                          if (!(typeof data87.profileId == "string")) {
+                            const err246 = {
                               instancePath:
                                 instancePath +
                                 "/operation/selection/owner/profileId",
@@ -10113,14 +10341,14 @@ function validate65(
                               message: "must be string",
                             };
                             if (vErrors === null) {
-                              vErrors = [err235];
+                              vErrors = [err246];
                             } else {
-                              vErrors.push(err235);
+                              vErrors.push(err246);
                             }
                             errors++;
                           }
                         } else {
-                          const err236 = {
+                          const err247 = {
                             instancePath:
                               instancePath + "/operation/selection/owner",
                             schemaPath:
@@ -10133,15 +10361,15 @@ function validate65(
                             message: "must have property 'profileId'",
                           };
                           if (vErrors === null) {
-                            vErrors = [err236];
+                            vErrors = [err247];
                           } else {
-                            vErrors.push(err236);
+                            vErrors.push(err247);
                           }
                           errors++;
                         }
-                        if (data85.generation !== undefined) {
-                          if (!(typeof data85.generation == "string")) {
-                            const err237 = {
+                        if (data87.generation !== undefined) {
+                          if (!(typeof data87.generation == "string")) {
+                            const err248 = {
                               instancePath:
                                 instancePath +
                                 "/operation/selection/owner/generation",
@@ -10152,14 +10380,14 @@ function validate65(
                               message: "must be string",
                             };
                             if (vErrors === null) {
-                              vErrors = [err237];
+                              vErrors = [err248];
                             } else {
-                              vErrors.push(err237);
+                              vErrors.push(err248);
                             }
                             errors++;
                           }
                         } else {
-                          const err238 = {
+                          const err249 = {
                             instancePath:
                               instancePath + "/operation/selection/owner",
                             schemaPath:
@@ -10172,39 +10400,39 @@ function validate65(
                             message: "must have property 'generation'",
                           };
                           if (vErrors === null) {
-                            vErrors = [err238];
+                            vErrors = [err249];
                           } else {
-                            vErrors.push(err238);
+                            vErrors.push(err249);
                           }
                           errors++;
                         }
-                        for (const key41 in data85) {
-                          if (key41 !== "profileId" && key41 !== "generation") {
-                            const err239 = {
+                        for (const key43 in data87) {
+                          if (key43 !== "profileId" && key43 !== "generation") {
+                            const err250 = {
                               instancePath:
                                 instancePath +
                                 "/operation/selection/owner/" +
-                                key41.replace(/~/g, "~0").replace(/\//g, "~1"),
+                                key43.replace(/~/g, "~0").replace(/\//g, "~1"),
                               schemaPath:
                                 "/mapping/recoverTeaching/properties/operation/mapping/ink/properties/selection/properties/owner",
                               keyword: "properties",
                               params: {
                                 error: "additional",
-                                additionalProperty: key41,
+                                additionalProperty: key43,
                               },
                               message: "must NOT have additional properties",
                             };
                             if (vErrors === null) {
-                              vErrors = [err239];
+                              vErrors = [err250];
                             } else {
-                              vErrors.push(err239);
+                              vErrors.push(err250);
                             }
                             errors++;
                           }
                         }
                       }
-                      if (!valid153) {
-                        const err240 = {
+                      if (!valid162) {
+                        const err251 = {
                           instancePath:
                             instancePath + "/operation/selection/owner",
                           schemaPath:
@@ -10214,14 +10442,14 @@ function validate65(
                           message: "must be object",
                         };
                         if (vErrors === null) {
-                          vErrors = [err240];
+                          vErrors = [err251];
                         } else {
-                          vErrors.push(err240);
+                          vErrors.push(err251);
                         }
                         errors++;
                       }
                     } else {
-                      const err241 = {
+                      const err252 = {
                         instancePath: instancePath + "/operation/selection",
                         schemaPath:
                           "/mapping/recoverTeaching/properties/operation/mapping/ink/properties/selection/properties/owner",
@@ -10230,43 +10458,43 @@ function validate65(
                         message: "must have property 'owner'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err241];
+                        vErrors = [err252];
                       } else {
-                        vErrors.push(err241);
+                        vErrors.push(err252);
                       }
                       errors++;
                     }
-                    for (const key42 in data82) {
+                    for (const key44 in data84) {
                       if (
-                        key42 !== "installationId" &&
-                        key42 !== "revision" &&
-                        key42 !== "owner"
+                        key44 !== "installationId" &&
+                        key44 !== "revision" &&
+                        key44 !== "owner"
                       ) {
-                        const err242 = {
+                        const err253 = {
                           instancePath:
                             instancePath +
                             "/operation/selection/" +
-                            key42.replace(/~/g, "~0").replace(/\//g, "~1"),
+                            key44.replace(/~/g, "~0").replace(/\//g, "~1"),
                           schemaPath:
                             "/mapping/recoverTeaching/properties/operation/mapping/ink/properties/selection",
                           keyword: "properties",
                           params: {
                             error: "additional",
-                            additionalProperty: key42,
+                            additionalProperty: key44,
                           },
                           message: "must NOT have additional properties",
                         };
                         if (vErrors === null) {
-                          vErrors = [err242];
+                          vErrors = [err253];
                         } else {
-                          vErrors.push(err242);
+                          vErrors.push(err253);
                         }
                         errors++;
                       }
                     }
                   }
-                  if (!valid151) {
-                    const err243 = {
+                  if (!valid160) {
+                    const err254 = {
                       instancePath: instancePath + "/operation/selection",
                       schemaPath:
                         "/mapping/recoverTeaching/properties/operation/mapping/ink/properties/selection/properties",
@@ -10275,14 +10503,14 @@ function validate65(
                       message: "must be object",
                     };
                     if (vErrors === null) {
-                      vErrors = [err243];
+                      vErrors = [err254];
                     } else {
-                      vErrors.push(err243);
+                      vErrors.push(err254);
                     }
                     errors++;
                   }
                 } else {
-                  const err244 = {
+                  const err255 = {
                     instancePath: instancePath + "/operation",
                     schemaPath:
                       "/mapping/recoverTeaching/properties/operation/mapping/ink/properties/selection",
@@ -10291,42 +10519,42 @@ function validate65(
                     message: "must have property 'selection'",
                   };
                   if (vErrors === null) {
-                    vErrors = [err244];
+                    vErrors = [err255];
                   } else {
-                    vErrors.push(err244);
+                    vErrors.push(err255);
                   }
                   errors++;
                 }
-                for (const key43 in data75) {
+                for (const key45 in data77) {
                   if (
-                    key43 !== "kind" &&
-                    key43 !== "selection" &&
-                    key43 !== "command"
+                    key45 !== "kind" &&
+                    key45 !== "selection" &&
+                    key45 !== "command"
                   ) {
-                    const err245 = {
+                    const err256 = {
                       instancePath:
                         instancePath +
                         "/operation/" +
-                        key43.replace(/~/g, "~0").replace(/\//g, "~1"),
+                        key45.replace(/~/g, "~0").replace(/\//g, "~1"),
                       schemaPath:
                         "/mapping/recoverTeaching/properties/operation/mapping/ink",
                       keyword: "properties",
                       params: {
                         error: "additional",
-                        additionalProperty: key43,
+                        additionalProperty: key45,
                       },
                       message: "must NOT have additional properties",
                     };
                     if (vErrors === null) {
-                      vErrors = [err245];
+                      vErrors = [err256];
                     } else {
-                      vErrors.push(err245);
+                      vErrors.push(err256);
                     }
                     errors++;
                   }
                 }
-                if (!valid149) {
-                  const err246 = {
+                if (!valid158) {
+                  const err257 = {
                     instancePath: instancePath + "/operation",
                     schemaPath:
                       "/mapping/recoverTeaching/properties/operation/mapping/ink/properties",
@@ -10335,48 +10563,48 @@ function validate65(
                     message: "must be object",
                   };
                   if (vErrors === null) {
-                    vErrors = [err246];
+                    vErrors = [err257];
                   } else {
-                    vErrors.push(err246);
+                    vErrors.push(err257);
                   }
                   errors++;
                 }
-                var valid148 = _errs100 === errors;
-                valid137 = valid148;
+                var valid157 = _errs104 === errors;
+                valid146 = valid157;
               } else {
-                const err247 = {
+                const err258 = {
                   instancePath: instancePath + "/operation/kind",
                   schemaPath:
                     "/mapping/recoverTeaching/properties/operation/mapping",
                   keyword: "discriminator",
-                  params: { error: "mapping", tag: "kind", tagValue: tag4 },
+                  params: { error: "mapping", tag: "kind", tagValue: tag5 },
                   message: 'value of tag "kind" must be in mapping',
                 };
                 if (vErrors === null) {
-                  vErrors = [err247];
+                  vErrors = [err258];
                 } else {
-                  vErrors.push(err247);
+                  vErrors.push(err258);
                 }
                 errors++;
               }
             } else {
-              const err248 = {
+              const err259 = {
                 instancePath: instancePath + "/operation/kind",
                 schemaPath:
                   "/mapping/recoverTeaching/properties/operation/discriminator",
                 keyword: "discriminator",
-                params: { error: "tag", tag: "kind", tagValue: tag4 },
+                params: { error: "tag", tag: "kind", tagValue: tag5 },
                 message: 'tag "kind" must be string',
               };
               if (vErrors === null) {
-                vErrors = [err248];
+                vErrors = [err259];
               } else {
-                vErrors.push(err248);
+                vErrors.push(err259);
               }
               errors++;
             }
-          } else if (!valid137) {
-            const err249 = {
+          } else if (!valid146) {
+            const err260 = {
               instancePath: instancePath + "/operation",
               schemaPath:
                 "/mapping/recoverTeaching/properties/operation/discriminator",
@@ -10385,14 +10613,14 @@ function validate65(
               message: "must be object",
             };
             if (vErrors === null) {
-              vErrors = [err249];
+              vErrors = [err260];
             } else {
-              vErrors.push(err249);
+              vErrors.push(err260);
             }
             errors++;
           }
         } else {
-          const err250 = {
+          const err261 = {
             instancePath,
             schemaPath: "/mapping/recoverTeaching/properties/operation",
             keyword: "properties",
@@ -10400,227 +10628,9 @@ function validate65(
             message: "must have property 'operation'",
           };
           if (vErrors === null) {
-            vErrors = [err250];
+            vErrors = [err261];
           } else {
-            vErrors.push(err250);
-          }
-          errors++;
-        }
-        for (const key44 in data) {
-          if (
-            key44 !== "kind" &&
-            key44 !== "id" &&
-            key44 !== "recoveryId" &&
-            key44 !== "operation"
-          ) {
-            const err251 = {
-              instancePath:
-                instancePath +
-                "/" +
-                key44.replace(/~/g, "~0").replace(/\//g, "~1"),
-              schemaPath: "/mapping/recoverTeaching",
-              keyword: "properties",
-              params: { error: "additional", additionalProperty: key44 },
-              message: "must NOT have additional properties",
-            };
-            if (vErrors === null) {
-              vErrors = [err251];
-            } else {
-              vErrors.push(err251);
-            }
-            errors++;
-          }
-        }
-        if (!valid135) {
-          const err252 = {
-            instancePath,
-            schemaPath: "/mapping/recoverTeaching/properties",
-            keyword: "properties",
-            params: { type: "object", nullable: false },
-            message: "must be object",
-          };
-          if (vErrors === null) {
-            vErrors = [err252];
-          } else {
-            vErrors.push(err252);
-          }
-          errors++;
-        }
-        var valid134 = _errs89 === errors;
-        valid0 = valid134;
-      } else if (tag0 === "recoverAdministration") {
-        const _errs107 = errors;
-        let valid160 = false;
-        valid160 = true;
-        if (data.id !== undefined) {
-          if (!(typeof data.id == "string")) {
-            const err253 = {
-              instancePath: instancePath + "/id",
-              schemaPath: "/mapping/recoverAdministration/properties/id/type",
-              keyword: "type",
-              params: { type: "string", nullable: false },
-              message: "must be string",
-            };
-            if (vErrors === null) {
-              vErrors = [err253];
-            } else {
-              vErrors.push(err253);
-            }
-            errors++;
-          }
-        } else {
-          const err254 = {
-            instancePath,
-            schemaPath: "/mapping/recoverAdministration/properties/id",
-            keyword: "properties",
-            params: { error: "missing", missingProperty: "id" },
-            message: "must have property 'id'",
-          };
-          if (vErrors === null) {
-            vErrors = [err254];
-          } else {
-            vErrors.push(err254);
-          }
-          errors++;
-        }
-        if (data.recoveryId !== undefined) {
-          if (!(typeof data.recoveryId == "string")) {
-            const err255 = {
-              instancePath: instancePath + "/recoveryId",
-              schemaPath:
-                "/mapping/recoverAdministration/properties/recoveryId/type",
-              keyword: "type",
-              params: { type: "string", nullable: false },
-              message: "must be string",
-            };
-            if (vErrors === null) {
-              vErrors = [err255];
-            } else {
-              vErrors.push(err255);
-            }
-            errors++;
-          }
-        } else {
-          const err256 = {
-            instancePath,
-            schemaPath: "/mapping/recoverAdministration/properties/recoveryId",
-            keyword: "properties",
-            params: { error: "missing", missingProperty: "recoveryId" },
-            message: "must have property 'recoveryId'",
-          };
-          if (vErrors === null) {
-            vErrors = [err256];
-          } else {
-            vErrors.push(err256);
-          }
-          errors++;
-        }
-        for (const key45 in data) {
-          if (
-            key45 !== "kind" &&
-            key45 !== "id" &&
-            key45 !== "recoveryId" &&
-            key45 !== "command"
-          ) {
-            const err257 = {
-              instancePath:
-                instancePath +
-                "/" +
-                key45.replace(/~/g, "~0").replace(/\//g, "~1"),
-              schemaPath: "/mapping/recoverAdministration",
-              keyword: "properties",
-              params: { error: "additional", additionalProperty: key45 },
-              message: "must NOT have additional properties",
-            };
-            if (vErrors === null) {
-              vErrors = [err257];
-            } else {
-              vErrors.push(err257);
-            }
-            errors++;
-          }
-        }
-        if (!valid160) {
-          const err258 = {
-            instancePath,
-            schemaPath: "/mapping/recoverAdministration/properties",
-            keyword: "properties",
-            params: { type: "object", nullable: false },
-            message: "must be object",
-          };
-          if (vErrors === null) {
-            vErrors = [err258];
-          } else {
-            vErrors.push(err258);
-          }
-          errors++;
-        }
-        var valid159 = _errs107 === errors;
-        valid0 = valid159;
-      } else if (tag0 === "reconcileRecovery") {
-        const _errs110 = errors;
-        let valid164 = false;
-        valid164 = true;
-        if (data.id !== undefined) {
-          if (!(typeof data.id == "string")) {
-            const err259 = {
-              instancePath: instancePath + "/id",
-              schemaPath: "/mapping/reconcileRecovery/properties/id/type",
-              keyword: "type",
-              params: { type: "string", nullable: false },
-              message: "must be string",
-            };
-            if (vErrors === null) {
-              vErrors = [err259];
-            } else {
-              vErrors.push(err259);
-            }
-            errors++;
-          }
-        } else {
-          const err260 = {
-            instancePath,
-            schemaPath: "/mapping/reconcileRecovery/properties/id",
-            keyword: "properties",
-            params: { error: "missing", missingProperty: "id" },
-            message: "must have property 'id'",
-          };
-          if (vErrors === null) {
-            vErrors = [err260];
-          } else {
-            vErrors.push(err260);
-          }
-          errors++;
-        }
-        if (data.recoveryId !== undefined) {
-          if (!(typeof data.recoveryId == "string")) {
-            const err261 = {
-              instancePath: instancePath + "/recoveryId",
-              schemaPath:
-                "/mapping/reconcileRecovery/properties/recoveryId/type",
-              keyword: "type",
-              params: { type: "string", nullable: false },
-              message: "must be string",
-            };
-            if (vErrors === null) {
-              vErrors = [err261];
-            } else {
-              vErrors.push(err261);
-            }
-            errors++;
-          }
-        } else {
-          const err262 = {
-            instancePath,
-            schemaPath: "/mapping/reconcileRecovery/properties/recoveryId",
-            keyword: "properties",
-            params: { error: "missing", missingProperty: "recoveryId" },
-            message: "must have property 'recoveryId'",
-          };
-          if (vErrors === null) {
-            vErrors = [err262];
-          } else {
-            vErrors.push(err262);
+            vErrors.push(err261);
           }
           errors++;
         }
@@ -10629,28 +10639,246 @@ function validate65(
             key46 !== "kind" &&
             key46 !== "id" &&
             key46 !== "recoveryId" &&
-            key46 !== "choice"
+            key46 !== "operation"
           ) {
-            const err263 = {
+            const err262 = {
               instancePath:
                 instancePath +
                 "/" +
                 key46.replace(/~/g, "~0").replace(/\//g, "~1"),
-              schemaPath: "/mapping/reconcileRecovery",
+              schemaPath: "/mapping/recoverTeaching",
               keyword: "properties",
               params: { error: "additional", additionalProperty: key46 },
               message: "must NOT have additional properties",
             };
             if (vErrors === null) {
-              vErrors = [err263];
+              vErrors = [err262];
             } else {
-              vErrors.push(err263);
+              vErrors.push(err262);
             }
             errors++;
           }
         }
-        if (!valid164) {
-          const err264 = {
+        if (!valid144) {
+          const err263 = {
+            instancePath,
+            schemaPath: "/mapping/recoverTeaching/properties",
+            keyword: "properties",
+            params: { type: "object", nullable: false },
+            message: "must be object",
+          };
+          if (vErrors === null) {
+            vErrors = [err263];
+          } else {
+            vErrors.push(err263);
+          }
+          errors++;
+        }
+        var valid143 = _errs93 === errors;
+        valid0 = valid143;
+      } else if (tag0 === "recoverAdministration") {
+        const _errs111 = errors;
+        let valid169 = false;
+        valid169 = true;
+        if (data.id !== undefined) {
+          if (!(typeof data.id == "string")) {
+            const err264 = {
+              instancePath: instancePath + "/id",
+              schemaPath: "/mapping/recoverAdministration/properties/id/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err264];
+            } else {
+              vErrors.push(err264);
+            }
+            errors++;
+          }
+        } else {
+          const err265 = {
+            instancePath,
+            schemaPath: "/mapping/recoverAdministration/properties/id",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "id" },
+            message: "must have property 'id'",
+          };
+          if (vErrors === null) {
+            vErrors = [err265];
+          } else {
+            vErrors.push(err265);
+          }
+          errors++;
+        }
+        if (data.recoveryId !== undefined) {
+          if (!(typeof data.recoveryId == "string")) {
+            const err266 = {
+              instancePath: instancePath + "/recoveryId",
+              schemaPath:
+                "/mapping/recoverAdministration/properties/recoveryId/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err266];
+            } else {
+              vErrors.push(err266);
+            }
+            errors++;
+          }
+        } else {
+          const err267 = {
+            instancePath,
+            schemaPath: "/mapping/recoverAdministration/properties/recoveryId",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "recoveryId" },
+            message: "must have property 'recoveryId'",
+          };
+          if (vErrors === null) {
+            vErrors = [err267];
+          } else {
+            vErrors.push(err267);
+          }
+          errors++;
+        }
+        for (const key47 in data) {
+          if (
+            key47 !== "kind" &&
+            key47 !== "id" &&
+            key47 !== "recoveryId" &&
+            key47 !== "command"
+          ) {
+            const err268 = {
+              instancePath:
+                instancePath +
+                "/" +
+                key47.replace(/~/g, "~0").replace(/\//g, "~1"),
+              schemaPath: "/mapping/recoverAdministration",
+              keyword: "properties",
+              params: { error: "additional", additionalProperty: key47 },
+              message: "must NOT have additional properties",
+            };
+            if (vErrors === null) {
+              vErrors = [err268];
+            } else {
+              vErrors.push(err268);
+            }
+            errors++;
+          }
+        }
+        if (!valid169) {
+          const err269 = {
+            instancePath,
+            schemaPath: "/mapping/recoverAdministration/properties",
+            keyword: "properties",
+            params: { type: "object", nullable: false },
+            message: "must be object",
+          };
+          if (vErrors === null) {
+            vErrors = [err269];
+          } else {
+            vErrors.push(err269);
+          }
+          errors++;
+        }
+        var valid168 = _errs111 === errors;
+        valid0 = valid168;
+      } else if (tag0 === "reconcileRecovery") {
+        const _errs114 = errors;
+        let valid173 = false;
+        valid173 = true;
+        if (data.id !== undefined) {
+          if (!(typeof data.id == "string")) {
+            const err270 = {
+              instancePath: instancePath + "/id",
+              schemaPath: "/mapping/reconcileRecovery/properties/id/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err270];
+            } else {
+              vErrors.push(err270);
+            }
+            errors++;
+          }
+        } else {
+          const err271 = {
+            instancePath,
+            schemaPath: "/mapping/reconcileRecovery/properties/id",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "id" },
+            message: "must have property 'id'",
+          };
+          if (vErrors === null) {
+            vErrors = [err271];
+          } else {
+            vErrors.push(err271);
+          }
+          errors++;
+        }
+        if (data.recoveryId !== undefined) {
+          if (!(typeof data.recoveryId == "string")) {
+            const err272 = {
+              instancePath: instancePath + "/recoveryId",
+              schemaPath:
+                "/mapping/reconcileRecovery/properties/recoveryId/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err272];
+            } else {
+              vErrors.push(err272);
+            }
+            errors++;
+          }
+        } else {
+          const err273 = {
+            instancePath,
+            schemaPath: "/mapping/reconcileRecovery/properties/recoveryId",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "recoveryId" },
+            message: "must have property 'recoveryId'",
+          };
+          if (vErrors === null) {
+            vErrors = [err273];
+          } else {
+            vErrors.push(err273);
+          }
+          errors++;
+        }
+        for (const key48 in data) {
+          if (
+            key48 !== "kind" &&
+            key48 !== "id" &&
+            key48 !== "recoveryId" &&
+            key48 !== "choice"
+          ) {
+            const err274 = {
+              instancePath:
+                instancePath +
+                "/" +
+                key48.replace(/~/g, "~0").replace(/\//g, "~1"),
+              schemaPath: "/mapping/reconcileRecovery",
+              keyword: "properties",
+              params: { error: "additional", additionalProperty: key48 },
+              message: "must NOT have additional properties",
+            };
+            if (vErrors === null) {
+              vErrors = [err274];
+            } else {
+              vErrors.push(err274);
+            }
+            errors++;
+          }
+        }
+        if (!valid173) {
+          const err275 = {
             instancePath,
             schemaPath: "/mapping/reconcileRecovery/properties",
             keyword: "properties",
@@ -10658,16 +10886,16 @@ function validate65(
             message: "must be object",
           };
           if (vErrors === null) {
-            vErrors = [err264];
+            vErrors = [err275];
           } else {
-            vErrors.push(err264);
+            vErrors.push(err275);
           }
           errors++;
         }
-        var valid163 = _errs110 === errors;
-        valid0 = valid163;
+        var valid172 = _errs114 === errors;
+        valid0 = valid172;
       } else {
-        const err265 = {
+        const err276 = {
           instancePath: instancePath + "/kind",
           schemaPath: "/mapping",
           keyword: "discriminator",
@@ -10675,14 +10903,14 @@ function validate65(
           message: 'value of tag "kind" must be in mapping',
         };
         if (vErrors === null) {
-          vErrors = [err265];
+          vErrors = [err276];
         } else {
-          vErrors.push(err265);
+          vErrors.push(err276);
         }
         errors++;
       }
     } else {
-      const err266 = {
+      const err277 = {
         instancePath: instancePath + "/kind",
         schemaPath: "/discriminator",
         keyword: "discriminator",
@@ -10690,14 +10918,14 @@ function validate65(
         message: 'tag "kind" must be string',
       };
       if (vErrors === null) {
-        vErrors = [err266];
+        vErrors = [err277];
       } else {
-        vErrors.push(err266);
+        vErrors.push(err277);
       }
       errors++;
     }
   } else if (!valid0) {
-    const err267 = {
+    const err278 = {
       instancePath,
       schemaPath: "/discriminator",
       keyword: "discriminator",
@@ -10705,9 +10933,9 @@ function validate65(
       message: "must be object",
     };
     if (vErrors === null) {
-      vErrors = [err267];
+      vErrors = [err278];
     } else {
-      vErrors.push(err267);
+      vErrors.push(err278);
     }
     errors++;
   }

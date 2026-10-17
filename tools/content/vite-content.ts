@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { Plugin } from "vite";
+import { preparationResources } from "./preparation-resources.ts";
 
 export function developmentContent(): Plugin {
   const mode = process.env.READING_CONTENT_MODE ?? "local";
@@ -32,9 +33,25 @@ export function developmentContent(): Plugin {
     mode === "fixture" ? "tests/fixtures" : ".local/runtime",
     filenames[variant],
   );
+  const root = resolve(import.meta.dirname, "../..");
+  const preparation = () => preparationResources({ mode, root });
   return {
     name: "explicit-development-content",
     configureServer(server) {
+      server.middlewares.use("/preparation", (request, response) => {
+        void preparation().then((resources) => {
+          const resource = resources.get(`/preparation${request.url ?? ""}`);
+          response.setHeader("Cache-Control", "no-store");
+          response.setHeader("X-Content-Type-Options", "nosniff");
+          if (!resource) {
+            response.statusCode = 404;
+            response.end();
+            return;
+          }
+          response.setHeader("Content-Type", resource.mediaType);
+          response.end(resource.source);
+        });
+      });
       server.middlewares.use(
         "/curriculum/development.json",
         (_request, response) => {
@@ -51,7 +68,13 @@ export function developmentContent(): Plugin {
         },
       );
     },
-    generateBundle() {
+    async generateBundle() {
+      for (const [path, resource] of await preparation())
+        this.emitFile({
+          type: "asset",
+          fileName: path.slice(1),
+          source: resource.source,
+        });
       this.emitFile({
         type: "asset",
         fileName: "curriculum/development.json",

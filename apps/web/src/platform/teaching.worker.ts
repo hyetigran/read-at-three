@@ -1,7 +1,11 @@
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import { createTeachingApplication } from "@readatthree/storage";
 import type { SqlExecutor } from "@readatthree/storage";
-import { parseRuntimePackage } from "@readatthree/teaching";
+import {
+  parseRuntimePackage,
+  parsePreparationAvailability,
+  preparationPolicy,
+} from "@readatthree/teaching";
 import type { CourseId, SelectedApplication } from "@readatthree/teaching";
 import { hashText } from "./hash.ts";
 import { parseRequest } from "./protocol.ts";
@@ -13,7 +17,10 @@ type OpenedStore = Readonly<{
 }>;
 let application: Promise<OpenedStore> | undefined;
 
-function bootstrap(content: unknown): Promise<OpenedStore> {
+function bootstrap(
+  content: unknown,
+  preparationInput: unknown,
+): Promise<OpenedStore> {
   return new Promise((resolve, reject) => {
     navigator.locks
       .request(
@@ -30,6 +37,10 @@ function bootstrap(content: unknown): Promise<OpenedStore> {
           }
           try {
             const verified = await parseRuntimePackage(content, hashText);
+            const preparation = await parsePreparationAvailability(
+              preparationInput,
+              hashText,
+            );
             const sqlite3 = await sqlite3InitModule();
             if (!sqlite3.config.bigIntEnabled)
               throw new Error(
@@ -62,6 +73,7 @@ function bootstrap(content: unknown): Promise<OpenedStore> {
                 content: verified,
                 ids: () => crypto.randomUUID(),
                 hash: hashText,
+                preparation: preparationPolicy(preparation),
               }),
             });
             await new Promise<void>(() => {});
@@ -79,7 +91,7 @@ self.addEventListener("message", (event: MessageEvent<unknown>) => {
   void (async () => {
     try {
       if (request.kind === "openRecovery")
-        application ??= bootstrap(request.content);
+        application ??= bootstrap(request.content, request.preparation);
       if (!application) throw new Error("The local store has not been opened.");
       const { app, courseId } = await application;
       let response: WorkerResponse;

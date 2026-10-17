@@ -2,7 +2,9 @@ import { TeachingRecoveryError } from "@readatthree/react-integration";
 import type {
   SelectedApplication,
   SelectedRecoveryOpening,
+  PreparationAvailability,
 } from "@readatthree/teaching";
+import { loadBrowserPreparation, preparationInput } from "./preparation.ts";
 type Input<Method extends keyof SelectedApplication> = Parameters<
   SelectedApplication[Method]
 >[0];
@@ -16,6 +18,10 @@ import type {
 export function createBrowserTeachingClient() {
   let worker: Worker | undefined;
   let connectionRevision = 0;
+  let preparation: PreparationAvailability = {
+    kind: "unavailable",
+    reason: "missing",
+  };
   let lossListener = () => {};
   const pending = new Map<
     WorkerRequestId,
@@ -27,6 +33,7 @@ export function createBrowserTeachingClient() {
   >();
   function dispose() {
     connectionRevision++;
+    preparation = { kind: "unavailable", reason: "missing" };
     worker?.terminate();
     worker = undefined;
     lossListener();
@@ -57,6 +64,7 @@ export function createBrowserTeachingClient() {
     },
     async connect(opening: SelectedRecoveryOpening) {
       dispose();
+      const ticket = connectionRevision;
       if (
         !window.isSecureContext ||
         !navigator.storage?.getDirectory ||
@@ -74,6 +82,9 @@ export function createBrowserTeachingClient() {
           "The required lesson content is unavailable. Keep saved work and retry.",
         );
       const content: unknown = await contentResponse.json();
+      const availablePreparation = await loadBrowserPreparation();
+      if (ticket !== connectionRevision)
+        throw new Error("This local store connection was retired.");
       const connection = new Worker(
         new URL("./teaching.worker.ts", import.meta.url),
         {
@@ -105,13 +116,23 @@ export function createBrowserTeachingClient() {
         id: id(),
         kind: "openRecovery",
         content,
+        preparation: preparationInput(availablePreparation),
         opening,
       });
       if (response.kind !== "inventory")
         throw new Error(
           "The local store returned an invalid recovery inventory.",
         );
+      if (ticket !== connectionRevision || worker !== connection)
+        throw new Error("This local store connection was retired.");
+      preparation = availablePreparation;
       return response.value;
+    },
+    readPreparation() {
+      return {
+        connectionTicket: connectionRevision,
+        availability: preparation,
+      };
     },
     connectionTicket: () => connectionRevision,
     async read(input: Input<"readApplication">) {
@@ -229,5 +250,5 @@ export type BrowserTeachingClient = ReturnType<
 
 export type InkLifecycleClient = Omit<
   BrowserTeachingClient,
-  "readWork" | "readPracticeControls"
+  "readWork" | "readPracticeControls" | "readPreparation"
 >;

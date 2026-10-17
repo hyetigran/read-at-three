@@ -5,6 +5,8 @@ import {
   profileValidationSchemas,
 } from "./profile-schemas.ts";
 
+import { preparationInputSchema } from "./preparation-schemas.ts";
+
 const discriminator: "kind" = "kind";
 const string = { type: "string" } satisfies SomeJTDSchemaType;
 const selection = selectedOwnerSchema;
@@ -80,7 +82,14 @@ export const selectionValidationSchemas = {
   validateSelectedWorkerRequest: {
     discriminator,
     mapping: {
-      openRecovery: { properties: { id: string, content: {}, opening: {} } },
+      openRecovery: {
+        properties: {
+          id: string,
+          content: {},
+          preparation: preparationInputSchema,
+          opening: {},
+        },
+      },
       readDirectory: { properties: { id: string } },
       read: { properties: { id: string, input: selectedTarget } },
       readWork: { properties: { id: string, input: workInput } },

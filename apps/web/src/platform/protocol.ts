@@ -1,4 +1,5 @@
 import {
+  parsePreparationInput,
   parseCurrentApplicationRead,
   parseCurrentResult,
   parseDepartureWitness,
@@ -43,6 +44,7 @@ import type {
   SelectedApplication,
   SelectedRecoveryInventory,
   SelectedRecoveryOpening,
+  RawPreparationInput,
 } from "@readatthree/teaching";
 
 export type WorkerRequestId = string & { readonly __brand: "WorkerRequestId" };
@@ -50,7 +52,12 @@ type Input<Method extends keyof SelectedApplication> = Parameters<
   SelectedApplication[Method]
 >[0];
 export type WorkerRequest = { id: WorkerRequestId } & (
-  | { kind: "openRecovery"; content: unknown; opening: SelectedRecoveryOpening }
+  | {
+      kind: "openRecovery";
+      content: unknown;
+      preparation: RawPreparationInput;
+      opening: SelectedRecoveryOpening;
+    }
   | { kind: "readDirectory" }
   | { kind: "read"; input: Input<"readApplication"> }
   | { kind: "readWork"; input: Input<"readWork"> }
@@ -104,6 +111,7 @@ export function parseRequest(input: unknown): WorkerRequest {
         id,
         kind: value.kind,
         content: value.content,
+        preparation: parsePreparationInput(value.preparation),
         opening: parseSelectedRecoveryOpening(value.opening),
       };
     case "readDirectory":

@@ -728,6 +728,7 @@ test("selected Worker boundaries retain whole operations and reject legacy or mi
         id: "selected-wire",
         kind: "openRecovery",
         content: fixture.content,
+        preparation: { kind: "unavailable", reason: "missing" },
         opening: {
           kind: "warm",
           selection: { ...selection, revision: "99" },

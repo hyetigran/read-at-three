@@ -8,6 +8,8 @@ import { validatorSchemas } from "@readatthree/teaching/authoring";
 import { profileValidationSchemas } from "../../packages/teaching/src/profile-schemas.ts";
 import { selectionValidationSchemas } from "../../packages/teaching/src/selection-schemas.ts";
 
+import { preparationValidationSchemas } from "../../packages/teaching/src/preparation-schemas.ts";
+
 const arguments_ = process.argv.slice(2);
 if (arguments_.some((argument) => argument !== "--check")) {
   throw new Error("Usage: generate-validators.ts [--check]");
@@ -149,7 +151,46 @@ const selectionDeclarations =
         `export declare const ${name}: ValidateFunction<${domain}>;`,
     )
     .join("\n");
+const preparationDomains = {
+  validatePreparationInput: "RawPreparationInput",
+  validatePreparationPackage: "RawPreparationPackage",
+} satisfies Record<keyof typeof preparationValidationSchemas, string>;
+const preparationAjv = new AjvJTD({
+  allErrors: true,
+  code: { source: true, esm: true },
+});
+for (const [name, schema] of Object.entries(preparationValidationSchemas))
+  preparationAjv.addSchema(schema, name);
+const preparationJavascript = standaloneCode(
+  preparationAjv,
+  Object.fromEntries(
+    Object.keys(preparationValidationSchemas).map((name) => [name, name]),
+  ),
+);
+if (/\b(?:require|eval|Function)\b/u.test(preparationJavascript))
+  throw new Error(
+    "Generated preparation validators contain an unreviewed runtime dependency",
+  );
+const preparationDeclarations =
+  'import type { ValidateFunction } from "ajv";\n' +
+  `import type { ${Object.values(preparationDomains).join(", ")} } from "./preparation-schemas.ts";\n` +
+  Object.entries(preparationDomains)
+    .map(
+      ([name, domain]) =>
+        `export declare const ${name}: ValidateFunction<${domain}>;`,
+    )
+    .join("\n");
 for (const { filename, source, parser } of [
+  {
+    filename: "generated-preparation-validators.js",
+    source: preparationJavascript,
+    parser: "babel",
+  },
+  {
+    filename: "generated-preparation-validators.d.ts",
+    source: preparationDeclarations,
+    parser: "typescript",
+  },
   { filename: "generated-validators.js", source: javascript, parser: "babel" },
   {
     filename: "generated-validators.d.ts",
