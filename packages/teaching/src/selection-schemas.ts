@@ -2,7 +2,7 @@ import type { JTDDataType, SomeJTDSchemaType } from "ajv/dist/jtd.js";
 import {
   selectedOwnerSchema,
   departureSchema,
-  profileValidationSchemas,
+  diagnosticEventSchema,
 } from "./profile-schemas.ts";
 
 import { preparationInputSchema } from "./preparation-schemas.ts";
@@ -22,8 +22,6 @@ const closed: "closed" = "closed";
 const rejection = {
   properties: { code: string, message: string },
 } satisfies SomeJTDSchemaType;
-const { kind: receiptKind, ...profileReceipt } =
-  profileValidationSchemas.validateProfileAdministrationReceipt.properties;
 const selectedTarget = {
   properties: {
     selection,
@@ -75,7 +73,7 @@ export const selectionValidationSchemas = {
   validateProfileAdministrationResult: {
     discriminator,
     mapping: {
-      profileCommitted: { properties: profileReceipt },
+      profileCommitted: { properties: {}, additionalProperties: true },
       rejected: rejection,
     },
   },
@@ -91,6 +89,10 @@ export const selectionValidationSchemas = {
         },
       },
       readDirectory: { properties: { id: string } },
+      readDiagnostics: { properties: { id: string } },
+      recordDiagnostic: {
+        properties: { id: string, event: diagnosticEventSchema },
+      },
       read: { properties: { id: string, input: selectedTarget } },
       readWork: { properties: { id: string, input: workInput } },
       readInk: { properties: { id: string, input: inkInput } },
@@ -116,6 +118,35 @@ export const selectionValidationSchemas = {
     discriminator,
     mapping: {
       directory: { properties: { id: string, value: {} } },
+      diagnostics: {
+        properties: {
+          id: string,
+          value: {
+            properties: {
+              persistence: { enum: ["durable", "memoryOnly"] },
+              ring: {},
+            },
+          },
+          metadata: {
+            properties: {
+              versions: {
+                properties: {
+                  application: string,
+                  database: { type: "uint32" },
+                  inkCodec: { type: "uint8" },
+                },
+              },
+              capabilities: {
+                properties: {
+                  opfs: { type: "boolean" },
+                  storeLock: { type: "boolean" },
+                  sqliteBigInt: { type: "boolean" },
+                },
+              },
+            },
+          },
+        },
+      },
       application: { properties: { id: string, value: {} } },
       work: { properties: { id: string, value: {} } },
       practiceControls: { properties: { id: string, value: {} } },

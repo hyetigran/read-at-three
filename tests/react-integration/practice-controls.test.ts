@@ -361,3 +361,40 @@ test("an older same-selection directory cannot replace newer committed profile c
     "bear",
   );
 });
+
+test("retirement cancels a held controls refresh and never restores retired editable tools", async (t) => {
+  const f = await queryFixture(t),
+    entered = deferred(),
+    release = deferred();
+  const selection = (await f.app.readDirectory()).selection;
+  f.afterSummary(async (summary) => {
+    entered.release();
+    await release.promise;
+    return summary;
+  });
+  await f.draw(f.app, 100);
+  f.runtime.captureFinalized({ token: (await f.current(f.app)).token });
+  await entered.promise;
+  f.runtime.retireProfile({
+    installationId: selection.installationId,
+    owner: selection.owner,
+    kind: "delete",
+  });
+  assert.equal(f.runtime.current(), undefined);
+  assert.deepEqual(f.runtime.practiceControls.getSnapshot(), {
+    kind: "readOnly",
+  });
+  release.release();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.deepEqual(f.runtime.practiceControls.getSnapshot(), {
+    kind: "readOnly",
+  });
+  assert.equal(
+    f.client
+      .getQueryCache()
+      .getAll()
+      .some((query) => query.meta?.profileId === selection.owner.profileId),
+    false,
+  );
+});

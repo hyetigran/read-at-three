@@ -1133,3 +1133,129 @@ test("locked gate drafts expire after repeated Cancel and immediate browser Back
   expect(await personalWork(page)).toEqual(baseline);
   expect(await administrationCommands(page)).toEqual([]);
 });
+
+test("reset confirmation cancels without a write and confirmed reset retires the saved-work origin behind a fresh gate", async ({
+  page,
+}) => {
+  const before = await completeSetup(page);
+  await startWritingWithInk(page);
+  await page
+    .getByRole("button", { name: "Choose child profile", exact: true })
+    .click();
+  await grantParents(page);
+  const commandsBefore = (await administrationCommands(page)).length;
+  await page
+    .getByRole("button", { name: "Reset progress", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", {
+      name: "Reset this child's progress?",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(page.locator(".parent-removal")).toContainText("Rabbit");
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  expect((await administrationCommands(page)).length).toBe(commandsBefore);
+  await page
+    .getByRole("button", { name: "Reset progress", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Reset progress permanently", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", {
+      name: "A moment for the grown-up",
+      exact: true,
+    }),
+  ).toBeVisible();
+  const after = await directory(page);
+  expect(after.selection.owner.profileId).toBe(
+    before.selection.owner.profileId,
+  );
+  expect(after.selection.owner.generation).toBe("1");
+  expect((await personalWork(page)).work).toEqual([]);
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.locator(".course-map")).toBeVisible();
+  await page.reload();
+  await expect(page.locator(".course-map")).toBeVisible();
+  expect(await directory(page)).toEqual(after);
+});
+
+test("final child deletion requires explicit replacement animal and a separate concrete confirmation", async ({
+  page,
+}) => {
+  const before = await completeSetup(page);
+  await openProfiles(page);
+  const count = (await administrationCommands(page)).length;
+  await page.getByRole("button", { name: "Delete child", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Review deletion", exact: true }),
+  ).toBeDisabled();
+  await expect(page.locator(".parent-removal")).toContainText(
+    "This is the only child",
+  );
+  await page.getByRole("radio", { name: "Fox", exact: true }).check();
+  await page
+    .getByLabel("New child's name (optional)", { exact: true })
+    .fill("Fresh child");
+  await page
+    .getByRole("button", { name: "Review deletion", exact: true })
+    .click();
+  await expect(page.locator(".parent-successor-summary")).toContainText(
+    "Create a fresh child Fresh child (Fox).",
+  );
+  expect((await administrationCommands(page)).length).toBe(count);
+  await page
+    .getByRole("button", { name: "Delete child permanently", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", {
+      name: "A moment for the grown-up",
+      exact: true,
+    }),
+  ).toBeVisible();
+  const after = await directory(page);
+  expect(after.profiles).toHaveLength(1);
+  expect(after.selection.owner.profileId).not.toBe(
+    before.selection.owner.profileId,
+  );
+  expect(after.selection.owner.generation).toBe("0");
+  expect(after.profiles[0]?.preferences).toEqual({
+    version: 1,
+    avatarId: "fox",
+    displayName: "Fresh child",
+  });
+  expect((await personalWork(page)).work).toEqual([]);
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.locator(".course-map")).toBeVisible();
+});
+
+test("parent support displays bounded local metadata and whole-origin estimates without a profile mutation", async ({
+  page,
+}) => {
+  await completeSetup(page);
+  await openProfiles(page);
+  await page
+    .getByRole("button", { name: "Parent settings", exact: true })
+    .click();
+  const before = await directory(page);
+  const count = (await administrationCommands(page)).length;
+  await page
+    .getByRole("button", { name: "Local support information", exact: true })
+    .click();
+  const preview = page.locator(".parent-support-preview");
+  await expect(preview).toBeVisible();
+  const text = await preview.innerText();
+  expect(new TextEncoder().encode(text).byteLength).toBeLessThanOrEqual(8192);
+  expect(JSON.parse(text)).toMatchObject({
+    version: 1,
+    persistence: "durable",
+    metadata: { versions: { database: 9, inkCodec: 1 } },
+    browserWholeOriginEstimate: { scope: "origin" },
+  });
+  expect(await directory(page)).toEqual(before);
+  expect((await administrationCommands(page)).length).toBe(count);
+  await expect(
+    page.getByRole("button", { name: /export|copy|upload/i }),
+  ).toHaveCount(0);
+});

@@ -1,3 +1,11 @@
+import {
+  parseProfileRemovalCommand,
+  parseProfileRemovalReceipt,
+} from "./profile-removal.ts";
+import type {
+  ProfileRemovalCommand,
+  ProfileRemovalReceipt,
+} from "./profile-removal.ts";
 import type {
   CommandId,
   CommandRejection,
@@ -135,7 +143,7 @@ export type ProfileAdministrationPayload =
       target: Owner;
       departure: DepartureWitness;
     }>;
-export type ProfileAdministrationCommand = Readonly<{
+export type ProfileAdministrationCommandV1 = Readonly<{
   version: 1;
   commandId: CommandId;
   scope: AdministrationWitness;
@@ -143,7 +151,7 @@ export type ProfileAdministrationCommand = Readonly<{
   payloadHash: PayloadHash;
   payload: ProfileAdministrationPayload;
 }>;
-export type ProfileAdministrationReceipt = Readonly<{
+export type ProfileAdministrationReceiptV1 = Readonly<{
   kind: "profileCommitted";
   version: 1;
   commandId: CommandId;
@@ -158,6 +166,10 @@ export type ProfileAdministrationReceipt = Readonly<{
     | Readonly<{ kind: "selection"; previous: SelectedOwnerWitness }>
     | Readonly<{ kind: "preparation"; hash: PreparationHash }>;
 }>;
+export type ProfileAdministrationCommand =
+  ProfileAdministrationCommandV1 | ProfileRemovalCommand;
+export type ProfileAdministrationReceipt =
+  ProfileAdministrationReceiptV1 | ProfileRemovalReceipt;
 export interface ProfileAdministrationApplication {
   readDirectory(): Promise<ProfileDirectory>;
   readDeparture(input: {
@@ -450,9 +462,16 @@ export function parseProfileAdministrationCommand(
   input: unknown,
 ): ProfileAdministrationCommand {
   boundedJson(input, 2 * 1024 * 1024);
+  if (
+    typeof input === "object" &&
+    input !== null &&
+    "version" in input &&
+    input.version === 2
+  )
+    return parseProfileRemovalCommand(input);
   if (!validateProfileAdministrationCommand(input) || input.version !== 1)
     throw new Error("Profile administration command is unsupported");
-  const result: ProfileAdministrationCommand = {
+  const result: ProfileAdministrationCommandV1 = {
     version: input.version,
     commandId: parseId({ kind: "command", value: input.commandId }),
     scope: administration(input.scope),
@@ -466,7 +485,7 @@ export function parseProfileAdministrationCommand(
 }
 function effect(
   input: RawProfileAdministrationReceipt["effect"],
-): ProfileAdministrationReceipt["effect"] {
+): ProfileAdministrationReceiptV1["effect"] {
   switch (input.kind) {
     case "created":
     case "preferences":
@@ -485,13 +504,27 @@ function effect(
     }
   }
 }
+export function parseProfileAdministrationReceipt(input: {
+  version: 1;
+  [key: string]: unknown;
+}): ProfileAdministrationReceiptV1;
+export function parseProfileAdministrationReceipt(
+  input: unknown,
+): ProfileAdministrationReceipt;
 export function parseProfileAdministrationReceipt(
   input: unknown,
 ): ProfileAdministrationReceipt {
   boundedJson(input, 2 * 1024 * 1024);
+  if (
+    typeof input === "object" &&
+    input !== null &&
+    "version" in input &&
+    input.version === 2
+  )
+    return parseProfileRemovalReceipt(input);
   if (!validateProfileAdministrationReceipt(input) || input.version !== 1)
     throw new Error("Profile administration receipt is unsupported");
-  const result: ProfileAdministrationReceipt = {
+  const result: ProfileAdministrationReceiptV1 = {
     kind: input.kind,
     version: input.version,
     commandId: parseId({ kind: "command", value: input.commandId }),
@@ -523,7 +556,7 @@ export function profileAdministrationPreimage(
 }
 export async function prepareProfileAdministration(
   input: AdministrationPreparation,
-): Promise<ProfileAdministrationCommand> {
+): Promise<ProfileAdministrationCommandV1> {
   let body: ProfileAdministrationPayload;
   if ("departure" in input) {
     body =
@@ -552,11 +585,14 @@ export async function prepareProfileAdministration(
     selection: input.selection,
     payload: body,
   };
-  return parseProfileAdministrationCommand({
+  const command = parseProfileAdministrationCommand({
     ...preimage,
     commandId: input.ids(),
     payloadHash: await input.hash(
       profileAdministrationPreimage({ ...preimage, version: 1 }),
     ),
   });
+  if (command.version !== 1)
+    throw new Error("Prepared administration version changed");
+  return command;
 }

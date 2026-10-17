@@ -1,10 +1,11 @@
+import { createProfileRemoval } from "./profile-removal.ts";
+import { decodeAdministrationEvidence, receiptFor } from "./profile-receipt.ts";
+import type { SqlExecutor } from "./executor.ts";
 import { and, asc, desc, eq } from "drizzle-orm";
 import type { drizzle } from "drizzle-orm/sqlite-proxy";
 import {
   canonical,
   increment,
-  parseProfileAdministrationCommand,
-  parseProfileAdministrationReceipt,
   parseCounter,
   parseLocalPreferences,
   parsePreparationPolicy,
@@ -23,69 +24,17 @@ import type {
 } from "../../teaching/src/index.ts";
 import * as schema from "./schema.ts";
 
-function receiptFor(
-  command: ProfileAdministrationCommand,
-): ProfileAdministrationReceipt {
-  const body = command.payload;
-  let selection = command.selection;
-  let effect: ProfileAdministrationReceipt["effect"];
-  switch (body.kind) {
-    case "setAvatar":
-    case "setDisplayName":
-    case "finishInitialProfile":
-      effect = {
-        kind:
-          body.kind === "finishInitialProfile" ? "initialSetup" : "preferences",
-        target: {
-          owner: body.target.owner,
-          revision: increment(body.target.revision),
-        },
-      };
-      break;
-    case "acknowledgePreparation":
-      effect = { kind: "preparation", hash: body.hash };
-      break;
-    case "createAndSelect":
-    case "selectProfile": {
-      const owner = body.kind === "createAndSelect" ? body.owner : body.target;
-      selection = {
-        installationId: command.selection.installationId,
-        revision: increment(command.selection.revision),
-        owner,
-      };
-      effect =
-        body.kind === "createAndSelect"
-          ? { kind: "created", target: { owner, revision: parseCounter("0") } }
-          : { kind: "selection", previous: command.selection };
-      break;
-    }
-    default: {
-      const exhaustive: never = body;
-      return exhaustive;
-    }
-  }
-  return parseProfileAdministrationReceipt({
-    kind: "profileCommitted",
-    version: 1,
-    commandId: command.commandId,
-    payloadHash: command.payloadHash,
-    administration: {
-      installationId: command.scope.installationId,
-      revision: increment(command.scope.revision),
-    },
-    selection,
-    effect,
-  });
-}
-
 export function createProfileDirectory({
   db,
+  executor,
   preparation: suppliedPreparation,
 }: {
   db: ReturnType<typeof drizzle>;
+  executor: SqlExecutor;
   preparation: PreparationPolicy;
 }) {
   const preparation = parsePreparationPolicy(suppliedPreparation);
+  const removal = createProfileRemoval({ db, executor });
   async function rows() {
     const installations = await db.select().from(schema.installation).all();
     const states = await db
@@ -271,6 +220,34 @@ export function createProfileDirectory({
         )
         .all()
     )[0];
+    const evidence = saved ? decodeAdministrationEvidence(saved) : null;
+    if (evidence && evidence.kind !== "full") {
+      const identity =
+        evidence.kind === "retired"
+          ? evidence.identity
+          : {
+              payloadHash: evidence.receipt.payloadHash,
+              version: evidence.receipt.version,
+              expectedRevision: evidence.receipt.expectedRevision,
+            };
+      if (
+        identity.payloadHash !== command.payloadHash ||
+        identity.version !== command.version ||
+        identity.expectedRevision !== command.scope.revision
+      )
+        return reject(
+          "command-identity",
+          "This profile command identity has a different payload.",
+        );
+      if (evidence.kind === "retired")
+        return reject(
+          "stale-owner",
+          "This command belongs to a retired child lifetime.",
+        );
+      if (command.version !== 2 || command.payload.kind !== "deleteProfile")
+        throw new Error("Saved deletion receipt is corrupt");
+      return evidence.receipt;
+    }
     const live = (owner: Owner) =>
       current.profiles.find(
         (profile) =>
@@ -283,6 +260,11 @@ export function createProfileDirectory({
         "The captured child generation is unavailable.",
       );
     const body = command.payload;
+    if (command.version === 2 && !live(command.payload.target.owner))
+      return reject(
+        "stale-owner",
+        "The removed child lifetime is unavailable.",
+      );
     if (
       (body.kind === "setAvatar" ||
         body.kind === "setDisplayName" ||
@@ -303,39 +285,16 @@ export function createProfileDirectory({
         "stale-owner",
         "The created child generation is unavailable.",
       );
-    if (saved) {
-      const previous = parseProfileAdministrationCommand(
-        JSON.parse(saved.command),
-      );
-      const receipt = parseProfileAdministrationReceipt(
-        JSON.parse(saved.result),
-      );
+    if (evidence) {
       if (
-        Number(saved.commandVersion) !== 1 ||
-        Number(saved.resultVersion) !== 1 ||
-        saved.installationId !== previous.scope.installationId ||
-        saved.commandId !== previous.commandId ||
-        saved.payloadHash !== previous.payloadHash ||
-        saved.expectedRevision !== previous.scope.revision ||
-        saved.resultingRevision !== increment(saved.expectedRevision) ||
-        receipt.administration.installationId !== saved.installationId ||
-        receipt.commandId !== saved.commandId ||
-        receipt.payloadHash !== saved.payloadHash ||
-        receipt.administration.revision !== saved.resultingRevision ||
-        saved.command !== canonical(previous) ||
-        saved.result !== canonical(receipt) ||
-        canonical(receipt) !== canonical(receiptFor(previous))
-      )
-        throw new Error("Saved profile administration receipt is corrupt");
-      if (
-        canonical(previous) !== canonical(command) ||
-        saved.payloadHash !== command.payloadHash
+        canonical(evidence.command) !== canonical(command) ||
+        evidence.receipt.payloadHash !== command.payloadHash
       )
         return reject(
           "command-identity",
           "This profile command identity has a different payload.",
         );
-      return receipt;
+      return evidence.receipt;
     }
     return null;
   }
@@ -352,6 +311,8 @@ export function createProfileDirectory({
     const current = await read();
     const resolved = await resolveRetained({ command, directory: current });
     if (resolved) return resolved;
+    if (command.version === 2)
+      return removal.administer({ current, command, depart });
     const body = command.payload;
     const live = (owner: Owner) =>
       current.profiles.find(

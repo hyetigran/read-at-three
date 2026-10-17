@@ -1,6 +1,7 @@
 import { TeachingRecoveryError } from "@readatthree/react-integration";
 import type {
   SelectedApplication,
+  DiagnosticEvent,
   SelectedRecoveryOpening,
   PreparationAvailability,
 } from "@readatthree/teaching";
@@ -149,6 +150,22 @@ export function createBrowserTeachingClient() {
         application,
       };
     },
+    async readDiagnostics() {
+      const response = await request({ id: id(), kind: "readDiagnostics" });
+      if (response.kind !== "diagnostics")
+        throw new Error("Local support information could not be read.");
+      return { ...response.value, metadata: response.metadata };
+    },
+    async recordDiagnostic(event: DiagnosticEvent) {
+      const response = await request({
+        id: id(),
+        kind: "recordDiagnostic",
+        event,
+      });
+      if (response.kind !== "diagnostics")
+        throw new Error("Local support information could not be recorded.");
+      return response.value;
+    },
     async readDirectory() {
       const response = await request({ id: id(), kind: "readDirectory" });
       if (response.kind !== "directory")
@@ -250,5 +267,9 @@ export type BrowserTeachingClient = ReturnType<
 
 export type InkLifecycleClient = Omit<
   BrowserTeachingClient,
-  "readWork" | "readPracticeControls" | "readPreparation"
+  | "readWork"
+  | "readPracticeControls"
+  | "readPreparation"
+  | "readDiagnostics"
+  | "recordDiagnostic"
 >;

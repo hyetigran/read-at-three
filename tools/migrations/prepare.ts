@@ -77,8 +77,12 @@ const {
   inkPointChunk,
   inkHistory,
   inkOperation,
+  installationProfileStateV8,
+  profileAdministrationReceiptV8,
   installationProfileState,
   profileAdministrationReceipt,
+  commandReceiptV8,
+  localDiagnostics,
   ...baseSchema
 } = schema;
 const latestSchema = {
@@ -498,8 +502,8 @@ const profileStatements = [
   ...(await generateSQLiteMigration(
     await generateSQLiteDrizzleJson({}),
     await generateSQLiteDrizzleJson({
-      installationProfileState,
-      profileAdministrationReceipt,
+      installationProfileState: installationProfileStateV8,
+      profileAdministrationReceipt: profileAdministrationReceiptV8,
     }),
   )),
   "UPDATE installation SET database_version = 8",
@@ -516,8 +520,67 @@ if (arguments_.includes("--check")) {
   if ((await readFile(profilePath, "utf8")) !== profileSql)
     throw new Error("Child profile migration stale");
 } else await writeFile(profilePath, profileSql);
+const v9Generated = await generateSQLiteMigration(
+  await generateSQLiteDrizzleJson({}),
+  await generateSQLiteDrizzleJson({
+    installationProfileState,
+    profileAdministrationReceipt,
+    localDiagnostics,
+  }),
+);
+const selectedForeign =
+  "FOREIGN KEY (`profile_id`,`generation`) REFERENCES `profile`(`profile_id`,`generation`) ON UPDATE no action ON DELETE no action";
+const v9Tables = v9Generated.map((statement) =>
+  statement.startsWith("CREATE TABLE `installation_profile_state`")
+    ? statement.replace(
+        selectedForeign,
+        `${selectedForeign} DEFERRABLE INITIALLY DEFERRED`,
+      )
+    : statement,
+);
+if (
+  !v9Tables.some((statement) =>
+    statement.includes(`${selectedForeign} DEFERRABLE INITIALLY DEFERRED`),
+  )
+)
+  throw new Error("V9 selected owner FK was not deferred");
+const personalV9 = receiptReplacement.replace(
+  "CHECK(result_version=1)",
+  "CHECK(result_version=1 OR (result_version=2 AND scope_kind='profile'))",
+);
+if (personalV9 === receiptReplacement)
+  throw new Error("V9 personal receipt constraint was not versioned");
+const removalStatements = [
+  "ALTER TABLE installation_profile_state RENAME TO installation_profile_state_v8",
+  "DROP INDEX profile_administration_receipt_installation_id_resulting_revision_unique",
+  "ALTER TABLE profile_administration_receipt RENAME TO profile_administration_receipt_v8",
+  "DROP INDEX receipt_owner_revision",
+  "ALTER TABLE command_receipt RENAME TO command_receipt_v8",
+  ...v9Tables,
+  personalV9,
+  "INSERT INTO installation_profile_state SELECT * FROM installation_profile_state_v8",
+  "INSERT INTO profile_administration_receipt(installation_id,command_id,command_version,command,expected_revision,resulting_revision,payload_hash,result_version,result,evidence_kind) SELECT installation_id,command_id,command_version,command,expected_revision,resulting_revision,payload_hash,result_version,result,'full' FROM profile_administration_receipt_v8",
+  "INSERT INTO command_receipt SELECT * FROM command_receipt_v8",
+  "DROP TABLE installation_profile_state_v8",
+  "DROP TABLE profile_administration_receipt_v8",
+  "DROP TABLE command_receipt_v8",
+  "CREATE INDEX receipt_owner_revision ON command_receipt(owner_profile_id,owner_generation,scope_kind,scope_id,resulting_revision)",
+  "UPDATE installation SET database_version = 9",
+];
+const removalPath = resolve(
+  root,
+  "packages/storage/migrations/0008_profile_removal.sql",
+);
+const removalSql =
+  removalStatements
+    .map((statement) => statement.trim().replace(/;$/, ""))
+    .join(";\n--> statement-breakpoint\n") + ";\n";
+if (arguments_.includes("--check")) {
+  if ((await readFile(removalPath, "utf8")) !== removalSql)
+    throw new Error("Profile removal migration stale");
+} else await writeFile(removalPath, removalSql);
 const output = await format(
-  `export const migrationStatements = ${JSON.stringify(statements)} as const;\nexport const migrations = [{version:1, id:"issue-02-initial", statements:migrationStatements}, {version:2, id:"issue-03-sound-task-credits", statements:${JSON.stringify(upgrades)}}, {version:3,id:"issue-04-accepting-command",statements:${JSON.stringify(finalStatements)}}, {version:4,id:"issue-06-canonical-ink",statements:${JSON.stringify(writingStatements)}}, {version:5,id:"issue-07-ink-editing",statements:${JSON.stringify(editingStatements)}}, {version:6,id:"issue-08-lesson-support",statements:${JSON.stringify(lessonStatements)}}, {version:7,id:"issue-09-advance-withdrawal",statements:${JSON.stringify(reversibleStatements)}}, {version:8,id:"issue-10-child-profiles",statements:${JSON.stringify(profileStatements)}}] as const;\n`,
+  `export const migrationStatements = ${JSON.stringify(statements)} as const;\nexport const migrations = [{version:1, id:"issue-02-initial", statements:migrationStatements}, {version:2, id:"issue-03-sound-task-credits", statements:${JSON.stringify(upgrades)}}, {version:3,id:"issue-04-accepting-command",statements:${JSON.stringify(finalStatements)}}, {version:4,id:"issue-06-canonical-ink",statements:${JSON.stringify(writingStatements)}}, {version:5,id:"issue-07-ink-editing",statements:${JSON.stringify(editingStatements)}}, {version:6,id:"issue-08-lesson-support",statements:${JSON.stringify(lessonStatements)}}, {version:7,id:"issue-09-advance-withdrawal",statements:${JSON.stringify(reversibleStatements)}}, {version:8,id:"issue-10-child-profiles",statements:${JSON.stringify(profileStatements)}}, {version:9,id:"issue-11-profile-removal",statements:${JSON.stringify(removalStatements)}}] as const;\n`,
   { parser: "typescript" },
 );
 const path = resolve(root, "packages/storage/src/generated-migration.ts");

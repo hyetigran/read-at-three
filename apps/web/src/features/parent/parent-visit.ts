@@ -4,6 +4,8 @@ import type {
   CourseAction,
   LessonId,
   ProfileEditWitness,
+  ProfileRemovalIntent,
+  DiagnosticRead,
   ProfilePreferencesInput,
   SavedWork,
   SelectedOwnerWitness,
@@ -46,6 +48,12 @@ export type ParentOrigin =
 export type ParentDestination =
   | Readonly<{ kind: "unavailable" }>
   | Readonly<{ kind: "settings" }>
+  | Readonly<{ kind: "support" }>
+  | Readonly<{
+      kind: "removal";
+      target: ProfileEditWitness;
+      state: RemovalState;
+    }>
   | Readonly<{ kind: "profiles" }>
   | Readonly<{
       kind: "preparation";
@@ -63,6 +71,23 @@ export type ParentDestination =
       target: ProfileEditWitness;
       displayName: string;
     }>;
+export type RemovalState =
+  | Readonly<{
+      kind: "chooseSuccessor";
+      choice:
+        | Extract<ProfileRemovalIntent, { kind: "deleteProfile" }>["successor"]
+        | null;
+    }>
+  | Readonly<{ kind: "confirm"; operation: "reset" }>
+  | Readonly<{
+      kind: "confirm";
+      operation: "delete";
+      successor: Extract<
+        ProfileRemovalIntent,
+        { kind: "deleteProfile" }
+      >["successor"];
+    }>;
+
 export type ParentLifetime = Readonly<{
   selection: SelectedOwnerWitness;
   connectionTicket: number;
@@ -97,6 +122,10 @@ export function parentAddress(destination: ParentDestination): string {
       return "/parent/unavailable";
     case "settings":
       return "/parent/settings";
+    case "support":
+      return "/parent/support";
+    case "removal":
+      return "/parent/profiles/remove";
     case "profiles":
       return "/parent/profiles";
     case "preparation":
@@ -160,4 +189,57 @@ export function parentRouteAllowed(
       ? "/parent/gate"
       : parentAddress(visit.destination))
   );
+}
+
+export function freshParentAfterRemoval(input: {
+  selection: SelectedOwnerWitness;
+  connectionTicket: number;
+  visitId: number;
+  entryKey: string;
+}): ParentVisit {
+  return {
+    lifetime: {
+      selection: input.selection,
+      connectionTicket: input.connectionTicket,
+      visitId: input.visitId,
+    },
+    origin: { kind: "map", entryKey: input.entryKey, focus: { kind: "none" } },
+    routeAttempt: 0,
+    destination: { kind: "profiles" },
+    gate: { kind: "locked" },
+  };
+}
+
+export function localSupportPreview(input: {
+  diagnostics: DiagnosticRead & {
+    metadata: import("../../platform/protocol.ts").LocalSupportMetadata;
+  };
+  estimate: import("../../platform/storage-estimate.ts").OriginStorageEstimate;
+}): string {
+  const totals = new Map<
+    import("@readatthree/teaching").DiagnosticEvent["category"],
+    { count: number; durationMs: number }
+  >();
+  for (const record of input.diagnostics.ring.records) {
+    const previous = totals.get(record.category) ?? { count: 0, durationMs: 0 };
+    totals.set(record.category, {
+      count: previous.count + record.count,
+      durationMs: previous.durationMs + record.durationMs,
+    });
+  }
+  const preview = canonical({
+    version: 1,
+    persistence: input.diagnostics.persistence,
+    persistenceMeaning:
+      input.diagnostics.persistence === "durable"
+        ? "Saved locally in the database"
+        : "Memory only; lost when this process ends",
+    omitted: input.diagnostics.ring.omitted,
+    totals: [...totals].map(([category, values]) => ({ category, ...values })),
+    metadata: input.diagnostics.metadata,
+    browserWholeOriginEstimate: input.estimate,
+  });
+  if (new TextEncoder().encode(preview).byteLength > 8192)
+    throw new Error("Support preview exceeds its encoded bound");
+  return preview;
 }

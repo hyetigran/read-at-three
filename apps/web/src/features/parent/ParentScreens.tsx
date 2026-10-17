@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, Check, Settings } from "lucide-react";
 import { animalCatalog, canonical, resolveAvatar } from "@readatthree/teaching";
 import type {
@@ -6,17 +6,20 @@ import type {
   PackageHash,
   PreparationAvailability,
   ProfileAdministrationIntent,
+  ProfileRemovalIntent,
   ProfileDirectory,
 } from "@readatthree/teaching";
 import { Button } from "@/components/ui/button.tsx";
 import { AddedText } from "../teaching/CopyText.tsx";
 import { AnimalPortrait } from "./AnimalPortrait.tsx";
 import { PreparationReader } from "./PreparationReader.tsx";
-import { originAddress } from "./parent-visit.ts";
+import { originAddress, localSupportPreview } from "./parent-visit.ts";
 import type { ParentDestination, ParentVisit } from "./parent-visit.ts";
+import type { BrowserTeachingClient } from "../../platform/teaching-client.ts";
+import { readOriginStorageEstimate } from "../../platform/storage-estimate.ts";
 import type { TaskPreviewTicket } from "./task-preview.ts";
 
-export type ParentAfter = "map" | "profiles" | "preparation";
+export type ParentAfter = "map" | "profiles" | "preparation" | "removal";
 export type ParentScreensProps = {
   visit: ParentVisit;
   directory: ProfileDirectory;
@@ -27,7 +30,11 @@ export type ParentScreensProps = {
   onNavigate: (destination: ParentDestination) => void;
   onDraft: (destination: ParentDestination) => void;
   onReturn: () => void;
-  onSubmit: (intent: ProfileAdministrationIntent, after: ParentAfter) => void;
+  onSubmit: (
+    intent: ProfileAdministrationIntent | ProfileRemovalIntent,
+    after: ParentAfter,
+  ) => void;
+  readDiagnostics?: BrowserTeachingClient["readDiagnostics"];
   connectionTicket: () => number;
   isCurrent: (ticket: TaskPreviewTicket) => boolean;
 };
@@ -286,13 +293,331 @@ export function ParentScreens(props: ParentScreensProps) {
             </p>
             <p>
               <AddedText>
-                Protected backup, restore and personal-data cleanup are coming
-                in later application updates.
+                Protected backup and restore are coming in later application
+                updates.
               </AddedText>
             </p>
+            <Button
+              className="course-secondary"
+              onClick={() => onNavigate({ kind: "support" })}
+              disabled={busy}
+            >
+              <AddedText>Local support information</AddedText>
+            </Button>
             {returnLink()}
           </section>
         );
+        break;
+      case "support":
+        content = (
+          <LocalSupport
+            readDiagnostics={props.readDiagnostics ?? unavailableDiagnostics}
+            onBack={() => onNavigate({ kind: "settings" })}
+          />
+        );
+        break;
+      case "removal":
+        content =
+          target &&
+          canonical(target.edit) === canonical(destination.target) &&
+          canonical(target.edit.owner) ===
+            canonical(directory.selection.owner) ? (
+            <section className="parent-removal">
+              <div className="parent-removal-target">
+                <AnimalPortrait savedId={target.preferences.avatarId} />
+                <h2>
+                  <AddedText>
+                    {target.preferences.displayName || "Your child"}
+                  </AddedText>
+                </h2>
+                <p>
+                  <AddedText>
+                    {
+                      animalCatalog[
+                        resolveAvatar({ savedId: target.preferences.avatarId })
+                      ]
+                    }
+                  </AddedText>
+                </p>
+              </div>
+              {destination.state.kind === "chooseSuccessor" ? (
+                <>
+                  <h2>
+                    <AddedText>Delete this child from this device</AddedText>
+                  </h2>
+                  <p>
+                    <AddedText>
+                      All of this child's progress, saved handwriting, history
+                      and Undo will be removed. This cannot be undone.
+                    </AddedText>
+                  </p>
+                  {directory.profiles.length > 1 ? (
+                    <fieldset disabled={busy}>
+                      <legend>
+                        <AddedText>Choose who will read next</AddedText>
+                      </legend>
+                      {directory.profiles
+                        .filter(
+                          (profile) =>
+                            canonical(profile.edit.owner) !==
+                            canonical(target.edit.owner),
+                        )
+                        .map((profile) => (
+                          <label
+                            className="parent-successor"
+                            key={profile.edit.owner.profileId}
+                          >
+                            <input
+                              type="radio"
+                              name="successor"
+                              checked={
+                                destination.state.kind === "chooseSuccessor" &&
+                                destination.state.choice?.kind === "existing" &&
+                                canonical(destination.state.choice.owner) ===
+                                  canonical(profile.edit.owner)
+                              }
+                              onChange={() =>
+                                onDraft({
+                                  ...destination,
+                                  state: {
+                                    kind: "chooseSuccessor",
+                                    choice: {
+                                      kind: "existing",
+                                      owner: profile.edit.owner,
+                                    },
+                                  },
+                                })
+                              }
+                            />
+                            <AnimalPortrait
+                              savedId={profile.preferences.avatarId}
+                            />
+                            <AddedText>{`${profile.preferences.displayName || "Your child"} (${animalCatalog[resolveAvatar({ savedId: profile.preferences.avatarId })]})`}</AddedText>
+                          </label>
+                        ))}
+                    </fieldset>
+                  ) : (
+                    <>
+                      <p>
+                        <AddedText>
+                          This is the only child. Deletion also creates a fresh
+                          child with the animal and optional name you explicitly
+                          choose below. No progress or handwriting will be
+                          transferred.
+                        </AddedText>
+                      </p>
+                      <label htmlFor="replacement-name">
+                        <AddedText>New child's name (optional)</AddedText>
+                      </label>
+                      <input
+                        id="replacement-name"
+                        disabled={
+                          busy ||
+                          destination.state.choice?.kind !== "replacement"
+                        }
+                        value={
+                          destination.state.choice?.kind === "replacement"
+                            ? (destination.state.choice.preferences
+                                .displayName ?? "")
+                            : ""
+                        }
+                        onChange={(event) => {
+                          const choice =
+                            destination.state.kind === "chooseSuccessor"
+                              ? destination.state.choice
+                              : null;
+                          if (
+                            choice?.kind === "replacement" &&
+                            [...event.currentTarget.value].length <= 120
+                          )
+                            onDraft({
+                              ...destination,
+                              state: {
+                                kind: "chooseSuccessor",
+                                choice: {
+                                  ...choice,
+                                  preferences: {
+                                    ...choice.preferences,
+                                    displayName: event.currentTarget.value,
+                                  },
+                                },
+                              },
+                            });
+                        }}
+                      />
+                      <p>
+                        <AddedText>
+                          Choose the new child's animal before entering an
+                          optional name.
+                        </AddedText>
+                      </p>
+                      <fieldset
+                        className="parent-replacement-animals"
+                        disabled={busy}
+                      >
+                        <legend>
+                          <AddedText>New child's animal</AddedText>
+                        </legend>
+                        {Object.entries(animalCatalog).map(([key, label]) => {
+                          const avatarId = resolveAvatar({ savedId: key });
+                          return (
+                            <label key={key}>
+                              <input
+                                type="radio"
+                                name="replacement-animal"
+                                checked={
+                                  destination.state.kind ===
+                                    "chooseSuccessor" &&
+                                  destination.state.choice?.kind ===
+                                    "replacement" &&
+                                  destination.state.choice.preferences
+                                    .avatarId === avatarId
+                                }
+                                onChange={() => {
+                                  const choice =
+                                    destination.state.kind === "chooseSuccessor"
+                                      ? destination.state.choice
+                                      : null;
+                                  onDraft({
+                                    ...destination,
+                                    state: {
+                                      kind: "chooseSuccessor",
+                                      choice: {
+                                        kind: "replacement",
+                                        preferences: {
+                                          avatarId,
+                                          ...(choice?.kind === "replacement" &&
+                                          choice.preferences.displayName
+                                            ? {
+                                                displayName:
+                                                  choice.preferences
+                                                    .displayName,
+                                              }
+                                            : {}),
+                                        },
+                                      },
+                                    },
+                                  });
+                                }}
+                              />
+                              <AnimalPortrait savedId={avatarId} />
+                              <AddedText>{label}</AddedText>
+                            </label>
+                          );
+                        })}
+                      </fieldset>
+                    </>
+                  )}
+                  <div className="parent-form-actions">
+                    <Button
+                      type="button"
+                      className="course-secondary"
+                      disabled={busy}
+                      onClick={() => onNavigate({ kind: "profiles" })}
+                    >
+                      <AddedText>Cancel</AddedText>
+                    </Button>
+                    <Button
+                      className="course-primary"
+                      disabled={busy || !destination.state.choice}
+                      onClick={() => {
+                        if (
+                          destination.state.kind === "chooseSuccessor" &&
+                          destination.state.choice
+                        )
+                          onDraft({
+                            ...destination,
+                            state: {
+                              kind: "confirm",
+                              operation: "delete",
+                              successor: destination.state.choice,
+                            },
+                          });
+                      }}
+                    >
+                      <AddedText>Review deletion</AddedText>
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h2>
+                    <AddedText>
+                      {destination.state.operation === "reset"
+                        ? "Reset this child's progress?"
+                        : "Delete this child?"}
+                    </AddedText>
+                  </h2>
+                  <p>
+                    <AddedText>
+                      {destination.state.operation === "reset"
+                        ? "Remove all of this child's progress, saved handwriting, history and Undo. Keep this child, their name and animal, and start their reading again. This cannot be undone."
+                        : "Permanently remove this child and all of their progress, saved handwriting, history and Undo from this device. This cannot be undone."}
+                    </AddedText>
+                  </p>
+                  {destination.state.operation === "delete" ? (
+                    <SuccessorSummary
+                      directory={directory}
+                      successor={destination.state.successor}
+                    />
+                  ) : null}
+                  <p>
+                    <AddedText>
+                      Other children's saved work and installed lessons are
+                      kept.
+                    </AddedText>
+                  </p>
+                  <div className="parent-form-actions">
+                    <Button
+                      className="course-secondary"
+                      disabled={busy}
+                      onClick={() => onNavigate({ kind: "profiles" })}
+                    >
+                      <AddedText>Cancel</AddedText>
+                    </Button>
+                    <Button
+                      className="parent-destructive"
+                      disabled={busy}
+                      onClick={() => {
+                        if (destination.state.kind !== "confirm") return;
+                        onSubmit(
+                          destination.state.operation === "reset"
+                            ? {
+                                kind: "resetProfile",
+                                directory: directory.administration,
+                                target: destination.target,
+                              }
+                            : {
+                                kind: "deleteProfile",
+                                directory: directory.administration,
+                                target: destination.target,
+                                successor: destination.state.successor,
+                              },
+                          "removal",
+                        );
+                      }}
+                    >
+                      <AddedText>
+                        {destination.state.operation === "reset"
+                          ? "Reset progress permanently"
+                          : "Delete child permanently"}
+                      </AddedText>
+                    </Button>
+                  </div>
+                </>
+              )}
+            </section>
+          ) : (
+            <section className="parent-message" role="alert">
+              <AddedText>
+                This child's selection changed. Open child profiles to choose
+                the current child again.
+              </AddedText>
+              <Button onClick={() => onNavigate({ kind: "profiles" })}>
+                <AddedText>Child profiles</AddedText>
+              </Button>
+            </section>
+          );
         break;
       case "profiles":
         content = (
@@ -336,6 +661,39 @@ export function ParentScreens(props: ParentScreensProps) {
                       ) : null}
                     </div>
                     <div className="parent-profile-actions">
+                      {selected ? (
+                        <>
+                          <Button
+                            className="course-secondary"
+                            disabled={busy}
+                            onClick={() =>
+                              manage({
+                                kind: "removal",
+                                target: profile.edit,
+                                state: { kind: "confirm", operation: "reset" },
+                              })
+                            }
+                          >
+                            <AddedText>Reset progress</AddedText>
+                          </Button>
+                          <Button
+                            className="course-secondary"
+                            disabled={busy}
+                            onClick={() =>
+                              manage({
+                                kind: "removal",
+                                target: profile.edit,
+                                state: {
+                                  kind: "chooseSuccessor",
+                                  choice: null,
+                                },
+                              })
+                            }
+                          >
+                            <AddedText>Delete child</AddedText>
+                          </Button>
+                        </>
+                      ) : null}
                       <Button
                         className="course-secondary"
                         disabled={busy}
@@ -671,13 +1029,128 @@ export function ParentScreens(props: ParentScreensProps) {
                 ? "Parent preparation"
                 : destination.kind === "settings"
                   ? "Parent settings"
-                  : destination.kind === "profiles"
-                    ? "Child profiles"
-                    : "Choose an animal"}
+                  : destination.kind === "support"
+                    ? "Local support"
+                    : destination.kind === "removal"
+                      ? "Manage saved work"
+                      : destination.kind === "profiles"
+                        ? "Child profiles"
+                        : "Choose an animal"}
           </AddedText>
         </h1>
       </header>
       {content}
     </main>
   );
+}
+
+function SuccessorSummary({
+  directory,
+  successor,
+}: {
+  directory: ProfileDirectory;
+  successor: Extract<
+    ProfileRemovalIntent,
+    { kind: "deleteProfile" }
+  >["successor"];
+}) {
+  const preferences =
+    successor.kind === "replacement"
+      ? successor.preferences
+      : directory.profiles.find(
+          (profile) =>
+            canonical(profile.edit.owner) === canonical(successor.owner),
+        )?.preferences;
+  if (!preferences)
+    return (
+      <p role="alert">
+        <AddedText>
+          The next child is unavailable. Cancel and choose again.
+        </AddedText>
+      </p>
+    );
+  return (
+    <div className="parent-successor-summary">
+      <AnimalPortrait savedId={preferences.avatarId} />
+      <p>
+        <AddedText>{`${successor.kind === "replacement" ? "Create a fresh child" : "Select the next child"} ${preferences.displayName || "Your child"} (${animalCatalog[resolveAvatar({ savedId: preferences.avatarId })]}).`}</AddedText>
+      </p>
+    </div>
+  );
+}
+function LocalSupport({
+  readDiagnostics,
+  onBack,
+}: {
+  readDiagnostics: BrowserTeachingClient["readDiagnostics"];
+  onBack: () => void;
+}) {
+  const [state, setState] = useState<
+    | { kind: "loading" }
+    | { kind: "ready"; preview: string }
+    | { kind: "unavailable" }
+  >({ kind: "loading" });
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let current = true;
+    setState({ kind: "loading" });
+    void Promise.all([readDiagnostics(), readOriginStorageEstimate()])
+      .then(([diagnostics, estimate]) => {
+        const preview = localSupportPreview({ diagnostics, estimate });
+        if (current) setState({ kind: "ready", preview });
+      })
+      .catch(() => {
+        if (current) setState({ kind: "unavailable" });
+      });
+    return () => {
+      current = false;
+    };
+  }, [readDiagnostics, attempt]);
+  return (
+    <section className="parent-support">
+      <h2>
+        <AddedText>Local support information</AddedText>
+      </h2>
+      <p>
+        <AddedText>
+          This preview stays on this device. It includes application, database
+          and ink versions, startup capabilities, local diagnostic persistence,
+          omitted events and aggregate timings or errors. Browser storage
+          estimates cover the whole origin, not one child's saved work. Missing
+          measurements are unavailable, not zero. Nothing is uploaded.
+        </AddedText>
+      </p>
+      {state.kind === "ready" ? (
+        <pre data-origin="added" className="parent-support-preview">
+          {state.preview}
+        </pre>
+      ) : (
+        <p role="status">
+          <AddedText>
+            {state.kind === "loading"
+              ? "Reading local support information..."
+              : "Local support information is unavailable. No saved-work size or diagnostic persistence can be confirmed."}
+          </AddedText>
+        </p>
+      )}
+      <div className="parent-form-actions">
+        <Button className="course-secondary" onClick={onBack}>
+          <AddedText>Back to parent settings</AddedText>
+        </Button>
+        <Button
+          className="course-primary"
+          disabled={state.kind === "loading"}
+          onClick={() => setAttempt(attempt + 1)}
+        >
+          <AddedText>Refresh local information</AddedText>
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+async function unavailableDiagnostics(): ReturnType<
+  BrowserTeachingClient["readDiagnostics"]
+> {
+  throw new Error("Local support is unavailable");
 }

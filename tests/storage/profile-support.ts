@@ -40,6 +40,8 @@ export async function profileFixture(t: Parameters<typeof practiceFixture>[0]) {
     const command = await request(app, build);
     const result = await app.administer(command);
     if (result.kind !== "profileCommitted") assert.fail(result.message);
+    if (result.version !== 1)
+      assert.fail("V1 preparation must yield a V1 receipt");
     return { command, result };
   }
   async function setup(app: Application) {
