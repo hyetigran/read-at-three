@@ -203,7 +203,22 @@ export type PrintedGraphAction = Readonly<
   | { kind: "help"; correctionId: CorrectionId }
 >;
 export type SelectionIntent = "start" | "resume" | "replay" | "restart";
+export type UndoAdvanceBinding = Readonly<{
+  packageHash: PackageHash;
+  sessionId: SessionId;
+  runId: RunId;
+  advanceId: AdvanceId;
+  runRevision: Counter;
+  profileRevision: Counter;
+  cursorRevision: Counter;
+  selectionCounter: Counter;
+}>;
+export type UndoAdvanceCommand = Extract<
+  TeachingCommand,
+  { kind: "undoAdvance" | "writingUndoAdvance" }
+>;
 export type TeachingIntent =
+  | Readonly<{ kind: "undoAdvance"; binding: UndoAdvanceBinding }>
   | GraphAction
   | Readonly<{
       kind: SelectionIntent;
@@ -303,6 +318,12 @@ export type TeachingCommand = CommandCommon &
         kind: "start";
         scope: ProfileScope;
         payload: Readonly<{ packageHash: PackageHash }>;
+      }
+    | { kind: "undoAdvance"; scope: SessionScope; payload: UndoAdvanceBinding }
+    | {
+        kind: "writingUndoAdvance";
+        scope: SessionScope;
+        payload: UndoAdvanceBinding & Readonly<{ barrier: WritingBarrier }>;
       }
     | {
         kind: "advance";
@@ -506,6 +527,14 @@ export interface TeachingTransaction {
       receipt: CommitReceipt;
     }>,
   ): Promise<boolean>;
+  undoAdvance?(
+    input: Readonly<{
+      command: UndoAdvanceCommand;
+      context: StoredContext & { session: StoredSession };
+      content: RuntimePackage;
+      receipt: CommitReceipt;
+    }>,
+  ): Promise<void>;
   apply(input: ApplyTransitionInput): Promise<void>;
 }
 export interface TeachingStore {

@@ -142,7 +142,14 @@ export function parseCommand(input: unknown): TeachingCommand {
   parseCounter(input.expectedRevision);
   parseCounter(input.owner.generation);
   parseCounter(input.scope.generation);
+  if (input.kind === "undoAdvance" || input.kind === "writingUndoAdvance") {
+    parseCounter(input.payload.runRevision);
+    parseCounter(input.payload.profileRevision);
+    parseCounter(input.payload.cursorRevision);
+    parseCounter(input.payload.selectionCounter);
+  }
   if (
+    input.kind === "writingUndoAdvance" ||
     input.kind === "writingNavigate" ||
     input.kind === "writingSelect" ||
     input.kind === "writingControl"

@@ -2,7 +2,7 @@ import type { HashFunction } from "../../teaching/src/index.ts";
 import type { SqlExecutor } from "./executor.ts";
 import { migrations } from "./generated-migration.ts";
 export { migrationStatements } from "./generated-migration.ts";
-export const DATABASE_VERSION = 6;
+export const DATABASE_VERSION = 7;
 export type MigrationDataHook = (
   version: number,
 ) => Promise<(() => Promise<void>) | undefined>;
@@ -125,7 +125,12 @@ export async function initializeDatabase(
                       ", UNIQUE(run_id,seq)",
                       ", `accepting_command` text, UNIQUE(run_id,seq)",
                     )
-                  : statement,
+                  : appliedVersion >= 7 && name === "task_run"
+                    ? statement.replace(
+                        ", UNIQUE(session_id,ordinal)",
+                        ", legacy_acceptance_seq_limit INTEGER NOT NULL DEFAULT 0 CHECK(typeof(legacy_acceptance_seq_limit)='integer' AND legacy_acceptance_seq_limit>=0), UNIQUE(session_id,ordinal)",
+                      )
+                    : statement,
             )
         )
           throw new Error("Database schema does not match its migration");

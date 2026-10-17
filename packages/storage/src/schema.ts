@@ -276,7 +276,7 @@ export const session = sqliteTable(
     index("session_package").on(table.packageHash),
   ],
 );
-export const taskRun = sqliteTable(
+export const taskRunV6 = sqliteTable(
   "task_run",
   {
     runId: runId("run_id").primaryKey(),
@@ -300,6 +300,60 @@ export const taskRun = sqliteTable(
   (table) => [
     nonnegative("generation"),
     nonnegative("ordinal"),
+    nonnegative("revision"),
+    check(
+      "run_status",
+      sql`status IN ('inProgress','completed','skipped','abandoned')`,
+    ),
+    check("run_state_version", sql`state_version=1`),
+    check("run_state_json", sql`json_valid(state)`),
+    check(
+      "run_next_advance",
+      sql`typeof(next_advance_seq)='integer' AND next_advance_seq>0`,
+    ),
+    unique().on(table.sessionId, table.ordinal),
+    unique().on(table.runId, table.profileId, table.generation),
+    unique().on(
+      table.runId,
+      table.sessionId,
+      table.profileId,
+      table.generation,
+      table.courseId,
+      table.packageHash,
+      table.lessonId,
+      table.taskId,
+    ),
+    index("run_package").on(table.packageHash),
+  ],
+);
+export const taskRun = sqliteTable(
+  "task_run",
+  {
+    runId: runId("run_id").primaryKey(),
+    sessionId: sessionId("session_id").notNull(),
+    profileId: profileId("profile_id").notNull(),
+    generation: counter("generation").notNull(),
+    courseId: courseId("course_id").notNull(),
+    packageHash: packageHash("package_hash").notNull(),
+    lessonId: lessonId("lesson_id").notNull(),
+    taskId: taskId("task_id").notNull(),
+    ordinal: counter("ordinal").notNull(),
+    status: text("status", {
+      enum: ["inProgress", "completed", "skipped", "abandoned"],
+    }).notNull(),
+    stateVersion: integer("state_version").notNull(),
+    state: text("state").notNull(),
+    activeAdvanceId: advanceId("active_advance_id"),
+    nextAdvanceSeq: counter("next_advance_seq").notNull(),
+    legacyAcceptanceSeqLimit: counter("legacy_acceptance_seq_limit")
+      .notNull()
+      .default(sql`0`),
+    revision: counter("revision").notNull(),
+  },
+  (table) => [
+    nonnegative("generation"),
+    nonnegative("ordinal"),
+    nonnegative("legacy_acceptance_seq_limit"),
     nonnegative("revision"),
     check(
       "run_status",
@@ -418,6 +472,34 @@ export const taskAdvance = sqliteTable(
       foreignColumns: [taskRun.runId, taskRun.profileId, taskRun.generation],
     }),
     index("task_advance_chain").on(table.runId, table.seq, table.status),
+  ],
+);
+export const advanceWithdrawal = sqliteTable(
+  "advance_withdrawal",
+  {
+    advanceId: advanceId("advance_id").primaryKey(),
+    runId: runId("run_id").notNull(),
+    profileId: profileId("profile_id").notNull(),
+    generation: counter("generation").notNull(),
+    withdrawnRunRevision: counter("withdrawn_run_revision").notNull(),
+    command: text("command").notNull(),
+  },
+  (table) => [
+    nonnegative("generation"),
+    check(
+      "withdrawal_revision",
+      sql`typeof(withdrawn_run_revision)='integer' AND withdrawn_run_revision>0`,
+    ),
+    check("withdrawal_command_json", sql`json_valid(command)`),
+    unique().on(table.runId, table.withdrawnRunRevision),
+    foreignKey({
+      columns: [table.advanceId, table.runId],
+      foreignColumns: [taskAdvance.advanceId, taskAdvance.runId],
+    }),
+    foreignKey({
+      columns: [table.runId, table.profileId, table.generation],
+      foreignColumns: [taskRun.runId, taskRun.profileId, taskRun.generation],
+    }),
   ],
 );
 export const commandReceiptV3 = sqliteTable(
