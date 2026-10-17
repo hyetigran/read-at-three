@@ -62,7 +62,13 @@ const validate = new Ajv2020({ strict: true }).compile<Fixture>({
     },
   },
 });
-async function seed(db: DatabaseSync, version: 1 | 2 = 1) {
+async function seed({
+  db,
+  version = 1,
+}: {
+  db: DatabaseSync;
+  version?: 1 | 2;
+}) {
   const raw: unknown = JSON.parse(
     await readFile(`tests/fixtures/storage-v${version}.json`, "utf8"),
   );
@@ -119,7 +125,7 @@ function sourceState(db: DatabaseSync) {
 test("real captured V1 data upgrades without rebinding pinned bytes; full task requires explicit new run", async (t) => {
   const f = await storageFixture(t);
   const first = f.connect();
-  const capture = await seed(first.db);
+  const capture = await seed({ db: first.db });
   const before = sourceState(first.db);
   assert.equal(
     await hash(migrationStatements.join("\n")),
@@ -180,7 +186,7 @@ test("each failed V2 migration statement rolls back to exact V1 schema/data and 
   for (const failing of migrations[1].statements) {
     const f = await storageFixture(t);
     const first = f.connect();
-    await seed(first.db);
+    await seed({ db: first.db });
     const before = sourceState(first.db);
     const executor: SqlExecutor = {
       execute: async (sql, parameters) => {
@@ -222,7 +228,7 @@ test("each failed V2 migration statement rolls back to exact V1 schema/data and 
 test("tampered V1 ledger rejects before any upgrade and keeps saved state", async (t) => {
   const f = await storageFixture(t);
   const first = f.connect();
-  await seed(first.db);
+  await seed({ db: first.db });
   const before = sourceState(first.db);
   first.db
     .prepare("UPDATE schema_migration SET checksum=?")
@@ -237,7 +243,7 @@ test("genuine main V2 capture upgrades in place; new oral catalog preserves exac
   const oral = await controlFixture();
   const f = await storageFixture(t, oral.content);
   const first = f.connect();
-  const capture = await seed(first.db, 2),
+  const capture = await seed({ db: first.db, version: 2 }),
     before = sourceState(first.db);
   const blob = first.db
     .prepare(
@@ -312,7 +318,7 @@ test("every V3 migration write and pre-COMMIT interruption rolls back genuine V2
   for (const point of points) {
     const f = await storageFixture(t),
       first = f.connect();
-    await seed(first.db, 2);
+    await seed({ db: first.db, version: 2 });
     const before = sourceState(first.db),
       schemaBefore = canonical(
         first.db
@@ -358,7 +364,7 @@ test("every V3 migration write and pre-COMMIT interruption rolls back genuine V2
   }
   const f = await storageFixture(t),
     first = f.connect();
-  await seed(first.db, 2);
+  await seed({ db: first.db, version: 2 });
   let lost = false;
   const executor: SqlExecutor = {
     execute: async (sql, parameters) => {

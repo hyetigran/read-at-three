@@ -19,7 +19,15 @@ async function saved(page: Page) {
     "committed",
   );
 }
-async function at(page: Page, task: number, suffix: string) {
+async function at({
+  page,
+  task,
+  suffix,
+}: {
+  page: Page;
+  task: number;
+  suffix: string;
+}) {
   await expect(page.locator("main[data-turn-id]")).toHaveAttribute(
     "data-turn-id",
     `${taskId(task)}.${suffix}`,
@@ -30,27 +38,27 @@ async function at(page: Page, task: number, suffix: string) {
     page.getByRole("button", { name: "Hold silent pointing cue", exact: true }),
   ).toHaveCount(0);
 }
-async function act(page: Page, name = "Continue") {
+async function act({ page, name = "Continue" }: { page: Page; name?: string }) {
   await page.getByRole("button", { name, exact: true }).click();
   await expect(page.locator("main[aria-busy]")).toHaveAttribute(
     "aria-busy",
     "false",
   );
 }
-async function start(page: Page, task = 2) {
+async function start({ page, task = 2 }: { page: Page; task?: number }) {
   await page.goto(base);
   await page
     .getByRole("button", { name: `Start Task ${task}`, exact: true })
     .click();
-  await at(page, task, task === 2 ? "model" : "response-01");
+  await at({ page, task, suffix: task === 2 ? "model" : "response-01" });
 }
 async function toSelection(page: Page) {
-  await act(page);
-  await at(page, 2, "response-01");
-  await act(page, "Ready");
+  await act({ page });
+  await at({ page, task: 2, suffix: "response-01" });
+  await act({ page, name: "Ready" });
   for (let item = 2; item <= 6; item++) {
-    await at(page, 2, `response-0${item}`);
-    await act(page);
+    await at({ page, task: 2, suffix: `response-0${item}` });
+    await act({ page });
   }
   await expect(
     page.getByRole("group", { name: "Words to review" }),
@@ -73,23 +81,23 @@ async function geometry(page: Page) {
 test("oral model, all six responses, readiness and explicit empty review keep fixed anchors", async ({
   page,
 }) => {
-  await start(page);
+  await start({ page });
   const anchors = await geometry(page);
-  await act(page);
-  await at(page, 2, "response-01");
+  await act({ page });
+  await at({ page, task: 2, suffix: "response-01" });
   await expect(
     page.getByText("Synthetic repeat until the parent judges firm.", {
       exact: true,
     }),
   ).toBeVisible();
-  await act(page, "Practice again");
-  await at(page, 2, "response-01");
+  await act({ page, name: "Practice again" });
+  await at({ page, task: 2, suffix: "response-01" });
   expect(await geometry(page)).toEqual(anchors);
-  await act(page, "Ready");
+  await act({ page, name: "Ready" });
   for (let item = 2; item <= 6; item++) {
-    await at(page, 2, `response-0${item}`);
+    await at({ page, task: 2, suffix: `response-0${item}` });
     expect(await geometry(page)).toEqual(anchors);
-    await act(page);
+    await act({ page });
   }
   await expect(
     page.getByRole("group", { name: "Words to review" }),
@@ -101,7 +109,7 @@ test("oral model, all six responses, readiness and explicit empty review keep fi
   await expect(
     page.getByRole("button", { name: "Review", exact: true }),
   ).toBeDisabled();
-  await act(page, "No review");
+  await act({ page, name: "No review" });
   await expect(
     page.getByRole("heading", { name: "Task complete", exact: true }),
   ).toBeVisible();
@@ -114,7 +122,7 @@ test("oral model, all six responses, readiness and explicit empty review keep fi
 test("nonadjacent choices run in source order and Back reconfirms without skipping the earlier item", async ({
   page,
 }) => {
-  await start(page);
+  await start({ page });
   await toSelection(page);
   await page
     .getByRole("checkbox", { name: "Synthetic item 3", exact: true })
@@ -122,20 +130,20 @@ test("nonadjacent choices run in source order and Back reconfirms without skippi
   await page
     .getByRole("checkbox", { name: "Synthetic item 1", exact: true })
     .check();
-  await act(page, "Review");
-  await at(page, 2, "response-01");
-  await act(page, "Ready");
-  await at(page, 2, "response-03");
-  await act(page, "Back");
-  await at(page, 2, "response-01");
-  await act(page);
-  await at(page, 2, "response-03");
-  await act(page, "Next word");
+  await act({ page, name: "Review" });
+  await at({ page, task: 2, suffix: "response-01" });
+  await act({ page, name: "Ready" });
+  await at({ page, task: 2, suffix: "response-03" });
+  await act({ page, name: "Back" });
+  await at({ page, task: 2, suffix: "response-01" });
+  await act({ page });
+  await at({ page, task: 2, suffix: "response-03" });
+  await act({ page, name: "Next word" });
   await expect(
     page.getByRole("heading", { name: "Task complete", exact: true }),
   ).toBeVisible();
-  await act(page, "Back");
-  await at(page, 2, "response-03");
+  await act({ page, name: "Back" });
+  await at({ page, task: 2, suffix: "response-03" });
   await expect(page.locator("main")).toHaveAttribute(
     "data-run-status",
     "completed",
@@ -143,10 +151,10 @@ test("nonadjacent choices run in source order and Back reconfirms without skippi
   await expect(
     page.getByRole("button", { name: "Synthetic slow help", exact: true }),
   ).toHaveCount(0);
-  await act(page);
-  await act(page, "Replay task");
-  await at(page, 2, "model");
-  await act(page, "Activities");
+  await act({ page });
+  await act({ page, name: "Replay task" });
+  await at({ page, task: 2, suffix: "model" });
+  await act({ page, name: "Activities" });
   await expect(page.locator('[data-task-number="2"]')).toContainText(
     "Completed",
   );
@@ -156,29 +164,29 @@ test("nonadjacent choices run in source order and Back reconfirms without skippi
 test("Task 5 keeps four responses and general correction repeats from the exercise start", async ({
   page,
 }) => {
-  await start(page, 5);
+  await start({ page, task: 5 });
   const anchors = await geometry(page);
-  await act(page);
-  await at(page, 5, "response-02");
-  await act(page);
-  await at(page, 5, "response-03");
-  await act(page, "Synthetic quiet help");
+  await act({ page });
+  await at({ page, task: 5, suffix: "response-02" });
+  await act({ page });
+  await at({ page, task: 5, suffix: "response-03" });
+  await act({ page, name: "Synthetic quiet help" });
   await expect(page.locator("main[data-turn-id]")).toHaveAttribute(
     "data-turn-id",
     /correction-quiet-3\.instruction$/,
   );
   await saved(page);
   expect(await geometry(page)).toEqual(anchors);
-  await act(page);
-  await at(page, 5, "response-01");
-  await act(page);
-  await at(page, 5, "response-02");
-  await act(page);
-  await at(page, 5, "response-03");
-  await act(page);
-  await at(page, 5, "response-04");
+  await act({ page });
+  await at({ page, task: 5, suffix: "response-01" });
+  await act({ page });
+  await at({ page, task: 5, suffix: "response-02" });
+  await act({ page });
+  await at({ page, task: 5, suffix: "response-03" });
+  await act({ page });
+  await at({ page, task: 5, suffix: "response-04" });
   expect(await geometry(page)).toEqual(anchors);
-  await act(page);
+  await act({ page });
   await expect(
     page.getByRole("heading", { name: "Task complete", exact: true }),
   ).toBeVisible();
@@ -200,7 +208,7 @@ test("a failed review selection retains the immutable complete choice for identi
       }
     };
   `);
-  await start(page);
+  await start({ page });
   await toSelection(page);
   await page
     .getByRole("checkbox", { name: "Synthetic item 3", exact: true })
@@ -233,7 +241,7 @@ test("a failed review selection retains the immutable complete choice for identi
     page.getByRole("checkbox", { name: "Synthetic item 1", exact: true }),
   ).toBeChecked();
   await page.getByRole("button", { name: "Retry save", exact: true }).click();
-  await at(page, 2, "response-01");
+  await at({ page, task: 2, suffix: "response-01" });
   const attempts = await page.evaluate(() => {
     if (
       "readSelectionAttempts" in window &&
@@ -244,8 +252,8 @@ test("a failed review selection retains the immutable complete choice for identi
   });
   expect(attempts).toHaveLength(2);
   expect(attempts[0]).toEqual(attempts[1]);
-  await act(page, "Ready");
-  await at(page, 2, "response-03");
+  await act({ page, name: "Ready" });
+  await at({ page, task: 2, suffix: "response-03" });
 });
 
 test("the selected correction and its item confirmation survive complete browser process restarts", async () => {
@@ -256,16 +264,16 @@ test("the selected correction and its item confirmation survive complete browser
   });
   try {
     let page = await context.newPage();
-    await start(page);
+    await start({ page });
     await toSelection(page);
     await page
       .getByRole("checkbox", { name: "Synthetic item 3", exact: true })
       .check();
-    await act(page, "Review");
-    await at(page, 2, "response-03");
-    await act(page, "Synthetic quiet help");
+    await act({ page, name: "Review" });
+    await at({ page, task: 2, suffix: "response-03" });
+    await act({ page, name: "Synthetic quiet help" });
     await saved(page);
-    await act(page, "Pause");
+    await act({ page, name: "Pause" });
     await expect(
       page.getByRole("heading", { name: "Reading is paused", exact: true }),
     ).toBeVisible();
@@ -279,14 +287,14 @@ test("the selected correction and its item confirmation survive complete browser
     await expect(
       page.getByRole("heading", { name: "Reading is paused", exact: true }),
     ).toBeVisible();
-    await act(page, "Resume");
+    await act({ page, name: "Resume" });
     await expect(page.locator("main[data-turn-id]")).toHaveAttribute(
       "data-turn-id",
       /correction-quiet-3\.instruction$/,
     );
-    await act(page);
-    await at(page, 2, "response-03");
-    await act(page, "Next word");
+    await act({ page });
+    await at({ page, task: 2, suffix: "response-03" });
+    await act({ page, name: "Next word" });
     await expect(
       page.getByRole("heading", { name: "Task complete", exact: true }),
     ).toBeVisible();
@@ -322,9 +330,9 @@ test("oral Help retains its uncommitted answer-free preview through delayed and 
       }
     };
   `);
-  await start(page);
-  await act(page);
-  await at(page, 2, "response-01");
+  await start({ page });
+  await act({ page });
+  await at({ page, task: 2, suffix: "response-01" });
   const anchors = await geometry(page);
   await page
     .getByRole("button", { name: "Synthetic slow help", exact: true })
@@ -374,8 +382,8 @@ test("oral Help retains its uncommitted answer-free preview through delayed and 
   });
   expect(attempts).toHaveLength(2);
   expect(attempts[0]).toEqual(attempts[1]);
-  await act(page);
-  await at(page, 2, "response-01");
-  await act(page, "Ready");
-  await at(page, 2, "response-02");
+  await act({ page });
+  await at({ page, task: 2, suffix: "response-01" });
+  await act({ page, name: "Ready" });
+  await at({ page, task: 2, suffix: "response-02" });
 });

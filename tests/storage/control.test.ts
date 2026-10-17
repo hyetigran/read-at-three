@@ -16,10 +16,13 @@ async function setup(t: Parameters<typeof storageFixture>[0]) {
   const f = await storageFixture(t, oral.content);
   return { ...f, oral };
 }
-async function start(
-  f: Awaited<ReturnType<typeof setup>>,
-  app: TeachingApplication,
-) {
+async function start({
+  fixture: f,
+  app,
+}: {
+  fixture: Awaited<ReturnType<typeof setup>>;
+  app: TeachingApplication;
+}) {
   await app.open();
   await f.act(
     app,
@@ -27,10 +30,13 @@ async function start(
     (a) => "taskId" in a.intent && a.intent.taskId === f.oral.taskId,
   );
 }
-async function toSelection(
-  f: Awaited<ReturnType<typeof setup>>,
-  app: TeachingApplication,
-) {
+async function toSelection({
+  fixture: f,
+  app,
+}: {
+  fixture: Awaited<ReturnType<typeof setup>>;
+  app: TeachingApplication;
+}) {
   await f.act(app, "continue");
   await f.act(app, "parentReady");
   for (let i = 0; i < 5; i++) await f.act(app, "continue");
@@ -38,11 +44,15 @@ async function toSelection(
   assert.equal(p.kind, "reviewSelection");
   return p;
 }
-async function select(
-  f: Awaited<ReturnType<typeof setup>>,
-  app: TeachingApplication,
-  choice: ReviewChoice,
-) {
+async function select({
+  fixture: f,
+  app,
+  choice,
+}: {
+  fixture: Awaited<ReturnType<typeof setup>>;
+  app: TeachingApplication;
+  choice: ReviewChoice;
+}) {
   const projection = await app.read();
   if (projection.kind !== "reviewSelection")
     throw new Error("Selection missing");
@@ -61,8 +71,8 @@ function accepted(
 test("real SQLite restores selection, immutable source-order queue, correction/retest, Back and terminal proof", async (t) => {
   const f = await setup(t),
     first = f.connect();
-  await start(f, first.app);
-  await toSelection(f, first.app);
+  await start({ fixture: f, app: first.app });
+  await toSelection({ fixture: f, app: first.app });
   const selection = await first.app.read();
   assert.deepEqual(await f.connect().app.open(), selection);
   if (selection.kind !== "reviewSelection")
@@ -70,9 +80,13 @@ test("real SQLite restores selection, immutable source-order queue, correction/r
   const a = selection.items[0],
     c = selection.items[2];
   assert.ok(a && c);
-  const command = await select(f, first.app, {
-    kind: "items",
-    itemIds: [c.itemId, a.itemId],
+  const command = await select({
+    fixture: f,
+    app: first.app,
+    choice: {
+      kind: "items",
+      itemIds: [c.itemId, a.itemId],
+    },
   });
   if (
     command.kind !== "navigate" ||
@@ -97,7 +111,10 @@ test("real SQLite restores selection, immutable source-order queue, correction/r
       kind: "items",
       itemIds: [a.itemId, c.itemId],
     });
-  await assert.rejects(select(f, first.app, { kind: "none" }), /unavailable/);
+  await assert.rejects(
+    select({ fixture: f, app: first.app, choice: { kind: "none" } }),
+    /unavailable/,
+  );
   await f.act(first.app, "continue");
   assert.deepEqual(await first.app.read(), {
     ...review,
@@ -165,7 +182,7 @@ test("selection and readiness failure roll back; same immutable retry and lost C
         return value;
       },
     });
-    await start(f, first.app);
+    await start({ fixture: f, app: first.app });
     let command: TeachingCommand;
     if (stage === "ready") {
       await f.act(first.app, "continue");
@@ -180,16 +197,17 @@ test("selection and readiness failure roll back; same immutable retry and lost C
         hash,
       });
     } else {
-      await toSelection(f, first.app);
+      await toSelection({ fixture: f, app: first.app });
       const item = f.oral.graph.reviews[0]?.items[2];
       assert.ok(item);
-      command = await select(
-        f,
-        first.app,
-        stage === "selection"
-          ? { kind: "items", itemIds: [item.itemId] }
-          : { kind: "none" },
-      );
+      command = await select({
+        fixture: f,
+        app: first.app,
+        choice:
+          stage === "selection"
+            ? { kind: "items", itemIds: [item.itemId] }
+            : { kind: "none" },
+      });
     }
     const before = await first.app.read(),
       count = accepted(first.db);
@@ -215,15 +233,19 @@ test("selection and readiness failure roll back; same immutable retry and lost C
 test("receipt pruning cannot replay stale complete choice or replace a committed queue", async (t) => {
   const f = await setup(t),
     first = f.connect();
-  await start(f, first.app);
-  await toSelection(f, first.app);
+  await start({ fixture: f, app: first.app });
+  await toSelection({ fixture: f, app: first.app });
   const view = await first.app.read();
   if (view.kind !== "reviewSelection") throw new Error("Selection missing");
   const item = view.items[2];
   assert.ok(item);
-  const command = await select(f, first.app, {
-    kind: "items",
-    itemIds: [item.itemId],
+  const command = await select({
+    fixture: f,
+    app: first.app,
+    choice: {
+      kind: "items",
+      itemIds: [item.itemId],
+    },
   });
   await first.app.dispatch(command);
   first.db.prepare("DELETE FROM command_receipt").run();
@@ -247,9 +269,13 @@ test("reopen rejects missing, changed semantic action, changed hash, wrong check
   ]) {
     const f = await setup(t),
       first = f.connect();
-    await start(f, first.app);
-    await toSelection(f, first.app);
-    const command = await select(f, first.app, { kind: "none" });
+    await start({ fixture: f, app: first.app });
+    await toSelection({ fixture: f, app: first.app });
+    const command = await select({
+      fixture: f,
+      app: first.app,
+      choice: { kind: "none" },
+    });
     await first.app.dispatch(command);
     const row = first.db
       .prepare(

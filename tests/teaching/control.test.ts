@@ -29,10 +29,13 @@ function selectPosition(f: Awaited<ReturnType<typeof controlFixture>>) {
   for (let i = 0; i < 5; i++) f.act({ kind: "continue" });
   assert.equal(f.view().kind, "reviewSelection");
 }
-function accept(
-  f: Awaited<ReturnType<typeof controlFixture>>,
-  action: GraphAction,
-) {
+function accept({
+  fixture: f,
+  action,
+}: {
+  fixture: Awaited<ReturnType<typeof controlFixture>>;
+  action: GraphAction;
+}) {
   const { before, plan } = f.act(action);
   assert.ok(plan.kind === "acceptance" || plan.kind === "completion");
   validateAcceptanceTransition({
@@ -48,27 +51,34 @@ function accept(
 test("oral tasks preserve every response, explicit first readiness and required review exit", async () => {
   const f = await controlFixture();
   assert.match(current(f), /\.model$/);
-  accept(f, { kind: "continue" });
+  accept({ fixture: f, action: { kind: "continue" } });
   const initialResponse = f.state.occurrences[1]?.id;
   assert.ok(initialResponse);
-  accept(f, { kind: "continue" });
+  accept({ fixture: f, action: { kind: "continue" } });
   assert.match(current(f), /response-01$/);
   assert.equal(f.state.cycleOutcomes.length, 1);
   assert.equal(f.state.cycleOutcomes[0]?.kind, "independent");
   assert.equal(completionProof(f.content, f.state), null);
-  const ready = accept(f, { kind: "parentReady", policyId: policy(f) });
+  const ready = accept({
+    fixture: f,
+    action: { kind: "parentReady", policyId: policy(f) },
+  });
   assert.equal(ready.kind, "acceptance");
   assert.match(current(f), /response-02$/);
-  for (let i = 0; i < 5; i++) accept(f, { kind: "continue" });
+  for (let i = 0; i < 5; i++)
+    accept({ fixture: f, action: { kind: "continue" } });
   assert.equal(f.view().kind, "reviewSelection");
   assert.equal(completionProof(f.content, f.state), null);
   const review = f.graph.reviews[0];
   assert.ok(review);
   assert.throws(() => f.act({ kind: "continue" }), /unavailable/);
-  const terminal = accept(f, {
-    kind: "commitReviewSelection",
-    reviewId: review.reviewId,
-    choice: { kind: "none" },
+  const terminal = accept({
+    fixture: f,
+    action: {
+      kind: "commitReviewSelection",
+      reviewId: review.reviewId,
+      choice: { kind: "none" },
+    },
   });
   assert.equal(terminal.kind, "completion");
   assert.equal(f.view().kind, "completed");
@@ -77,7 +87,7 @@ test("oral tasks preserve every response, explicit first readiness and required 
   const t5 = await controlFixture(5);
   for (let i = 0; i < 4; i++) {
     assert.match(current(t5), new RegExp(`response-0${i + 1}$`));
-    accept(t5, { kind: "continue" });
+    accept({ fixture: t5, action: { kind: "continue" } });
   }
   assert.equal(t5.view().kind, "completed");
   const count = t5.state.acceptedOccurrenceIds.length;
@@ -104,17 +114,20 @@ test("nonadjacent queue is source ordered, immutable, exact after round trip and
       }),
     /source ordered/,
   );
-  accept(f, {
-    kind: "commitReviewSelection",
-    reviewId: review.reviewId,
-    choice: { kind: "items", itemIds: [first.itemId, third.itemId] },
+  accept({
+    fixture: f,
+    action: {
+      kind: "commitReviewSelection",
+      reviewId: review.reviewId,
+      choice: { kind: "items", itemIds: [first.itemId, third.itemId] },
+    },
   });
   assert.match(current(f), /response-01$/);
   const q = f.state.queues[0];
   assert.ok(q);
   const snapshot = canonical(q);
   f.roundTrip();
-  accept(f, { kind: "parentReady", policyId: policy(f) });
+  accept({ fixture: f, action: { kind: "parentReady", policyId: policy(f) } });
   assert.match(current(f), /response-03$/);
   f.act({ kind: "back" });
   assert.match(current(f), /response-01$/);
@@ -122,7 +135,10 @@ test("nonadjacent queue is source ordered, immutable, exact after round trip and
   assert.equal(f.act({ kind: "continue" }).plan.kind, "navigation");
   assert.equal(f.state.acceptedOccurrenceIds.length, count);
   assert.match(current(f), /response-03$/);
-  accept(f, { kind: "confirmReviewItem", queueId: q.id, itemId: third.itemId });
+  accept({
+    fixture: f,
+    action: { kind: "confirmReviewItem", queueId: q.id, itemId: third.itemId },
+  });
   assert.equal(f.view().kind, "completed");
   assert.equal(canonical(f.state.queues[0]), snapshot);
 });
@@ -148,15 +164,15 @@ test("correction preserves one suspension, supports prefix readiness and resolve
     state: f.state,
   });
   f.roundTrip();
-  accept(f, { kind: "continue" });
+  accept({ fixture: f, action: { kind: "continue" } });
   assert.match(current(f), /\.model$/);
-  accept(f, { kind: "continue" });
+  accept({ fixture: f, action: { kind: "continue" } });
   assert.match(current(f), /response-01$/);
-  accept(f, { kind: "parentReady", policyId: policy(f) });
+  accept({ fixture: f, action: { kind: "parentReady", policyId: policy(f) } });
   assert.match(current(f), /response-02$/);
-  accept(f, { kind: "continue" });
+  accept({ fixture: f, action: { kind: "continue" } });
   assert.match(current(f), /response-03$/);
-  accept(f, { kind: "continue" });
+  accept({ fixture: f, action: { kind: "continue" } });
   assert.match(current(f), /response-04$/);
   assert.equal(
     f.state.acceptedOccurrenceIds.filter(
@@ -187,11 +203,13 @@ test("review Help never visits omitted items and combined retest confirms exact 
   assert.ok(q);
   f.act({ kind: "help", correctionId: correction.id });
   f.roundTrip();
-  accept(f, { kind: "continue" });
+  accept({ fixture: f, action: { kind: "continue" } });
   assert.match(current(f), /response-03$/);
   assert.equal(
-    accept(f, { kind: "confirmReviewItem", queueId: q.id, itemId: item.itemId })
-      .kind,
+    accept({
+      fixture: f,
+      action: { kind: "confirmReviewItem", queueId: q.id, itemId: item.itemId },
+    }).kind,
     "completion",
   );
 });
@@ -202,10 +220,13 @@ test("tampered queue, outcome, binding and acceptance action fail closed", async
   assert.ok(r);
   const item = r.items[0];
   assert.ok(item);
-  const plan = accept(f, {
-    kind: "commitReviewSelection",
-    reviewId: r.reviewId,
-    choice: { kind: "items", itemIds: [item.itemId] },
+  const plan = accept({
+    fixture: f,
+    action: {
+      kind: "commitReviewSelection",
+      reviewId: r.reviewId,
+      choice: { kind: "items", itemIds: [item.itemId] },
+    },
   });
   const malformed = structuredClone(f.state);
   const q = malformed.queues[0];
@@ -288,7 +309,9 @@ test("saved checkpoints reject future normal jumps and a correction that changes
   assert.ok(c);
   f.act({ kind: "help", correctionId: c.id });
   const help = f.state.checkpoints.at(-1);
-  assert.ok(help && help.context.kind === "correction");
+  assert.ok(
+    help && help.occurrenceId !== null && help.context.kind === "correction",
+  );
   if (help.context.kind !== "correction") throw new Error("Missing correction");
   const tampered: ControlTeachingState = {
     ...f.state,

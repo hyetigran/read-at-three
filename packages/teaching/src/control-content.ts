@@ -10,11 +10,15 @@ import type {
   ReviewChoice,
 } from "./types.ts";
 
-export function canonicalReviewChoice(
-  items: readonly Pick<SelectiveReviewNode["items"][number], "itemId">[],
-  choice: ReviewChoice,
+export function canonicalReviewChoice({
+  items,
+  choice,
   invalidMessage = "Invalid complete review choice",
-): ReviewChoice {
+}: {
+  items: readonly Pick<SelectiveReviewNode["items"][number], "itemId">[];
+  choice: ReviewChoice;
+  invalidMessage?: string;
+}): ReviewChoice {
   if (choice.kind === "none") return choice;
   if (
     choice.itemIds.length === 0 ||
@@ -67,7 +71,13 @@ export function compileControlTask(task: ControlTask): CompiledControlTask {
     task.nodes.filter((n) => n.kind !== "turn" || n.route === "normal").length
   )
     throw new Error("Unreachable normal control node");
-  const route = (entry: NodeId, exit: NodeId): readonly NodeId[] => {
+  const route = ({
+    entry,
+    exit,
+  }: {
+    entry: NodeId;
+    exit: NodeId;
+  }): readonly NodeId[] => {
     const a = normalNodeIds.indexOf(entry),
       b = normalNodeIds.indexOf(exit);
     if (a < 0 || b < a) throw new Error("Invalid control route range");
@@ -87,7 +97,7 @@ export function compileControlTask(task: ControlTask): CompiledControlTask {
         throw new Error("Control guidance source missing");
     if (n.kind !== "untilFirm") continue;
     if (policies.has(n.policyId)) throw new Error("Duplicate readiness policy");
-    const cycle = route(n.cycleEntryNodeId, n.cycleExitNodeId);
+    const cycle = route({ entry: n.cycleEntryNodeId, exit: n.cycleExitNodeId });
     if (
       cycle.some((id) => {
         const node = nodes.get(id);
@@ -129,7 +139,7 @@ export function compileControlTask(task: ControlTask): CompiledControlTask {
     let last = -1;
     for (const item of review.items) {
       if (itemRoutes.has(item.itemId)) throw new Error("Duplicate review item");
-      const ids = route(item.entryNodeId, item.exitNodeId);
+      const ids = route({ entry: item.entryNodeId, exit: item.exitNodeId });
       const start = normalNodeIds.indexOf(item.entryNodeId);
       if (
         start <= last ||

@@ -35,12 +35,16 @@ type CorrectionKind = "slow" | "quiet";
 type ItemPlan = Readonly<{ step: number; turn: number }>;
 type Scripts = Readonly<{
   model(): Script;
-  response(task: OralNumber, index: number): Script;
-  label(task: OralNumber, index: number): CopyInput;
+  response(input: { task: OralNumber; index: number }): Script;
+  label(input: { task: OralNumber; index: number }): CopyInput;
   readiness(): Script;
   review(): Script;
   correctionLabel(kind: CorrectionKind): CopyInput;
-  correction(task: OralNumber, index: number, kind: CorrectionKind): Script;
+  correction(input: {
+    task: OralNumber;
+    index: number;
+    kind: CorrectionKind;
+  }): Script;
 }>;
 type LessonSources = {
   lessons: {
@@ -101,7 +105,7 @@ function assembleTask(input: {
       id: responseId(index),
       kind: "turn",
       route: "normal",
-      ...input.scripts.response(input.number, index),
+      ...input.scripts.response({ task: input.number, index }),
       parentRole: "listen",
       itemId: itemId(index),
       presentation: { kind: "oral" },
@@ -136,7 +140,7 @@ function assembleTask(input: {
         reviewId,
         items: items.map((_item, index) => ({
           itemId: itemId(index),
-          parentLabel: input.scripts.label(input.number, index),
+          parentLabel: input.scripts.label({ task: input.number, index }),
           entryNodeId: responseId(index),
           exitNodeId: index === 0 ? firmId : responseId(index),
         })),
@@ -158,7 +162,11 @@ function assembleTask(input: {
     for (const kind of ["slow", "quiet"] satisfies CorrectionKind[]) {
       const correctionId = `${prefix}.correction-${kind}-${index + 1}`;
       const instructionId = `${correctionId}.instruction`;
-      const script = input.scripts.correction(input.number, index, kind);
+      const script = input.scripts.correction({
+        task: input.number,
+        index,
+        kind,
+      });
       support.push({
         id: instructionId,
         kind: "turn",
@@ -248,11 +256,15 @@ function assembleBody(input: {
 }
 
 export function createOralFixtureBody(): BodyInput {
-  const script = (
-    sourceRef: string,
-    text: string,
+  const script = ({
+    sourceRef,
+    text,
     expected = false,
-  ): Script => ({
+  }: {
+    sourceRef: string;
+    text: string;
+    expected?: boolean;
+  }): Script => ({
     sourceRefs: [sourceRef],
     guidance: [
       { kind: "speech", copy: added(text) },
@@ -270,30 +282,34 @@ export function createOralFixtureBody(): BodyInput {
     fixture: true,
     printed: createGraphFixtureBody(),
     scripts: {
-      model: () => script("fixture.oral.t2.s1", "Synthetic oral parent model."),
-      response: (task, index) =>
-        script(
-          `fixture.oral.t${task}.response${index + 1}`,
-          `Synthetic oral item ${index + 1} prompt.`,
-          true,
-        ),
-      label: (_task, index) => added(`Synthetic item ${index + 1}`),
+      model: () =>
+        script({
+          sourceRef: "fixture.oral.t2.s1",
+          text: "Synthetic oral parent model.",
+        }),
+      response: ({ task, index }) =>
+        script({
+          sourceRef: `fixture.oral.t${task}.response${index + 1}`,
+          text: `Synthetic oral item ${index + 1} prompt.`,
+          expected: true,
+        }),
+      label: ({ task: _task, index }) => added(`Synthetic item ${index + 1}`),
       readiness: () =>
-        script(
-          "fixture.oral.t2.s2",
-          "Synthetic repeat until the parent judges firm.",
-        ),
+        script({
+          sourceRef: "fixture.oral.t2.s2",
+          text: "Synthetic repeat until the parent judges firm.",
+        }),
       review: () =>
-        script(
-          "fixture.oral.t2.s8",
-          "Synthetic parent chooses troublesome items to repeat.",
-        ),
-      correction: (task, index, kind) =>
-        script(
-          `fixture.oral.t${task}.correction.${kind}`,
-          `Synthetic ${kind} correction for item ${index + 1}.`,
-          true,
-        ),
+        script({
+          sourceRef: "fixture.oral.t2.s8",
+          text: "Synthetic parent chooses troublesome items to repeat.",
+        }),
+      correction: ({ task, index, kind }) =>
+        script({
+          sourceRef: `fixture.oral.t${task}.correction.${kind}`,
+          text: `Synthetic ${kind} correction for item ${index + 1}.`,
+          expected: true,
+        }),
       correctionLabel: (kind) => added(`Synthetic ${kind} help`),
     },
   });
@@ -492,35 +508,47 @@ export function createOralBody(input: {
       new Map(rows.map((row) => [Number(row[1]), row[2] ?? ""])),
     );
   }
-  const step = (task: OralNumber, number: number): string => {
+  const step = ({
+    task,
+    number,
+  }: {
+    task: OralNumber;
+    number: number;
+  }): string => {
     const text = texts.get(task)?.get(number);
     if (!text) throw new Error("A supplied oral step is missing.");
     return text;
   };
-  const taskTwoFirst = step(2, 2);
+  const taskTwoFirst = step({ task: 2, number: 2 });
   const firstTokens = tokens(taskTwoFirst);
   const repeat = firstTokens.at(-1);
   if (!repeat?.startsWith("(") || !/2/.test(repeat))
     throw new Error(
       "The first oral item needs its supplied until-firm direction.",
     );
-  const responseText = (task: OralNumber, index: number): string => {
+  const responseText = ({
+    task,
+    index,
+  }: {
+    task: OralNumber;
+    index: number;
+  }): string => {
     const plan = plans[task][index];
     if (!plan) throw new Error("An oral item has no source plan.");
     if (task === 2 && index === 0) return firstTokens.slice(0, -1).join(" ");
     if (task === 5 && plan.step === 2) {
-      const turns = splitResponses(step(5, 2));
+      const turns = splitResponses(step({ task: 5, number: 2 }));
       if (turns.length !== 3)
         throw new Error("Task 5 step 2 needs all three independent responses.");
       const text = turns[plan.turn - 1];
       if (!text) throw new Error("A Task 5 independent response is missing.");
       return text;
     }
-    const text = step(task, plan.step);
+    const text = step({ task, number: plan.step });
     expectedAnswer(text);
     return text;
   };
-  const ref = (task: OralNumber, index: number) => {
+  const ref = ({ task, index }: { task: OralNumber; index: number }) => {
     const plan = plans[task][index];
     if (!plan) throw new Error("An oral source reference has no item.");
     return `book.printed${task === 2 ? 31 : 32}.l01.t${String(task).padStart(2, "0")}.s${String(plan.step).padStart(2, "0")}.turn${plan.turn}`;
@@ -539,23 +567,26 @@ export function createOralBody(input: {
       model: () => ({
         sourceRefs: ["book.printed31.l01.t02.s01"],
         guidance: oralGuidance({
-          text: step(2, 1),
+          text: step({ task: 2, number: 1 }),
           sourceRef: "book.printed31.l01.t02.s01",
           afterExpected: "speech",
         }),
       }),
-      response: (task, index) => ({
-        sourceRefs: [ref(task, index)],
+      response: ({ task, index }) => ({
+        sourceRefs: [ref({ task, index })],
         guidance: oralGuidance({
-          text: responseText(task, index),
-          sourceRef: ref(task, index),
+          text: responseText({ task, index }),
+          sourceRef: ref({ task, index }),
           afterExpected: "speech",
         }),
       }),
-      label: (task, index) => ({
+      label: ({ task, index }) => ({
         kind: "adapted",
-        text: expectedAnswer(responseText(task, index)).replace(/[.!?]$/, ""),
-        sourceRef: ref(task, index),
+        text: expectedAnswer(responseText({ task, index })).replace(
+          /[.!?]$/,
+          "",
+        ),
+        sourceRef: ref({ task, index }),
       }),
       readiness: () => ({
         sourceRefs: ["book.printed31.l01.t02.s02.until-firm"],
@@ -573,12 +604,12 @@ export function createOralBody(input: {
       review: () => ({
         sourceRefs: ["book.printed31.l01.t02.s08"],
         guidance: oralGuidance({
-          text: step(2, 8),
+          text: step({ task: 2, number: 8 }),
           sourceRef: "book.printed31.l01.t02.s08",
           afterExpected: "speech",
         }),
       }),
-      correction(task, index, kind) {
+      correction({ task, index, kind }) {
         const direct = task === 2 && index === 0 && kind === "slow";
         const sourceRef = direct
           ? "book.printed31.l01.t02.correction-slow"
@@ -587,11 +618,11 @@ export function createOralBody(input: {
           ? specificText
           : substituteCorrection({
               text: generals[kind],
-              response: expectedAnswer(responseText(task, index)),
-              prompt: oralPrompt(responseText(task, index)),
+              response: expectedAnswer(responseText({ task, index })),
+              prompt: oralPrompt(responseText({ task, index })),
             });
         return {
-          sourceRefs: [sourceRef, ref(task, index)],
+          sourceRefs: [sourceRef, ref({ task, index })],
           guidance: oralGuidance({
             text,
             sourceRef,

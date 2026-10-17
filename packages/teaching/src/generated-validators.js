@@ -964,7 +964,7 @@ const schema31 = {
       required: ["profileId", "generation"],
       additionalProperties: false,
     },
-    controlContext: {
+    activeControlContext: {
       oneOf: [
         {
           type: "object",
@@ -1048,12 +1048,6 @@ const schema31 = {
             reviewId: { type: "string", minLength: 1, maxLength: 200 },
           },
           required: ["kind", "reviewId"],
-          additionalProperties: false,
-        },
-        {
-          type: "object",
-          properties: { kind: { const: "terminal" } },
-          required: ["kind"],
           additionalProperties: false,
         },
         {
@@ -1359,19 +1353,37 @@ const schema31 = {
         checkpoints: {
           type: "array",
           items: {
-            type: "object",
-            properties: {
-              id: { type: "string", minLength: 1, maxLength: 200 },
-              occurrenceId: {
-                anyOf: [
-                  { type: "string", minLength: 1, maxLength: 200 },
-                  { type: "null" },
-                ],
+            oneOf: [
+              {
+                type: "object",
+                properties: {
+                  id: { type: "string", minLength: 1, maxLength: 200 },
+                  occurrenceId: {
+                    type: "string",
+                    minLength: 1,
+                    maxLength: 200,
+                  },
+                  context: { $ref: "#/$defs/activeControlContext" },
+                },
+                required: ["id", "occurrenceId", "context"],
+                additionalProperties: false,
               },
-              context: { $ref: "#/$defs/controlContext" },
-            },
-            required: ["id", "occurrenceId", "context"],
-            additionalProperties: false,
+              {
+                type: "object",
+                properties: {
+                  id: { type: "string", minLength: 1, maxLength: 200 },
+                  occurrenceId: { type: "null" },
+                  context: {
+                    type: "object",
+                    properties: { kind: { const: "terminal" } },
+                    required: ["kind"],
+                    additionalProperties: false,
+                  },
+                },
+                required: ["id", "occurrenceId", "context"],
+                additionalProperties: false,
+              },
+            ],
           },
           minItems: 1,
           maxItems: 10000,
@@ -24968,7 +24980,7 @@ const schema52 = {
       required: ["profileId", "generation"],
       additionalProperties: false,
     },
-    controlContext: {
+    activeControlContext: {
       oneOf: [
         {
           type: "object",
@@ -25052,12 +25064,6 @@ const schema52 = {
             reviewId: { type: "string", minLength: 1, maxLength: 200 },
           },
           required: ["kind", "reviewId"],
-          additionalProperties: false,
-        },
-        {
-          type: "object",
-          properties: { kind: { const: "terminal" } },
-          required: ["kind"],
           additionalProperties: false,
         },
         {
@@ -25363,19 +25369,37 @@ const schema52 = {
         checkpoints: {
           type: "array",
           items: {
-            type: "object",
-            properties: {
-              id: { type: "string", minLength: 1, maxLength: 200 },
-              occurrenceId: {
-                anyOf: [
-                  { type: "string", minLength: 1, maxLength: 200 },
-                  { type: "null" },
-                ],
+            oneOf: [
+              {
+                type: "object",
+                properties: {
+                  id: { type: "string", minLength: 1, maxLength: 200 },
+                  occurrenceId: {
+                    type: "string",
+                    minLength: 1,
+                    maxLength: 200,
+                  },
+                  context: { $ref: "#/$defs/activeControlContext" },
+                },
+                required: ["id", "occurrenceId", "context"],
+                additionalProperties: false,
               },
-              context: { $ref: "#/$defs/controlContext" },
-            },
-            required: ["id", "occurrenceId", "context"],
-            additionalProperties: false,
+              {
+                type: "object",
+                properties: {
+                  id: { type: "string", minLength: 1, maxLength: 200 },
+                  occurrenceId: { type: "null" },
+                  context: {
+                    type: "object",
+                    properties: { kind: { const: "terminal" } },
+                    required: ["kind"],
+                    additionalProperties: false,
+                  },
+                },
+                required: ["id", "occurrenceId", "context"],
+                additionalProperties: false,
+              },
+            ],
           },
           minItems: 1,
           maxItems: 10000,
@@ -25813,19 +25837,33 @@ const schema53 = {
     checkpoints: {
       type: "array",
       items: {
-        type: "object",
-        properties: {
-          id: { type: "string", minLength: 1, maxLength: 200 },
-          occurrenceId: {
-            anyOf: [
-              { type: "string", minLength: 1, maxLength: 200 },
-              { type: "null" },
-            ],
+        oneOf: [
+          {
+            type: "object",
+            properties: {
+              id: { type: "string", minLength: 1, maxLength: 200 },
+              occurrenceId: { type: "string", minLength: 1, maxLength: 200 },
+              context: { $ref: "#/$defs/activeControlContext" },
+            },
+            required: ["id", "occurrenceId", "context"],
+            additionalProperties: false,
           },
-          context: { $ref: "#/$defs/controlContext" },
-        },
-        required: ["id", "occurrenceId", "context"],
-        additionalProperties: false,
+          {
+            type: "object",
+            properties: {
+              id: { type: "string", minLength: 1, maxLength: 200 },
+              occurrenceId: { type: "null" },
+              context: {
+                type: "object",
+                properties: { kind: { const: "terminal" } },
+                required: ["kind"],
+                additionalProperties: false,
+              },
+            },
+            required: ["id", "occurrenceId", "context"],
+            additionalProperties: false,
+          },
+        ],
       },
       minItems: 1,
       maxItems: 10000,
@@ -25926,12 +25964,6 @@ const schema54 = {
         reviewId: { type: "string", minLength: 1, maxLength: 200 },
       },
       required: ["kind", "reviewId"],
-      additionalProperties: false,
-    },
-    {
-      type: "object",
-      properties: { kind: { const: "terminal" } },
-      required: ["kind"],
       additionalProperties: false,
     },
     {
@@ -29230,11 +29262,15 @@ function validate27(
         const len9 = data45.length;
         for (let i13 = 0; i13 < len9; i13++) {
           let data46 = data45[i13];
+          const _errs104 = errors;
+          let valid36 = false;
+          let passing2 = null;
+          const _errs105 = errors;
           if (data46 && typeof data46 == "object" && !Array.isArray(data46)) {
             if (data46.id === undefined) {
               const err165 = {
                 instancePath: instancePath + "/checkpoints/" + i13,
-                schemaPath: "#/properties/checkpoints/items/required",
+                schemaPath: "#/properties/checkpoints/items/oneOf/0/required",
                 keyword: "required",
                 params: { missingProperty: "id" },
                 message: "must have required property '" + "id" + "'",
@@ -29249,7 +29285,7 @@ function validate27(
             if (data46.occurrenceId === undefined) {
               const err166 = {
                 instancePath: instancePath + "/checkpoints/" + i13,
-                schemaPath: "#/properties/checkpoints/items/required",
+                schemaPath: "#/properties/checkpoints/items/oneOf/0/required",
                 keyword: "required",
                 params: { missingProperty: "occurrenceId" },
                 message: "must have required property '" + "occurrenceId" + "'",
@@ -29264,7 +29300,7 @@ function validate27(
             if (data46.context === undefined) {
               const err167 = {
                 instancePath: instancePath + "/checkpoints/" + i13,
-                schemaPath: "#/properties/checkpoints/items/required",
+                schemaPath: "#/properties/checkpoints/items/oneOf/0/required",
                 keyword: "required",
                 params: { missingProperty: "context" },
                 message: "must have required property '" + "context" + "'",
@@ -29285,7 +29321,7 @@ function validate27(
                 const err168 = {
                   instancePath: instancePath + "/checkpoints/" + i13,
                   schemaPath:
-                    "#/properties/checkpoints/items/additionalProperties",
+                    "#/properties/checkpoints/items/oneOf/0/additionalProperties",
                   keyword: "additionalProperties",
                   params: { additionalProperty: key10 },
                   message: "must NOT have additional properties",
@@ -29305,7 +29341,7 @@ function validate27(
                   const err169 = {
                     instancePath: instancePath + "/checkpoints/" + i13 + "/id",
                     schemaPath:
-                      "#/properties/checkpoints/items/properties/id/maxLength",
+                      "#/properties/checkpoints/items/oneOf/0/properties/id/maxLength",
                     keyword: "maxLength",
                     params: { limit: 200 },
                     message: "must NOT have more than 200 characters",
@@ -29321,7 +29357,7 @@ function validate27(
                   const err170 = {
                     instancePath: instancePath + "/checkpoints/" + i13 + "/id",
                     schemaPath:
-                      "#/properties/checkpoints/items/properties/id/minLength",
+                      "#/properties/checkpoints/items/oneOf/0/properties/id/minLength",
                     keyword: "minLength",
                     params: { limit: 1 },
                     message: "must NOT have fewer than 1 characters",
@@ -29337,7 +29373,7 @@ function validate27(
                 const err171 = {
                   instancePath: instancePath + "/checkpoints/" + i13 + "/id",
                   schemaPath:
-                    "#/properties/checkpoints/items/properties/id/type",
+                    "#/properties/checkpoints/items/oneOf/0/properties/id/type",
                   keyword: "type",
                   params: { type: "string" },
                   message: "must be string",
@@ -29352,16 +29388,13 @@ function validate27(
             }
             if (data46.occurrenceId !== undefined) {
               let data48 = data46.occurrenceId;
-              const _errs109 = errors;
-              let valid37 = false;
-              const _errs110 = errors;
               if (typeof data48 === "string") {
                 if (func1(data48) > 200) {
                   const err172 = {
                     instancePath:
                       instancePath + "/checkpoints/" + i13 + "/occurrenceId",
                     schemaPath:
-                      "#/properties/checkpoints/items/properties/occurrenceId/anyOf/0/maxLength",
+                      "#/properties/checkpoints/items/oneOf/0/properties/occurrenceId/maxLength",
                     keyword: "maxLength",
                     params: { limit: 200 },
                     message: "must NOT have more than 200 characters",
@@ -29378,7 +29411,7 @@ function validate27(
                     instancePath:
                       instancePath + "/checkpoints/" + i13 + "/occurrenceId",
                     schemaPath:
-                      "#/properties/checkpoints/items/properties/occurrenceId/anyOf/0/minLength",
+                      "#/properties/checkpoints/items/oneOf/0/properties/occurrenceId/minLength",
                     keyword: "minLength",
                     params: { limit: 1 },
                     message: "must NOT have fewer than 1 characters",
@@ -29395,7 +29428,7 @@ function validate27(
                   instancePath:
                     instancePath + "/checkpoints/" + i13 + "/occurrenceId",
                   schemaPath:
-                    "#/properties/checkpoints/items/properties/occurrenceId/anyOf/0/type",
+                    "#/properties/checkpoints/items/oneOf/0/properties/occurrenceId/type",
                   keyword: "type",
                   params: { type: "string" },
                   message: "must be string",
@@ -29407,132 +29440,84 @@ function validate27(
                 }
                 errors++;
               }
-              var _valid2 = _errs110 === errors;
-              valid37 = valid37 || _valid2;
-              const _errs112 = errors;
-              if (data48 !== null) {
-                const err175 = {
-                  instancePath:
-                    instancePath + "/checkpoints/" + i13 + "/occurrenceId",
-                  schemaPath:
-                    "#/properties/checkpoints/items/properties/occurrenceId/anyOf/1/type",
-                  keyword: "type",
-                  params: { type: "null" },
-                  message: "must be null",
-                };
-                if (vErrors === null) {
-                  vErrors = [err175];
-                } else {
-                  vErrors.push(err175);
-                }
-                errors++;
-              }
-              var _valid2 = _errs112 === errors;
-              valid37 = valid37 || _valid2;
-              if (!valid37) {
-                const err176 = {
-                  instancePath:
-                    instancePath + "/checkpoints/" + i13 + "/occurrenceId",
-                  schemaPath:
-                    "#/properties/checkpoints/items/properties/occurrenceId/anyOf",
-                  keyword: "anyOf",
-                  params: {},
-                  message: "must match a schema in anyOf",
-                };
-                if (vErrors === null) {
-                  vErrors = [err176];
-                } else {
-                  vErrors.push(err176);
-                }
-                errors++;
-              } else {
-                errors = _errs109;
-                if (vErrors !== null) {
-                  if (_errs109) {
-                    vErrors.length = _errs109;
-                  } else {
-                    vErrors = null;
-                  }
-                }
-              }
             }
             if (data46.context !== undefined) {
               let data49 = data46.context;
-              const _errs116 = errors;
+              const _errs114 = errors;
               let valid39 = false;
-              let passing2 = null;
-              const _errs117 = errors;
+              let passing3 = null;
+              const _errs115 = errors;
               if (
                 data49 &&
                 typeof data49 == "object" &&
                 !Array.isArray(data49)
               ) {
                 if (data49.kind === undefined) {
-                  const err177 = {
+                  const err175 = {
                     instancePath:
                       instancePath + "/checkpoints/" + i13 + "/context",
-                    schemaPath: "#/$defs/controlContext/oneOf/0/required",
+                    schemaPath: "#/$defs/activeControlContext/oneOf/0/required",
                     keyword: "required",
                     params: { missingProperty: "kind" },
                     message: "must have required property '" + "kind" + "'",
                   };
                   if (vErrors === null) {
-                    vErrors = [err177];
+                    vErrors = [err175];
                   } else {
-                    vErrors.push(err177);
+                    vErrors.push(err175);
                   }
                   errors++;
                 }
                 if (data49.resume === undefined) {
-                  const err178 = {
+                  const err176 = {
                     instancePath:
                       instancePath + "/checkpoints/" + i13 + "/context",
-                    schemaPath: "#/$defs/controlContext/oneOf/0/required",
+                    schemaPath: "#/$defs/activeControlContext/oneOf/0/required",
                     keyword: "required",
                     params: { missingProperty: "resume" },
                     message: "must have required property '" + "resume" + "'",
                   };
                   if (vErrors === null) {
-                    vErrors = [err178];
+                    vErrors = [err176];
                   } else {
-                    vErrors.push(err178);
+                    vErrors.push(err176);
                   }
                   errors++;
                 }
                 for (const key11 in data49) {
                   if (!(key11 === "kind" || key11 === "resume")) {
-                    const err179 = {
+                    const err177 = {
                       instancePath:
                         instancePath + "/checkpoints/" + i13 + "/context",
                       schemaPath:
-                        "#/$defs/controlContext/oneOf/0/additionalProperties",
+                        "#/$defs/activeControlContext/oneOf/0/additionalProperties",
                       keyword: "additionalProperties",
                       params: { additionalProperty: key11 },
                       message: "must NOT have additional properties",
                     };
                     if (vErrors === null) {
-                      vErrors = [err179];
+                      vErrors = [err177];
                     } else {
-                      vErrors.push(err179);
+                      vErrors.push(err177);
                     }
                     errors++;
                   }
                 }
                 if (data49.kind !== undefined) {
                   if ("delivering" !== data49.kind) {
-                    const err180 = {
+                    const err178 = {
                       instancePath:
                         instancePath + "/checkpoints/" + i13 + "/context/kind",
                       schemaPath:
-                        "#/$defs/controlContext/oneOf/0/properties/kind/const",
+                        "#/$defs/activeControlContext/oneOf/0/properties/kind/const",
                       keyword: "const",
                       params: { allowedValue: "delivering" },
                       message: "must be equal to constant",
                     };
                     if (vErrors === null) {
-                      vErrors = [err180];
+                      vErrors = [err178];
                     } else {
-                      vErrors.push(err180);
+                      vErrors.push(err178);
                     }
                     errors++;
                   }
@@ -29545,177 +29530,219 @@ function validate27(
                     !Array.isArray(data51)
                   ) {
                     if (data51.flow === undefined) {
-                      const err181 = {
+                      const err179 = {
                         instancePath:
                           instancePath +
                           "/checkpoints/" +
                           i13 +
                           "/context/resume",
                         schemaPath:
-                          "#/$defs/controlContext/oneOf/0/properties/resume/required",
+                          "#/$defs/activeControlContext/oneOf/0/properties/resume/required",
                         keyword: "required",
                         params: { missingProperty: "flow" },
                         message: "must have required property '" + "flow" + "'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err181];
+                        vErrors = [err179];
                       } else {
-                        vErrors.push(err181);
+                        vErrors.push(err179);
                       }
                       errors++;
                     }
                     if (data51.delivery === undefined) {
-                      const err182 = {
+                      const err180 = {
                         instancePath:
                           instancePath +
                           "/checkpoints/" +
                           i13 +
                           "/context/resume",
                         schemaPath:
-                          "#/$defs/controlContext/oneOf/0/properties/resume/required",
+                          "#/$defs/activeControlContext/oneOf/0/properties/resume/required",
                         keyword: "required",
                         params: { missingProperty: "delivery" },
                         message:
                           "must have required property '" + "delivery" + "'",
                       };
                       if (vErrors === null) {
-                        vErrors = [err182];
+                        vErrors = [err180];
                       } else {
-                        vErrors.push(err182);
+                        vErrors.push(err180);
                       }
                       errors++;
                     }
                     for (const key12 in data51) {
                       if (!(key12 === "flow" || key12 === "delivery")) {
-                        const err183 = {
+                        const err181 = {
                           instancePath:
                             instancePath +
                             "/checkpoints/" +
                             i13 +
                             "/context/resume",
                           schemaPath:
-                            "#/$defs/controlContext/oneOf/0/properties/resume/additionalProperties",
+                            "#/$defs/activeControlContext/oneOf/0/properties/resume/additionalProperties",
                           keyword: "additionalProperties",
                           params: { additionalProperty: key12 },
                           message: "must NOT have additional properties",
                         };
                         if (vErrors === null) {
-                          vErrors = [err183];
+                          vErrors = [err181];
                         } else {
-                          vErrors.push(err183);
+                          vErrors.push(err181);
                         }
                         errors++;
                       }
                     }
                     if (data51.flow !== undefined) {
                       let data52 = data51.flow;
-                      const _errs125 = errors;
+                      const _errs123 = errors;
                       let valid42 = false;
-                      let passing3 = null;
-                      const _errs126 = errors;
+                      let passing4 = null;
+                      const _errs124 = errors;
                       if (
                         data52 &&
                         typeof data52 == "object" &&
                         !Array.isArray(data52)
                       ) {
                         if (data52.kind === undefined) {
-                          const err184 = {
+                          const err182 = {
                             instancePath:
                               instancePath +
                               "/checkpoints/" +
                               i13 +
                               "/context/resume/flow",
                             schemaPath:
-                              "#/$defs/controlContext/oneOf/0/properties/resume/properties/flow/oneOf/0/required",
+                              "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/flow/oneOf/0/required",
                             keyword: "required",
                             params: { missingProperty: "kind" },
                             message:
                               "must have required property '" + "kind" + "'",
                           };
                           if (vErrors === null) {
-                            vErrors = [err184];
+                            vErrors = [err182];
                           } else {
-                            vErrors.push(err184);
+                            vErrors.push(err182);
                           }
                           errors++;
                         }
                         for (const key13 in data52) {
                           if (!(key13 === "kind")) {
-                            const err185 = {
+                            const err183 = {
                               instancePath:
                                 instancePath +
                                 "/checkpoints/" +
                                 i13 +
                                 "/context/resume/flow",
                               schemaPath:
-                                "#/$defs/controlContext/oneOf/0/properties/resume/properties/flow/oneOf/0/additionalProperties",
+                                "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/flow/oneOf/0/additionalProperties",
                               keyword: "additionalProperties",
                               params: { additionalProperty: key13 },
                               message: "must NOT have additional properties",
                             };
                             if (vErrors === null) {
-                              vErrors = [err185];
+                              vErrors = [err183];
                             } else {
-                              vErrors.push(err185);
+                              vErrors.push(err183);
                             }
                             errors++;
                           }
                         }
                         if (data52.kind !== undefined) {
                           if ("normal" !== data52.kind) {
-                            const err186 = {
+                            const err184 = {
                               instancePath:
                                 instancePath +
                                 "/checkpoints/" +
                                 i13 +
                                 "/context/resume/flow/kind",
                               schemaPath:
-                                "#/$defs/controlContext/oneOf/0/properties/resume/properties/flow/oneOf/0/properties/kind/const",
+                                "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/flow/oneOf/0/properties/kind/const",
                               keyword: "const",
                               params: { allowedValue: "normal" },
                               message: "must be equal to constant",
                             };
                             if (vErrors === null) {
-                              vErrors = [err186];
+                              vErrors = [err184];
                             } else {
-                              vErrors.push(err186);
+                              vErrors.push(err184);
                             }
                             errors++;
                           }
                         }
                       } else {
-                        const err187 = {
+                        const err185 = {
                           instancePath:
                             instancePath +
                             "/checkpoints/" +
                             i13 +
                             "/context/resume/flow",
                           schemaPath:
-                            "#/$defs/controlContext/oneOf/0/properties/resume/properties/flow/oneOf/0/type",
+                            "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/flow/oneOf/0/type",
                           keyword: "type",
                           params: { type: "object" },
                           message: "must be object",
                         };
                         if (vErrors === null) {
-                          vErrors = [err187];
+                          vErrors = [err185];
                         } else {
-                          vErrors.push(err187);
+                          vErrors.push(err185);
                         }
                         errors++;
                       }
-                      var _valid4 = _errs126 === errors;
+                      var _valid4 = _errs124 === errors;
                       if (_valid4) {
                         valid42 = true;
-                        passing3 = 0;
+                        passing4 = 0;
                         var props2 = true;
                       }
-                      const _errs130 = errors;
+                      const _errs128 = errors;
                       if (
                         data52 &&
                         typeof data52 == "object" &&
                         !Array.isArray(data52)
                       ) {
                         if (data52.kind === undefined) {
+                          const err186 = {
+                            instancePath:
+                              instancePath +
+                              "/checkpoints/" +
+                              i13 +
+                              "/context/resume/flow",
+                            schemaPath:
+                              "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/flow/oneOf/1/required",
+                            keyword: "required",
+                            params: { missingProperty: "kind" },
+                            message:
+                              "must have required property '" + "kind" + "'",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err186];
+                          } else {
+                            vErrors.push(err186);
+                          }
+                          errors++;
+                        }
+                        if (data52.queueId === undefined) {
+                          const err187 = {
+                            instancePath:
+                              instancePath +
+                              "/checkpoints/" +
+                              i13 +
+                              "/context/resume/flow",
+                            schemaPath:
+                              "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/flow/oneOf/1/required",
+                            keyword: "required",
+                            params: { missingProperty: "queueId" },
+                            message:
+                              "must have required property '" + "queueId" + "'",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err187];
+                          } else {
+                            vErrors.push(err187);
+                          }
+                          errors++;
+                        }
+                        if (data52.index === undefined) {
                           const err188 = {
                             instancePath:
                               instancePath +
@@ -29723,58 +29750,16 @@ function validate27(
                               i13 +
                               "/context/resume/flow",
                             schemaPath:
-                              "#/$defs/controlContext/oneOf/0/properties/resume/properties/flow/oneOf/1/required",
-                            keyword: "required",
-                            params: { missingProperty: "kind" },
-                            message:
-                              "must have required property '" + "kind" + "'",
-                          };
-                          if (vErrors === null) {
-                            vErrors = [err188];
-                          } else {
-                            vErrors.push(err188);
-                          }
-                          errors++;
-                        }
-                        if (data52.queueId === undefined) {
-                          const err189 = {
-                            instancePath:
-                              instancePath +
-                              "/checkpoints/" +
-                              i13 +
-                              "/context/resume/flow",
-                            schemaPath:
-                              "#/$defs/controlContext/oneOf/0/properties/resume/properties/flow/oneOf/1/required",
-                            keyword: "required",
-                            params: { missingProperty: "queueId" },
-                            message:
-                              "must have required property '" + "queueId" + "'",
-                          };
-                          if (vErrors === null) {
-                            vErrors = [err189];
-                          } else {
-                            vErrors.push(err189);
-                          }
-                          errors++;
-                        }
-                        if (data52.index === undefined) {
-                          const err190 = {
-                            instancePath:
-                              instancePath +
-                              "/checkpoints/" +
-                              i13 +
-                              "/context/resume/flow",
-                            schemaPath:
-                              "#/$defs/controlContext/oneOf/0/properties/resume/properties/flow/oneOf/1/required",
+                              "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/flow/oneOf/1/required",
                             keyword: "required",
                             params: { missingProperty: "index" },
                             message:
                               "must have required property '" + "index" + "'",
                           };
                           if (vErrors === null) {
-                            vErrors = [err190];
+                            vErrors = [err188];
                           } else {
-                            vErrors.push(err190);
+                            vErrors.push(err188);
                           }
                           errors++;
                         }
@@ -29784,44 +29769,44 @@ function validate27(
                             key14 === "queueId" ||
                             key14 === "index"
                           )) {
-                            const err191 = {
+                            const err189 = {
                               instancePath:
                                 instancePath +
                                 "/checkpoints/" +
                                 i13 +
                                 "/context/resume/flow",
                               schemaPath:
-                                "#/$defs/controlContext/oneOf/0/properties/resume/properties/flow/oneOf/1/additionalProperties",
+                                "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/flow/oneOf/1/additionalProperties",
                               keyword: "additionalProperties",
                               params: { additionalProperty: key14 },
                               message: "must NOT have additional properties",
                             };
                             if (vErrors === null) {
-                              vErrors = [err191];
+                              vErrors = [err189];
                             } else {
-                              vErrors.push(err191);
+                              vErrors.push(err189);
                             }
                             errors++;
                           }
                         }
                         if (data52.kind !== undefined) {
                           if ("review" !== data52.kind) {
-                            const err192 = {
+                            const err190 = {
                               instancePath:
                                 instancePath +
                                 "/checkpoints/" +
                                 i13 +
                                 "/context/resume/flow/kind",
                               schemaPath:
-                                "#/$defs/controlContext/oneOf/0/properties/resume/properties/flow/oneOf/1/properties/kind/const",
+                                "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/flow/oneOf/1/properties/kind/const",
                               keyword: "const",
                               params: { allowedValue: "review" },
                               message: "must be equal to constant",
                             };
                             if (vErrors === null) {
-                              vErrors = [err192];
+                              vErrors = [err190];
                             } else {
-                              vErrors.push(err192);
+                              vErrors.push(err190);
                             }
                             errors++;
                           }
@@ -29830,64 +29815,64 @@ function validate27(
                           let data55 = data52.queueId;
                           if (typeof data55 === "string") {
                             if (func1(data55) > 200) {
-                              const err193 = {
+                              const err191 = {
                                 instancePath:
                                   instancePath +
                                   "/checkpoints/" +
                                   i13 +
                                   "/context/resume/flow/queueId",
                                 schemaPath:
-                                  "#/$defs/controlContext/oneOf/0/properties/resume/properties/flow/oneOf/1/properties/queueId/maxLength",
+                                  "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/flow/oneOf/1/properties/queueId/maxLength",
                                 keyword: "maxLength",
                                 params: { limit: 200 },
                                 message:
                                   "must NOT have more than 200 characters",
                               };
                               if (vErrors === null) {
-                                vErrors = [err193];
+                                vErrors = [err191];
                               } else {
-                                vErrors.push(err193);
+                                vErrors.push(err191);
                               }
                               errors++;
                             }
                             if (func1(data55) < 1) {
-                              const err194 = {
+                              const err192 = {
                                 instancePath:
                                   instancePath +
                                   "/checkpoints/" +
                                   i13 +
                                   "/context/resume/flow/queueId",
                                 schemaPath:
-                                  "#/$defs/controlContext/oneOf/0/properties/resume/properties/flow/oneOf/1/properties/queueId/minLength",
+                                  "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/flow/oneOf/1/properties/queueId/minLength",
                                 keyword: "minLength",
                                 params: { limit: 1 },
                                 message:
                                   "must NOT have fewer than 1 characters",
                               };
                               if (vErrors === null) {
-                                vErrors = [err194];
+                                vErrors = [err192];
                               } else {
-                                vErrors.push(err194);
+                                vErrors.push(err192);
                               }
                               errors++;
                             }
                           } else {
-                            const err195 = {
+                            const err193 = {
                               instancePath:
                                 instancePath +
                                 "/checkpoints/" +
                                 i13 +
                                 "/context/resume/flow/queueId",
                               schemaPath:
-                                "#/$defs/controlContext/oneOf/0/properties/resume/properties/flow/oneOf/1/properties/queueId/type",
+                                "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/flow/oneOf/1/properties/queueId/type",
                               keyword: "type",
                               params: { type: "string" },
                               message: "must be string",
                             };
                             if (vErrors === null) {
-                              vErrors = [err195];
+                              vErrors = [err193];
                             } else {
-                              vErrors.push(err195);
+                              vErrors.push(err193);
                             }
                             errors++;
                           }
@@ -29900,125 +29885,125 @@ function validate27(
                             !isNaN(data56) &&
                             isFinite(data56)
                           )) {
-                            const err196 = {
+                            const err194 = {
                               instancePath:
                                 instancePath +
                                 "/checkpoints/" +
                                 i13 +
                                 "/context/resume/flow/index",
                               schemaPath:
-                                "#/$defs/controlContext/oneOf/0/properties/resume/properties/flow/oneOf/1/properties/index/type",
+                                "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/flow/oneOf/1/properties/index/type",
                               keyword: "type",
                               params: { type: "integer" },
                               message: "must be integer",
                             };
                             if (vErrors === null) {
-                              vErrors = [err196];
+                              vErrors = [err194];
                             } else {
-                              vErrors.push(err196);
+                              vErrors.push(err194);
                             }
                             errors++;
                           }
                           if (typeof data56 == "number" && isFinite(data56)) {
                             if (data56 > 99 || isNaN(data56)) {
-                              const err197 = {
+                              const err195 = {
                                 instancePath:
                                   instancePath +
                                   "/checkpoints/" +
                                   i13 +
                                   "/context/resume/flow/index",
                                 schemaPath:
-                                  "#/$defs/controlContext/oneOf/0/properties/resume/properties/flow/oneOf/1/properties/index/maximum",
+                                  "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/flow/oneOf/1/properties/index/maximum",
                                 keyword: "maximum",
                                 params: { comparison: "<=", limit: 99 },
                                 message: "must be <= 99",
                               };
                               if (vErrors === null) {
-                                vErrors = [err197];
+                                vErrors = [err195];
                               } else {
-                                vErrors.push(err197);
+                                vErrors.push(err195);
                               }
                               errors++;
                             }
                             if (data56 < 0 || isNaN(data56)) {
-                              const err198 = {
+                              const err196 = {
                                 instancePath:
                                   instancePath +
                                   "/checkpoints/" +
                                   i13 +
                                   "/context/resume/flow/index",
                                 schemaPath:
-                                  "#/$defs/controlContext/oneOf/0/properties/resume/properties/flow/oneOf/1/properties/index/minimum",
+                                  "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/flow/oneOf/1/properties/index/minimum",
                                 keyword: "minimum",
                                 params: { comparison: ">=", limit: 0 },
                                 message: "must be >= 0",
                               };
                               if (vErrors === null) {
-                                vErrors = [err198];
+                                vErrors = [err196];
                               } else {
-                                vErrors.push(err198);
+                                vErrors.push(err196);
                               }
                               errors++;
                             }
                           }
                         }
                       } else {
-                        const err199 = {
+                        const err197 = {
                           instancePath:
                             instancePath +
                             "/checkpoints/" +
                             i13 +
                             "/context/resume/flow",
                           schemaPath:
-                            "#/$defs/controlContext/oneOf/0/properties/resume/properties/flow/oneOf/1/type",
+                            "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/flow/oneOf/1/type",
                           keyword: "type",
                           params: { type: "object" },
                           message: "must be object",
                         };
                         if (vErrors === null) {
-                          vErrors = [err199];
+                          vErrors = [err197];
                         } else {
-                          vErrors.push(err199);
+                          vErrors.push(err197);
                         }
                         errors++;
                       }
-                      var _valid4 = _errs130 === errors;
+                      var _valid4 = _errs128 === errors;
                       if (_valid4 && valid42) {
                         valid42 = false;
-                        passing3 = [passing3, 1];
+                        passing4 = [passing4, 1];
                       } else {
                         if (_valid4) {
                           valid42 = true;
-                          passing3 = 1;
+                          passing4 = 1;
                           if (props2 !== true) {
                             props2 = true;
                           }
                         }
                       }
                       if (!valid42) {
-                        const err200 = {
+                        const err198 = {
                           instancePath:
                             instancePath +
                             "/checkpoints/" +
                             i13 +
                             "/context/resume/flow",
                           schemaPath:
-                            "#/$defs/controlContext/oneOf/0/properties/resume/properties/flow/oneOf",
+                            "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/flow/oneOf",
                           keyword: "oneOf",
-                          params: { passingSchemas: passing3 },
+                          params: { passingSchemas: passing4 },
                           message: "must match exactly one schema in oneOf",
                         };
                         if (vErrors === null) {
-                          vErrors = [err200];
+                          vErrors = [err198];
                         } else {
-                          vErrors.push(err200);
+                          vErrors.push(err198);
                         }
                         errors++;
                       } else {
-                        errors = _errs125;
+                        errors = _errs123;
                         if (vErrors !== null) {
-                          if (_errs125) {
-                            vErrors.length = _errs125;
+                          if (_errs123) {
+                            vErrors.length = _errs123;
                           } else {
                             vErrors = null;
                           }
@@ -30027,194 +30012,194 @@ function validate27(
                     }
                     if (data51.delivery !== undefined) {
                       let data57 = data51.delivery;
-                      const _errs139 = errors;
+                      const _errs137 = errors;
                       let valid45 = false;
-                      let passing4 = null;
-                      const _errs140 = errors;
+                      let passing5 = null;
+                      const _errs138 = errors;
                       if (
                         data57 &&
                         typeof data57 == "object" &&
                         !Array.isArray(data57)
                       ) {
                         if (data57.kind === undefined) {
-                          const err201 = {
+                          const err199 = {
                             instancePath:
                               instancePath +
                               "/checkpoints/" +
                               i13 +
                               "/context/resume/delivery",
                             schemaPath:
-                              "#/$defs/controlContext/oneOf/0/properties/resume/properties/delivery/oneOf/0/required",
+                              "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/delivery/oneOf/0/required",
                             keyword: "required",
                             params: { missingProperty: "kind" },
                             message:
                               "must have required property '" + "kind" + "'",
                           };
                           if (vErrors === null) {
-                            vErrors = [err201];
+                            vErrors = [err199];
                           } else {
-                            vErrors.push(err201);
+                            vErrors.push(err199);
                           }
                           errors++;
                         }
                         for (const key15 in data57) {
                           if (!(key15 === "kind")) {
-                            const err202 = {
+                            const err200 = {
                               instancePath:
                                 instancePath +
                                 "/checkpoints/" +
                                 i13 +
                                 "/context/resume/delivery",
                               schemaPath:
-                                "#/$defs/controlContext/oneOf/0/properties/resume/properties/delivery/oneOf/0/additionalProperties",
+                                "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/delivery/oneOf/0/additionalProperties",
                               keyword: "additionalProperties",
                               params: { additionalProperty: key15 },
                               message: "must NOT have additional properties",
                             };
                             if (vErrors === null) {
-                              vErrors = [err202];
+                              vErrors = [err200];
                             } else {
-                              vErrors.push(err202);
+                              vErrors.push(err200);
                             }
                             errors++;
                           }
                         }
                         if (data57.kind !== undefined) {
                           if ("source" !== data57.kind) {
-                            const err203 = {
+                            const err201 = {
                               instancePath:
                                 instancePath +
                                 "/checkpoints/" +
                                 i13 +
                                 "/context/resume/delivery/kind",
                               schemaPath:
-                                "#/$defs/controlContext/oneOf/0/properties/resume/properties/delivery/oneOf/0/properties/kind/const",
+                                "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/delivery/oneOf/0/properties/kind/const",
                               keyword: "const",
                               params: { allowedValue: "source" },
                               message: "must be equal to constant",
                             };
                             if (vErrors === null) {
-                              vErrors = [err203];
+                              vErrors = [err201];
                             } else {
-                              vErrors.push(err203);
+                              vErrors.push(err201);
                             }
                             errors++;
                           }
                         }
                       } else {
-                        const err204 = {
+                        const err202 = {
                           instancePath:
                             instancePath +
                             "/checkpoints/" +
                             i13 +
                             "/context/resume/delivery",
                           schemaPath:
-                            "#/$defs/controlContext/oneOf/0/properties/resume/properties/delivery/oneOf/0/type",
+                            "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/delivery/oneOf/0/type",
                           keyword: "type",
                           params: { type: "object" },
                           message: "must be object",
                         };
                         if (vErrors === null) {
-                          vErrors = [err204];
+                          vErrors = [err202];
                         } else {
-                          vErrors.push(err204);
+                          vErrors.push(err202);
                         }
                         errors++;
                       }
-                      var _valid5 = _errs140 === errors;
+                      var _valid5 = _errs138 === errors;
                       if (_valid5) {
                         valid45 = true;
-                        passing4 = 0;
+                        passing5 = 0;
                         var props3 = true;
                       }
-                      const _errs144 = errors;
+                      const _errs142 = errors;
                       if (
                         data57 &&
                         typeof data57 == "object" &&
                         !Array.isArray(data57)
                       ) {
                         if (data57.kind === undefined) {
-                          const err205 = {
+                          const err203 = {
                             instancePath:
                               instancePath +
                               "/checkpoints/" +
                               i13 +
                               "/context/resume/delivery",
                             schemaPath:
-                              "#/$defs/controlContext/oneOf/0/properties/resume/properties/delivery/oneOf/1/required",
+                              "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/delivery/oneOf/1/required",
                             keyword: "required",
                             params: { missingProperty: "kind" },
                             message:
                               "must have required property '" + "kind" + "'",
                           };
                           if (vErrors === null) {
-                            vErrors = [err205];
+                            vErrors = [err203];
                           } else {
-                            vErrors.push(err205);
+                            vErrors.push(err203);
                           }
                           errors++;
                         }
                         if (data57.cycleId === undefined) {
-                          const err206 = {
+                          const err204 = {
                             instancePath:
                               instancePath +
                               "/checkpoints/" +
                               i13 +
                               "/context/resume/delivery",
                             schemaPath:
-                              "#/$defs/controlContext/oneOf/0/properties/resume/properties/delivery/oneOf/1/required",
+                              "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/delivery/oneOf/1/required",
                             keyword: "required",
                             params: { missingProperty: "cycleId" },
                             message:
                               "must have required property '" + "cycleId" + "'",
                           };
                           if (vErrors === null) {
-                            vErrors = [err206];
+                            vErrors = [err204];
                           } else {
-                            vErrors.push(err206);
+                            vErrors.push(err204);
                           }
                           errors++;
                         }
                         for (const key16 in data57) {
                           if (!(key16 === "kind" || key16 === "cycleId")) {
-                            const err207 = {
+                            const err205 = {
                               instancePath:
                                 instancePath +
                                 "/checkpoints/" +
                                 i13 +
                                 "/context/resume/delivery",
                               schemaPath:
-                                "#/$defs/controlContext/oneOf/0/properties/resume/properties/delivery/oneOf/1/additionalProperties",
+                                "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/delivery/oneOf/1/additionalProperties",
                               keyword: "additionalProperties",
                               params: { additionalProperty: key16 },
                               message: "must NOT have additional properties",
                             };
                             if (vErrors === null) {
-                              vErrors = [err207];
+                              vErrors = [err205];
                             } else {
-                              vErrors.push(err207);
+                              vErrors.push(err205);
                             }
                             errors++;
                           }
                         }
                         if (data57.kind !== undefined) {
                           if ("cycle" !== data57.kind) {
-                            const err208 = {
+                            const err206 = {
                               instancePath:
                                 instancePath +
                                 "/checkpoints/" +
                                 i13 +
                                 "/context/resume/delivery/kind",
                               schemaPath:
-                                "#/$defs/controlContext/oneOf/0/properties/resume/properties/delivery/oneOf/1/properties/kind/const",
+                                "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/delivery/oneOf/1/properties/kind/const",
                               keyword: "const",
                               params: { allowedValue: "cycle" },
                               message: "must be equal to constant",
                             };
                             if (vErrors === null) {
-                              vErrors = [err208];
+                              vErrors = [err206];
                             } else {
-                              vErrors.push(err208);
+                              vErrors.push(err206);
                             }
                             errors++;
                           }
@@ -30223,59 +30208,119 @@ function validate27(
                           let data60 = data57.cycleId;
                           if (typeof data60 === "string") {
                             if (func1(data60) > 200) {
-                              const err209 = {
+                              const err207 = {
                                 instancePath:
                                   instancePath +
                                   "/checkpoints/" +
                                   i13 +
                                   "/context/resume/delivery/cycleId",
                                 schemaPath:
-                                  "#/$defs/controlContext/oneOf/0/properties/resume/properties/delivery/oneOf/1/properties/cycleId/maxLength",
+                                  "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/delivery/oneOf/1/properties/cycleId/maxLength",
                                 keyword: "maxLength",
                                 params: { limit: 200 },
                                 message:
                                   "must NOT have more than 200 characters",
                               };
                               if (vErrors === null) {
-                                vErrors = [err209];
+                                vErrors = [err207];
                               } else {
-                                vErrors.push(err209);
+                                vErrors.push(err207);
                               }
                               errors++;
                             }
                             if (func1(data60) < 1) {
-                              const err210 = {
+                              const err208 = {
                                 instancePath:
                                   instancePath +
                                   "/checkpoints/" +
                                   i13 +
                                   "/context/resume/delivery/cycleId",
                                 schemaPath:
-                                  "#/$defs/controlContext/oneOf/0/properties/resume/properties/delivery/oneOf/1/properties/cycleId/minLength",
+                                  "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/delivery/oneOf/1/properties/cycleId/minLength",
                                 keyword: "minLength",
                                 params: { limit: 1 },
                                 message:
                                   "must NOT have fewer than 1 characters",
                               };
                               if (vErrors === null) {
-                                vErrors = [err210];
+                                vErrors = [err208];
                               } else {
-                                vErrors.push(err210);
+                                vErrors.push(err208);
                               }
                               errors++;
                             }
                           } else {
-                            const err211 = {
+                            const err209 = {
                               instancePath:
                                 instancePath +
                                 "/checkpoints/" +
                                 i13 +
                                 "/context/resume/delivery/cycleId",
                               schemaPath:
-                                "#/$defs/controlContext/oneOf/0/properties/resume/properties/delivery/oneOf/1/properties/cycleId/type",
+                                "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/delivery/oneOf/1/properties/cycleId/type",
                               keyword: "type",
                               params: { type: "string" },
                               message: "must be string",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err209];
+                            } else {
+                              vErrors.push(err209);
+                            }
+                            errors++;
+                          }
+                        }
+                      } else {
+                        const err210 = {
+                          instancePath:
+                            instancePath +
+                            "/checkpoints/" +
+                            i13 +
+                            "/context/resume/delivery",
+                          schemaPath:
+                            "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/delivery/oneOf/1/type",
+                          keyword: "type",
+                          params: { type: "object" },
+                          message: "must be object",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err210];
+                        } else {
+                          vErrors.push(err210);
+                        }
+                        errors++;
+                      }
+                      var _valid5 = _errs142 === errors;
+                      if (_valid5 && valid45) {
+                        valid45 = false;
+                        passing5 = [passing5, 1];
+                      } else {
+                        if (_valid5) {
+                          valid45 = true;
+                          passing5 = 1;
+                          if (props3 !== true) {
+                            props3 = true;
+                          }
+                        }
+                        const _errs148 = errors;
+                        if (
+                          data57 &&
+                          typeof data57 == "object" &&
+                          !Array.isArray(data57)
+                        ) {
+                          if (data57.kind === undefined) {
+                            const err211 = {
+                              instancePath:
+                                instancePath +
+                                "/checkpoints/" +
+                                i13 +
+                                "/context/resume/delivery",
+                              schemaPath:
+                                "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/delivery/oneOf/2/required",
+                              keyword: "required",
+                              params: { missingProperty: "kind" },
+                              message:
+                                "must have required property '" + "kind" + "'",
                             };
                             if (vErrors === null) {
                               vErrors = [err211];
@@ -30284,75 +30329,15 @@ function validate27(
                             }
                             errors++;
                           }
-                        }
-                      } else {
-                        const err212 = {
-                          instancePath:
-                            instancePath +
-                            "/checkpoints/" +
-                            i13 +
-                            "/context/resume/delivery",
-                          schemaPath:
-                            "#/$defs/controlContext/oneOf/0/properties/resume/properties/delivery/oneOf/1/type",
-                          keyword: "type",
-                          params: { type: "object" },
-                          message: "must be object",
-                        };
-                        if (vErrors === null) {
-                          vErrors = [err212];
-                        } else {
-                          vErrors.push(err212);
-                        }
-                        errors++;
-                      }
-                      var _valid5 = _errs144 === errors;
-                      if (_valid5 && valid45) {
-                        valid45 = false;
-                        passing4 = [passing4, 1];
-                      } else {
-                        if (_valid5) {
-                          valid45 = true;
-                          passing4 = 1;
-                          if (props3 !== true) {
-                            props3 = true;
-                          }
-                        }
-                        const _errs150 = errors;
-                        if (
-                          data57 &&
-                          typeof data57 == "object" &&
-                          !Array.isArray(data57)
-                        ) {
-                          if (data57.kind === undefined) {
-                            const err213 = {
-                              instancePath:
-                                instancePath +
-                                "/checkpoints/" +
-                                i13 +
-                                "/context/resume/delivery",
-                              schemaPath:
-                                "#/$defs/controlContext/oneOf/0/properties/resume/properties/delivery/oneOf/2/required",
-                              keyword: "required",
-                              params: { missingProperty: "kind" },
-                              message:
-                                "must have required property '" + "kind" + "'",
-                            };
-                            if (vErrors === null) {
-                              vErrors = [err213];
-                            } else {
-                              vErrors.push(err213);
-                            }
-                            errors++;
-                          }
                           if (data57.returnCheckpointId === undefined) {
-                            const err214 = {
+                            const err212 = {
                               instancePath:
                                 instancePath +
                                 "/checkpoints/" +
                                 i13 +
                                 "/context/resume/delivery",
                               schemaPath:
-                                "#/$defs/controlContext/oneOf/0/properties/resume/properties/delivery/oneOf/2/required",
+                                "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/delivery/oneOf/2/required",
                               keyword: "required",
                               params: { missingProperty: "returnCheckpointId" },
                               message:
@@ -30361,9 +30346,9 @@ function validate27(
                                 "'",
                             };
                             if (vErrors === null) {
-                              vErrors = [err214];
+                              vErrors = [err212];
                             } else {
-                              vErrors.push(err214);
+                              vErrors.push(err212);
                             }
                             errors++;
                           }
@@ -30371,44 +30356,44 @@ function validate27(
                             if (!(
                               key17 === "kind" || key17 === "returnCheckpointId"
                             )) {
-                              const err215 = {
+                              const err213 = {
                                 instancePath:
                                   instancePath +
                                   "/checkpoints/" +
                                   i13 +
                                   "/context/resume/delivery",
                                 schemaPath:
-                                  "#/$defs/controlContext/oneOf/0/properties/resume/properties/delivery/oneOf/2/additionalProperties",
+                                  "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/delivery/oneOf/2/additionalProperties",
                                 keyword: "additionalProperties",
                                 params: { additionalProperty: key17 },
                                 message: "must NOT have additional properties",
                               };
                               if (vErrors === null) {
-                                vErrors = [err215];
+                                vErrors = [err213];
                               } else {
-                                vErrors.push(err215);
+                                vErrors.push(err213);
                               }
                               errors++;
                             }
                           }
                           if (data57.kind !== undefined) {
                             if ("repeat" !== data57.kind) {
-                              const err216 = {
+                              const err214 = {
                                 instancePath:
                                   instancePath +
                                   "/checkpoints/" +
                                   i13 +
                                   "/context/resume/delivery/kind",
                                 schemaPath:
-                                  "#/$defs/controlContext/oneOf/0/properties/resume/properties/delivery/oneOf/2/properties/kind/const",
+                                  "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/delivery/oneOf/2/properties/kind/const",
                                 keyword: "const",
                                 params: { allowedValue: "repeat" },
                                 message: "must be equal to constant",
                               };
                               if (vErrors === null) {
-                                vErrors = [err216];
+                                vErrors = [err214];
                               } else {
-                                vErrors.push(err216);
+                                vErrors.push(err214);
                               }
                               errors++;
                             }
@@ -30417,96 +30402,96 @@ function validate27(
                             let data62 = data57.returnCheckpointId;
                             if (typeof data62 === "string") {
                               if (func1(data62) > 200) {
-                                const err217 = {
+                                const err215 = {
                                   instancePath:
                                     instancePath +
                                     "/checkpoints/" +
                                     i13 +
                                     "/context/resume/delivery/returnCheckpointId",
                                   schemaPath:
-                                    "#/$defs/controlContext/oneOf/0/properties/resume/properties/delivery/oneOf/2/properties/returnCheckpointId/maxLength",
+                                    "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/delivery/oneOf/2/properties/returnCheckpointId/maxLength",
                                   keyword: "maxLength",
                                   params: { limit: 200 },
                                   message:
                                     "must NOT have more than 200 characters",
                                 };
                                 if (vErrors === null) {
-                                  vErrors = [err217];
+                                  vErrors = [err215];
                                 } else {
-                                  vErrors.push(err217);
+                                  vErrors.push(err215);
                                 }
                                 errors++;
                               }
                               if (func1(data62) < 1) {
-                                const err218 = {
+                                const err216 = {
                                   instancePath:
                                     instancePath +
                                     "/checkpoints/" +
                                     i13 +
                                     "/context/resume/delivery/returnCheckpointId",
                                   schemaPath:
-                                    "#/$defs/controlContext/oneOf/0/properties/resume/properties/delivery/oneOf/2/properties/returnCheckpointId/minLength",
+                                    "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/delivery/oneOf/2/properties/returnCheckpointId/minLength",
                                   keyword: "minLength",
                                   params: { limit: 1 },
                                   message:
                                     "must NOT have fewer than 1 characters",
                                 };
                                 if (vErrors === null) {
-                                  vErrors = [err218];
+                                  vErrors = [err216];
                                 } else {
-                                  vErrors.push(err218);
+                                  vErrors.push(err216);
                                 }
                                 errors++;
                               }
                             } else {
-                              const err219 = {
+                              const err217 = {
                                 instancePath:
                                   instancePath +
                                   "/checkpoints/" +
                                   i13 +
                                   "/context/resume/delivery/returnCheckpointId",
                                 schemaPath:
-                                  "#/$defs/controlContext/oneOf/0/properties/resume/properties/delivery/oneOf/2/properties/returnCheckpointId/type",
+                                  "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/delivery/oneOf/2/properties/returnCheckpointId/type",
                                 keyword: "type",
                                 params: { type: "string" },
                                 message: "must be string",
                               };
                               if (vErrors === null) {
-                                vErrors = [err219];
+                                vErrors = [err217];
                               } else {
-                                vErrors.push(err219);
+                                vErrors.push(err217);
                               }
                               errors++;
                             }
                           }
                         } else {
-                          const err220 = {
+                          const err218 = {
                             instancePath:
                               instancePath +
                               "/checkpoints/" +
                               i13 +
                               "/context/resume/delivery",
                             schemaPath:
-                              "#/$defs/controlContext/oneOf/0/properties/resume/properties/delivery/oneOf/2/type",
+                              "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/delivery/oneOf/2/type",
                             keyword: "type",
                             params: { type: "object" },
                             message: "must be object",
                           };
                           if (vErrors === null) {
-                            vErrors = [err220];
+                            vErrors = [err218];
                           } else {
-                            vErrors.push(err220);
+                            vErrors.push(err218);
                           }
                           errors++;
                         }
-                        var _valid5 = _errs150 === errors;
+                        var _valid5 = _errs148 === errors;
                         if (_valid5 && valid45) {
                           valid45 = false;
-                          passing4 = [passing4, 2];
+                          passing5 = [passing5, 2];
                         } else {
                           if (_valid5) {
                             valid45 = true;
-                            passing4 = 2;
+                            passing5 = 2;
                             if (props3 !== true) {
                               props3 = true;
                             }
@@ -30514,29 +30499,29 @@ function validate27(
                         }
                       }
                       if (!valid45) {
-                        const err221 = {
+                        const err219 = {
                           instancePath:
                             instancePath +
                             "/checkpoints/" +
                             i13 +
                             "/context/resume/delivery",
                           schemaPath:
-                            "#/$defs/controlContext/oneOf/0/properties/resume/properties/delivery/oneOf",
+                            "#/$defs/activeControlContext/oneOf/0/properties/resume/properties/delivery/oneOf",
                           keyword: "oneOf",
-                          params: { passingSchemas: passing4 },
+                          params: { passingSchemas: passing5 },
                           message: "must match exactly one schema in oneOf",
                         };
                         if (vErrors === null) {
-                          vErrors = [err221];
+                          vErrors = [err219];
                         } else {
-                          vErrors.push(err221);
+                          vErrors.push(err219);
                         }
                         errors++;
                       } else {
-                        errors = _errs139;
+                        errors = _errs137;
                         if (vErrors !== null) {
-                          if (_errs139) {
-                            vErrors.length = _errs139;
+                          if (_errs137) {
+                            vErrors.length = _errs137;
                           } else {
                             vErrors = null;
                           }
@@ -30544,120 +30529,120 @@ function validate27(
                       }
                     }
                   } else {
-                    const err222 = {
+                    const err220 = {
                       instancePath:
                         instancePath +
                         "/checkpoints/" +
                         i13 +
                         "/context/resume",
                       schemaPath:
-                        "#/$defs/controlContext/oneOf/0/properties/resume/type",
+                        "#/$defs/activeControlContext/oneOf/0/properties/resume/type",
                       keyword: "type",
                       params: { type: "object" },
                       message: "must be object",
                     };
                     if (vErrors === null) {
-                      vErrors = [err222];
+                      vErrors = [err220];
                     } else {
-                      vErrors.push(err222);
+                      vErrors.push(err220);
                     }
                     errors++;
                   }
                 }
               } else {
-                const err223 = {
+                const err221 = {
                   instancePath:
                     instancePath + "/checkpoints/" + i13 + "/context",
-                  schemaPath: "#/$defs/controlContext/oneOf/0/type",
+                  schemaPath: "#/$defs/activeControlContext/oneOf/0/type",
                   keyword: "type",
                   params: { type: "object" },
                   message: "must be object",
                 };
                 if (vErrors === null) {
-                  vErrors = [err223];
+                  vErrors = [err221];
                 } else {
-                  vErrors.push(err223);
+                  vErrors.push(err221);
                 }
                 errors++;
               }
-              var _valid3 = _errs117 === errors;
+              var _valid3 = _errs115 === errors;
               if (_valid3) {
                 valid39 = true;
-                passing2 = 0;
+                passing3 = 0;
                 var props4 = true;
               }
-              const _errs156 = errors;
+              const _errs154 = errors;
               if (
                 data49 &&
                 typeof data49 == "object" &&
                 !Array.isArray(data49)
               ) {
                 if (data49.kind === undefined) {
-                  const err224 = {
+                  const err222 = {
                     instancePath:
                       instancePath + "/checkpoints/" + i13 + "/context",
-                    schemaPath: "#/$defs/controlContext/oneOf/1/required",
+                    schemaPath: "#/$defs/activeControlContext/oneOf/1/required",
                     keyword: "required",
                     params: { missingProperty: "kind" },
                     message: "must have required property '" + "kind" + "'",
                   };
                   if (vErrors === null) {
-                    vErrors = [err224];
+                    vErrors = [err222];
                   } else {
-                    vErrors.push(err224);
+                    vErrors.push(err222);
                   }
                   errors++;
                 }
                 if (data49.reviewId === undefined) {
-                  const err225 = {
+                  const err223 = {
                     instancePath:
                       instancePath + "/checkpoints/" + i13 + "/context",
-                    schemaPath: "#/$defs/controlContext/oneOf/1/required",
+                    schemaPath: "#/$defs/activeControlContext/oneOf/1/required",
                     keyword: "required",
                     params: { missingProperty: "reviewId" },
                     message: "must have required property '" + "reviewId" + "'",
                   };
                   if (vErrors === null) {
-                    vErrors = [err225];
+                    vErrors = [err223];
                   } else {
-                    vErrors.push(err225);
+                    vErrors.push(err223);
                   }
                   errors++;
                 }
                 for (const key18 in data49) {
                   if (!(key18 === "kind" || key18 === "reviewId")) {
-                    const err226 = {
+                    const err224 = {
                       instancePath:
                         instancePath + "/checkpoints/" + i13 + "/context",
                       schemaPath:
-                        "#/$defs/controlContext/oneOf/1/additionalProperties",
+                        "#/$defs/activeControlContext/oneOf/1/additionalProperties",
                       keyword: "additionalProperties",
                       params: { additionalProperty: key18 },
                       message: "must NOT have additional properties",
                     };
                     if (vErrors === null) {
-                      vErrors = [err226];
+                      vErrors = [err224];
                     } else {
-                      vErrors.push(err226);
+                      vErrors.push(err224);
                     }
                     errors++;
                   }
                 }
                 if (data49.kind !== undefined) {
                   if ("selection" !== data49.kind) {
-                    const err227 = {
+                    const err225 = {
                       instancePath:
                         instancePath + "/checkpoints/" + i13 + "/context/kind",
                       schemaPath:
-                        "#/$defs/controlContext/oneOf/1/properties/kind/const",
+                        "#/$defs/activeControlContext/oneOf/1/properties/kind/const",
                       keyword: "const",
                       params: { allowedValue: "selection" },
                       message: "must be equal to constant",
                     };
                     if (vErrors === null) {
-                      vErrors = [err227];
+                      vErrors = [err225];
                     } else {
-                      vErrors.push(err227);
+                      vErrors.push(err225);
                     }
                     errors++;
                   }
@@ -30666,57 +30651,109 @@ function validate27(
                   let data64 = data49.reviewId;
                   if (typeof data64 === "string") {
                     if (func1(data64) > 200) {
-                      const err228 = {
+                      const err226 = {
                         instancePath:
                           instancePath +
                           "/checkpoints/" +
                           i13 +
                           "/context/reviewId",
                         schemaPath:
-                          "#/$defs/controlContext/oneOf/1/properties/reviewId/maxLength",
+                          "#/$defs/activeControlContext/oneOf/1/properties/reviewId/maxLength",
                         keyword: "maxLength",
                         params: { limit: 200 },
                         message: "must NOT have more than 200 characters",
                       };
                       if (vErrors === null) {
-                        vErrors = [err228];
+                        vErrors = [err226];
                       } else {
-                        vErrors.push(err228);
+                        vErrors.push(err226);
                       }
                       errors++;
                     }
                     if (func1(data64) < 1) {
-                      const err229 = {
+                      const err227 = {
                         instancePath:
                           instancePath +
                           "/checkpoints/" +
                           i13 +
                           "/context/reviewId",
                         schemaPath:
-                          "#/$defs/controlContext/oneOf/1/properties/reviewId/minLength",
+                          "#/$defs/activeControlContext/oneOf/1/properties/reviewId/minLength",
                         keyword: "minLength",
                         params: { limit: 1 },
                         message: "must NOT have fewer than 1 characters",
                       };
                       if (vErrors === null) {
-                        vErrors = [err229];
+                        vErrors = [err227];
                       } else {
-                        vErrors.push(err229);
+                        vErrors.push(err227);
                       }
                       errors++;
                     }
                   } else {
-                    const err230 = {
+                    const err228 = {
                       instancePath:
                         instancePath +
                         "/checkpoints/" +
                         i13 +
                         "/context/reviewId",
                       schemaPath:
-                        "#/$defs/controlContext/oneOf/1/properties/reviewId/type",
+                        "#/$defs/activeControlContext/oneOf/1/properties/reviewId/type",
                       keyword: "type",
                       params: { type: "string" },
                       message: "must be string",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err228];
+                    } else {
+                      vErrors.push(err228);
+                    }
+                    errors++;
+                  }
+                }
+              } else {
+                const err229 = {
+                  instancePath:
+                    instancePath + "/checkpoints/" + i13 + "/context",
+                  schemaPath: "#/$defs/activeControlContext/oneOf/1/type",
+                  keyword: "type",
+                  params: { type: "object" },
+                  message: "must be object",
+                };
+                if (vErrors === null) {
+                  vErrors = [err229];
+                } else {
+                  vErrors.push(err229);
+                }
+                errors++;
+              }
+              var _valid3 = _errs154 === errors;
+              if (_valid3 && valid39) {
+                valid39 = false;
+                passing3 = [passing3, 1];
+              } else {
+                if (_valid3) {
+                  valid39 = true;
+                  passing3 = 1;
+                  if (props4 !== true) {
+                    props4 = true;
+                  }
+                }
+                const _errs160 = errors;
+                if (
+                  data49 &&
+                  typeof data49 == "object" &&
+                  !Array.isArray(data49)
+                ) {
+                  if (data49.kind === undefined) {
+                    const err230 = {
+                      instancePath:
+                        instancePath + "/checkpoints/" + i13 + "/context",
+                      schemaPath:
+                        "#/$defs/activeControlContext/oneOf/2/required",
+                      keyword: "required",
+                      params: { missingProperty: "kind" },
+                      message: "must have required property '" + "kind" + "'",
                     };
                     if (vErrors === null) {
                       vErrors = [err230];
@@ -30725,49 +30762,36 @@ function validate27(
                     }
                     errors++;
                   }
-                }
-              } else {
-                const err231 = {
-                  instancePath:
-                    instancePath + "/checkpoints/" + i13 + "/context",
-                  schemaPath: "#/$defs/controlContext/oneOf/1/type",
-                  keyword: "type",
-                  params: { type: "object" },
-                  message: "must be object",
-                };
-                if (vErrors === null) {
-                  vErrors = [err231];
-                } else {
-                  vErrors.push(err231);
-                }
-                errors++;
-              }
-              var _valid3 = _errs156 === errors;
-              if (_valid3 && valid39) {
-                valid39 = false;
-                passing2 = [passing2, 1];
-              } else {
-                if (_valid3) {
-                  valid39 = true;
-                  passing2 = 1;
-                  if (props4 !== true) {
-                    props4 = true;
+                  if (data49.correctionId === undefined) {
+                    const err231 = {
+                      instancePath:
+                        instancePath + "/checkpoints/" + i13 + "/context",
+                      schemaPath:
+                        "#/$defs/activeControlContext/oneOf/2/required",
+                      keyword: "required",
+                      params: { missingProperty: "correctionId" },
+                      message:
+                        "must have required property '" + "correctionId" + "'",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err231];
+                    } else {
+                      vErrors.push(err231);
+                    }
+                    errors++;
                   }
-                }
-                const _errs162 = errors;
-                if (
-                  data49 &&
-                  typeof data49 == "object" &&
-                  !Array.isArray(data49)
-                ) {
-                  if (data49.kind === undefined) {
+                  if (data49.triggerOccurrenceId === undefined) {
                     const err232 = {
                       instancePath:
                         instancePath + "/checkpoints/" + i13 + "/context",
-                      schemaPath: "#/$defs/controlContext/oneOf/2/required",
+                      schemaPath:
+                        "#/$defs/activeControlContext/oneOf/2/required",
                       keyword: "required",
-                      params: { missingProperty: "kind" },
-                      message: "must have required property '" + "kind" + "'",
+                      params: { missingProperty: "triggerOccurrenceId" },
+                      message:
+                        "must have required property '" +
+                        "triggerOccurrenceId" +
+                        "'",
                     };
                     if (vErrors === null) {
                       vErrors = [err232];
@@ -30776,127 +30800,120 @@ function validate27(
                     }
                     errors++;
                   }
+                  if (data49.owedOccurrenceId === undefined) {
+                    const err233 = {
+                      instancePath:
+                        instancePath + "/checkpoints/" + i13 + "/context",
+                      schemaPath:
+                        "#/$defs/activeControlContext/oneOf/2/required",
+                      keyword: "required",
+                      params: { missingProperty: "owedOccurrenceId" },
+                      message:
+                        "must have required property '" +
+                        "owedOccurrenceId" +
+                        "'",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err233];
+                    } else {
+                      vErrors.push(err233);
+                    }
+                    errors++;
+                  }
+                  if (data49.suspended === undefined) {
+                    const err234 = {
+                      instancePath:
+                        instancePath + "/checkpoints/" + i13 + "/context",
+                      schemaPath:
+                        "#/$defs/activeControlContext/oneOf/2/required",
+                      keyword: "required",
+                      params: { missingProperty: "suspended" },
+                      message:
+                        "must have required property '" + "suspended" + "'",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err234];
+                    } else {
+                      vErrors.push(err234);
+                    }
+                    errors++;
+                  }
+                  if (data49.instructionOccurrenceIds === undefined) {
+                    const err235 = {
+                      instancePath:
+                        instancePath + "/checkpoints/" + i13 + "/context",
+                      schemaPath:
+                        "#/$defs/activeControlContext/oneOf/2/required",
+                      keyword: "required",
+                      params: { missingProperty: "instructionOccurrenceIds" },
+                      message:
+                        "must have required property '" +
+                        "instructionOccurrenceIds" +
+                        "'",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err235];
+                    } else {
+                      vErrors.push(err235);
+                    }
+                    errors++;
+                  }
+                  if (data49.retestOccurrenceIds === undefined) {
+                    const err236 = {
+                      instancePath:
+                        instancePath + "/checkpoints/" + i13 + "/context",
+                      schemaPath:
+                        "#/$defs/activeControlContext/oneOf/2/required",
+                      keyword: "required",
+                      params: { missingProperty: "retestOccurrenceIds" },
+                      message:
+                        "must have required property '" +
+                        "retestOccurrenceIds" +
+                        "'",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err236];
+                    } else {
+                      vErrors.push(err236);
+                    }
+                    errors++;
+                  }
+                  if (data49.phase === undefined) {
+                    const err237 = {
+                      instancePath:
+                        instancePath + "/checkpoints/" + i13 + "/context",
+                      schemaPath:
+                        "#/$defs/activeControlContext/oneOf/2/required",
+                      keyword: "required",
+                      params: { missingProperty: "phase" },
+                      message: "must have required property '" + "phase" + "'",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err237];
+                    } else {
+                      vErrors.push(err237);
+                    }
+                    errors++;
+                  }
                   for (const key19 in data49) {
-                    if (!(key19 === "kind")) {
-                      const err233 = {
-                        instancePath:
-                          instancePath + "/checkpoints/" + i13 + "/context",
-                        schemaPath:
-                          "#/$defs/controlContext/oneOf/2/additionalProperties",
-                        keyword: "additionalProperties",
-                        params: { additionalProperty: key19 },
-                        message: "must NOT have additional properties",
-                      };
-                      if (vErrors === null) {
-                        vErrors = [err233];
-                      } else {
-                        vErrors.push(err233);
-                      }
-                      errors++;
-                    }
-                  }
-                  if (data49.kind !== undefined) {
-                    if ("terminal" !== data49.kind) {
-                      const err234 = {
-                        instancePath:
-                          instancePath +
-                          "/checkpoints/" +
-                          i13 +
-                          "/context/kind",
-                        schemaPath:
-                          "#/$defs/controlContext/oneOf/2/properties/kind/const",
-                        keyword: "const",
-                        params: { allowedValue: "terminal" },
-                        message: "must be equal to constant",
-                      };
-                      if (vErrors === null) {
-                        vErrors = [err234];
-                      } else {
-                        vErrors.push(err234);
-                      }
-                      errors++;
-                    }
-                  }
-                } else {
-                  const err235 = {
-                    instancePath:
-                      instancePath + "/checkpoints/" + i13 + "/context",
-                    schemaPath: "#/$defs/controlContext/oneOf/2/type",
-                    keyword: "type",
-                    params: { type: "object" },
-                    message: "must be object",
-                  };
-                  if (vErrors === null) {
-                    vErrors = [err235];
-                  } else {
-                    vErrors.push(err235);
-                  }
-                  errors++;
-                }
-                var _valid3 = _errs162 === errors;
-                if (_valid3 && valid39) {
-                  valid39 = false;
-                  passing2 = [passing2, 2];
-                } else {
-                  if (_valid3) {
-                    valid39 = true;
-                    passing2 = 2;
-                    if (props4 !== true) {
-                      props4 = true;
-                    }
-                  }
-                  const _errs166 = errors;
-                  if (
-                    data49 &&
-                    typeof data49 == "object" &&
-                    !Array.isArray(data49)
-                  ) {
-                    if (data49.kind === undefined) {
-                      const err236 = {
-                        instancePath:
-                          instancePath + "/checkpoints/" + i13 + "/context",
-                        schemaPath: "#/$defs/controlContext/oneOf/3/required",
-                        keyword: "required",
-                        params: { missingProperty: "kind" },
-                        message: "must have required property '" + "kind" + "'",
-                      };
-                      if (vErrors === null) {
-                        vErrors = [err236];
-                      } else {
-                        vErrors.push(err236);
-                      }
-                      errors++;
-                    }
-                    if (data49.correctionId === undefined) {
-                      const err237 = {
-                        instancePath:
-                          instancePath + "/checkpoints/" + i13 + "/context",
-                        schemaPath: "#/$defs/controlContext/oneOf/3/required",
-                        keyword: "required",
-                        params: { missingProperty: "correctionId" },
-                        message:
-                          "must have required property '" +
-                          "correctionId" +
-                          "'",
-                      };
-                      if (vErrors === null) {
-                        vErrors = [err237];
-                      } else {
-                        vErrors.push(err237);
-                      }
-                      errors++;
-                    }
-                    if (data49.triggerOccurrenceId === undefined) {
+                    if (!(
+                      key19 === "kind" ||
+                      key19 === "correctionId" ||
+                      key19 === "triggerOccurrenceId" ||
+                      key19 === "owedOccurrenceId" ||
+                      key19 === "suspended" ||
+                      key19 === "instructionOccurrenceIds" ||
+                      key19 === "retestOccurrenceIds" ||
+                      key19 === "phase"
+                    )) {
                       const err238 = {
                         instancePath:
                           instancePath + "/checkpoints/" + i13 + "/context",
-                        schemaPath: "#/$defs/controlContext/oneOf/3/required",
-                        keyword: "required",
-                        params: { missingProperty: "triggerOccurrenceId" },
-                        message:
-                          "must have required property '" +
-                          "triggerOccurrenceId" +
-                          "'",
+                        schemaPath:
+                          "#/$defs/activeControlContext/oneOf/2/additionalProperties",
+                        keyword: "additionalProperties",
+                        params: { additionalProperty: key19 },
+                        message: "must NOT have additional properties",
                       };
                       if (vErrors === null) {
                         vErrors = [err238];
@@ -30905,17 +30922,20 @@ function validate27(
                       }
                       errors++;
                     }
-                    if (data49.owedOccurrenceId === undefined) {
+                  }
+                  if (data49.kind !== undefined) {
+                    if ("correction" !== data49.kind) {
                       const err239 = {
                         instancePath:
-                          instancePath + "/checkpoints/" + i13 + "/context",
-                        schemaPath: "#/$defs/controlContext/oneOf/3/required",
-                        keyword: "required",
-                        params: { missingProperty: "owedOccurrenceId" },
-                        message:
-                          "must have required property '" +
-                          "owedOccurrenceId" +
-                          "'",
+                          instancePath +
+                          "/checkpoints/" +
+                          i13 +
+                          "/context/kind",
+                        schemaPath:
+                          "#/$defs/activeControlContext/oneOf/2/properties/kind/const",
+                        keyword: "const",
+                        params: { allowedValue: "correction" },
+                        message: "must be equal to constant",
                       };
                       if (vErrors === null) {
                         vErrors = [err239];
@@ -30924,53 +30944,62 @@ function validate27(
                       }
                       errors++;
                     }
-                    if (data49.suspended === undefined) {
-                      const err240 = {
-                        instancePath:
-                          instancePath + "/checkpoints/" + i13 + "/context",
-                        schemaPath: "#/$defs/controlContext/oneOf/3/required",
-                        keyword: "required",
-                        params: { missingProperty: "suspended" },
-                        message:
-                          "must have required property '" + "suspended" + "'",
-                      };
-                      if (vErrors === null) {
-                        vErrors = [err240];
-                      } else {
-                        vErrors.push(err240);
+                  }
+                  if (data49.correctionId !== undefined) {
+                    let data66 = data49.correctionId;
+                    if (typeof data66 === "string") {
+                      if (func1(data66) > 200) {
+                        const err240 = {
+                          instancePath:
+                            instancePath +
+                            "/checkpoints/" +
+                            i13 +
+                            "/context/correctionId",
+                          schemaPath:
+                            "#/$defs/activeControlContext/oneOf/2/properties/correctionId/maxLength",
+                          keyword: "maxLength",
+                          params: { limit: 200 },
+                          message: "must NOT have more than 200 characters",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err240];
+                        } else {
+                          vErrors.push(err240);
+                        }
+                        errors++;
                       }
-                      errors++;
-                    }
-                    if (data49.instructionOccurrenceIds === undefined) {
-                      const err241 = {
-                        instancePath:
-                          instancePath + "/checkpoints/" + i13 + "/context",
-                        schemaPath: "#/$defs/controlContext/oneOf/3/required",
-                        keyword: "required",
-                        params: { missingProperty: "instructionOccurrenceIds" },
-                        message:
-                          "must have required property '" +
-                          "instructionOccurrenceIds" +
-                          "'",
-                      };
-                      if (vErrors === null) {
-                        vErrors = [err241];
-                      } else {
-                        vErrors.push(err241);
+                      if (func1(data66) < 1) {
+                        const err241 = {
+                          instancePath:
+                            instancePath +
+                            "/checkpoints/" +
+                            i13 +
+                            "/context/correctionId",
+                          schemaPath:
+                            "#/$defs/activeControlContext/oneOf/2/properties/correctionId/minLength",
+                          keyword: "minLength",
+                          params: { limit: 1 },
+                          message: "must NOT have fewer than 1 characters",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err241];
+                        } else {
+                          vErrors.push(err241);
+                        }
+                        errors++;
                       }
-                      errors++;
-                    }
-                    if (data49.retestOccurrenceIds === undefined) {
+                    } else {
                       const err242 = {
                         instancePath:
-                          instancePath + "/checkpoints/" + i13 + "/context",
-                        schemaPath: "#/$defs/controlContext/oneOf/3/required",
-                        keyword: "required",
-                        params: { missingProperty: "retestOccurrenceIds" },
-                        message:
-                          "must have required property '" +
-                          "retestOccurrenceIds" +
-                          "'",
+                          instancePath +
+                          "/checkpoints/" +
+                          i13 +
+                          "/context/correctionId",
+                        schemaPath:
+                          "#/$defs/activeControlContext/oneOf/2/properties/correctionId/type",
+                        keyword: "type",
+                        params: { type: "string" },
+                        message: "must be string",
                       };
                       if (vErrors === null) {
                         vErrors = [err242];
@@ -30979,42 +31008,42 @@ function validate27(
                       }
                       errors++;
                     }
-                    if (data49.phase === undefined) {
-                      const err243 = {
-                        instancePath:
-                          instancePath + "/checkpoints/" + i13 + "/context",
-                        schemaPath: "#/$defs/controlContext/oneOf/3/required",
-                        keyword: "required",
-                        params: { missingProperty: "phase" },
-                        message:
-                          "must have required property '" + "phase" + "'",
-                      };
-                      if (vErrors === null) {
-                        vErrors = [err243];
-                      } else {
-                        vErrors.push(err243);
+                  }
+                  if (data49.triggerOccurrenceId !== undefined) {
+                    let data67 = data49.triggerOccurrenceId;
+                    if (typeof data67 === "string") {
+                      if (func1(data67) > 200) {
+                        const err243 = {
+                          instancePath:
+                            instancePath +
+                            "/checkpoints/" +
+                            i13 +
+                            "/context/triggerOccurrenceId",
+                          schemaPath:
+                            "#/$defs/activeControlContext/oneOf/2/properties/triggerOccurrenceId/maxLength",
+                          keyword: "maxLength",
+                          params: { limit: 200 },
+                          message: "must NOT have more than 200 characters",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err243];
+                        } else {
+                          vErrors.push(err243);
+                        }
+                        errors++;
                       }
-                      errors++;
-                    }
-                    for (const key20 in data49) {
-                      if (!(
-                        key20 === "kind" ||
-                        key20 === "correctionId" ||
-                        key20 === "triggerOccurrenceId" ||
-                        key20 === "owedOccurrenceId" ||
-                        key20 === "suspended" ||
-                        key20 === "instructionOccurrenceIds" ||
-                        key20 === "retestOccurrenceIds" ||
-                        key20 === "phase"
-                      )) {
+                      if (func1(data67) < 1) {
                         const err244 = {
                           instancePath:
-                            instancePath + "/checkpoints/" + i13 + "/context",
+                            instancePath +
+                            "/checkpoints/" +
+                            i13 +
+                            "/context/triggerOccurrenceId",
                           schemaPath:
-                            "#/$defs/controlContext/oneOf/3/additionalProperties",
-                          keyword: "additionalProperties",
-                          params: { additionalProperty: key20 },
-                          message: "must NOT have additional properties",
+                            "#/$defs/activeControlContext/oneOf/2/properties/triggerOccurrenceId/minLength",
+                          keyword: "minLength",
+                          params: { limit: 1 },
+                          message: "must NOT have fewer than 1 characters",
                         };
                         if (vErrors === null) {
                           vErrors = [err244];
@@ -31023,241 +31052,250 @@ function validate27(
                         }
                         errors++;
                       }
-                    }
-                    if (data49.kind !== undefined) {
-                      if ("correction" !== data49.kind) {
-                        const err245 = {
-                          instancePath:
-                            instancePath +
-                            "/checkpoints/" +
-                            i13 +
-                            "/context/kind",
-                          schemaPath:
-                            "#/$defs/controlContext/oneOf/3/properties/kind/const",
-                          keyword: "const",
-                          params: { allowedValue: "correction" },
-                          message: "must be equal to constant",
-                        };
-                        if (vErrors === null) {
-                          vErrors = [err245];
-                        } else {
-                          vErrors.push(err245);
-                        }
-                        errors++;
-                      }
-                    }
-                    if (data49.correctionId !== undefined) {
-                      let data67 = data49.correctionId;
-                      if (typeof data67 === "string") {
-                        if (func1(data67) > 200) {
-                          const err246 = {
-                            instancePath:
-                              instancePath +
-                              "/checkpoints/" +
-                              i13 +
-                              "/context/correctionId",
-                            schemaPath:
-                              "#/$defs/controlContext/oneOf/3/properties/correctionId/maxLength",
-                            keyword: "maxLength",
-                            params: { limit: 200 },
-                            message: "must NOT have more than 200 characters",
-                          };
-                          if (vErrors === null) {
-                            vErrors = [err246];
-                          } else {
-                            vErrors.push(err246);
-                          }
-                          errors++;
-                        }
-                        if (func1(data67) < 1) {
-                          const err247 = {
-                            instancePath:
-                              instancePath +
-                              "/checkpoints/" +
-                              i13 +
-                              "/context/correctionId",
-                            schemaPath:
-                              "#/$defs/controlContext/oneOf/3/properties/correctionId/minLength",
-                            keyword: "minLength",
-                            params: { limit: 1 },
-                            message: "must NOT have fewer than 1 characters",
-                          };
-                          if (vErrors === null) {
-                            vErrors = [err247];
-                          } else {
-                            vErrors.push(err247);
-                          }
-                          errors++;
-                        }
+                    } else {
+                      const err245 = {
+                        instancePath:
+                          instancePath +
+                          "/checkpoints/" +
+                          i13 +
+                          "/context/triggerOccurrenceId",
+                        schemaPath:
+                          "#/$defs/activeControlContext/oneOf/2/properties/triggerOccurrenceId/type",
+                        keyword: "type",
+                        params: { type: "string" },
+                        message: "must be string",
+                      };
+                      if (vErrors === null) {
+                        vErrors = [err245];
                       } else {
-                        const err248 = {
-                          instancePath:
-                            instancePath +
-                            "/checkpoints/" +
-                            i13 +
-                            "/context/correctionId",
-                          schemaPath:
-                            "#/$defs/controlContext/oneOf/3/properties/correctionId/type",
-                          keyword: "type",
-                          params: { type: "string" },
-                          message: "must be string",
-                        };
-                        if (vErrors === null) {
-                          vErrors = [err248];
-                        } else {
-                          vErrors.push(err248);
-                        }
-                        errors++;
+                        vErrors.push(err245);
                       }
+                      errors++;
                     }
-                    if (data49.triggerOccurrenceId !== undefined) {
-                      let data68 = data49.triggerOccurrenceId;
-                      if (typeof data68 === "string") {
-                        if (func1(data68) > 200) {
-                          const err249 = {
-                            instancePath:
-                              instancePath +
-                              "/checkpoints/" +
-                              i13 +
-                              "/context/triggerOccurrenceId",
-                            schemaPath:
-                              "#/$defs/controlContext/oneOf/3/properties/triggerOccurrenceId/maxLength",
-                            keyword: "maxLength",
-                            params: { limit: 200 },
-                            message: "must NOT have more than 200 characters",
-                          };
-                          if (vErrors === null) {
-                            vErrors = [err249];
-                          } else {
-                            vErrors.push(err249);
-                          }
-                          errors++;
-                        }
-                        if (func1(data68) < 1) {
-                          const err250 = {
-                            instancePath:
-                              instancePath +
-                              "/checkpoints/" +
-                              i13 +
-                              "/context/triggerOccurrenceId",
-                            schemaPath:
-                              "#/$defs/controlContext/oneOf/3/properties/triggerOccurrenceId/minLength",
-                            keyword: "minLength",
-                            params: { limit: 1 },
-                            message: "must NOT have fewer than 1 characters",
-                          };
-                          if (vErrors === null) {
-                            vErrors = [err250];
-                          } else {
-                            vErrors.push(err250);
-                          }
-                          errors++;
-                        }
-                      } else {
-                        const err251 = {
-                          instancePath:
-                            instancePath +
-                            "/checkpoints/" +
-                            i13 +
-                            "/context/triggerOccurrenceId",
-                          schemaPath:
-                            "#/$defs/controlContext/oneOf/3/properties/triggerOccurrenceId/type",
-                          keyword: "type",
-                          params: { type: "string" },
-                          message: "must be string",
-                        };
-                        if (vErrors === null) {
-                          vErrors = [err251];
-                        } else {
-                          vErrors.push(err251);
-                        }
-                        errors++;
-                      }
-                    }
-                    if (data49.owedOccurrenceId !== undefined) {
-                      let data69 = data49.owedOccurrenceId;
-                      if (typeof data69 === "string") {
-                        if (func1(data69) > 200) {
-                          const err252 = {
-                            instancePath:
-                              instancePath +
-                              "/checkpoints/" +
-                              i13 +
-                              "/context/owedOccurrenceId",
-                            schemaPath:
-                              "#/$defs/controlContext/oneOf/3/properties/owedOccurrenceId/maxLength",
-                            keyword: "maxLength",
-                            params: { limit: 200 },
-                            message: "must NOT have more than 200 characters",
-                          };
-                          if (vErrors === null) {
-                            vErrors = [err252];
-                          } else {
-                            vErrors.push(err252);
-                          }
-                          errors++;
-                        }
-                        if (func1(data69) < 1) {
-                          const err253 = {
-                            instancePath:
-                              instancePath +
-                              "/checkpoints/" +
-                              i13 +
-                              "/context/owedOccurrenceId",
-                            schemaPath:
-                              "#/$defs/controlContext/oneOf/3/properties/owedOccurrenceId/minLength",
-                            keyword: "minLength",
-                            params: { limit: 1 },
-                            message: "must NOT have fewer than 1 characters",
-                          };
-                          if (vErrors === null) {
-                            vErrors = [err253];
-                          } else {
-                            vErrors.push(err253);
-                          }
-                          errors++;
-                        }
-                      } else {
-                        const err254 = {
+                  }
+                  if (data49.owedOccurrenceId !== undefined) {
+                    let data68 = data49.owedOccurrenceId;
+                    if (typeof data68 === "string") {
+                      if (func1(data68) > 200) {
+                        const err246 = {
                           instancePath:
                             instancePath +
                             "/checkpoints/" +
                             i13 +
                             "/context/owedOccurrenceId",
                           schemaPath:
-                            "#/$defs/controlContext/oneOf/3/properties/owedOccurrenceId/type",
-                          keyword: "type",
-                          params: { type: "string" },
-                          message: "must be string",
+                            "#/$defs/activeControlContext/oneOf/2/properties/owedOccurrenceId/maxLength",
+                          keyword: "maxLength",
+                          params: { limit: 200 },
+                          message: "must NOT have more than 200 characters",
                         };
                         if (vErrors === null) {
-                          vErrors = [err254];
+                          vErrors = [err246];
                         } else {
-                          vErrors.push(err254);
+                          vErrors.push(err246);
                         }
                         errors++;
                       }
+                      if (func1(data68) < 1) {
+                        const err247 = {
+                          instancePath:
+                            instancePath +
+                            "/checkpoints/" +
+                            i13 +
+                            "/context/owedOccurrenceId",
+                          schemaPath:
+                            "#/$defs/activeControlContext/oneOf/2/properties/owedOccurrenceId/minLength",
+                          keyword: "minLength",
+                          params: { limit: 1 },
+                          message: "must NOT have fewer than 1 characters",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err247];
+                        } else {
+                          vErrors.push(err247);
+                        }
+                        errors++;
+                      }
+                    } else {
+                      const err248 = {
+                        instancePath:
+                          instancePath +
+                          "/checkpoints/" +
+                          i13 +
+                          "/context/owedOccurrenceId",
+                        schemaPath:
+                          "#/$defs/activeControlContext/oneOf/2/properties/owedOccurrenceId/type",
+                        keyword: "type",
+                        params: { type: "string" },
+                        message: "must be string",
+                      };
+                      if (vErrors === null) {
+                        vErrors = [err248];
+                      } else {
+                        vErrors.push(err248);
+                      }
+                      errors++;
                     }
-                    if (data49.suspended !== undefined) {
-                      let data70 = data49.suspended;
-                      if (
-                        data70 &&
-                        typeof data70 == "object" &&
-                        !Array.isArray(data70)
-                      ) {
-                        if (data70.flow === undefined) {
-                          const err255 = {
+                  }
+                  if (data49.suspended !== undefined) {
+                    let data69 = data49.suspended;
+                    if (
+                      data69 &&
+                      typeof data69 == "object" &&
+                      !Array.isArray(data69)
+                    ) {
+                      if (data69.flow === undefined) {
+                        const err249 = {
+                          instancePath:
+                            instancePath +
+                            "/checkpoints/" +
+                            i13 +
+                            "/context/suspended",
+                          schemaPath:
+                            "#/$defs/activeControlContext/oneOf/2/properties/suspended/required",
+                          keyword: "required",
+                          params: { missingProperty: "flow" },
+                          message:
+                            "must have required property '" + "flow" + "'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err249];
+                        } else {
+                          vErrors.push(err249);
+                        }
+                        errors++;
+                      }
+                      if (data69.delivery === undefined) {
+                        const err250 = {
+                          instancePath:
+                            instancePath +
+                            "/checkpoints/" +
+                            i13 +
+                            "/context/suspended",
+                          schemaPath:
+                            "#/$defs/activeControlContext/oneOf/2/properties/suspended/required",
+                          keyword: "required",
+                          params: { missingProperty: "delivery" },
+                          message:
+                            "must have required property '" + "delivery" + "'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err250];
+                        } else {
+                          vErrors.push(err250);
+                        }
+                        errors++;
+                      }
+                      for (const key20 in data69) {
+                        if (!(key20 === "flow" || key20 === "delivery")) {
+                          const err251 = {
                             instancePath:
                               instancePath +
                               "/checkpoints/" +
                               i13 +
                               "/context/suspended",
                             schemaPath:
-                              "#/$defs/controlContext/oneOf/3/properties/suspended/required",
-                            keyword: "required",
-                            params: { missingProperty: "flow" },
-                            message:
-                              "must have required property '" + "flow" + "'",
+                              "#/$defs/activeControlContext/oneOf/2/properties/suspended/additionalProperties",
+                            keyword: "additionalProperties",
+                            params: { additionalProperty: key20 },
+                            message: "must NOT have additional properties",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err251];
+                          } else {
+                            vErrors.push(err251);
+                          }
+                          errors++;
+                        }
+                      }
+                      if (data69.flow !== undefined) {
+                        let data70 = data69.flow;
+                        const _errs174 = errors;
+                        let valid52 = false;
+                        let passing6 = null;
+                        const _errs175 = errors;
+                        if (
+                          data70 &&
+                          typeof data70 == "object" &&
+                          !Array.isArray(data70)
+                        ) {
+                          if (data70.kind === undefined) {
+                            const err252 = {
+                              instancePath:
+                                instancePath +
+                                "/checkpoints/" +
+                                i13 +
+                                "/context/suspended/flow",
+                              schemaPath:
+                                "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/flow/oneOf/0/required",
+                              keyword: "required",
+                              params: { missingProperty: "kind" },
+                              message:
+                                "must have required property '" + "kind" + "'",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err252];
+                            } else {
+                              vErrors.push(err252);
+                            }
+                            errors++;
+                          }
+                          for (const key21 in data70) {
+                            if (!(key21 === "kind")) {
+                              const err253 = {
+                                instancePath:
+                                  instancePath +
+                                  "/checkpoints/" +
+                                  i13 +
+                                  "/context/suspended/flow",
+                                schemaPath:
+                                  "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/flow/oneOf/0/additionalProperties",
+                                keyword: "additionalProperties",
+                                params: { additionalProperty: key21 },
+                                message: "must NOT have additional properties",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err253];
+                              } else {
+                                vErrors.push(err253);
+                              }
+                              errors++;
+                            }
+                          }
+                          if (data70.kind !== undefined) {
+                            if ("normal" !== data70.kind) {
+                              const err254 = {
+                                instancePath:
+                                  instancePath +
+                                  "/checkpoints/" +
+                                  i13 +
+                                  "/context/suspended/flow/kind",
+                                schemaPath:
+                                  "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/flow/oneOf/0/properties/kind/const",
+                                keyword: "const",
+                                params: { allowedValue: "normal" },
+                                message: "must be equal to constant",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err254];
+                              } else {
+                                vErrors.push(err254);
+                              }
+                              errors++;
+                            }
+                          }
+                        } else {
+                          const err255 = {
+                            instancePath:
+                              instancePath +
+                              "/checkpoints/" +
+                              i13 +
+                              "/context/suspended/flow",
+                            schemaPath:
+                              "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/flow/oneOf/0/type",
+                            keyword: "type",
+                            params: { type: "object" },
+                            message: "must be object",
                           };
                           if (vErrors === null) {
                             vErrors = [err255];
@@ -31266,42 +31304,54 @@ function validate27(
                           }
                           errors++;
                         }
-                        if (data70.delivery === undefined) {
-                          const err256 = {
-                            instancePath:
-                              instancePath +
-                              "/checkpoints/" +
-                              i13 +
-                              "/context/suspended",
-                            schemaPath:
-                              "#/$defs/controlContext/oneOf/3/properties/suspended/required",
-                            keyword: "required",
-                            params: { missingProperty: "delivery" },
-                            message:
-                              "must have required property '" +
-                              "delivery" +
-                              "'",
-                          };
-                          if (vErrors === null) {
-                            vErrors = [err256];
-                          } else {
-                            vErrors.push(err256);
-                          }
-                          errors++;
+                        var _valid6 = _errs175 === errors;
+                        if (_valid6) {
+                          valid52 = true;
+                          passing6 = 0;
+                          var props5 = true;
                         }
-                        for (const key21 in data70) {
-                          if (!(key21 === "flow" || key21 === "delivery")) {
+                        const _errs179 = errors;
+                        if (
+                          data70 &&
+                          typeof data70 == "object" &&
+                          !Array.isArray(data70)
+                        ) {
+                          if (data70.kind === undefined) {
+                            const err256 = {
+                              instancePath:
+                                instancePath +
+                                "/checkpoints/" +
+                                i13 +
+                                "/context/suspended/flow",
+                              schemaPath:
+                                "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/flow/oneOf/1/required",
+                              keyword: "required",
+                              params: { missingProperty: "kind" },
+                              message:
+                                "must have required property '" + "kind" + "'",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err256];
+                            } else {
+                              vErrors.push(err256);
+                            }
+                            errors++;
+                          }
+                          if (data70.queueId === undefined) {
                             const err257 = {
                               instancePath:
                                 instancePath +
                                 "/checkpoints/" +
                                 i13 +
-                                "/context/suspended",
+                                "/context/suspended/flow",
                               schemaPath:
-                                "#/$defs/controlContext/oneOf/3/properties/suspended/additionalProperties",
-                              keyword: "additionalProperties",
-                              params: { additionalProperty: key21 },
-                              message: "must NOT have additional properties",
+                                "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/flow/oneOf/1/required",
+                              keyword: "required",
+                              params: { missingProperty: "queueId" },
+                              message:
+                                "must have required property '" +
+                                "queueId" +
+                                "'",
                             };
                             if (vErrors === null) {
                               vErrors = [err257];
@@ -31310,156 +31360,132 @@ function validate27(
                             }
                             errors++;
                           }
-                        }
-                        if (data70.flow !== undefined) {
-                          let data71 = data70.flow;
-                          const _errs180 = errors;
-                          let valid53 = false;
-                          let passing5 = null;
-                          const _errs181 = errors;
-                          if (
-                            data71 &&
-                            typeof data71 == "object" &&
-                            !Array.isArray(data71)
-                          ) {
-                            if (data71.kind === undefined) {
-                              const err258 = {
-                                instancePath:
-                                  instancePath +
-                                  "/checkpoints/" +
-                                  i13 +
-                                  "/context/suspended/flow",
-                                schemaPath:
-                                  "#/$defs/controlContext/oneOf/3/properties/suspended/properties/flow/oneOf/0/required",
-                                keyword: "required",
-                                params: { missingProperty: "kind" },
-                                message:
-                                  "must have required property '" +
-                                  "kind" +
-                                  "'",
-                              };
-                              if (vErrors === null) {
-                                vErrors = [err258];
-                              } else {
-                                vErrors.push(err258);
-                              }
-                              errors++;
-                            }
-                            for (const key22 in data71) {
-                              if (!(key22 === "kind")) {
-                                const err259 = {
-                                  instancePath:
-                                    instancePath +
-                                    "/checkpoints/" +
-                                    i13 +
-                                    "/context/suspended/flow",
-                                  schemaPath:
-                                    "#/$defs/controlContext/oneOf/3/properties/suspended/properties/flow/oneOf/0/additionalProperties",
-                                  keyword: "additionalProperties",
-                                  params: { additionalProperty: key22 },
-                                  message:
-                                    "must NOT have additional properties",
-                                };
-                                if (vErrors === null) {
-                                  vErrors = [err259];
-                                } else {
-                                  vErrors.push(err259);
-                                }
-                                errors++;
-                              }
-                            }
-                            if (data71.kind !== undefined) {
-                              if ("normal" !== data71.kind) {
-                                const err260 = {
-                                  instancePath:
-                                    instancePath +
-                                    "/checkpoints/" +
-                                    i13 +
-                                    "/context/suspended/flow/kind",
-                                  schemaPath:
-                                    "#/$defs/controlContext/oneOf/3/properties/suspended/properties/flow/oneOf/0/properties/kind/const",
-                                  keyword: "const",
-                                  params: { allowedValue: "normal" },
-                                  message: "must be equal to constant",
-                                };
-                                if (vErrors === null) {
-                                  vErrors = [err260];
-                                } else {
-                                  vErrors.push(err260);
-                                }
-                                errors++;
-                              }
-                            }
-                          } else {
-                            const err261 = {
+                          if (data70.index === undefined) {
+                            const err258 = {
                               instancePath:
                                 instancePath +
                                 "/checkpoints/" +
                                 i13 +
                                 "/context/suspended/flow",
                               schemaPath:
-                                "#/$defs/controlContext/oneOf/3/properties/suspended/properties/flow/oneOf/0/type",
-                              keyword: "type",
-                              params: { type: "object" },
-                              message: "must be object",
+                                "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/flow/oneOf/1/required",
+                              keyword: "required",
+                              params: { missingProperty: "index" },
+                              message:
+                                "must have required property '" + "index" + "'",
                             };
                             if (vErrors === null) {
-                              vErrors = [err261];
+                              vErrors = [err258];
                             } else {
-                              vErrors.push(err261);
+                              vErrors.push(err258);
                             }
                             errors++;
                           }
-                          var _valid6 = _errs181 === errors;
-                          if (_valid6) {
-                            valid53 = true;
-                            passing5 = 0;
-                            var props5 = true;
-                          }
-                          const _errs185 = errors;
-                          if (
-                            data71 &&
-                            typeof data71 == "object" &&
-                            !Array.isArray(data71)
-                          ) {
-                            if (data71.kind === undefined) {
-                              const err262 = {
+                          for (const key22 in data70) {
+                            if (!(
+                              key22 === "kind" ||
+                              key22 === "queueId" ||
+                              key22 === "index"
+                            )) {
+                              const err259 = {
                                 instancePath:
                                   instancePath +
                                   "/checkpoints/" +
                                   i13 +
                                   "/context/suspended/flow",
                                 schemaPath:
-                                  "#/$defs/controlContext/oneOf/3/properties/suspended/properties/flow/oneOf/1/required",
-                                keyword: "required",
-                                params: { missingProperty: "kind" },
-                                message:
-                                  "must have required property '" +
-                                  "kind" +
-                                  "'",
+                                  "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/flow/oneOf/1/additionalProperties",
+                                keyword: "additionalProperties",
+                                params: { additionalProperty: key22 },
+                                message: "must NOT have additional properties",
                               };
                               if (vErrors === null) {
-                                vErrors = [err262];
+                                vErrors = [err259];
                               } else {
-                                vErrors.push(err262);
+                                vErrors.push(err259);
                               }
                               errors++;
                             }
-                            if (data71.queueId === undefined) {
+                          }
+                          if (data70.kind !== undefined) {
+                            if ("review" !== data70.kind) {
+                              const err260 = {
+                                instancePath:
+                                  instancePath +
+                                  "/checkpoints/" +
+                                  i13 +
+                                  "/context/suspended/flow/kind",
+                                schemaPath:
+                                  "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/flow/oneOf/1/properties/kind/const",
+                                keyword: "const",
+                                params: { allowedValue: "review" },
+                                message: "must be equal to constant",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err260];
+                              } else {
+                                vErrors.push(err260);
+                              }
+                              errors++;
+                            }
+                          }
+                          if (data70.queueId !== undefined) {
+                            let data73 = data70.queueId;
+                            if (typeof data73 === "string") {
+                              if (func1(data73) > 200) {
+                                const err261 = {
+                                  instancePath:
+                                    instancePath +
+                                    "/checkpoints/" +
+                                    i13 +
+                                    "/context/suspended/flow/queueId",
+                                  schemaPath:
+                                    "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/flow/oneOf/1/properties/queueId/maxLength",
+                                  keyword: "maxLength",
+                                  params: { limit: 200 },
+                                  message:
+                                    "must NOT have more than 200 characters",
+                                };
+                                if (vErrors === null) {
+                                  vErrors = [err261];
+                                } else {
+                                  vErrors.push(err261);
+                                }
+                                errors++;
+                              }
+                              if (func1(data73) < 1) {
+                                const err262 = {
+                                  instancePath:
+                                    instancePath +
+                                    "/checkpoints/" +
+                                    i13 +
+                                    "/context/suspended/flow/queueId",
+                                  schemaPath:
+                                    "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/flow/oneOf/1/properties/queueId/minLength",
+                                  keyword: "minLength",
+                                  params: { limit: 1 },
+                                  message:
+                                    "must NOT have fewer than 1 characters",
+                                };
+                                if (vErrors === null) {
+                                  vErrors = [err262];
+                                } else {
+                                  vErrors.push(err262);
+                                }
+                                errors++;
+                              }
+                            } else {
                               const err263 = {
                                 instancePath:
                                   instancePath +
                                   "/checkpoints/" +
                                   i13 +
-                                  "/context/suspended/flow",
+                                  "/context/suspended/flow/queueId",
                                 schemaPath:
-                                  "#/$defs/controlContext/oneOf/3/properties/suspended/properties/flow/oneOf/1/required",
-                                keyword: "required",
-                                params: { missingProperty: "queueId" },
-                                message:
-                                  "must have required property '" +
-                                  "queueId" +
-                                  "'",
+                                  "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/flow/oneOf/1/properties/queueId/type",
+                                keyword: "type",
+                                params: { type: "string" },
+                                message: "must be string",
                               };
                               if (vErrors === null) {
                                 vErrors = [err263];
@@ -31468,21 +31494,26 @@ function validate27(
                               }
                               errors++;
                             }
-                            if (data71.index === undefined) {
+                          }
+                          if (data70.index !== undefined) {
+                            let data74 = data70.index;
+                            if (!(
+                              typeof data74 == "number" &&
+                              !(data74 % 1) &&
+                              !isNaN(data74) &&
+                              isFinite(data74)
+                            )) {
                               const err264 = {
                                 instancePath:
                                   instancePath +
                                   "/checkpoints/" +
                                   i13 +
-                                  "/context/suspended/flow",
+                                  "/context/suspended/flow/index",
                                 schemaPath:
-                                  "#/$defs/controlContext/oneOf/3/properties/suspended/properties/flow/oneOf/1/required",
-                                keyword: "required",
-                                params: { missingProperty: "index" },
-                                message:
-                                  "must have required property '" +
-                                  "index" +
-                                  "'",
+                                  "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/flow/oneOf/1/properties/index/type",
+                                keyword: "type",
+                                params: { type: "integer" },
+                                message: "must be integer",
                               };
                               if (vErrors === null) {
                                 vErrors = [err264];
@@ -31491,24 +31522,19 @@ function validate27(
                               }
                               errors++;
                             }
-                            for (const key23 in data71) {
-                              if (!(
-                                key23 === "kind" ||
-                                key23 === "queueId" ||
-                                key23 === "index"
-                              )) {
+                            if (typeof data74 == "number" && isFinite(data74)) {
+                              if (data74 > 99 || isNaN(data74)) {
                                 const err265 = {
                                   instancePath:
                                     instancePath +
                                     "/checkpoints/" +
                                     i13 +
-                                    "/context/suspended/flow",
+                                    "/context/suspended/flow/index",
                                   schemaPath:
-                                    "#/$defs/controlContext/oneOf/3/properties/suspended/properties/flow/oneOf/1/additionalProperties",
-                                  keyword: "additionalProperties",
-                                  params: { additionalProperty: key23 },
-                                  message:
-                                    "must NOT have additional properties",
+                                    "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/flow/oneOf/1/properties/index/maximum",
+                                  keyword: "maximum",
+                                  params: { comparison: "<=", limit: 99 },
+                                  message: "must be <= 99",
                                 };
                                 if (vErrors === null) {
                                   vErrors = [err265];
@@ -31517,20 +31543,18 @@ function validate27(
                                 }
                                 errors++;
                               }
-                            }
-                            if (data71.kind !== undefined) {
-                              if ("review" !== data71.kind) {
+                              if (data74 < 0 || isNaN(data74)) {
                                 const err266 = {
                                   instancePath:
                                     instancePath +
                                     "/checkpoints/" +
                                     i13 +
-                                    "/context/suspended/flow/kind",
+                                    "/context/suspended/flow/index",
                                   schemaPath:
-                                    "#/$defs/controlContext/oneOf/3/properties/suspended/properties/flow/oneOf/1/properties/kind/const",
-                                  keyword: "const",
-                                  params: { allowedValue: "review" },
-                                  message: "must be equal to constant",
+                                    "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/flow/oneOf/1/properties/index/minimum",
+                                  keyword: "minimum",
+                                  params: { comparison: ">=", limit: 0 },
+                                  message: "must be >= 0",
                                 };
                                 if (vErrors === null) {
                                   vErrors = [err266];
@@ -31540,157 +31564,191 @@ function validate27(
                                 errors++;
                               }
                             }
-                            if (data71.queueId !== undefined) {
-                              let data74 = data71.queueId;
-                              if (typeof data74 === "string") {
-                                if (func1(data74) > 200) {
-                                  const err267 = {
-                                    instancePath:
-                                      instancePath +
-                                      "/checkpoints/" +
-                                      i13 +
-                                      "/context/suspended/flow/queueId",
-                                    schemaPath:
-                                      "#/$defs/controlContext/oneOf/3/properties/suspended/properties/flow/oneOf/1/properties/queueId/maxLength",
-                                    keyword: "maxLength",
-                                    params: { limit: 200 },
-                                    message:
-                                      "must NOT have more than 200 characters",
-                                  };
-                                  if (vErrors === null) {
-                                    vErrors = [err267];
-                                  } else {
-                                    vErrors.push(err267);
-                                  }
-                                  errors++;
-                                }
-                                if (func1(data74) < 1) {
-                                  const err268 = {
-                                    instancePath:
-                                      instancePath +
-                                      "/checkpoints/" +
-                                      i13 +
-                                      "/context/suspended/flow/queueId",
-                                    schemaPath:
-                                      "#/$defs/controlContext/oneOf/3/properties/suspended/properties/flow/oneOf/1/properties/queueId/minLength",
-                                    keyword: "minLength",
-                                    params: { limit: 1 },
-                                    message:
-                                      "must NOT have fewer than 1 characters",
-                                  };
-                                  if (vErrors === null) {
-                                    vErrors = [err268];
-                                  } else {
-                                    vErrors.push(err268);
-                                  }
-                                  errors++;
-                                }
-                              } else {
-                                const err269 = {
-                                  instancePath:
-                                    instancePath +
-                                    "/checkpoints/" +
-                                    i13 +
-                                    "/context/suspended/flow/queueId",
-                                  schemaPath:
-                                    "#/$defs/controlContext/oneOf/3/properties/suspended/properties/flow/oneOf/1/properties/queueId/type",
-                                  keyword: "type",
-                                  params: { type: "string" },
-                                  message: "must be string",
-                                };
-                                if (vErrors === null) {
-                                  vErrors = [err269];
-                                } else {
-                                  vErrors.push(err269);
-                                }
-                                errors++;
-                              }
-                            }
-                            if (data71.index !== undefined) {
-                              let data75 = data71.index;
-                              if (!(
-                                typeof data75 == "number" &&
-                                !(data75 % 1) &&
-                                !isNaN(data75) &&
-                                isFinite(data75)
-                              )) {
-                                const err270 = {
-                                  instancePath:
-                                    instancePath +
-                                    "/checkpoints/" +
-                                    i13 +
-                                    "/context/suspended/flow/index",
-                                  schemaPath:
-                                    "#/$defs/controlContext/oneOf/3/properties/suspended/properties/flow/oneOf/1/properties/index/type",
-                                  keyword: "type",
-                                  params: { type: "integer" },
-                                  message: "must be integer",
-                                };
-                                if (vErrors === null) {
-                                  vErrors = [err270];
-                                } else {
-                                  vErrors.push(err270);
-                                }
-                                errors++;
-                              }
-                              if (
-                                typeof data75 == "number" &&
-                                isFinite(data75)
-                              ) {
-                                if (data75 > 99 || isNaN(data75)) {
-                                  const err271 = {
-                                    instancePath:
-                                      instancePath +
-                                      "/checkpoints/" +
-                                      i13 +
-                                      "/context/suspended/flow/index",
-                                    schemaPath:
-                                      "#/$defs/controlContext/oneOf/3/properties/suspended/properties/flow/oneOf/1/properties/index/maximum",
-                                    keyword: "maximum",
-                                    params: { comparison: "<=", limit: 99 },
-                                    message: "must be <= 99",
-                                  };
-                                  if (vErrors === null) {
-                                    vErrors = [err271];
-                                  } else {
-                                    vErrors.push(err271);
-                                  }
-                                  errors++;
-                                }
-                                if (data75 < 0 || isNaN(data75)) {
-                                  const err272 = {
-                                    instancePath:
-                                      instancePath +
-                                      "/checkpoints/" +
-                                      i13 +
-                                      "/context/suspended/flow/index",
-                                    schemaPath:
-                                      "#/$defs/controlContext/oneOf/3/properties/suspended/properties/flow/oneOf/1/properties/index/minimum",
-                                    keyword: "minimum",
-                                    params: { comparison: ">=", limit: 0 },
-                                    message: "must be >= 0",
-                                  };
-                                  if (vErrors === null) {
-                                    vErrors = [err272];
-                                  } else {
-                                    vErrors.push(err272);
-                                  }
-                                  errors++;
-                                }
-                              }
-                            }
+                          }
+                        } else {
+                          const err267 = {
+                            instancePath:
+                              instancePath +
+                              "/checkpoints/" +
+                              i13 +
+                              "/context/suspended/flow",
+                            schemaPath:
+                              "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/flow/oneOf/1/type",
+                            keyword: "type",
+                            params: { type: "object" },
+                            message: "must be object",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err267];
                           } else {
+                            vErrors.push(err267);
+                          }
+                          errors++;
+                        }
+                        var _valid6 = _errs179 === errors;
+                        if (_valid6 && valid52) {
+                          valid52 = false;
+                          passing6 = [passing6, 1];
+                        } else {
+                          if (_valid6) {
+                            valid52 = true;
+                            passing6 = 1;
+                            if (props5 !== true) {
+                              props5 = true;
+                            }
+                          }
+                        }
+                        if (!valid52) {
+                          const err268 = {
+                            instancePath:
+                              instancePath +
+                              "/checkpoints/" +
+                              i13 +
+                              "/context/suspended/flow",
+                            schemaPath:
+                              "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/flow/oneOf",
+                            keyword: "oneOf",
+                            params: { passingSchemas: passing6 },
+                            message: "must match exactly one schema in oneOf",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err268];
+                          } else {
+                            vErrors.push(err268);
+                          }
+                          errors++;
+                        } else {
+                          errors = _errs174;
+                          if (vErrors !== null) {
+                            if (_errs174) {
+                              vErrors.length = _errs174;
+                            } else {
+                              vErrors = null;
+                            }
+                          }
+                        }
+                      }
+                      if (data69.delivery !== undefined) {
+                        let data75 = data69.delivery;
+                        const _errs188 = errors;
+                        let valid55 = false;
+                        let passing7 = null;
+                        const _errs189 = errors;
+                        if (
+                          data75 &&
+                          typeof data75 == "object" &&
+                          !Array.isArray(data75)
+                        ) {
+                          if (data75.kind === undefined) {
+                            const err269 = {
+                              instancePath:
+                                instancePath +
+                                "/checkpoints/" +
+                                i13 +
+                                "/context/suspended/delivery",
+                              schemaPath:
+                                "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/delivery/oneOf/0/required",
+                              keyword: "required",
+                              params: { missingProperty: "kind" },
+                              message:
+                                "must have required property '" + "kind" + "'",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err269];
+                            } else {
+                              vErrors.push(err269);
+                            }
+                            errors++;
+                          }
+                          for (const key23 in data75) {
+                            if (!(key23 === "kind")) {
+                              const err270 = {
+                                instancePath:
+                                  instancePath +
+                                  "/checkpoints/" +
+                                  i13 +
+                                  "/context/suspended/delivery",
+                                schemaPath:
+                                  "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/delivery/oneOf/0/additionalProperties",
+                                keyword: "additionalProperties",
+                                params: { additionalProperty: key23 },
+                                message: "must NOT have additional properties",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err270];
+                              } else {
+                                vErrors.push(err270);
+                              }
+                              errors++;
+                            }
+                          }
+                          if (data75.kind !== undefined) {
+                            if ("source" !== data75.kind) {
+                              const err271 = {
+                                instancePath:
+                                  instancePath +
+                                  "/checkpoints/" +
+                                  i13 +
+                                  "/context/suspended/delivery/kind",
+                                schemaPath:
+                                  "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/delivery/oneOf/0/properties/kind/const",
+                                keyword: "const",
+                                params: { allowedValue: "source" },
+                                message: "must be equal to constant",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err271];
+                              } else {
+                                vErrors.push(err271);
+                              }
+                              errors++;
+                            }
+                          }
+                        } else {
+                          const err272 = {
+                            instancePath:
+                              instancePath +
+                              "/checkpoints/" +
+                              i13 +
+                              "/context/suspended/delivery",
+                            schemaPath:
+                              "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/delivery/oneOf/0/type",
+                            keyword: "type",
+                            params: { type: "object" },
+                            message: "must be object",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err272];
+                          } else {
+                            vErrors.push(err272);
+                          }
+                          errors++;
+                        }
+                        var _valid7 = _errs189 === errors;
+                        if (_valid7) {
+                          valid55 = true;
+                          passing7 = 0;
+                          var props6 = true;
+                        }
+                        const _errs193 = errors;
+                        if (
+                          data75 &&
+                          typeof data75 == "object" &&
+                          !Array.isArray(data75)
+                        ) {
+                          if (data75.kind === undefined) {
                             const err273 = {
                               instancePath:
                                 instancePath +
                                 "/checkpoints/" +
                                 i13 +
-                                "/context/suspended/flow",
+                                "/context/suspended/delivery",
                               schemaPath:
-                                "#/$defs/controlContext/oneOf/3/properties/suspended/properties/flow/oneOf/1/type",
-                              keyword: "type",
-                              params: { type: "object" },
-                              message: "must be object",
+                                "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/delivery/oneOf/1/required",
+                              keyword: "required",
+                              params: { missingProperty: "kind" },
+                              message:
+                                "must have required property '" + "kind" + "'",
                             };
                             if (vErrors === null) {
                               vErrors = [err273];
@@ -31699,31 +31757,21 @@ function validate27(
                             }
                             errors++;
                           }
-                          var _valid6 = _errs185 === errors;
-                          if (_valid6 && valid53) {
-                            valid53 = false;
-                            passing5 = [passing5, 1];
-                          } else {
-                            if (_valid6) {
-                              valid53 = true;
-                              passing5 = 1;
-                              if (props5 !== true) {
-                                props5 = true;
-                              }
-                            }
-                          }
-                          if (!valid53) {
+                          if (data75.cycleId === undefined) {
                             const err274 = {
                               instancePath:
                                 instancePath +
                                 "/checkpoints/" +
                                 i13 +
-                                "/context/suspended/flow",
+                                "/context/suspended/delivery",
                               schemaPath:
-                                "#/$defs/controlContext/oneOf/3/properties/suspended/properties/flow/oneOf",
-                              keyword: "oneOf",
-                              params: { passingSchemas: passing5 },
-                              message: "must match exactly one schema in oneOf",
+                                "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/delivery/oneOf/1/required",
+                              keyword: "required",
+                              params: { missingProperty: "cycleId" },
+                              message:
+                                "must have required property '" +
+                                "cycleId" +
+                                "'",
                             };
                             if (vErrors === null) {
                               vErrors = [err274];
@@ -31731,29 +31779,9 @@ function validate27(
                               vErrors.push(err274);
                             }
                             errors++;
-                          } else {
-                            errors = _errs180;
-                            if (vErrors !== null) {
-                              if (_errs180) {
-                                vErrors.length = _errs180;
-                              } else {
-                                vErrors = null;
-                              }
-                            }
                           }
-                        }
-                        if (data70.delivery !== undefined) {
-                          let data76 = data70.delivery;
-                          const _errs194 = errors;
-                          let valid56 = false;
-                          let passing6 = null;
-                          const _errs195 = errors;
-                          if (
-                            data76 &&
-                            typeof data76 == "object" &&
-                            !Array.isArray(data76)
-                          ) {
-                            if (data76.kind === undefined) {
+                          for (const key24 in data75) {
+                            if (!(key24 === "kind" || key24 === "cycleId")) {
                               const err275 = {
                                 instancePath:
                                   instancePath +
@@ -31761,13 +31789,10 @@ function validate27(
                                   i13 +
                                   "/context/suspended/delivery",
                                 schemaPath:
-                                  "#/$defs/controlContext/oneOf/3/properties/suspended/properties/delivery/oneOf/0/required",
-                                keyword: "required",
-                                params: { missingProperty: "kind" },
-                                message:
-                                  "must have required property '" +
-                                  "kind" +
-                                  "'",
+                                  "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/delivery/oneOf/1/additionalProperties",
+                                keyword: "additionalProperties",
+                                params: { additionalProperty: key24 },
+                                message: "must NOT have additional properties",
                               };
                               if (vErrors === null) {
                                 vErrors = [err275];
@@ -31776,42 +31801,45 @@ function validate27(
                               }
                               errors++;
                             }
-                            for (const key24 in data76) {
-                              if (!(key24 === "kind")) {
-                                const err276 = {
-                                  instancePath:
-                                    instancePath +
-                                    "/checkpoints/" +
-                                    i13 +
-                                    "/context/suspended/delivery",
-                                  schemaPath:
-                                    "#/$defs/controlContext/oneOf/3/properties/suspended/properties/delivery/oneOf/0/additionalProperties",
-                                  keyword: "additionalProperties",
-                                  params: { additionalProperty: key24 },
-                                  message:
-                                    "must NOT have additional properties",
-                                };
-                                if (vErrors === null) {
-                                  vErrors = [err276];
-                                } else {
-                                  vErrors.push(err276);
-                                }
-                                errors++;
+                          }
+                          if (data75.kind !== undefined) {
+                            if ("cycle" !== data75.kind) {
+                              const err276 = {
+                                instancePath:
+                                  instancePath +
+                                  "/checkpoints/" +
+                                  i13 +
+                                  "/context/suspended/delivery/kind",
+                                schemaPath:
+                                  "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/delivery/oneOf/1/properties/kind/const",
+                                keyword: "const",
+                                params: { allowedValue: "cycle" },
+                                message: "must be equal to constant",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err276];
+                              } else {
+                                vErrors.push(err276);
                               }
+                              errors++;
                             }
-                            if (data76.kind !== undefined) {
-                              if ("source" !== data76.kind) {
+                          }
+                          if (data75.cycleId !== undefined) {
+                            let data78 = data75.cycleId;
+                            if (typeof data78 === "string") {
+                              if (func1(data78) > 200) {
                                 const err277 = {
                                   instancePath:
                                     instancePath +
                                     "/checkpoints/" +
                                     i13 +
-                                    "/context/suspended/delivery/kind",
+                                    "/context/suspended/delivery/cycleId",
                                   schemaPath:
-                                    "#/$defs/controlContext/oneOf/3/properties/suspended/properties/delivery/oneOf/0/properties/kind/const",
-                                  keyword: "const",
-                                  params: { allowedValue: "source" },
-                                  message: "must be equal to constant",
+                                    "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/delivery/oneOf/1/properties/cycleId/maxLength",
+                                  keyword: "maxLength",
+                                  params: { limit: 200 },
+                                  message:
+                                    "must NOT have more than 200 characters",
                                 };
                                 if (vErrors === null) {
                                   vErrors = [err277];
@@ -31820,54 +31848,39 @@ function validate27(
                                 }
                                 errors++;
                               }
-                            }
-                          } else {
-                            const err278 = {
-                              instancePath:
-                                instancePath +
-                                "/checkpoints/" +
-                                i13 +
-                                "/context/suspended/delivery",
-                              schemaPath:
-                                "#/$defs/controlContext/oneOf/3/properties/suspended/properties/delivery/oneOf/0/type",
-                              keyword: "type",
-                              params: { type: "object" },
-                              message: "must be object",
-                            };
-                            if (vErrors === null) {
-                              vErrors = [err278];
+                              if (func1(data78) < 1) {
+                                const err278 = {
+                                  instancePath:
+                                    instancePath +
+                                    "/checkpoints/" +
+                                    i13 +
+                                    "/context/suspended/delivery/cycleId",
+                                  schemaPath:
+                                    "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/delivery/oneOf/1/properties/cycleId/minLength",
+                                  keyword: "minLength",
+                                  params: { limit: 1 },
+                                  message:
+                                    "must NOT have fewer than 1 characters",
+                                };
+                                if (vErrors === null) {
+                                  vErrors = [err278];
+                                } else {
+                                  vErrors.push(err278);
+                                }
+                                errors++;
+                              }
                             } else {
-                              vErrors.push(err278);
-                            }
-                            errors++;
-                          }
-                          var _valid7 = _errs195 === errors;
-                          if (_valid7) {
-                            valid56 = true;
-                            passing6 = 0;
-                            var props6 = true;
-                          }
-                          const _errs199 = errors;
-                          if (
-                            data76 &&
-                            typeof data76 == "object" &&
-                            !Array.isArray(data76)
-                          ) {
-                            if (data76.kind === undefined) {
                               const err279 = {
                                 instancePath:
                                   instancePath +
                                   "/checkpoints/" +
                                   i13 +
-                                  "/context/suspended/delivery",
+                                  "/context/suspended/delivery/cycleId",
                                 schemaPath:
-                                  "#/$defs/controlContext/oneOf/3/properties/suspended/properties/delivery/oneOf/1/required",
-                                keyword: "required",
-                                params: { missingProperty: "kind" },
-                                message:
-                                  "must have required property '" +
-                                  "kind" +
-                                  "'",
+                                  "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/delivery/oneOf/1/properties/cycleId/type",
+                                keyword: "type",
+                                params: { type: "string" },
+                                message: "must be string",
                               };
                               if (vErrors === null) {
                                 vErrors = [err279];
@@ -31876,193 +31889,198 @@ function validate27(
                               }
                               errors++;
                             }
-                            if (data76.cycleId === undefined) {
-                              const err280 = {
+                          }
+                        } else {
+                          const err280 = {
+                            instancePath:
+                              instancePath +
+                              "/checkpoints/" +
+                              i13 +
+                              "/context/suspended/delivery",
+                            schemaPath:
+                              "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/delivery/oneOf/1/type",
+                            keyword: "type",
+                            params: { type: "object" },
+                            message: "must be object",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err280];
+                          } else {
+                            vErrors.push(err280);
+                          }
+                          errors++;
+                        }
+                        var _valid7 = _errs193 === errors;
+                        if (_valid7 && valid55) {
+                          valid55 = false;
+                          passing7 = [passing7, 1];
+                        } else {
+                          if (_valid7) {
+                            valid55 = true;
+                            passing7 = 1;
+                            if (props6 !== true) {
+                              props6 = true;
+                            }
+                          }
+                          const _errs199 = errors;
+                          if (
+                            data75 &&
+                            typeof data75 == "object" &&
+                            !Array.isArray(data75)
+                          ) {
+                            if (data75.kind === undefined) {
+                              const err281 = {
                                 instancePath:
                                   instancePath +
                                   "/checkpoints/" +
                                   i13 +
                                   "/context/suspended/delivery",
                                 schemaPath:
-                                  "#/$defs/controlContext/oneOf/3/properties/suspended/properties/delivery/oneOf/1/required",
+                                  "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/delivery/oneOf/2/required",
                                 keyword: "required",
-                                params: { missingProperty: "cycleId" },
+                                params: { missingProperty: "kind" },
                                 message:
                                   "must have required property '" +
-                                  "cycleId" +
+                                  "kind" +
                                   "'",
                               };
                               if (vErrors === null) {
-                                vErrors = [err280];
+                                vErrors = [err281];
                               } else {
-                                vErrors.push(err280);
+                                vErrors.push(err281);
                               }
                               errors++;
                             }
-                            for (const key25 in data76) {
-                              if (!(key25 === "kind" || key25 === "cycleId")) {
-                                const err281 = {
+                            if (data75.returnCheckpointId === undefined) {
+                              const err282 = {
+                                instancePath:
+                                  instancePath +
+                                  "/checkpoints/" +
+                                  i13 +
+                                  "/context/suspended/delivery",
+                                schemaPath:
+                                  "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/delivery/oneOf/2/required",
+                                keyword: "required",
+                                params: {
+                                  missingProperty: "returnCheckpointId",
+                                },
+                                message:
+                                  "must have required property '" +
+                                  "returnCheckpointId" +
+                                  "'",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err282];
+                              } else {
+                                vErrors.push(err282);
+                              }
+                              errors++;
+                            }
+                            for (const key25 in data75) {
+                              if (!(
+                                key25 === "kind" ||
+                                key25 === "returnCheckpointId"
+                              )) {
+                                const err283 = {
                                   instancePath:
                                     instancePath +
                                     "/checkpoints/" +
                                     i13 +
                                     "/context/suspended/delivery",
                                   schemaPath:
-                                    "#/$defs/controlContext/oneOf/3/properties/suspended/properties/delivery/oneOf/1/additionalProperties",
+                                    "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/delivery/oneOf/2/additionalProperties",
                                   keyword: "additionalProperties",
                                   params: { additionalProperty: key25 },
                                   message:
                                     "must NOT have additional properties",
                                 };
                                 if (vErrors === null) {
-                                  vErrors = [err281];
+                                  vErrors = [err283];
                                 } else {
-                                  vErrors.push(err281);
+                                  vErrors.push(err283);
                                 }
                                 errors++;
                               }
                             }
-                            if (data76.kind !== undefined) {
-                              if ("cycle" !== data76.kind) {
-                                const err282 = {
+                            if (data75.kind !== undefined) {
+                              if ("repeat" !== data75.kind) {
+                                const err284 = {
                                   instancePath:
                                     instancePath +
                                     "/checkpoints/" +
                                     i13 +
                                     "/context/suspended/delivery/kind",
                                   schemaPath:
-                                    "#/$defs/controlContext/oneOf/3/properties/suspended/properties/delivery/oneOf/1/properties/kind/const",
+                                    "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/delivery/oneOf/2/properties/kind/const",
                                   keyword: "const",
-                                  params: { allowedValue: "cycle" },
+                                  params: { allowedValue: "repeat" },
                                   message: "must be equal to constant",
                                 };
                                 if (vErrors === null) {
-                                  vErrors = [err282];
+                                  vErrors = [err284];
                                 } else {
-                                  vErrors.push(err282);
+                                  vErrors.push(err284);
                                 }
                                 errors++;
                               }
                             }
-                            if (data76.cycleId !== undefined) {
-                              let data79 = data76.cycleId;
-                              if (typeof data79 === "string") {
-                                if (func1(data79) > 200) {
-                                  const err283 = {
+                            if (data75.returnCheckpointId !== undefined) {
+                              let data80 = data75.returnCheckpointId;
+                              if (typeof data80 === "string") {
+                                if (func1(data80) > 200) {
+                                  const err285 = {
                                     instancePath:
                                       instancePath +
                                       "/checkpoints/" +
                                       i13 +
-                                      "/context/suspended/delivery/cycleId",
+                                      "/context/suspended/delivery/returnCheckpointId",
                                     schemaPath:
-                                      "#/$defs/controlContext/oneOf/3/properties/suspended/properties/delivery/oneOf/1/properties/cycleId/maxLength",
+                                      "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/delivery/oneOf/2/properties/returnCheckpointId/maxLength",
                                     keyword: "maxLength",
                                     params: { limit: 200 },
                                     message:
                                       "must NOT have more than 200 characters",
                                   };
                                   if (vErrors === null) {
-                                    vErrors = [err283];
+                                    vErrors = [err285];
                                   } else {
-                                    vErrors.push(err283);
+                                    vErrors.push(err285);
                                   }
                                   errors++;
                                 }
-                                if (func1(data79) < 1) {
-                                  const err284 = {
+                                if (func1(data80) < 1) {
+                                  const err286 = {
                                     instancePath:
                                       instancePath +
                                       "/checkpoints/" +
                                       i13 +
-                                      "/context/suspended/delivery/cycleId",
+                                      "/context/suspended/delivery/returnCheckpointId",
                                     schemaPath:
-                                      "#/$defs/controlContext/oneOf/3/properties/suspended/properties/delivery/oneOf/1/properties/cycleId/minLength",
+                                      "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/delivery/oneOf/2/properties/returnCheckpointId/minLength",
                                     keyword: "minLength",
                                     params: { limit: 1 },
                                     message:
                                       "must NOT have fewer than 1 characters",
                                   };
                                   if (vErrors === null) {
-                                    vErrors = [err284];
+                                    vErrors = [err286];
                                   } else {
-                                    vErrors.push(err284);
+                                    vErrors.push(err286);
                                   }
                                   errors++;
                                 }
                               } else {
-                                const err285 = {
-                                  instancePath:
-                                    instancePath +
-                                    "/checkpoints/" +
-                                    i13 +
-                                    "/context/suspended/delivery/cycleId",
-                                  schemaPath:
-                                    "#/$defs/controlContext/oneOf/3/properties/suspended/properties/delivery/oneOf/1/properties/cycleId/type",
-                                  keyword: "type",
-                                  params: { type: "string" },
-                                  message: "must be string",
-                                };
-                                if (vErrors === null) {
-                                  vErrors = [err285];
-                                } else {
-                                  vErrors.push(err285);
-                                }
-                                errors++;
-                              }
-                            }
-                          } else {
-                            const err286 = {
-                              instancePath:
-                                instancePath +
-                                "/checkpoints/" +
-                                i13 +
-                                "/context/suspended/delivery",
-                              schemaPath:
-                                "#/$defs/controlContext/oneOf/3/properties/suspended/properties/delivery/oneOf/1/type",
-                              keyword: "type",
-                              params: { type: "object" },
-                              message: "must be object",
-                            };
-                            if (vErrors === null) {
-                              vErrors = [err286];
-                            } else {
-                              vErrors.push(err286);
-                            }
-                            errors++;
-                          }
-                          var _valid7 = _errs199 === errors;
-                          if (_valid7 && valid56) {
-                            valid56 = false;
-                            passing6 = [passing6, 1];
-                          } else {
-                            if (_valid7) {
-                              valid56 = true;
-                              passing6 = 1;
-                              if (props6 !== true) {
-                                props6 = true;
-                              }
-                            }
-                            const _errs205 = errors;
-                            if (
-                              data76 &&
-                              typeof data76 == "object" &&
-                              !Array.isArray(data76)
-                            ) {
-                              if (data76.kind === undefined) {
                                 const err287 = {
                                   instancePath:
                                     instancePath +
                                     "/checkpoints/" +
                                     i13 +
-                                    "/context/suspended/delivery",
+                                    "/context/suspended/delivery/returnCheckpointId",
                                   schemaPath:
-                                    "#/$defs/controlContext/oneOf/3/properties/suspended/properties/delivery/oneOf/2/required",
-                                  keyword: "required",
-                                  params: { missingProperty: "kind" },
-                                  message:
-                                    "must have required property '" +
-                                    "kind" +
-                                    "'",
+                                    "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/delivery/oneOf/2/properties/returnCheckpointId/type",
+                                  keyword: "type",
+                                  params: { type: "string" },
+                                  message: "must be string",
                                 };
                                 if (vErrors === null) {
                                   vErrors = [err287];
@@ -32071,323 +32089,141 @@ function validate27(
                                 }
                                 errors++;
                               }
-                              if (data76.returnCheckpointId === undefined) {
-                                const err288 = {
-                                  instancePath:
-                                    instancePath +
-                                    "/checkpoints/" +
-                                    i13 +
-                                    "/context/suspended/delivery",
-                                  schemaPath:
-                                    "#/$defs/controlContext/oneOf/3/properties/suspended/properties/delivery/oneOf/2/required",
-                                  keyword: "required",
-                                  params: {
-                                    missingProperty: "returnCheckpointId",
-                                  },
-                                  message:
-                                    "must have required property '" +
-                                    "returnCheckpointId" +
-                                    "'",
-                                };
-                                if (vErrors === null) {
-                                  vErrors = [err288];
-                                } else {
-                                  vErrors.push(err288);
-                                }
-                                errors++;
-                              }
-                              for (const key26 in data76) {
-                                if (!(
-                                  key26 === "kind" ||
-                                  key26 === "returnCheckpointId"
-                                )) {
-                                  const err289 = {
-                                    instancePath:
-                                      instancePath +
-                                      "/checkpoints/" +
-                                      i13 +
-                                      "/context/suspended/delivery",
-                                    schemaPath:
-                                      "#/$defs/controlContext/oneOf/3/properties/suspended/properties/delivery/oneOf/2/additionalProperties",
-                                    keyword: "additionalProperties",
-                                    params: { additionalProperty: key26 },
-                                    message:
-                                      "must NOT have additional properties",
-                                  };
-                                  if (vErrors === null) {
-                                    vErrors = [err289];
-                                  } else {
-                                    vErrors.push(err289);
-                                  }
-                                  errors++;
-                                }
-                              }
-                              if (data76.kind !== undefined) {
-                                if ("repeat" !== data76.kind) {
-                                  const err290 = {
-                                    instancePath:
-                                      instancePath +
-                                      "/checkpoints/" +
-                                      i13 +
-                                      "/context/suspended/delivery/kind",
-                                    schemaPath:
-                                      "#/$defs/controlContext/oneOf/3/properties/suspended/properties/delivery/oneOf/2/properties/kind/const",
-                                    keyword: "const",
-                                    params: { allowedValue: "repeat" },
-                                    message: "must be equal to constant",
-                                  };
-                                  if (vErrors === null) {
-                                    vErrors = [err290];
-                                  } else {
-                                    vErrors.push(err290);
-                                  }
-                                  errors++;
-                                }
-                              }
-                              if (data76.returnCheckpointId !== undefined) {
-                                let data81 = data76.returnCheckpointId;
-                                if (typeof data81 === "string") {
-                                  if (func1(data81) > 200) {
-                                    const err291 = {
-                                      instancePath:
-                                        instancePath +
-                                        "/checkpoints/" +
-                                        i13 +
-                                        "/context/suspended/delivery/returnCheckpointId",
-                                      schemaPath:
-                                        "#/$defs/controlContext/oneOf/3/properties/suspended/properties/delivery/oneOf/2/properties/returnCheckpointId/maxLength",
-                                      keyword: "maxLength",
-                                      params: { limit: 200 },
-                                      message:
-                                        "must NOT have more than 200 characters",
-                                    };
-                                    if (vErrors === null) {
-                                      vErrors = [err291];
-                                    } else {
-                                      vErrors.push(err291);
-                                    }
-                                    errors++;
-                                  }
-                                  if (func1(data81) < 1) {
-                                    const err292 = {
-                                      instancePath:
-                                        instancePath +
-                                        "/checkpoints/" +
-                                        i13 +
-                                        "/context/suspended/delivery/returnCheckpointId",
-                                      schemaPath:
-                                        "#/$defs/controlContext/oneOf/3/properties/suspended/properties/delivery/oneOf/2/properties/returnCheckpointId/minLength",
-                                      keyword: "minLength",
-                                      params: { limit: 1 },
-                                      message:
-                                        "must NOT have fewer than 1 characters",
-                                    };
-                                    if (vErrors === null) {
-                                      vErrors = [err292];
-                                    } else {
-                                      vErrors.push(err292);
-                                    }
-                                    errors++;
-                                  }
-                                } else {
-                                  const err293 = {
-                                    instancePath:
-                                      instancePath +
-                                      "/checkpoints/" +
-                                      i13 +
-                                      "/context/suspended/delivery/returnCheckpointId",
-                                    schemaPath:
-                                      "#/$defs/controlContext/oneOf/3/properties/suspended/properties/delivery/oneOf/2/properties/returnCheckpointId/type",
-                                    keyword: "type",
-                                    params: { type: "string" },
-                                    message: "must be string",
-                                  };
-                                  if (vErrors === null) {
-                                    vErrors = [err293];
-                                  } else {
-                                    vErrors.push(err293);
-                                  }
-                                  errors++;
-                                }
-                              }
-                            } else {
-                              const err294 = {
-                                instancePath:
-                                  instancePath +
-                                  "/checkpoints/" +
-                                  i13 +
-                                  "/context/suspended/delivery",
-                                schemaPath:
-                                  "#/$defs/controlContext/oneOf/3/properties/suspended/properties/delivery/oneOf/2/type",
-                                keyword: "type",
-                                params: { type: "object" },
-                                message: "must be object",
-                              };
-                              if (vErrors === null) {
-                                vErrors = [err294];
-                              } else {
-                                vErrors.push(err294);
-                              }
-                              errors++;
                             }
-                            var _valid7 = _errs205 === errors;
-                            if (_valid7 && valid56) {
-                              valid56 = false;
-                              passing6 = [passing6, 2];
-                            } else {
-                              if (_valid7) {
-                                valid56 = true;
-                                passing6 = 2;
-                                if (props6 !== true) {
-                                  props6 = true;
-                                }
-                              }
-                            }
-                          }
-                          if (!valid56) {
-                            const err295 = {
+                          } else {
+                            const err288 = {
                               instancePath:
                                 instancePath +
                                 "/checkpoints/" +
                                 i13 +
                                 "/context/suspended/delivery",
                               schemaPath:
-                                "#/$defs/controlContext/oneOf/3/properties/suspended/properties/delivery/oneOf",
-                              keyword: "oneOf",
-                              params: { passingSchemas: passing6 },
-                              message: "must match exactly one schema in oneOf",
+                                "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/delivery/oneOf/2/type",
+                              keyword: "type",
+                              params: { type: "object" },
+                              message: "must be object",
                             };
                             if (vErrors === null) {
-                              vErrors = [err295];
+                              vErrors = [err288];
                             } else {
-                              vErrors.push(err295);
+                              vErrors.push(err288);
                             }
                             errors++;
+                          }
+                          var _valid7 = _errs199 === errors;
+                          if (_valid7 && valid55) {
+                            valid55 = false;
+                            passing7 = [passing7, 2];
                           } else {
-                            errors = _errs194;
-                            if (vErrors !== null) {
-                              if (_errs194) {
-                                vErrors.length = _errs194;
-                              } else {
-                                vErrors = null;
+                            if (_valid7) {
+                              valid55 = true;
+                              passing7 = 2;
+                              if (props6 !== true) {
+                                props6 = true;
                               }
                             }
                           }
                         }
+                        if (!valid55) {
+                          const err289 = {
+                            instancePath:
+                              instancePath +
+                              "/checkpoints/" +
+                              i13 +
+                              "/context/suspended/delivery",
+                            schemaPath:
+                              "#/$defs/activeControlContext/oneOf/2/properties/suspended/properties/delivery/oneOf",
+                            keyword: "oneOf",
+                            params: { passingSchemas: passing7 },
+                            message: "must match exactly one schema in oneOf",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err289];
+                          } else {
+                            vErrors.push(err289);
+                          }
+                          errors++;
+                        } else {
+                          errors = _errs188;
+                          if (vErrors !== null) {
+                            if (_errs188) {
+                              vErrors.length = _errs188;
+                            } else {
+                              vErrors = null;
+                            }
+                          }
+                        }
+                      }
+                    } else {
+                      const err290 = {
+                        instancePath:
+                          instancePath +
+                          "/checkpoints/" +
+                          i13 +
+                          "/context/suspended",
+                        schemaPath:
+                          "#/$defs/activeControlContext/oneOf/2/properties/suspended/type",
+                        keyword: "type",
+                        params: { type: "object" },
+                        message: "must be object",
+                      };
+                      if (vErrors === null) {
+                        vErrors = [err290];
                       } else {
-                        const err296 = {
+                        vErrors.push(err290);
+                      }
+                      errors++;
+                    }
+                  }
+                  if (data49.instructionOccurrenceIds !== undefined) {
+                    let data81 = data49.instructionOccurrenceIds;
+                    if (Array.isArray(data81)) {
+                      if (data81.length > 1000) {
+                        const err291 = {
                           instancePath:
                             instancePath +
                             "/checkpoints/" +
                             i13 +
-                            "/context/suspended",
+                            "/context/instructionOccurrenceIds",
                           schemaPath:
-                            "#/$defs/controlContext/oneOf/3/properties/suspended/type",
-                          keyword: "type",
-                          params: { type: "object" },
-                          message: "must be object",
+                            "#/$defs/activeControlContext/oneOf/2/properties/instructionOccurrenceIds/maxItems",
+                          keyword: "maxItems",
+                          params: { limit: 1000 },
+                          message: "must NOT have more than 1000 items",
                         };
                         if (vErrors === null) {
-                          vErrors = [err296];
+                          vErrors = [err291];
                         } else {
-                          vErrors.push(err296);
+                          vErrors.push(err291);
                         }
                         errors++;
                       }
-                    }
-                    if (data49.instructionOccurrenceIds !== undefined) {
-                      let data82 = data49.instructionOccurrenceIds;
-                      if (Array.isArray(data82)) {
-                        if (data82.length > 1000) {
-                          const err297 = {
-                            instancePath:
-                              instancePath +
-                              "/checkpoints/" +
-                              i13 +
-                              "/context/instructionOccurrenceIds",
-                            schemaPath:
-                              "#/$defs/controlContext/oneOf/3/properties/instructionOccurrenceIds/maxItems",
-                            keyword: "maxItems",
-                            params: { limit: 1000 },
-                            message: "must NOT have more than 1000 items",
-                          };
-                          if (vErrors === null) {
-                            vErrors = [err297];
-                          } else {
-                            vErrors.push(err297);
-                          }
-                          errors++;
+                      if (data81.length < 1) {
+                        const err292 = {
+                          instancePath:
+                            instancePath +
+                            "/checkpoints/" +
+                            i13 +
+                            "/context/instructionOccurrenceIds",
+                          schemaPath:
+                            "#/$defs/activeControlContext/oneOf/2/properties/instructionOccurrenceIds/minItems",
+                          keyword: "minItems",
+                          params: { limit: 1 },
+                          message: "must NOT have fewer than 1 items",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err292];
+                        } else {
+                          vErrors.push(err292);
                         }
-                        if (data82.length < 1) {
-                          const err298 = {
-                            instancePath:
-                              instancePath +
-                              "/checkpoints/" +
-                              i13 +
-                              "/context/instructionOccurrenceIds",
-                            schemaPath:
-                              "#/$defs/controlContext/oneOf/3/properties/instructionOccurrenceIds/minItems",
-                            keyword: "minItems",
-                            params: { limit: 1 },
-                            message: "must NOT have fewer than 1 items",
-                          };
-                          if (vErrors === null) {
-                            vErrors = [err298];
-                          } else {
-                            vErrors.push(err298);
-                          }
-                          errors++;
-                        }
-                        const len10 = data82.length;
-                        for (let i14 = 0; i14 < len10; i14++) {
-                          let data83 = data82[i14];
-                          if (typeof data83 === "string") {
-                            if (func1(data83) > 200) {
-                              const err299 = {
-                                instancePath:
-                                  instancePath +
-                                  "/checkpoints/" +
-                                  i13 +
-                                  "/context/instructionOccurrenceIds/" +
-                                  i14,
-                                schemaPath:
-                                  "#/$defs/controlContext/oneOf/3/properties/instructionOccurrenceIds/items/maxLength",
-                                keyword: "maxLength",
-                                params: { limit: 200 },
-                                message:
-                                  "must NOT have more than 200 characters",
-                              };
-                              if (vErrors === null) {
-                                vErrors = [err299];
-                              } else {
-                                vErrors.push(err299);
-                              }
-                              errors++;
-                            }
-                            if (func1(data83) < 1) {
-                              const err300 = {
-                                instancePath:
-                                  instancePath +
-                                  "/checkpoints/" +
-                                  i13 +
-                                  "/context/instructionOccurrenceIds/" +
-                                  i14,
-                                schemaPath:
-                                  "#/$defs/controlContext/oneOf/3/properties/instructionOccurrenceIds/items/minLength",
-                                keyword: "minLength",
-                                params: { limit: 1 },
-                                message:
-                                  "must NOT have fewer than 1 characters",
-                              };
-                              if (vErrors === null) {
-                                vErrors = [err300];
-                              } else {
-                                vErrors.push(err300);
-                              }
-                              errors++;
-                            }
-                          } else {
-                            const err301 = {
+                        errors++;
+                      }
+                      const len10 = data81.length;
+                      for (let i14 = 0; i14 < len10; i14++) {
+                        let data82 = data81[i14];
+                        if (typeof data82 === "string") {
+                          if (func1(data82) > 200) {
+                            const err293 = {
                               instancePath:
                                 instancePath +
                                 "/checkpoints/" +
@@ -32395,10 +32231,202 @@ function validate27(
                                 "/context/instructionOccurrenceIds/" +
                                 i14,
                               schemaPath:
-                                "#/$defs/controlContext/oneOf/3/properties/instructionOccurrenceIds/items/type",
-                              keyword: "type",
-                              params: { type: "string" },
-                              message: "must be string",
+                                "#/$defs/activeControlContext/oneOf/2/properties/instructionOccurrenceIds/items/maxLength",
+                              keyword: "maxLength",
+                              params: { limit: 200 },
+                              message: "must NOT have more than 200 characters",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err293];
+                            } else {
+                              vErrors.push(err293);
+                            }
+                            errors++;
+                          }
+                          if (func1(data82) < 1) {
+                            const err294 = {
+                              instancePath:
+                                instancePath +
+                                "/checkpoints/" +
+                                i13 +
+                                "/context/instructionOccurrenceIds/" +
+                                i14,
+                              schemaPath:
+                                "#/$defs/activeControlContext/oneOf/2/properties/instructionOccurrenceIds/items/minLength",
+                              keyword: "minLength",
+                              params: { limit: 1 },
+                              message: "must NOT have fewer than 1 characters",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err294];
+                            } else {
+                              vErrors.push(err294);
+                            }
+                            errors++;
+                          }
+                        } else {
+                          const err295 = {
+                            instancePath:
+                              instancePath +
+                              "/checkpoints/" +
+                              i13 +
+                              "/context/instructionOccurrenceIds/" +
+                              i14,
+                            schemaPath:
+                              "#/$defs/activeControlContext/oneOf/2/properties/instructionOccurrenceIds/items/type",
+                            keyword: "type",
+                            params: { type: "string" },
+                            message: "must be string",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err295];
+                          } else {
+                            vErrors.push(err295);
+                          }
+                          errors++;
+                        }
+                      }
+                      let i15 = data81.length;
+                      let j4;
+                      if (i15 > 1) {
+                        const indices4 = {};
+                        for (; i15--;) {
+                          let item4 = data81[i15];
+                          if (typeof item4 !== "string") {
+                            continue;
+                          }
+                          if (typeof indices4[item4] == "number") {
+                            j4 = indices4[item4];
+                            const err296 = {
+                              instancePath:
+                                instancePath +
+                                "/checkpoints/" +
+                                i13 +
+                                "/context/instructionOccurrenceIds",
+                              schemaPath:
+                                "#/$defs/activeControlContext/oneOf/2/properties/instructionOccurrenceIds/uniqueItems",
+                              keyword: "uniqueItems",
+                              params: { i: i15, j: j4 },
+                              message:
+                                "must NOT have duplicate items (items ## " +
+                                j4 +
+                                " and " +
+                                i15 +
+                                " are identical)",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err296];
+                            } else {
+                              vErrors.push(err296);
+                            }
+                            errors++;
+                            break;
+                          }
+                          indices4[item4] = i15;
+                        }
+                      }
+                    } else {
+                      const err297 = {
+                        instancePath:
+                          instancePath +
+                          "/checkpoints/" +
+                          i13 +
+                          "/context/instructionOccurrenceIds",
+                        schemaPath:
+                          "#/$defs/activeControlContext/oneOf/2/properties/instructionOccurrenceIds/type",
+                        keyword: "type",
+                        params: { type: "array" },
+                        message: "must be array",
+                      };
+                      if (vErrors === null) {
+                        vErrors = [err297];
+                      } else {
+                        vErrors.push(err297);
+                      }
+                      errors++;
+                    }
+                  }
+                  if (data49.retestOccurrenceIds !== undefined) {
+                    let data83 = data49.retestOccurrenceIds;
+                    if (Array.isArray(data83)) {
+                      if (data83.length > 1000) {
+                        const err298 = {
+                          instancePath:
+                            instancePath +
+                            "/checkpoints/" +
+                            i13 +
+                            "/context/retestOccurrenceIds",
+                          schemaPath:
+                            "#/$defs/activeControlContext/oneOf/2/properties/retestOccurrenceIds/maxItems",
+                          keyword: "maxItems",
+                          params: { limit: 1000 },
+                          message: "must NOT have more than 1000 items",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err298];
+                        } else {
+                          vErrors.push(err298);
+                        }
+                        errors++;
+                      }
+                      if (data83.length < 1) {
+                        const err299 = {
+                          instancePath:
+                            instancePath +
+                            "/checkpoints/" +
+                            i13 +
+                            "/context/retestOccurrenceIds",
+                          schemaPath:
+                            "#/$defs/activeControlContext/oneOf/2/properties/retestOccurrenceIds/minItems",
+                          keyword: "minItems",
+                          params: { limit: 1 },
+                          message: "must NOT have fewer than 1 items",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err299];
+                        } else {
+                          vErrors.push(err299);
+                        }
+                        errors++;
+                      }
+                      const len11 = data83.length;
+                      for (let i16 = 0; i16 < len11; i16++) {
+                        let data84 = data83[i16];
+                        if (typeof data84 === "string") {
+                          if (func1(data84) > 200) {
+                            const err300 = {
+                              instancePath:
+                                instancePath +
+                                "/checkpoints/" +
+                                i13 +
+                                "/context/retestOccurrenceIds/" +
+                                i16,
+                              schemaPath:
+                                "#/$defs/activeControlContext/oneOf/2/properties/retestOccurrenceIds/items/maxLength",
+                              keyword: "maxLength",
+                              params: { limit: 200 },
+                              message: "must NOT have more than 200 characters",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err300];
+                            } else {
+                              vErrors.push(err300);
+                            }
+                            errors++;
+                          }
+                          if (func1(data84) < 1) {
+                            const err301 = {
+                              instancePath:
+                                instancePath +
+                                "/checkpoints/" +
+                                i13 +
+                                "/context/retestOccurrenceIds/" +
+                                i16,
+                              schemaPath:
+                                "#/$defs/activeControlContext/oneOf/2/properties/retestOccurrenceIds/items/minLength",
+                              keyword: "minLength",
+                              params: { limit: 1 },
+                              message: "must NOT have fewer than 1 characters",
                             };
                             if (vErrors === null) {
                               vErrors = [err301];
@@ -32407,483 +32435,330 @@ function validate27(
                             }
                             errors++;
                           }
-                        }
-                        let i15 = data82.length;
-                        let j4;
-                        if (i15 > 1) {
-                          const indices4 = {};
-                          for (; i15--;) {
-                            let item4 = data82[i15];
-                            if (typeof item4 !== "string") {
-                              continue;
-                            }
-                            if (typeof indices4[item4] == "number") {
-                              j4 = indices4[item4];
-                              const err302 = {
-                                instancePath:
-                                  instancePath +
-                                  "/checkpoints/" +
-                                  i13 +
-                                  "/context/instructionOccurrenceIds",
-                                schemaPath:
-                                  "#/$defs/controlContext/oneOf/3/properties/instructionOccurrenceIds/uniqueItems",
-                                keyword: "uniqueItems",
-                                params: { i: i15, j: j4 },
-                                message:
-                                  "must NOT have duplicate items (items ## " +
-                                  j4 +
-                                  " and " +
-                                  i15 +
-                                  " are identical)",
-                              };
-                              if (vErrors === null) {
-                                vErrors = [err302];
-                              } else {
-                                vErrors.push(err302);
-                              }
-                              errors++;
-                              break;
-                            }
-                            indices4[item4] = i15;
-                          }
-                        }
-                      } else {
-                        const err303 = {
-                          instancePath:
-                            instancePath +
-                            "/checkpoints/" +
-                            i13 +
-                            "/context/instructionOccurrenceIds",
-                          schemaPath:
-                            "#/$defs/controlContext/oneOf/3/properties/instructionOccurrenceIds/type",
-                          keyword: "type",
-                          params: { type: "array" },
-                          message: "must be array",
-                        };
-                        if (vErrors === null) {
-                          vErrors = [err303];
                         } else {
-                          vErrors.push(err303);
+                          const err302 = {
+                            instancePath:
+                              instancePath +
+                              "/checkpoints/" +
+                              i13 +
+                              "/context/retestOccurrenceIds/" +
+                              i16,
+                            schemaPath:
+                              "#/$defs/activeControlContext/oneOf/2/properties/retestOccurrenceIds/items/type",
+                            keyword: "type",
+                            params: { type: "string" },
+                            message: "must be string",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err302];
+                          } else {
+                            vErrors.push(err302);
+                          }
+                          errors++;
                         }
-                        errors++;
                       }
-                    }
-                    if (data49.retestOccurrenceIds !== undefined) {
-                      let data84 = data49.retestOccurrenceIds;
-                      if (Array.isArray(data84)) {
-                        if (data84.length > 1000) {
-                          const err304 = {
-                            instancePath:
-                              instancePath +
-                              "/checkpoints/" +
-                              i13 +
-                              "/context/retestOccurrenceIds",
-                            schemaPath:
-                              "#/$defs/controlContext/oneOf/3/properties/retestOccurrenceIds/maxItems",
-                            keyword: "maxItems",
-                            params: { limit: 1000 },
-                            message: "must NOT have more than 1000 items",
-                          };
-                          if (vErrors === null) {
-                            vErrors = [err304];
-                          } else {
-                            vErrors.push(err304);
+                      let i17 = data83.length;
+                      let j5;
+                      if (i17 > 1) {
+                        const indices5 = {};
+                        for (; i17--;) {
+                          let item5 = data83[i17];
+                          if (typeof item5 !== "string") {
+                            continue;
                           }
-                          errors++;
-                        }
-                        if (data84.length < 1) {
-                          const err305 = {
-                            instancePath:
-                              instancePath +
-                              "/checkpoints/" +
-                              i13 +
-                              "/context/retestOccurrenceIds",
-                            schemaPath:
-                              "#/$defs/controlContext/oneOf/3/properties/retestOccurrenceIds/minItems",
-                            keyword: "minItems",
-                            params: { limit: 1 },
-                            message: "must NOT have fewer than 1 items",
-                          };
-                          if (vErrors === null) {
-                            vErrors = [err305];
-                          } else {
-                            vErrors.push(err305);
-                          }
-                          errors++;
-                        }
-                        const len11 = data84.length;
-                        for (let i16 = 0; i16 < len11; i16++) {
-                          let data85 = data84[i16];
-                          if (typeof data85 === "string") {
-                            if (func1(data85) > 200) {
-                              const err306 = {
-                                instancePath:
-                                  instancePath +
-                                  "/checkpoints/" +
-                                  i13 +
-                                  "/context/retestOccurrenceIds/" +
-                                  i16,
-                                schemaPath:
-                                  "#/$defs/controlContext/oneOf/3/properties/retestOccurrenceIds/items/maxLength",
-                                keyword: "maxLength",
-                                params: { limit: 200 },
-                                message:
-                                  "must NOT have more than 200 characters",
-                              };
-                              if (vErrors === null) {
-                                vErrors = [err306];
-                              } else {
-                                vErrors.push(err306);
-                              }
-                              errors++;
-                            }
-                            if (func1(data85) < 1) {
-                              const err307 = {
-                                instancePath:
-                                  instancePath +
-                                  "/checkpoints/" +
-                                  i13 +
-                                  "/context/retestOccurrenceIds/" +
-                                  i16,
-                                schemaPath:
-                                  "#/$defs/controlContext/oneOf/3/properties/retestOccurrenceIds/items/minLength",
-                                keyword: "minLength",
-                                params: { limit: 1 },
-                                message:
-                                  "must NOT have fewer than 1 characters",
-                              };
-                              if (vErrors === null) {
-                                vErrors = [err307];
-                              } else {
-                                vErrors.push(err307);
-                              }
-                              errors++;
-                            }
-                          } else {
-                            const err308 = {
+                          if (typeof indices5[item5] == "number") {
+                            j5 = indices5[item5];
+                            const err303 = {
                               instancePath:
                                 instancePath +
                                 "/checkpoints/" +
                                 i13 +
-                                "/context/retestOccurrenceIds/" +
-                                i16,
+                                "/context/retestOccurrenceIds",
                               schemaPath:
-                                "#/$defs/controlContext/oneOf/3/properties/retestOccurrenceIds/items/type",
-                              keyword: "type",
-                              params: { type: "string" },
-                              message: "must be string",
-                            };
-                            if (vErrors === null) {
-                              vErrors = [err308];
-                            } else {
-                              vErrors.push(err308);
-                            }
-                            errors++;
-                          }
-                        }
-                        let i17 = data84.length;
-                        let j5;
-                        if (i17 > 1) {
-                          const indices5 = {};
-                          for (; i17--;) {
-                            let item5 = data84[i17];
-                            if (typeof item5 !== "string") {
-                              continue;
-                            }
-                            if (typeof indices5[item5] == "number") {
-                              j5 = indices5[item5];
-                              const err309 = {
-                                instancePath:
-                                  instancePath +
-                                  "/checkpoints/" +
-                                  i13 +
-                                  "/context/retestOccurrenceIds",
-                                schemaPath:
-                                  "#/$defs/controlContext/oneOf/3/properties/retestOccurrenceIds/uniqueItems",
-                                keyword: "uniqueItems",
-                                params: { i: i17, j: j5 },
-                                message:
-                                  "must NOT have duplicate items (items ## " +
-                                  j5 +
-                                  " and " +
-                                  i17 +
-                                  " are identical)",
-                              };
-                              if (vErrors === null) {
-                                vErrors = [err309];
-                              } else {
-                                vErrors.push(err309);
-                              }
-                              errors++;
-                              break;
-                            }
-                            indices5[item5] = i17;
-                          }
-                        }
-                      } else {
-                        const err310 = {
-                          instancePath:
-                            instancePath +
-                            "/checkpoints/" +
-                            i13 +
-                            "/context/retestOccurrenceIds",
-                          schemaPath:
-                            "#/$defs/controlContext/oneOf/3/properties/retestOccurrenceIds/type",
-                          keyword: "type",
-                          params: { type: "array" },
-                          message: "must be array",
-                        };
-                        if (vErrors === null) {
-                          vErrors = [err310];
-                        } else {
-                          vErrors.push(err310);
-                        }
-                        errors++;
-                      }
-                    }
-                    if (data49.phase !== undefined) {
-                      let data86 = data49.phase;
-                      if (
-                        data86 &&
-                        typeof data86 == "object" &&
-                        !Array.isArray(data86)
-                      ) {
-                        if (data86.kind === undefined) {
-                          const err311 = {
-                            instancePath:
-                              instancePath +
-                              "/checkpoints/" +
-                              i13 +
-                              "/context/phase",
-                            schemaPath:
-                              "#/$defs/controlContext/oneOf/3/properties/phase/required",
-                            keyword: "required",
-                            params: { missingProperty: "kind" },
-                            message:
-                              "must have required property '" + "kind" + "'",
-                          };
-                          if (vErrors === null) {
-                            vErrors = [err311];
-                          } else {
-                            vErrors.push(err311);
-                          }
-                          errors++;
-                        }
-                        if (data86.index === undefined) {
-                          const err312 = {
-                            instancePath:
-                              instancePath +
-                              "/checkpoints/" +
-                              i13 +
-                              "/context/phase",
-                            schemaPath:
-                              "#/$defs/controlContext/oneOf/3/properties/phase/required",
-                            keyword: "required",
-                            params: { missingProperty: "index" },
-                            message:
-                              "must have required property '" + "index" + "'",
-                          };
-                          if (vErrors === null) {
-                            vErrors = [err312];
-                          } else {
-                            vErrors.push(err312);
-                          }
-                          errors++;
-                        }
-                        for (const key27 in data86) {
-                          if (!(key27 === "kind" || key27 === "index")) {
-                            const err313 = {
-                              instancePath:
-                                instancePath +
-                                "/checkpoints/" +
-                                i13 +
-                                "/context/phase",
-                              schemaPath:
-                                "#/$defs/controlContext/oneOf/3/properties/phase/additionalProperties",
-                              keyword: "additionalProperties",
-                              params: { additionalProperty: key27 },
-                              message: "must NOT have additional properties",
-                            };
-                            if (vErrors === null) {
-                              vErrors = [err313];
-                            } else {
-                              vErrors.push(err313);
-                            }
-                            errors++;
-                          }
-                        }
-                        if (data86.kind !== undefined) {
-                          let data87 = data86.kind;
-                          if (!(
-                            data87 === "instruction" || data87 === "retest"
-                          )) {
-                            const err314 = {
-                              instancePath:
-                                instancePath +
-                                "/checkpoints/" +
-                                i13 +
-                                "/context/phase/kind",
-                              schemaPath:
-                                "#/$defs/controlContext/oneOf/3/properties/phase/properties/kind/enum",
-                              keyword: "enum",
-                              params: {
-                                allowedValues:
-                                  schema54.oneOf[3].properties.phase.properties
-                                    .kind.enum,
-                              },
+                                "#/$defs/activeControlContext/oneOf/2/properties/retestOccurrenceIds/uniqueItems",
+                              keyword: "uniqueItems",
+                              params: { i: i17, j: j5 },
                               message:
-                                "must be equal to one of the allowed values",
+                                "must NOT have duplicate items (items ## " +
+                                j5 +
+                                " and " +
+                                i17 +
+                                " are identical)",
                             };
                             if (vErrors === null) {
-                              vErrors = [err314];
+                              vErrors = [err303];
                             } else {
-                              vErrors.push(err314);
+                              vErrors.push(err303);
                             }
                             errors++;
+                            break;
                           }
+                          indices5[item5] = i17;
                         }
-                        if (data86.index !== undefined) {
-                          let data88 = data86.index;
-                          if (!(
-                            typeof data88 == "number" &&
-                            !(data88 % 1) &&
-                            !isNaN(data88) &&
-                            isFinite(data88)
-                          )) {
-                            const err315 = {
-                              instancePath:
-                                instancePath +
-                                "/checkpoints/" +
-                                i13 +
-                                "/context/phase/index",
-                              schemaPath:
-                                "#/$defs/controlContext/oneOf/3/properties/phase/properties/index/type",
-                              keyword: "type",
-                              params: { type: "integer" },
-                              message: "must be integer",
-                            };
-                            if (vErrors === null) {
-                              vErrors = [err315];
-                            } else {
-                              vErrors.push(err315);
-                            }
-                            errors++;
-                          }
-                          if (typeof data88 == "number" && isFinite(data88)) {
-                            if (data88 > 999 || isNaN(data88)) {
-                              const err316 = {
-                                instancePath:
-                                  instancePath +
-                                  "/checkpoints/" +
-                                  i13 +
-                                  "/context/phase/index",
-                                schemaPath:
-                                  "#/$defs/controlContext/oneOf/3/properties/phase/properties/index/maximum",
-                                keyword: "maximum",
-                                params: { comparison: "<=", limit: 999 },
-                                message: "must be <= 999",
-                              };
-                              if (vErrors === null) {
-                                vErrors = [err316];
-                              } else {
-                                vErrors.push(err316);
-                              }
-                              errors++;
-                            }
-                            if (data88 < 0 || isNaN(data88)) {
-                              const err317 = {
-                                instancePath:
-                                  instancePath +
-                                  "/checkpoints/" +
-                                  i13 +
-                                  "/context/phase/index",
-                                schemaPath:
-                                  "#/$defs/controlContext/oneOf/3/properties/phase/properties/index/minimum",
-                                keyword: "minimum",
-                                params: { comparison: ">=", limit: 0 },
-                                message: "must be >= 0",
-                              };
-                              if (vErrors === null) {
-                                vErrors = [err317];
-                              } else {
-                                vErrors.push(err317);
-                              }
-                              errors++;
-                            }
-                          }
-                        }
+                      }
+                    } else {
+                      const err304 = {
+                        instancePath:
+                          instancePath +
+                          "/checkpoints/" +
+                          i13 +
+                          "/context/retestOccurrenceIds",
+                        schemaPath:
+                          "#/$defs/activeControlContext/oneOf/2/properties/retestOccurrenceIds/type",
+                        keyword: "type",
+                        params: { type: "array" },
+                        message: "must be array",
+                      };
+                      if (vErrors === null) {
+                        vErrors = [err304];
                       } else {
-                        const err318 = {
+                        vErrors.push(err304);
+                      }
+                      errors++;
+                    }
+                  }
+                  if (data49.phase !== undefined) {
+                    let data85 = data49.phase;
+                    if (
+                      data85 &&
+                      typeof data85 == "object" &&
+                      !Array.isArray(data85)
+                    ) {
+                      if (data85.kind === undefined) {
+                        const err305 = {
                           instancePath:
                             instancePath +
                             "/checkpoints/" +
                             i13 +
                             "/context/phase",
                           schemaPath:
-                            "#/$defs/controlContext/oneOf/3/properties/phase/type",
-                          keyword: "type",
-                          params: { type: "object" },
-                          message: "must be object",
+                            "#/$defs/activeControlContext/oneOf/2/properties/phase/required",
+                          keyword: "required",
+                          params: { missingProperty: "kind" },
+                          message:
+                            "must have required property '" + "kind" + "'",
                         };
                         if (vErrors === null) {
-                          vErrors = [err318];
+                          vErrors = [err305];
                         } else {
-                          vErrors.push(err318);
+                          vErrors.push(err305);
                         }
                         errors++;
                       }
-                    }
-                  } else {
-                    const err319 = {
-                      instancePath:
-                        instancePath + "/checkpoints/" + i13 + "/context",
-                      schemaPath: "#/$defs/controlContext/oneOf/3/type",
-                      keyword: "type",
-                      params: { type: "object" },
-                      message: "must be object",
-                    };
-                    if (vErrors === null) {
-                      vErrors = [err319];
-                    } else {
-                      vErrors.push(err319);
-                    }
-                    errors++;
-                  }
-                  var _valid3 = _errs166 === errors;
-                  if (_valid3 && valid39) {
-                    valid39 = false;
-                    passing2 = [passing2, 3];
-                  } else {
-                    if (_valid3) {
-                      valid39 = true;
-                      passing2 = 3;
-                      if (props4 !== true) {
-                        props4 = true;
+                      if (data85.index === undefined) {
+                        const err306 = {
+                          instancePath:
+                            instancePath +
+                            "/checkpoints/" +
+                            i13 +
+                            "/context/phase",
+                          schemaPath:
+                            "#/$defs/activeControlContext/oneOf/2/properties/phase/required",
+                          keyword: "required",
+                          params: { missingProperty: "index" },
+                          message:
+                            "must have required property '" + "index" + "'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err306];
+                        } else {
+                          vErrors.push(err306);
+                        }
+                        errors++;
                       }
+                      for (const key26 in data85) {
+                        if (!(key26 === "kind" || key26 === "index")) {
+                          const err307 = {
+                            instancePath:
+                              instancePath +
+                              "/checkpoints/" +
+                              i13 +
+                              "/context/phase",
+                            schemaPath:
+                              "#/$defs/activeControlContext/oneOf/2/properties/phase/additionalProperties",
+                            keyword: "additionalProperties",
+                            params: { additionalProperty: key26 },
+                            message: "must NOT have additional properties",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err307];
+                          } else {
+                            vErrors.push(err307);
+                          }
+                          errors++;
+                        }
+                      }
+                      if (data85.kind !== undefined) {
+                        let data86 = data85.kind;
+                        if (!(
+                          data86 === "instruction" || data86 === "retest"
+                        )) {
+                          const err308 = {
+                            instancePath:
+                              instancePath +
+                              "/checkpoints/" +
+                              i13 +
+                              "/context/phase/kind",
+                            schemaPath:
+                              "#/$defs/activeControlContext/oneOf/2/properties/phase/properties/kind/enum",
+                            keyword: "enum",
+                            params: {
+                              allowedValues:
+                                schema54.oneOf[2].properties.phase.properties
+                                  .kind.enum,
+                            },
+                            message:
+                              "must be equal to one of the allowed values",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err308];
+                          } else {
+                            vErrors.push(err308);
+                          }
+                          errors++;
+                        }
+                      }
+                      if (data85.index !== undefined) {
+                        let data87 = data85.index;
+                        if (!(
+                          typeof data87 == "number" &&
+                          !(data87 % 1) &&
+                          !isNaN(data87) &&
+                          isFinite(data87)
+                        )) {
+                          const err309 = {
+                            instancePath:
+                              instancePath +
+                              "/checkpoints/" +
+                              i13 +
+                              "/context/phase/index",
+                            schemaPath:
+                              "#/$defs/activeControlContext/oneOf/2/properties/phase/properties/index/type",
+                            keyword: "type",
+                            params: { type: "integer" },
+                            message: "must be integer",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err309];
+                          } else {
+                            vErrors.push(err309);
+                          }
+                          errors++;
+                        }
+                        if (typeof data87 == "number" && isFinite(data87)) {
+                          if (data87 > 999 || isNaN(data87)) {
+                            const err310 = {
+                              instancePath:
+                                instancePath +
+                                "/checkpoints/" +
+                                i13 +
+                                "/context/phase/index",
+                              schemaPath:
+                                "#/$defs/activeControlContext/oneOf/2/properties/phase/properties/index/maximum",
+                              keyword: "maximum",
+                              params: { comparison: "<=", limit: 999 },
+                              message: "must be <= 999",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err310];
+                            } else {
+                              vErrors.push(err310);
+                            }
+                            errors++;
+                          }
+                          if (data87 < 0 || isNaN(data87)) {
+                            const err311 = {
+                              instancePath:
+                                instancePath +
+                                "/checkpoints/" +
+                                i13 +
+                                "/context/phase/index",
+                              schemaPath:
+                                "#/$defs/activeControlContext/oneOf/2/properties/phase/properties/index/minimum",
+                              keyword: "minimum",
+                              params: { comparison: ">=", limit: 0 },
+                              message: "must be >= 0",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err311];
+                            } else {
+                              vErrors.push(err311);
+                            }
+                            errors++;
+                          }
+                        }
+                      }
+                    } else {
+                      const err312 = {
+                        instancePath:
+                          instancePath +
+                          "/checkpoints/" +
+                          i13 +
+                          "/context/phase",
+                        schemaPath:
+                          "#/$defs/activeControlContext/oneOf/2/properties/phase/type",
+                        keyword: "type",
+                        params: { type: "object" },
+                        message: "must be object",
+                      };
+                      if (vErrors === null) {
+                        vErrors = [err312];
+                      } else {
+                        vErrors.push(err312);
+                      }
+                      errors++;
+                    }
+                  }
+                } else {
+                  const err313 = {
+                    instancePath:
+                      instancePath + "/checkpoints/" + i13 + "/context",
+                    schemaPath: "#/$defs/activeControlContext/oneOf/2/type",
+                    keyword: "type",
+                    params: { type: "object" },
+                    message: "must be object",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err313];
+                  } else {
+                    vErrors.push(err313);
+                  }
+                  errors++;
+                }
+                var _valid3 = _errs160 === errors;
+                if (_valid3 && valid39) {
+                  valid39 = false;
+                  passing3 = [passing3, 2];
+                } else {
+                  if (_valid3) {
+                    valid39 = true;
+                    passing3 = 2;
+                    if (props4 !== true) {
+                      props4 = true;
                     }
                   }
                 }
               }
               if (!valid39) {
-                const err320 = {
+                const err314 = {
                   instancePath:
                     instancePath + "/checkpoints/" + i13 + "/context",
-                  schemaPath: "#/$defs/controlContext/oneOf",
+                  schemaPath: "#/$defs/activeControlContext/oneOf",
                   keyword: "oneOf",
-                  params: { passingSchemas: passing2 },
+                  params: { passingSchemas: passing3 },
                   message: "must match exactly one schema in oneOf",
                 };
                 if (vErrors === null) {
-                  vErrors = [err320];
+                  vErrors = [err314];
                 } else {
-                  vErrors.push(err320);
+                  vErrors.push(err314);
                 }
                 errors++;
               } else {
-                errors = _errs116;
+                errors = _errs114;
                 if (vErrors !== null) {
-                  if (_errs116) {
-                    vErrors.length = _errs116;
+                  if (_errs114) {
+                    vErrors.length = _errs114;
                   } else {
                     vErrors = null;
                   }
@@ -32891,23 +32766,301 @@ function validate27(
               }
             }
           } else {
-            const err321 = {
+            const err315 = {
               instancePath: instancePath + "/checkpoints/" + i13,
-              schemaPath: "#/properties/checkpoints/items/type",
+              schemaPath: "#/properties/checkpoints/items/oneOf/0/type",
               keyword: "type",
               params: { type: "object" },
               message: "must be object",
             };
             if (vErrors === null) {
-              vErrors = [err321];
+              vErrors = [err315];
             } else {
-              vErrors.push(err321);
+              vErrors.push(err315);
             }
             errors++;
           }
+          var _valid2 = _errs105 === errors;
+          if (_valid2) {
+            valid36 = true;
+            passing2 = 0;
+            var props7 = true;
+          }
+          const _errs219 = errors;
+          if (data46 && typeof data46 == "object" && !Array.isArray(data46)) {
+            if (data46.id === undefined) {
+              const err316 = {
+                instancePath: instancePath + "/checkpoints/" + i13,
+                schemaPath: "#/properties/checkpoints/items/oneOf/1/required",
+                keyword: "required",
+                params: { missingProperty: "id" },
+                message: "must have required property '" + "id" + "'",
+              };
+              if (vErrors === null) {
+                vErrors = [err316];
+              } else {
+                vErrors.push(err316);
+              }
+              errors++;
+            }
+            if (data46.occurrenceId === undefined) {
+              const err317 = {
+                instancePath: instancePath + "/checkpoints/" + i13,
+                schemaPath: "#/properties/checkpoints/items/oneOf/1/required",
+                keyword: "required",
+                params: { missingProperty: "occurrenceId" },
+                message: "must have required property '" + "occurrenceId" + "'",
+              };
+              if (vErrors === null) {
+                vErrors = [err317];
+              } else {
+                vErrors.push(err317);
+              }
+              errors++;
+            }
+            if (data46.context === undefined) {
+              const err318 = {
+                instancePath: instancePath + "/checkpoints/" + i13,
+                schemaPath: "#/properties/checkpoints/items/oneOf/1/required",
+                keyword: "required",
+                params: { missingProperty: "context" },
+                message: "must have required property '" + "context" + "'",
+              };
+              if (vErrors === null) {
+                vErrors = [err318];
+              } else {
+                vErrors.push(err318);
+              }
+              errors++;
+            }
+            for (const key27 in data46) {
+              if (!(
+                key27 === "id" ||
+                key27 === "occurrenceId" ||
+                key27 === "context"
+              )) {
+                const err319 = {
+                  instancePath: instancePath + "/checkpoints/" + i13,
+                  schemaPath:
+                    "#/properties/checkpoints/items/oneOf/1/additionalProperties",
+                  keyword: "additionalProperties",
+                  params: { additionalProperty: key27 },
+                  message: "must NOT have additional properties",
+                };
+                if (vErrors === null) {
+                  vErrors = [err319];
+                } else {
+                  vErrors.push(err319);
+                }
+                errors++;
+              }
+            }
+            if (data46.id !== undefined) {
+              let data88 = data46.id;
+              if (typeof data88 === "string") {
+                if (func1(data88) > 200) {
+                  const err320 = {
+                    instancePath: instancePath + "/checkpoints/" + i13 + "/id",
+                    schemaPath:
+                      "#/properties/checkpoints/items/oneOf/1/properties/id/maxLength",
+                    keyword: "maxLength",
+                    params: { limit: 200 },
+                    message: "must NOT have more than 200 characters",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err320];
+                  } else {
+                    vErrors.push(err320);
+                  }
+                  errors++;
+                }
+                if (func1(data88) < 1) {
+                  const err321 = {
+                    instancePath: instancePath + "/checkpoints/" + i13 + "/id",
+                    schemaPath:
+                      "#/properties/checkpoints/items/oneOf/1/properties/id/minLength",
+                    keyword: "minLength",
+                    params: { limit: 1 },
+                    message: "must NOT have fewer than 1 characters",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err321];
+                  } else {
+                    vErrors.push(err321);
+                  }
+                  errors++;
+                }
+              } else {
+                const err322 = {
+                  instancePath: instancePath + "/checkpoints/" + i13 + "/id",
+                  schemaPath:
+                    "#/properties/checkpoints/items/oneOf/1/properties/id/type",
+                  keyword: "type",
+                  params: { type: "string" },
+                  message: "must be string",
+                };
+                if (vErrors === null) {
+                  vErrors = [err322];
+                } else {
+                  vErrors.push(err322);
+                }
+                errors++;
+              }
+            }
+            if (data46.occurrenceId !== undefined) {
+              if (data46.occurrenceId !== null) {
+                const err323 = {
+                  instancePath:
+                    instancePath + "/checkpoints/" + i13 + "/occurrenceId",
+                  schemaPath:
+                    "#/properties/checkpoints/items/oneOf/1/properties/occurrenceId/type",
+                  keyword: "type",
+                  params: { type: "null" },
+                  message: "must be null",
+                };
+                if (vErrors === null) {
+                  vErrors = [err323];
+                } else {
+                  vErrors.push(err323);
+                }
+                errors++;
+              }
+            }
+            if (data46.context !== undefined) {
+              let data90 = data46.context;
+              if (
+                data90 &&
+                typeof data90 == "object" &&
+                !Array.isArray(data90)
+              ) {
+                if (data90.kind === undefined) {
+                  const err324 = {
+                    instancePath:
+                      instancePath + "/checkpoints/" + i13 + "/context",
+                    schemaPath:
+                      "#/properties/checkpoints/items/oneOf/1/properties/context/required",
+                    keyword: "required",
+                    params: { missingProperty: "kind" },
+                    message: "must have required property '" + "kind" + "'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err324];
+                  } else {
+                    vErrors.push(err324);
+                  }
+                  errors++;
+                }
+                for (const key28 in data90) {
+                  if (!(key28 === "kind")) {
+                    const err325 = {
+                      instancePath:
+                        instancePath + "/checkpoints/" + i13 + "/context",
+                      schemaPath:
+                        "#/properties/checkpoints/items/oneOf/1/properties/context/additionalProperties",
+                      keyword: "additionalProperties",
+                      params: { additionalProperty: key28 },
+                      message: "must NOT have additional properties",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err325];
+                    } else {
+                      vErrors.push(err325);
+                    }
+                    errors++;
+                  }
+                }
+                if (data90.kind !== undefined) {
+                  if ("terminal" !== data90.kind) {
+                    const err326 = {
+                      instancePath:
+                        instancePath + "/checkpoints/" + i13 + "/context/kind",
+                      schemaPath:
+                        "#/properties/checkpoints/items/oneOf/1/properties/context/properties/kind/const",
+                      keyword: "const",
+                      params: { allowedValue: "terminal" },
+                      message: "must be equal to constant",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err326];
+                    } else {
+                      vErrors.push(err326);
+                    }
+                    errors++;
+                  }
+                }
+              } else {
+                const err327 = {
+                  instancePath:
+                    instancePath + "/checkpoints/" + i13 + "/context",
+                  schemaPath:
+                    "#/properties/checkpoints/items/oneOf/1/properties/context/type",
+                  keyword: "type",
+                  params: { type: "object" },
+                  message: "must be object",
+                };
+                if (vErrors === null) {
+                  vErrors = [err327];
+                } else {
+                  vErrors.push(err327);
+                }
+                errors++;
+              }
+            }
+          } else {
+            const err328 = {
+              instancePath: instancePath + "/checkpoints/" + i13,
+              schemaPath: "#/properties/checkpoints/items/oneOf/1/type",
+              keyword: "type",
+              params: { type: "object" },
+              message: "must be object",
+            };
+            if (vErrors === null) {
+              vErrors = [err328];
+            } else {
+              vErrors.push(err328);
+            }
+            errors++;
+          }
+          var _valid2 = _errs219 === errors;
+          if (_valid2 && valid36) {
+            valid36 = false;
+            passing2 = [passing2, 1];
+          } else {
+            if (_valid2) {
+              valid36 = true;
+              passing2 = 1;
+              if (props7 !== true) {
+                props7 = true;
+              }
+            }
+          }
+          if (!valid36) {
+            const err329 = {
+              instancePath: instancePath + "/checkpoints/" + i13,
+              schemaPath: "#/properties/checkpoints/items/oneOf",
+              keyword: "oneOf",
+              params: { passingSchemas: passing2 },
+              message: "must match exactly one schema in oneOf",
+            };
+            if (vErrors === null) {
+              vErrors = [err329];
+            } else {
+              vErrors.push(err329);
+            }
+            errors++;
+          } else {
+            errors = _errs104;
+            if (vErrors !== null) {
+              if (_errs104) {
+                vErrors.length = _errs104;
+              } else {
+                vErrors = null;
+              }
+            }
+          }
         }
       } else {
-        const err322 = {
+        const err330 = {
           instancePath: instancePath + "/checkpoints",
           schemaPath: "#/properties/checkpoints/type",
           keyword: "type",
@@ -32915,22 +33068,22 @@ function validate27(
           message: "must be array",
         };
         if (vErrors === null) {
-          vErrors = [err322];
+          vErrors = [err330];
         } else {
-          vErrors.push(err322);
+          vErrors.push(err330);
         }
         errors++;
       }
     }
     if (data.checkpointIndex !== undefined) {
-      let data89 = data.checkpointIndex;
+      let data92 = data.checkpointIndex;
       if (!(
-        typeof data89 == "number" &&
-        !(data89 % 1) &&
-        !isNaN(data89) &&
-        isFinite(data89)
+        typeof data92 == "number" &&
+        !(data92 % 1) &&
+        !isNaN(data92) &&
+        isFinite(data92)
       )) {
-        const err323 = {
+        const err331 = {
           instancePath: instancePath + "/checkpointIndex",
           schemaPath: "#/properties/checkpointIndex/type",
           keyword: "type",
@@ -32938,15 +33091,15 @@ function validate27(
           message: "must be integer",
         };
         if (vErrors === null) {
-          vErrors = [err323];
+          vErrors = [err331];
         } else {
-          vErrors.push(err323);
+          vErrors.push(err331);
         }
         errors++;
       }
-      if (typeof data89 == "number" && isFinite(data89)) {
-        if (data89 > 9999 || isNaN(data89)) {
-          const err324 = {
+      if (typeof data92 == "number" && isFinite(data92)) {
+        if (data92 > 9999 || isNaN(data92)) {
+          const err332 = {
             instancePath: instancePath + "/checkpointIndex",
             schemaPath: "#/properties/checkpointIndex/maximum",
             keyword: "maximum",
@@ -32954,14 +33107,14 @@ function validate27(
             message: "must be <= 9999",
           };
           if (vErrors === null) {
-            vErrors = [err324];
+            vErrors = [err332];
           } else {
-            vErrors.push(err324);
+            vErrors.push(err332);
           }
           errors++;
         }
-        if (data89 < 0 || isNaN(data89)) {
-          const err325 = {
+        if (data92 < 0 || isNaN(data92)) {
+          const err333 = {
             instancePath: instancePath + "/checkpointIndex",
             schemaPath: "#/properties/checkpointIndex/minimum",
             keyword: "minimum",
@@ -32969,19 +33122,19 @@ function validate27(
             message: "must be >= 0",
           };
           if (vErrors === null) {
-            vErrors = [err325];
+            vErrors = [err333];
           } else {
-            vErrors.push(err325);
+            vErrors.push(err333);
           }
           errors++;
         }
       }
     }
     if (data.nextOccurrenceNumber !== undefined) {
-      let data90 = data.nextOccurrenceNumber;
-      if (typeof data90 === "string") {
-        if (!pattern5.test(data90)) {
-          const err326 = {
+      let data93 = data.nextOccurrenceNumber;
+      if (typeof data93 === "string") {
+        if (!pattern5.test(data93)) {
+          const err334 = {
             instancePath: instancePath + "/nextOccurrenceNumber",
             schemaPath: "#/properties/nextOccurrenceNumber/pattern",
             keyword: "pattern",
@@ -32989,14 +33142,14 @@ function validate27(
             message: 'must match pattern "' + "^(0|[1-9][0-9]{0,18})$" + '"',
           };
           if (vErrors === null) {
-            vErrors = [err326];
+            vErrors = [err334];
           } else {
-            vErrors.push(err326);
+            vErrors.push(err334);
           }
           errors++;
         }
       } else {
-        const err327 = {
+        const err335 = {
           instancePath: instancePath + "/nextOccurrenceNumber",
           schemaPath: "#/properties/nextOccurrenceNumber/type",
           keyword: "type",
@@ -33004,18 +33157,18 @@ function validate27(
           message: "must be string",
         };
         if (vErrors === null) {
-          vErrors = [err327];
+          vErrors = [err335];
         } else {
-          vErrors.push(err327);
+          vErrors.push(err335);
         }
         errors++;
       }
     }
     if (data.nextCheckpointNumber !== undefined) {
-      let data91 = data.nextCheckpointNumber;
-      if (typeof data91 === "string") {
-        if (!pattern5.test(data91)) {
-          const err328 = {
+      let data94 = data.nextCheckpointNumber;
+      if (typeof data94 === "string") {
+        if (!pattern5.test(data94)) {
+          const err336 = {
             instancePath: instancePath + "/nextCheckpointNumber",
             schemaPath: "#/properties/nextCheckpointNumber/pattern",
             keyword: "pattern",
@@ -33023,14 +33176,14 @@ function validate27(
             message: 'must match pattern "' + "^(0|[1-9][0-9]{0,18})$" + '"',
           };
           if (vErrors === null) {
-            vErrors = [err328];
+            vErrors = [err336];
           } else {
-            vErrors.push(err328);
+            vErrors.push(err336);
           }
           errors++;
         }
       } else {
-        const err329 = {
+        const err337 = {
           instancePath: instancePath + "/nextCheckpointNumber",
           schemaPath: "#/properties/nextCheckpointNumber/type",
           keyword: "type",
@@ -33038,15 +33191,15 @@ function validate27(
           message: "must be string",
         };
         if (vErrors === null) {
-          vErrors = [err329];
+          vErrors = [err337];
         } else {
-          vErrors.push(err329);
+          vErrors.push(err337);
         }
         errors++;
       }
     }
   } else {
-    const err330 = {
+    const err338 = {
       instancePath,
       schemaPath: "#/type",
       keyword: "type",
@@ -33054,9 +33207,9 @@ function validate27(
       message: "must be object",
     };
     if (vErrors === null) {
-      vErrors = [err330];
+      vErrors = [err338];
     } else {
-      vErrors.push(err330);
+      vErrors.push(err338);
     }
     errors++;
   }
@@ -37245,7 +37398,7 @@ const schema55 = {
       required: ["profileId", "generation"],
       additionalProperties: false,
     },
-    controlContext: {
+    activeControlContext: {
       oneOf: [
         {
           type: "object",
@@ -37329,12 +37482,6 @@ const schema55 = {
             reviewId: { type: "string", minLength: 1, maxLength: 200 },
           },
           required: ["kind", "reviewId"],
-          additionalProperties: false,
-        },
-        {
-          type: "object",
-          properties: { kind: { const: "terminal" } },
-          required: ["kind"],
           additionalProperties: false,
         },
         {
@@ -37640,19 +37787,37 @@ const schema55 = {
         checkpoints: {
           type: "array",
           items: {
-            type: "object",
-            properties: {
-              id: { type: "string", minLength: 1, maxLength: 200 },
-              occurrenceId: {
-                anyOf: [
-                  { type: "string", minLength: 1, maxLength: 200 },
-                  { type: "null" },
-                ],
+            oneOf: [
+              {
+                type: "object",
+                properties: {
+                  id: { type: "string", minLength: 1, maxLength: 200 },
+                  occurrenceId: {
+                    type: "string",
+                    minLength: 1,
+                    maxLength: 200,
+                  },
+                  context: { $ref: "#/$defs/activeControlContext" },
+                },
+                required: ["id", "occurrenceId", "context"],
+                additionalProperties: false,
               },
-              context: { $ref: "#/$defs/controlContext" },
-            },
-            required: ["id", "occurrenceId", "context"],
-            additionalProperties: false,
+              {
+                type: "object",
+                properties: {
+                  id: { type: "string", minLength: 1, maxLength: 200 },
+                  occurrenceId: { type: "null" },
+                  context: {
+                    type: "object",
+                    properties: { kind: { const: "terminal" } },
+                    required: ["kind"],
+                    additionalProperties: false,
+                  },
+                },
+                required: ["id", "occurrenceId", "context"],
+                additionalProperties: false,
+              },
+            ],
           },
           minItems: 1,
           maxItems: 10000,
@@ -42947,7 +43112,7 @@ const schema60 = {
       required: ["profileId", "generation"],
       additionalProperties: false,
     },
-    controlContext: {
+    activeControlContext: {
       oneOf: [
         {
           type: "object",
@@ -43031,12 +43196,6 @@ const schema60 = {
             reviewId: { type: "string", minLength: 1, maxLength: 200 },
           },
           required: ["kind", "reviewId"],
-          additionalProperties: false,
-        },
-        {
-          type: "object",
-          properties: { kind: { const: "terminal" } },
-          required: ["kind"],
           additionalProperties: false,
         },
         {
@@ -43342,19 +43501,37 @@ const schema60 = {
         checkpoints: {
           type: "array",
           items: {
-            type: "object",
-            properties: {
-              id: { type: "string", minLength: 1, maxLength: 200 },
-              occurrenceId: {
-                anyOf: [
-                  { type: "string", minLength: 1, maxLength: 200 },
-                  { type: "null" },
-                ],
+            oneOf: [
+              {
+                type: "object",
+                properties: {
+                  id: { type: "string", minLength: 1, maxLength: 200 },
+                  occurrenceId: {
+                    type: "string",
+                    minLength: 1,
+                    maxLength: 200,
+                  },
+                  context: { $ref: "#/$defs/activeControlContext" },
+                },
+                required: ["id", "occurrenceId", "context"],
+                additionalProperties: false,
               },
-              context: { $ref: "#/$defs/controlContext" },
-            },
-            required: ["id", "occurrenceId", "context"],
-            additionalProperties: false,
+              {
+                type: "object",
+                properties: {
+                  id: { type: "string", minLength: 1, maxLength: 200 },
+                  occurrenceId: { type: "null" },
+                  context: {
+                    type: "object",
+                    properties: { kind: { const: "terminal" } },
+                    required: ["kind"],
+                    additionalProperties: false,
+                  },
+                },
+                required: ["id", "occurrenceId", "context"],
+                additionalProperties: false,
+              },
+            ],
           },
           minItems: 1,
           maxItems: 10000,
@@ -45040,7 +45217,7 @@ const schema62 = {
       required: ["profileId", "generation"],
       additionalProperties: false,
     },
-    controlContext: {
+    activeControlContext: {
       oneOf: [
         {
           type: "object",
@@ -45124,12 +45301,6 @@ const schema62 = {
             reviewId: { type: "string", minLength: 1, maxLength: 200 },
           },
           required: ["kind", "reviewId"],
-          additionalProperties: false,
-        },
-        {
-          type: "object",
-          properties: { kind: { const: "terminal" } },
-          required: ["kind"],
           additionalProperties: false,
         },
         {
@@ -45435,19 +45606,37 @@ const schema62 = {
         checkpoints: {
           type: "array",
           items: {
-            type: "object",
-            properties: {
-              id: { type: "string", minLength: 1, maxLength: 200 },
-              occurrenceId: {
-                anyOf: [
-                  { type: "string", minLength: 1, maxLength: 200 },
-                  { type: "null" },
-                ],
+            oneOf: [
+              {
+                type: "object",
+                properties: {
+                  id: { type: "string", minLength: 1, maxLength: 200 },
+                  occurrenceId: {
+                    type: "string",
+                    minLength: 1,
+                    maxLength: 200,
+                  },
+                  context: { $ref: "#/$defs/activeControlContext" },
+                },
+                required: ["id", "occurrenceId", "context"],
+                additionalProperties: false,
               },
-              context: { $ref: "#/$defs/controlContext" },
-            },
-            required: ["id", "occurrenceId", "context"],
-            additionalProperties: false,
+              {
+                type: "object",
+                properties: {
+                  id: { type: "string", minLength: 1, maxLength: 200 },
+                  occurrenceId: { type: "null" },
+                  context: {
+                    type: "object",
+                    properties: { kind: { const: "terminal" } },
+                    required: ["kind"],
+                    additionalProperties: false,
+                  },
+                },
+                required: ["id", "occurrenceId", "context"],
+                additionalProperties: false,
+              },
+            ],
           },
           minItems: 1,
           maxItems: 10000,
@@ -72165,7 +72354,7 @@ const schema96 = {
       required: ["profileId", "generation"],
       additionalProperties: false,
     },
-    controlContext: {
+    activeControlContext: {
       oneOf: [
         {
           type: "object",
@@ -72249,12 +72438,6 @@ const schema96 = {
             reviewId: { type: "string", minLength: 1, maxLength: 200 },
           },
           required: ["kind", "reviewId"],
-          additionalProperties: false,
-        },
-        {
-          type: "object",
-          properties: { kind: { const: "terminal" } },
-          required: ["kind"],
           additionalProperties: false,
         },
         {
@@ -72560,19 +72743,37 @@ const schema96 = {
         checkpoints: {
           type: "array",
           items: {
-            type: "object",
-            properties: {
-              id: { type: "string", minLength: 1, maxLength: 200 },
-              occurrenceId: {
-                anyOf: [
-                  { type: "string", minLength: 1, maxLength: 200 },
-                  { type: "null" },
-                ],
+            oneOf: [
+              {
+                type: "object",
+                properties: {
+                  id: { type: "string", minLength: 1, maxLength: 200 },
+                  occurrenceId: {
+                    type: "string",
+                    minLength: 1,
+                    maxLength: 200,
+                  },
+                  context: { $ref: "#/$defs/activeControlContext" },
+                },
+                required: ["id", "occurrenceId", "context"],
+                additionalProperties: false,
               },
-              context: { $ref: "#/$defs/controlContext" },
-            },
-            required: ["id", "occurrenceId", "context"],
-            additionalProperties: false,
+              {
+                type: "object",
+                properties: {
+                  id: { type: "string", minLength: 1, maxLength: 200 },
+                  occurrenceId: { type: "null" },
+                  context: {
+                    type: "object",
+                    properties: { kind: { const: "terminal" } },
+                    required: ["kind"],
+                    additionalProperties: false,
+                  },
+                },
+                required: ["id", "occurrenceId", "context"],
+                additionalProperties: false,
+              },
+            ],
           },
           minItems: 1,
           maxItems: 10000,

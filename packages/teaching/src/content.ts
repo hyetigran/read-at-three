@@ -295,7 +295,13 @@ export function graphTask(
   return compileTask(task);
 }
 
-export function taskDefinition(content: DevelopmentPackage, taskId: TaskId) {
+export function taskDefinition({
+  content,
+  taskId,
+}: {
+  content: DevelopmentPackage;
+  taskId: TaskId;
+}) {
   if (content.body.coverage === "lesson1-sounds-oral-complete") {
     const entry = content.body.tasks.find((entry) => entry.task.id === taskId);
     if (!entry) throw new Error("Task unavailable in exact package");
@@ -307,8 +313,14 @@ export function taskDefinition(content: DevelopmentPackage, taskId: TaskId) {
   }
   return { kind: "printedGraphV1", graph: graphTask(content, taskId) } as const;
 }
-export function controlTask(content: DevelopmentPackage, taskId: TaskId) {
-  const entry = taskDefinition(content, taskId);
+export function controlTask({
+  content,
+  taskId,
+}: {
+  content: DevelopmentPackage;
+  taskId: TaskId;
+}) {
+  const entry = taskDefinition({ content, taskId });
   if (entry.kind !== "graphControls") throw new Error("Control task required");
   return entry.graph;
 }

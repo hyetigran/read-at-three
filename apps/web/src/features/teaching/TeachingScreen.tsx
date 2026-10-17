@@ -26,7 +26,9 @@ type TeachingScreenProps = {
   busy: boolean;
   saveError: string | null;
   onAction: (action: AvailableAction) => void;
-  onReview: (action: ReviewSelectionAction, choice: ReviewChoice) => void;
+  onReview: (
+    input: Readonly<{ action: ReviewSelectionAction; choice: ReviewChoice }>,
+  ) => void;
   onRetry: () => void;
   onOpenRetry: () => void;
 };
@@ -745,9 +747,9 @@ function ReviewSelectionActivity({
                 primary
                 disabled={disabled || selected.length === 0}
                 onActivate={() =>
-                  onReview(projection.selectionAction, {
-                    kind: "items",
-                    itemIds: [...selected],
+                  onReview({
+                    action: projection.selectionAction,
+                    choice: { kind: "items", itemIds: [...selected] },
                   })
                 }
               />
@@ -762,7 +764,10 @@ function ReviewSelectionActivity({
                 primary={false}
                 disabled={disabled || selected.length !== 0}
                 onActivate={() =>
-                  onReview(projection.selectionAction, { kind: "none" })
+                  onReview({
+                    action: projection.selectionAction,
+                    choice: { kind: "none" },
+                  })
                 }
               />
             </div>
@@ -931,9 +936,9 @@ export function TeachingScreen({
             projection={projection}
             disabled={disabled || catalogOpen}
             onAction={act}
-            onReview={(action, choice) => {
+            onReview={(request) => {
               setCueGeneration((generation) => generation + 1);
-              onReview(action, choice);
+              onReview(request);
             }}
           />
         ) : null}

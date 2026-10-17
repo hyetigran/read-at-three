@@ -50,8 +50,8 @@ export function initialState(
     taskId ??
     (firstTask && ("task" in firstTask ? firstTask.task.id : firstTask.id));
   if (!id) throw new Error("Task is unavailable");
-  if (taskDefinition(content, id).kind === "graphControls")
-    return initialControlState(content, id);
+  if (taskDefinition({ content, taskId: id }).kind === "graphControls")
+    return initialControlState({ content, taskId: id });
   const graph = graphTask(content, id);
   const occurrences: Occurrence[] = graph.normalNodeIds.map(
     (nodeId, index) => ({
@@ -142,7 +142,11 @@ export function validatePosition(
   taskId?: TaskId,
 ): void {
   if (state.kind === "graphControls") {
-    validateControlPosition(content, state, taskId);
+    validateControlPosition({
+      content,
+      state,
+      ...(taskId === undefined ? {} : { taskId }),
+    });
     return;
   }
   if (state.kind !== "graph") {
@@ -681,7 +685,8 @@ export function project(
   state: TeachingState,
 ): EngineProjection {
   validatePosition(content, state);
-  if (state.kind === "graphControls") return projectControls(content, state);
+  if (state.kind === "graphControls")
+    return projectControls({ content, state });
   if (state.kind === "graph") {
     const checkpoint = currentCheckpoint(state);
     if (checkpoint.occurrenceId === null) return { kind: "completed" };
@@ -714,7 +719,7 @@ export function completionProof(
 ): CompletionProof | null {
   validatePosition(content, state);
   if (state.kind === "graphControls")
-    return controlCompletionProof(content, state);
+    return controlCompletionProof({ content, state });
   if (state.kind !== "graph") return null;
   return graphCompletionProof(content, state);
 }
@@ -779,7 +784,7 @@ export function validateAcceptanceState({
       )
         throw new Error("Navigation invented an independent cycle");
       if (
-        controlCompletionProof(content, baseline) !== null &&
+        controlCompletionProof({ content, state: baseline }) !== null &&
         (canonical(baseline.checkpoints) !== canonical(state.checkpoints) ||
           canonical(baseline.occurrences) !== canonical(state.occurrences) ||
           baseline.nextCheckpointNumber !== state.nextCheckpointNumber)

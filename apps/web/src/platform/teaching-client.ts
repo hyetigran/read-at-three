@@ -151,11 +151,15 @@ export function createBrowserTeachingClient() {
         hash: hashText,
       });
     },
-    prepareReview(
-      projection: Projection,
-      action: ReviewSelectionAction,
-      choice: ReviewChoice,
-    ) {
+    prepareReview({
+      projection,
+      action,
+      choice,
+    }: {
+      projection: Projection;
+      action: ReviewSelectionAction;
+      choice: ReviewChoice;
+    }) {
       return prepareCommand({
         projection,
         request: { kind: "review", action, choice },

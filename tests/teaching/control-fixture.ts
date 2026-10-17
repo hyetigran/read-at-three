@@ -27,7 +27,7 @@ export async function controlFixture(number = 2) {
   const taskId = content.body.tasks.find((t) => t.task.number === number)?.task
     .id;
   if (!taskId) throw new Error("Synthetic task missing");
-  const entry = taskDefinition(content, taskId);
+  const entry = taskDefinition({ content, taskId });
   if (entry.kind !== "graphControls")
     throw new Error("Synthetic oral graph missing");
   const initial = initialState(content, taskId);

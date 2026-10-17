@@ -561,11 +561,18 @@ export type ControlContext = Readonly<
       phase: Readonly<{ kind: "instruction" | "retest"; index: number }>;
     }
 >;
-export type ControlCheckpoint = Readonly<{
-  id: CheckpointId;
-  occurrenceId: OccurrenceId | null;
-  context: ControlContext;
-}>;
+export type ControlCheckpoint = Readonly<
+  | {
+      id: CheckpointId;
+      occurrenceId: null;
+      context: Extract<ControlContext, { kind: "terminal" }>;
+    }
+  | {
+      id: CheckpointId;
+      occurrenceId: OccurrenceId;
+      context: Exclude<ControlContext, { kind: "terminal" }>;
+    }
+>;
 export type ReviewQueue = Readonly<{
   id: QueueId;
   reviewId: ReviewId;

@@ -211,11 +211,10 @@ const controlResume = record({
     ],
   },
 });
-const controlContext = {
+const activeControlContext = {
   oneOf: [
     record({ kind: { const: "delivering" }, resume: controlResume }),
     record({ kind: { const: "selection" }, reviewId: id }),
-    record({ kind: { const: "terminal" } }),
     record({
       kind: { const: "correction" },
       correctionId: id,
@@ -228,6 +227,17 @@ const controlContext = {
         kind: { enum: ["instruction", "retest"] },
         index: { type: "integer", minimum: 0, maximum: 999 },
       }),
+    }),
+  ],
+};
+const terminalControlContext = record({ kind: { const: "terminal" } });
+const controlCheckpoint = {
+  oneOf: [
+    record({ id, occurrenceId: id, context: activeControlContext }),
+    record({
+      id,
+      occurrenceId: { type: "null" },
+      context: terminalControlContext,
     }),
   ],
 };
@@ -287,11 +297,7 @@ const controlState = record({
     }),
     100,
   ),
-  checkpoints: list(
-    record({ id, occurrenceId: nullableId, context: controlContext }),
-    10000,
-    1,
-  ),
+  checkpoints: list(controlCheckpoint, 10000, 1),
   checkpointIndex: { type: "integer", minimum: 0, maximum: 9999 },
   nextOccurrenceNumber: counter,
   nextCheckpointNumber: counter,
@@ -611,7 +617,7 @@ const sharedDefinitions = {
   graphNode,
   controlTurnNode,
   owner,
-  controlContext,
+  activeControlContext,
   controlState,
   graphTurn,
   action,

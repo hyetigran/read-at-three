@@ -177,7 +177,7 @@ function ReadyApplication({
       const command =
         "intent" in action
           ? await client.prepare(captured, action)
-          : await client.prepareReview(captured, action.action, action.choice);
+          : await client.prepareReview({ projection: captured, ...action });
       const prepared = { command, origin: captured };
       if (!isCurrent(prepared)) {
         setCorrectionPreview(null);
@@ -244,8 +244,8 @@ function ReadyApplication({
       onAction={(action) => {
         void act(action);
       }}
-      onReview={(action, choice) => {
-        void act({ action, choice });
+      onReview={(request) => {
+        void act(request);
       }}
       onRetry={() => {
         void retry();

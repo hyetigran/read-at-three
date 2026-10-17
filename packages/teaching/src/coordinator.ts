@@ -71,11 +71,11 @@ export async function prepareCommand({
       canonical(request.action) !== canonical(projection.selectionAction)
     )
       throw new Error("Review selection capability unavailable");
-    const ordered = canonicalReviewChoice(
-      projection.items,
-      request.choice,
-      "Complete explicit review choice invalid",
-    );
+    const ordered = canonicalReviewChoice({
+      items: projection.items,
+      choice: request.choice,
+      invalidMessage: "Complete explicit review choice invalid",
+    });
     requested = {
       label: request.action.selectLabel,
       intent: {
@@ -357,16 +357,22 @@ export function createCoordinator({
       const title =
         content.body.coverage === "partial-first-m"
           ? content.body.title
-          : taskDefinition(content, session.taskId).graph.task.title;
+          : taskDefinition({ content, taskId: session.taskId }).graph.task
+              .title;
       const taskNumber =
         content.body.coverage === "partial-first-m"
           ? 1
-          : taskDefinition(content, session.taskId).graph.task.number;
+          : taskDefinition({ content, taskId: session.taskId }).graph.task
+              .number;
       const actions: AvailableAction[] = [];
       if (session.status === "active" && session.runStatus === "inProgress") {
         if (session.state.kind === "graphControls")
           actions.push(
-            ...controlActions(content, session.state, session.runStatus),
+            ...controlActions({
+              content,
+              state: session.state,
+              status: session.runStatus,
+            }),
           );
         else if (engine.kind === "teaching")
           actions.push(choice("Continue", { kind: "continue" }));
@@ -402,7 +408,11 @@ export function createCoordinator({
       ) {
         if (session.state.kind === "graphControls")
           actions.push(
-            ...controlActions(content, session.state, session.runStatus),
+            ...controlActions({
+              content,
+              state: session.state,
+              status: session.runStatus,
+            }),
           );
         else {
           if (session.state.checkpointIndex > 0)
@@ -541,7 +551,7 @@ export function createCoordinator({
                   "Legacy preview can only be resumed.",
                 );
               try {
-                taskDefinition(content, taskId);
+                taskDefinition({ content, taskId });
               } catch {
                 return reject(
                   "task-unavailable",
