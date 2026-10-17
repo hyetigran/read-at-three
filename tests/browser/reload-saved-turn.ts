@@ -7,7 +7,7 @@ export async function reloadSavedTurn({
 }: {
   page: Page;
   turnId: string;
-}) {
+}): Promise<{ kind: "recoveredActive" } | { kind: "resumedPaused" }> {
   const saved = page.locator("main[data-turn-id]");
   await expect(saved).toHaveAttribute("data-turn-id", turnId);
   const checkpoint = await saved.getAttribute("data-checkpoint-id");
@@ -20,8 +20,10 @@ export async function reloadSavedTurn({
   await expect(
     page.locator(`main[data-turn-id="${turnId}"]`).or(paused),
   ).toBeVisible();
-  if (await paused.isVisible())
+  const resumed = await paused.isVisible();
+  if (resumed)
     await page.getByRole("button", { name: "Resume", exact: true }).click();
   await expect(saved).toHaveAttribute("data-turn-id", turnId);
   await expect(saved).toHaveAttribute("data-checkpoint-id", checkpoint);
+  return resumed ? { kind: "resumedPaused" } : { kind: "recoveredActive" };
 }

@@ -45,7 +45,7 @@ export async function probe(page: Page) {
           } else if (mode === 'teaching-receipt-command-id' && (request?.kind === 'dispatch' || request?.kind === 'recoverTeaching') && data?.kind === 'receipt' && data.value.kind === 'committed') {
             mode='';event.stopImmediatePropagation();this.dispatchEvent(new MessageEvent('message',{data:{...data,value:{...data.value,commandId:'wrong-teaching-command'}}}));
           } else if (mode === 'teaching-read-revision' && request?.kind === 'read' && data?.kind === 'application' && data.value.kind === 'ready' && data.value.projection.kind === 'writing') {
-            mode='';event.stopImmediatePropagation();this.dispatchEvent(new MessageEvent('message',{data:{...data,value:{...data.value,projection:{...data.value.projection,revision:'99'}}}}));
+            mode='';event.stopImmediatePropagation();this.dispatchEvent(new MessageEvent('message',{data:{...data,value:{...data.value,witness:{...data.value.witness,selectedSessionRevision:'99'},projection:{...data.value.projection,revision:'99'}}}}));
           } else if (mode === 'teaching-restore-revision' && request?.kind === 'readInk' && data?.kind === 'inkSnapshot') {
             mode='';event.stopImmediatePropagation();this.dispatchEvent(new MessageEvent('message',{data:{...data,value:{...data.value,token:{...data.value.token,revision:'99'}}}}));
           } else if (loseRecoveredTeaching && request?.kind === 'recoverTeaching' && data?.kind === 'receipt') {
