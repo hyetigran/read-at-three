@@ -216,22 +216,19 @@ export function createWritingController({
     for (const listener of fenceListeners) listener();
     paint();
   }
+  function inputIsSuspended(): boolean {
+    return (
+      routeSuspended ||
+      !focused ||
+      pageHidden ||
+      !isTeachingViewport() ||
+      document.visibilityState !== "visible"
+    );
+  }
   function reopenInput() {
     const wasFenced = fenced;
-    fenced =
-      routeSuspended ||
-      !focused ||
-      pageHidden ||
-      state.operation.kind !== "idle" ||
-      !connected ||
-      !isTeachingViewport() ||
-      document.visibilityState !== "visible";
-    const suspended =
-      routeSuspended ||
-      !focused ||
-      pageHidden ||
-      !isTeachingViewport() ||
-      document.visibilityState !== "visible";
+    const suspended = inputIsSuspended();
+    fenced = suspended || state.operation.kind !== "idle" || !connected;
     if (state.inputSuspended !== suspended)
       publish({ inputSuspended: suspended });
     if (wasFenced && !fenced) inputEligibleAt = performance.now();
@@ -1128,12 +1125,7 @@ export function createWritingController({
     if (event.type === "pagehide") pageHidden = true;
     if (event.type === "pageshow") pageHidden = false;
     fence();
-    const suspended =
-      routeSuspended ||
-      !focused ||
-      pageHidden ||
-      !isTeachingViewport() ||
-      document.visibilityState !== "visible";
+    const suspended = inputIsSuspended();
     if (state.inputSuspended !== suspended)
       publish({ inputSuspended: suspended });
     if (

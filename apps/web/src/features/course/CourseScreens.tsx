@@ -344,7 +344,7 @@ function WorkLinks({
         {works.map((work, index) => (
           <li key={work.runId}>
             <Link to={`/work/${work.runId}`}>
-              <AddedText>{`Task ${taskNumber} · ${work.status === "inProgress" ? "Unfinished" : work.status === "abandoned" ? "Earlier attempt" : work.status === "skipped" ? "Skipped" : "Completed"} · ${index + 1} · View read-only`}</AddedText>
+              <AddedText>{`Task ${taskNumber} · ${work.status === "inProgress" ? "Unfinished" : work.status === "abandoned" ? "Earlier run" : work.status === "skipped" ? "Skipped" : "Completed"} · ${index + 1} · View read-only`}</AddedText>
             </Link>
           </li>
         ))}
@@ -668,7 +668,10 @@ export function SavedWorkScreen({
               <CopyText copy={result.data.title} />
             </h2>
             <p>
-              <AddedText>{`This ${work.status === "abandoned" ? "earlier attempt" : work.status} work keeps its original lesson and drawings. Viewing it does not resume or change the activity.`}</AddedText>
+              <AddedText>
+                This saved work keeps its original lesson and drawings. Viewing
+                it does not resume or change the activity.
+              </AddedText>
             </p>
             {result.data.documents.length ? (
               result.data.documents.map((document) => (
