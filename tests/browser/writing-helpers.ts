@@ -1,7 +1,10 @@
 import { expect } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { parseInkSnapshot } from "@readatthree/teaching";
-import { parseRequest } from "../../apps/web/src/platform/protocol.ts";
+import {
+  parseRequest,
+  parseResponse,
+} from "../../apps/web/src/platform/protocol.ts";
 
 export const writingBase =
   process.env.READING_BROWSER_BUILD === "1"
@@ -30,7 +33,11 @@ export async function probe(page: Page) {
           responses.push(structuredClone(data));
           if (data?.kind === 'inkSnapshot') snapshots.push(structuredClone(data.value));
           const request = this.sent.get(data?.id);
-          if (loseRecoveredTeaching && request?.kind === 'recoverTeaching' && data?.kind === 'receipt') {
+          if (mode === 'teaching-receipt-command-id' && (request?.kind === 'dispatch' || request?.kind === 'recoverTeaching') && data?.kind === 'receipt' && data.value.kind === 'committed') {
+            mode='';event.stopImmediatePropagation();this.dispatchEvent(new MessageEvent('message',{data:{...data,value:{...data.value,commandId:'wrong-teaching-command'}}}));
+          } else if (mode === 'teaching-read-revision' && request?.kind === 'read' && data?.kind === 'projection' && data.value.kind === 'writing') {
+            mode='';event.stopImmediatePropagation();this.dispatchEvent(new MessageEvent('message',{data:{...data,value:{...data.value,revision:'99'}}}));
+          } else if (loseRecoveredTeaching && request?.kind === 'recoverTeaching' && data?.kind === 'receipt') {
             loseRecoveredTeaching=false;event.stopImmediatePropagation();queueMicrotask(()=>this.dispatchEvent(new ErrorEvent('error',{message:'Injected recovered teaching reply loss'})));
           } else if (loseReconcile && request?.kind === 'reconcileRecovery' && data?.kind === 'projection') {
             loseReconcile=false;event.stopImmediatePropagation();queueMicrotask(()=>this.dispatchEvent(new ErrorEvent('error',{message:'Injected reconciliation reply loss'})));
@@ -75,6 +82,14 @@ export async function snapshots(page: Page) {
   if (!Array.isArray(evidence))
     throw new Error("Writing SQL snapshot evidence missing");
   return evidence.map(parseInkSnapshot);
+}
+export async function responses(page: Page) {
+  const evidence: unknown = await page.evaluate(
+    "window.writingEvidence().responses",
+  );
+  if (!Array.isArray(evidence))
+    throw new Error("Writing response evidence missing");
+  return evidence.map(parseResponse);
 }
 export async function latestDocuments(page: Page) {
   const values = await snapshots(page);

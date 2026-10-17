@@ -11,6 +11,7 @@ import {
   latestDocuments,
   probe,
   requests,
+  responses,
   snapshots,
   startWriting,
   writingAction,
@@ -525,6 +526,159 @@ for (const fault of ["teaching-before-twice", "teaching-after-reconcile"]) {
   });
 }
 
+for (const path of ["normal", "recovered teaching"]) {
+  for (const fault of [
+    "teaching-receipt-command-id",
+    "teaching-read-revision",
+  ]) {
+    test(`${path} publication rejects ${fault} and retains exact Retry`, async ({
+      page,
+    }) => {
+      await probe(page);
+      await startWriting(page);
+      const selected = (await responses(page)).findLast(
+        (response) => response.kind === "projection",
+      );
+      const selectedReceipt = (await responses(page)).findLast(
+        (response) => response.kind === "receipt",
+      );
+      if (
+        selected?.kind !== "projection" ||
+        selected.value.kind !== "writing" ||
+        selectedReceipt?.kind !== "receipt" ||
+        selectedReceipt.value.kind !== "committed"
+      )
+        throw new Error("Committed writing selection missing");
+      expect({
+        receiptRevision: selectedReceipt.value.revision,
+        profileRevision: selected.value.profileRevision,
+        sessionRevision: selected.value.revision,
+      }).toEqual({
+        receiptRevision: "1",
+        profileRevision: "1",
+        sessionRevision: "0",
+      });
+      await writingAction(page);
+      const checkpoint = await page
+        .locator("main")
+        .getAttribute("data-checkpoint-id");
+      if (!checkpoint) throw new Error("Model checkpoint missing");
+      const original = (await latestDocuments(page)).map(
+        (document) => document.token.documentId,
+      );
+      await drawStroke(page, [{ x: 120, y: 110 }]);
+      if (path === "recovered teaching") {
+        await page.evaluate("window.armWritingFault('teaching-before')");
+        await writingAction(page);
+        await atWriting(page, "m-model");
+        await expect(
+          page.getByRole("button", { name: "Retry save", exact: true }),
+        ).toBeVisible();
+      }
+      await page.evaluate(`window.armWritingFault(${JSON.stringify(fault)})`);
+      await writingAction(page, path === "normal" ? "Continue" : "Retry save");
+      await atWriting(page, "m-model");
+      await expect(page.locator("main")).toHaveAttribute(
+        "data-checkpoint-id",
+        checkpoint,
+      );
+      await expect(
+        page.getByRole("button", { name: "Retry save", exact: true }),
+      ).toBeVisible();
+      await expect(page.locator("canvas")).toHaveAttribute(
+        "data-writable",
+        "false",
+      );
+      const inkCount = (await requests(page)).filter(
+        (request) => request.kind === "dispatchInk",
+      ).length;
+      await drawStroke(page, [{ x: 250, y: 120 }]);
+      expect(
+        (await requests(page)).filter(
+          (request) => request.kind === "dispatchInk",
+        ),
+      ).toHaveLength(inkCount);
+      await writingAction(page, "Retry save");
+      await atWriting(page, "m-tracing");
+      await expect(page.locator("canvas")).toHaveAttribute(
+        "data-writable",
+        "true",
+      );
+      const relevant = (await requests(page)).filter(
+        (request) =>
+          (request.kind === "dispatch" || request.kind === "recoverTeaching") &&
+          request.command.kind === "writingNavigate" &&
+          request.command.expectedRevision === "1",
+      );
+      expect(relevant).toHaveLength(path === "normal" ? 2 : 3);
+      const first = relevant[0];
+      if (!first || !("command" in first))
+        throw new Error("Retained teaching command missing");
+      for (const request of relevant) {
+        if (!("command" in request))
+          throw new Error("Teaching Retry command missing");
+        expect(request.command).toEqual(first.command);
+      }
+      const committed = (await responses(page)).filter(
+        (response) =>
+          response.kind === "receipt" &&
+          response.value.kind === "committed" &&
+          response.value.commandId === first.command.commandId,
+      );
+      expect(committed).toHaveLength(2);
+      for (const response of committed) {
+        if (response.kind !== "receipt" || response.value.kind !== "committed")
+          throw new Error("Committed teaching receipt missing");
+        expect(response.value.revision).toBe("2");
+      }
+      const after = await latestDocuments(page);
+      expect(after.map((document) => document.token.documentId)).toEqual(
+        original,
+      );
+      expect(after.flatMap((document) => document.strokes)).toHaveLength(1);
+      const model = after[0];
+      const stroke = model?.strokes[0];
+      if (!model || !stroke) throw new Error("Committed model stroke missing");
+      expect(stroke.status).toBe("finished");
+      expect(
+        model.histories.find((history) => history.layer === "model")
+          ?.operations,
+      ).toHaveLength(1);
+      const points = stroke.chunks.flatMap((chunk) =>
+        decodeInkPoints({
+          payload: Uint8Array.from(chunk.payload),
+          pointCount: chunk.pointCount,
+          bounds: model.bounds,
+        }),
+      );
+      expect(points[0]?.elapsedMs).toBe(0);
+      for (const [index, point] of points.entries()) {
+        expect(point.x).toBeCloseTo(120, 3);
+        expect(point.y).toBeCloseTo(110, 3);
+        expect(point.pressure).toBe(1);
+        expect(point.elapsedMs).toBeGreaterThanOrEqual(
+          points[index - 1]?.elapsedMs ?? 0,
+        );
+      }
+      await page.reload();
+      await atWriting(page, "m-tracing");
+      const reopened = await latestDocuments(page);
+      expect(reopened.map((document) => document.token.documentId)).toEqual(
+        original,
+      );
+      expect(reopened.flatMap((document) => document.strokes)).toEqual(
+        after.flatMap((document) => document.strokes),
+      );
+      const durable = (await responses(page)).findLast(
+        (response) => response.kind === "projection",
+      );
+      if (durable?.kind !== "projection" || durable.value.kind !== "writing")
+        throw new Error("Reopened writing projection missing");
+      expect(durable.value.revision).toBe("2");
+    });
+  }
+}
+
 test("Retry opening remount retains an uncertain teaching command and publishes its receipt only once", async ({
   page,
 }) => {
@@ -703,6 +857,28 @@ test("task selection uses closed exact Retry, Resume keeps documents and Replay 
     "data-turn-id",
     /t02/,
   );
+  const selectedProjection = (await responses(page)).findLast(
+    (response) => response.kind === "projection",
+  );
+  const selectedReceipt = (await responses(page)).findLast(
+    (response) => response.kind === "receipt",
+  );
+  if (
+    selectedProjection?.kind !== "projection" ||
+    selectedProjection.value.kind !== "teaching" ||
+    selectedReceipt?.kind !== "receipt" ||
+    selectedReceipt.value.kind !== "committed"
+  )
+    throw new Error("Committed task selection missing");
+  expect({
+    receiptRevision: selectedReceipt.value.revision,
+    profileRevision: selectedProjection.value.profileRevision,
+    sessionRevision: selectedProjection.value.revision,
+  }).toEqual({
+    receiptRevision: "2",
+    profileRevision: "2",
+    sessionRevision: "0",
+  });
   await page.getByRole("button", { name: "Activities", exact: true }).click();
   await page
     .getByRole("button", { name: "Resume Task 6", exact: true })

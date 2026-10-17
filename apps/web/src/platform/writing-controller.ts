@@ -14,6 +14,7 @@ import {
 } from "@readatthree/teaching";
 import type {
   AvailableAction,
+  CommitReceipt,
   ControlTurnNode,
   DocumentToken,
   GraphNode,
@@ -88,11 +89,30 @@ const unavailable: Projection = {
 };
 const saveMessage =
   "This save could not be confirmed. Keep this reading window open and retry the same action.";
-function owns(view: Projection, command: TeachingCommand) {
+function matchesReceipt({
+  projection,
+  command,
+  receipt,
+}: {
+  projection: Projection;
+  command: TeachingCommand;
+  receipt: CommitReceipt;
+}) {
   return (
-    view.kind !== "recovery" &&
-    view.owner.profileId === command.owner.profileId &&
-    view.owner.generation === command.owner.generation
+    projection.kind !== "recovery" &&
+    projection.kind !== "entry" &&
+    receipt.commandId === command.commandId &&
+    receipt.owner.profileId === command.owner.profileId &&
+    receipt.owner.generation === command.owner.generation &&
+    projection.owner.profileId === receipt.owner.profileId &&
+    projection.owner.generation === receipt.owner.generation &&
+    projection.sessionId === receipt.sessionId &&
+    projection.runId === receipt.runId &&
+    projection.packageHash === receipt.packageHash &&
+    projection.packageHash === command.payload.packageHash &&
+    (command.scope.kind === "profile"
+      ? projection.profileRevision
+      : projection.revision) === receipt.revision
   );
 }
 function writing(
@@ -433,11 +453,11 @@ export function createWritingController(client: BrowserTeachingClient) {
         throw new Error("The saved place needs recovery.");
       }
       if (
-        next.kind === "entry" ||
-        !owns(next, prepared.command) ||
-        next.sessionId !== result.sessionId ||
-        next.runId !== result.runId ||
-        next.packageHash !== result.packageHash
+        !matchesReceipt({
+          projection: next,
+          command: prepared.command,
+          receipt: result,
+        })
       )
         throw new Error("The saved reading place did not match this save.");
       await restore(next);
@@ -572,12 +592,11 @@ export function createWritingController(client: BrowserTeachingClient) {
         }
         const next = await client.read();
         if (
-          next.kind === "recovery" ||
-          next.kind === "entry" ||
-          !owns(next, operation.prepared.command) ||
-          next.sessionId !== result.sessionId ||
-          next.runId !== result.runId ||
-          next.packageHash !== result.packageHash
+          !matchesReceipt({
+            projection: next,
+            command: operation.prepared.command,
+            receipt: result,
+          })
         )
           throw new Error("Recovered teaching did not match its receipt.");
         await restore(next);

@@ -10,6 +10,8 @@ Both source rows remain visible. The parent draws the model directly. That model
 
 The browser controller owns the live stroke buffer and one pending action. Canvas and Pointer Events provide input through uniform document coordinates. Samples bypass Query and lesson rendering. Query caches committed teaching projections. All parent actions fence input synchronously, settle ink, prepare one immutable command, and publish after its durable receipt and matching reread. Hidden or unsupported windows, resize, cancellation and lost contact interrupt drawing without accepting teaching.
 
+Publication checks match the command ID, owner, session, run, package and committed revision. Selection receipts use the profile revision; navigation receipts use the session revision. A mismatched reply keeps the old visible place, closes drawing and retains the same command for Retry.
+
 ## Durable state and recovery
 
 The portable teaching engine retains its existing occurrence, checkpoint and accepting-command authority. Explicit writing confirmations bind the target and phase. Each target has a canonical document with separate model, tracing and independent histories. Stroke IDs remain stable through bounded checkpoints and finalization. Canonical point chunks use a versioned little-endian codec. The additive V4 migration preserves earlier data and receipts.
