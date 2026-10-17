@@ -1,9 +1,11 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Ajv2020 } from "ajv/dist/2020.js";
+import { Ajv as AjvJTD } from "ajv/dist/jtd.js";
 import standaloneCode from "ajv/dist/standalone/index.js";
 import { format } from "prettier";
 import { validatorSchemas } from "@readatthree/teaching/authoring";
+import { profileValidationSchemas } from "../../packages/teaching/src/profile-schemas.ts";
 
 const arguments_ = process.argv.slice(2);
 if (arguments_.some((argument) => argument !== "--check")) {
@@ -72,11 +74,53 @@ const declarations =
         `export declare const ${name}: ValidateFunction<${domain}>;`,
     )
     .join("\n");
+const profileDomains = {
+  validateLocalPreferences: "RawPreferences",
+  validatePreparationPolicy: "RawPreparationPolicy",
+  validateProfileDirectory: "RawProfileDirectory",
+  validateProfileAdministrationCommand: "RawProfileAdministrationCommand",
+  validateProfileAdministrationReceipt: "RawProfileAdministrationReceipt",
+} satisfies Record<keyof typeof profileValidationSchemas, string>;
+const profileAjv = new AjvJTD({
+  allErrors: true,
+  code: { source: true, esm: true },
+});
+for (const [name, schema] of Object.entries(profileValidationSchemas))
+  profileAjv.addSchema(schema, name);
+const profileJavascript = standaloneCode(
+  profileAjv,
+  Object.fromEntries(
+    Object.keys(profileValidationSchemas).map((name) => [name, name]),
+  ),
+);
+if (/\b(?:require|eval|Function)\b/u.test(profileJavascript))
+  throw new Error(
+    "Generated profile validators contain an unreviewed runtime dependency",
+  );
+const profileDeclarations =
+  'import type { ValidateFunction } from "ajv";\n' +
+  `import type { ${Object.values(profileDomains).join(", ")} } from "./profile-schemas.ts";\n` +
+  Object.entries(profileDomains)
+    .map(
+      ([name, domain]) =>
+        `export declare const ${name}: ValidateFunction<${domain}>;`,
+    )
+    .join("\n");
 for (const { filename, source, parser } of [
   { filename: "generated-validators.js", source: javascript, parser: "babel" },
   {
     filename: "generated-validators.d.ts",
     source: declarations,
+    parser: "typescript",
+  },
+  {
+    filename: "generated-profile-validators.js",
+    source: profileJavascript,
+    parser: "babel",
+  },
+  {
+    filename: "generated-profile-validators.d.ts",
+    source: profileDeclarations,
     parser: "typescript",
   },
 ]) {

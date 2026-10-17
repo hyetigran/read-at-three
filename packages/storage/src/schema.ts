@@ -47,6 +47,7 @@ const receiptScopeId = identity<"profile" | "session" | "document">("profile");
 const scopeTargetId = identity<"lesson" | "task">("lesson");
 const packageHash = hashed("package");
 const payloadHash = hashed("payload");
+const preparationHash = hashed("preparation");
 const migrationId = identity("migration");
 const migrationHash = hashed("migration");
 const bytes = customType<{ data: Uint8Array; driverData: Uint8Array }>({
@@ -117,6 +118,69 @@ export const profile = sqliteTable(
     check("preferences_version_supported", sql`preferences_version=1`),
     check("preferences_json", sql`json_valid(preferences)`),
     unique().on(table.id, table.generation),
+  ],
+);
+export const installationProfileState = sqliteTable(
+  "installation_profile_state",
+  {
+    installationId: installationId("installation_id").primaryKey(),
+    profileId: profileId("profile_id").notNull(),
+    generation: counter("generation").notNull(),
+    selectionRevision: counter("selection_revision").notNull(),
+    preparationHash: preparationHash("preparation_hash"),
+    setupMode: text("initial_setup_mode", {
+      enum: ["firstLaunch", "existingFamily", "complete"],
+    }).notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.installationId],
+      foreignColumns: [installation.id],
+    }),
+    foreignKey({
+      columns: [table.profileId, table.generation],
+      foreignColumns: [profile.id, profile.generation],
+    }),
+    nonnegative("generation"),
+    nonnegative("selection_revision"),
+    hash("preparation_hash"),
+    check(
+      "initial_setup_mode_supported",
+      sql`initial_setup_mode IN ('firstLaunch','existingFamily','complete')`,
+    ),
+  ],
+);
+export const profileAdministrationReceipt = sqliteTable(
+  "profile_administration_receipt",
+  {
+    installationId: installationId("installation_id").notNull(),
+    commandId: commandId("command_id").notNull(),
+    commandVersion: integer("command_version").notNull(),
+    command: text("command").notNull(),
+    expectedRevision: counter("expected_revision").notNull(),
+    resultingRevision: counter("resulting_revision").notNull(),
+    payloadHash: payloadHash("payload_hash").notNull(),
+    resultVersion: integer("result_version").notNull(),
+    result: text("result").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.installationId, table.commandId] }),
+    unique().on(table.installationId, table.resultingRevision),
+    foreignKey({
+      columns: [table.installationId],
+      foreignColumns: [installation.id],
+    }),
+    nonnegative("expected_revision"),
+    nonnegative("resulting_revision"),
+    hash("payload_hash"),
+    check("administration_command_version", sql`command_version=1`),
+    check("administration_result_version", sql`result_version=1`),
+    check("administration_command_json", sql`json_valid(command)`),
+    check("administration_result_json", sql`json_valid(result)`),
+    check(
+      "administration_revision_step",
+      sql`resulting_revision=expected_revision+1`,
+    ),
   ],
 );
 export const installedPackage = sqliteTable(

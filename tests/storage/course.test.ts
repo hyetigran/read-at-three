@@ -715,8 +715,8 @@ test("migration 6 data-hook failure rolls back new tables, ledger and version be
     0,
   );
   await initializeDatabase(executor, hash);
-  assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 7);
-  assert.equal(count(db, "schema_migration"), 7);
+  assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 8);
+  assert.equal(count(db, "schema_migration"), 8);
   assert.equal(count(db, "lesson_credit"), 0);
 });
 

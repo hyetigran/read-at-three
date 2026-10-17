@@ -102,4 +102,14 @@ export const migrations = [
       "UPDATE installation SET database_version = 7",
     ],
   },
+  {
+    version: 8,
+    id: "issue-10-child-profiles",
+    statements: [
+      "CREATE TABLE `installation_profile_state` (\n\t`installation_id` text PRIMARY KEY NOT NULL,\n\t`profile_id` text NOT NULL,\n\t`generation` integer NOT NULL,\n\t`selection_revision` integer NOT NULL,\n\t`preparation_hash` text,\n\t`initial_setup_mode` text NOT NULL,\n\tFOREIGN KEY (`installation_id`) REFERENCES `installation`(`installation_id`) ON UPDATE no action ON DELETE no action,\n\tFOREIGN KEY (`profile_id`,`generation`) REFERENCES `profile`(`profile_id`,`generation`) ON UPDATE no action ON DELETE no action,\n\tCONSTRAINT \"generation_nonnegative\" CHECK(typeof(generation)='integer' AND generation>=0),\n\tCONSTRAINT \"selection_revision_nonnegative\" CHECK(typeof(selection_revision)='integer' AND selection_revision>=0),\n\tCONSTRAINT \"preparation_hash_hash\" CHECK(length(preparation_hash)=64 AND preparation_hash NOT GLOB '*[^a-f0-9]*'),\n\tCONSTRAINT \"initial_setup_mode_supported\" CHECK(initial_setup_mode IN ('firstLaunch','existingFamily','complete'))\n);\n",
+      'CREATE TABLE `profile_administration_receipt` (\n\t`installation_id` text NOT NULL,\n\t`command_id` text NOT NULL,\n\t`command_version` integer NOT NULL,\n\t`command` text NOT NULL,\n\t`expected_revision` integer NOT NULL,\n\t`resulting_revision` integer NOT NULL,\n\t`payload_hash` text NOT NULL,\n\t`result_version` integer NOT NULL,\n\t`result` text NOT NULL,\n\tPRIMARY KEY(`installation_id`, `command_id`),\n\tFOREIGN KEY (`installation_id`) REFERENCES `installation`(`installation_id`) ON UPDATE no action ON DELETE no action,\n\tCONSTRAINT "expected_revision_nonnegative" CHECK(typeof(expected_revision)=\'integer\' AND expected_revision>=0),\n\tCONSTRAINT "resulting_revision_nonnegative" CHECK(typeof(resulting_revision)=\'integer\' AND resulting_revision>=0),\n\tCONSTRAINT "payload_hash_hash" CHECK(length(payload_hash)=64 AND payload_hash NOT GLOB \'*[^a-f0-9]*\'),\n\tCONSTRAINT "administration_command_version" CHECK(command_version=1),\n\tCONSTRAINT "administration_result_version" CHECK(result_version=1),\n\tCONSTRAINT "administration_command_json" CHECK(json_valid(command)),\n\tCONSTRAINT "administration_result_json" CHECK(json_valid(result)),\n\tCONSTRAINT "administration_revision_step" CHECK(resulting_revision=expected_revision+1)\n);\n',
+      "CREATE UNIQUE INDEX `profile_administration_receipt_installation_id_resulting_revision_unique` ON `profile_administration_receipt` (`installation_id`,`resulting_revision`);",
+      "UPDATE installation SET database_version = 8",
+    ],
+  },
 ] as const;

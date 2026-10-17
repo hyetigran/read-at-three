@@ -2,18 +2,24 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   decodeInkPoints,
+  parseHash,
   prepareProfileAdministration,
 } from "@readatthree/teaching";
 import type {
   ProfileAdministrationIntent,
   ProfileDirectory,
+  PreparationPolicy,
 } from "@readatthree/teaching";
 import { practiceFixture } from "./practice-support.ts";
 import { hash } from "./support.ts";
 
 test("confirming another child's animal survives SQLite reopen without changing the selected child's teaching, Undo or ink", async (t) => {
   const fixture = await practiceFixture(t);
-  const first = fixture.connect();
+  const preparation = {
+    kind: "reviewed",
+    hash: parseHash({ kind: "preparation", value: "2".repeat(64) }),
+  } satisfies PreparationPolicy;
+  const first = fixture.connect({ preparation });
   const app = first.app;
   assert.equal((await app.open()).kind, "entry");
 
@@ -162,7 +168,7 @@ test("confirming another child's animal survives SQLite reopen without changing 
 
   first.db.close();
   assert.equal(first.db.isOpen, false);
-  const reopened = fixture.connect();
+  const reopened = fixture.connect({ preparation });
   const restoredDirectory = await reopened.app.readDirectory();
   assert.deepEqual(restoredDirectory.selection, selectedA);
   assert.deepEqual(child(restoredDirectory, ownerA.profileId), profileA);

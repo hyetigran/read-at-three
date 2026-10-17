@@ -357,7 +357,13 @@ test("malformed stored identity opens recovery without replacing the profile", a
   const f = await fixture(t);
   const { app, executor, db } = f.connect();
   await app.open();
+  await executor.execute("BEGIN IMMEDIATE", []);
+  await executor.execute("PRAGMA defer_foreign_keys=ON", []);
   await executor.execute("UPDATE profile SET profile_id=?", [""]);
+  await executor.execute("UPDATE installation_profile_state SET profile_id=?", [
+    "",
+  ]);
+  await executor.execute("COMMIT", []);
   assert.equal((await app.read()).kind, "recovery");
   assert.equal(db.prepare("select count(*) as n from profile").get()?.n, 1);
 });

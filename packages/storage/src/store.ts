@@ -3,6 +3,7 @@ import {
   validateAcceptanceHistory,
 } from "./acceptance-history.ts";
 import { createLessonProgress } from "./lesson-progress.ts";
+import { createProfileDirectory } from "./profile-directory.ts";
 import { createInkRepository } from "./ink.ts";
 import { and, eq, asc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/sqlite-proxy";
@@ -57,6 +58,7 @@ import type {
   HistoricalWork,
   SavedWork,
   ProfileAdministrationApplication,
+  PreparationPolicy,
 } from "../../teaching/src/index.ts";
 import { sqlValues } from "./executor.ts";
 import type { SqlExecutor } from "./executor.ts";
@@ -104,18 +106,21 @@ export function createTeachingApplication({
   ids,
   hash,
   owner: selectedOwner,
+  preparation = { kind: "unavailable" },
 }: {
   owner?: Owner;
   executor: SqlExecutor;
   content: RuntimePackage;
   ids: IdFactory;
   hash: HashFunction;
+  preparation?: PreparationPolicy;
 }): WritingApplication & CourseApplication & ProfileAdministrationApplication {
   const db = drizzle(async (sql, parameters, method) => {
     if (method === "get")
       throw new Error("Repository must use array-row reads");
     return executor.execute(sql, sqlValues(parameters));
   });
+  const profileDirectory = createProfileDirectory({ db, preparation });
   let tail: Promise<unknown> = Promise.resolve();
   function exclusive<T>(work: () => Promise<T>): Promise<T> {
     const next = tail.then(work);
@@ -240,7 +245,7 @@ export function createTeachingApplication({
     initialization ??= (async () => {
       content = await parseRuntimePackage(content, hash);
       await initializeDatabase(executor, hash, async (version) => {
-        if (version !== 6 && version !== 7) return undefined;
+        if (version !== 6 && version !== 7 && version !== 8) return undefined;
         await warmPackages();
         const prepared = [...verified.values()].sort((a, b) =>
           a.packageHash.localeCompare(b.packageHash),
@@ -262,6 +267,12 @@ export function createTeachingApplication({
           )
             throw new Error("Prepared package set changed before migration");
           for (const value of prepared) await ensurePackage(value);
+          if (version === 8) {
+            await validateOwners();
+            await ink.inventory();
+            await profileDirectory.migrate();
+            return;
+          }
           if (version === 7) {
             acceptanceMode = "v6";
             try {
@@ -320,10 +331,18 @@ export function createTeachingApplication({
             throw new Error("Selected profile generation is unavailable");
         }
         if (!installations.length) {
+          const installationId = parseId({
+            kind: "installation",
+            value: ids(),
+          });
+          const owner = {
+            profileId: parseId({ kind: "profile", value: ids() }),
+            generation: parseCounter("0"),
+          };
           await db
             .insert(schema.installation)
             .values({
-              id: parseId({ kind: "installation", value: ids() }),
+              id: installationId,
               revision: parseCounter("0"),
               databaseVersion: DATABASE_VERSION,
               singleton: 1,
@@ -332,14 +351,15 @@ export function createTeachingApplication({
           await db
             .insert(schema.profile)
             .values({
-              id: parseId({ kind: "profile", value: ids() }),
-              generation: parseCounter("0"),
+              id: owner.profileId,
+              generation: owner.generation,
               revision: parseCounter("0"),
               undoRunId: null,
               preferencesVersion: 1,
               preferences: canonical({ version: 1 }),
             })
             .run();
+          await profileDirectory.bootstrap({ owner, installationId });
         } else if (
           installations.length !== 1 ||
           Number(installations[0]?.databaseVersion) !== DATABASE_VERSION
@@ -453,6 +473,7 @@ export function createTeachingApplication({
       await warmPackages();
       await validateOwners();
       await ink.inventory();
+      await profileDirectory.read();
       return createCoordinator({ store, ids, hash });
     })();
     return initialization;
@@ -1428,7 +1449,10 @@ export function createTeachingApplication({
                   eq(schema.profile.id, selectedOwner.profileId),
                   eq(schema.profile.generation, selectedOwner.generation),
                 )
-              : undefined,
+              : eq(
+                  schema.profile.id,
+                  (await profileDirectory.selected()).profileId,
+                ),
           )
           .orderBy(asc(schema.profile.id))
           .all()
@@ -1561,9 +1585,11 @@ export function createTeachingApplication({
     }
   }
   return {
-    readDirectory: async () => {
-      throw new Error("Profile administration is not implemented");
-    },
+    readDirectory: () =>
+      exclusive(async () => {
+        await ensureInitialized();
+        return profileDirectory.read();
+      }),
     administer: async () => {
       throw new Error("Profile administration is not implemented");
     },

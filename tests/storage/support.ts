@@ -68,7 +68,14 @@ export async function storageFixture(
     await rm(directory, { recursive: true, force: true });
   });
   function connect(
-    options: { content?: RuntimePackage; hook?: SqlHook; owner?: Owner } = {},
+    options: {
+      content?: RuntimePackage;
+      hook?: SqlHook;
+      owner?: Owner;
+      preparation?: Parameters<
+        typeof createTeachingApplication
+      >[0]["preparation"];
+    } = {},
   ) {
     const db = new DatabaseSync(path);
     connections.push(db);
@@ -80,6 +87,7 @@ export async function storageFixture(
       executor,
       app: createTeachingApplication({
         ...(options.owner ? { owner: options.owner } : {}),
+        ...(options.preparation ? { preparation: options.preparation } : {}),
         executor,
         content: options.content ?? content,
         ids,
