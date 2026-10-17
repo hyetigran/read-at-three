@@ -1101,3 +1101,35 @@ test("a committed child creation retries after route departure without reviving 
     "",
   );
 });
+
+test("locked gate drafts expire after repeated Cancel and immediate browser Back", async ({
+  page,
+}) => {
+  const before = await completeSetup(page);
+  const baseline = await personalWork(page);
+  await page.goto("/parent/gate");
+  await expect(
+    page.getByRole("heading", {
+      name: "A moment for the grown-up",
+      exact: true,
+    }),
+  ).toBeVisible();
+  for (let round = 0; round < 2; round++) {
+    await page.getByLabel("Type the word", { exact: true }).fill("draft");
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    await page.goBack();
+    await expect(page).toHaveURL(/\/parent\/gate$/);
+    await expect(
+      page.getByRole("heading", {
+        name: "A moment for the grown-up",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(page.getByLabel("Type the word", { exact: true })).toHaveValue(
+      "",
+    );
+  }
+  expect(await directory(page)).toEqual(before);
+  expect(await personalWork(page)).toEqual(baseline);
+  expect(await administrationCommands(page)).toEqual([]);
+});

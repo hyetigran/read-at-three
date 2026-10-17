@@ -1,6 +1,6 @@
 # Issue 10 implementation evidence
 
-Issue #10 is in progress on `issue-10-child-profiles`, based on merged main `b251a02`. Commits `3ca6538`, `2e4ead5` and `75b678a` implement the directory foundation, profile administration and original portrait assets. Commit `dbc5daa` implements selected-owner operations and controller adoption. The preparation provider, initial setup and core profile interactions are implemented and have focused browser checks. Live-input schedules, process restart and complete browser regression qualification remain pending.
+Issue #10 is implemented on `issue-10-child-profiles`, based on merged main `b251a02`, with [PR #44](https://github.com/hyetigran/read-at-three/pull/44) linked to close it. Local qualification covers the profile directory, parent preparation, animal onboarding, child switching, saved work and the complete production browser suite. Exact-head CI, the independent production verdict and merge remain pending. The sections below preserve each implementation checkpoint and its limits.
 
 ## Directory foundation
 
@@ -93,3 +93,17 @@ The complete earlier browser suite, the final production browser run and the act
 ## Original portrait assets
 
 Commit `75b678a` extracts all eight accepted original animal portraits as inert standalone SVGs. It adds only the SVG namespace and trailing newline to the frozen design markup. Original elements, geometry, attributes, colors and order stay exact. Chromium 156.0.8078.4 renders all eight assets at 216 and 48 pixels. All 16 PNG outputs match the frozen reference renders byte for byte, and root inspects the complete sheet. The [artwork record](../../apps/web/src/assets/README.md) pins each runtime asset's hash and provenance. This qualifies the assets, not chooser accessibility, production screen integration or native rendering.
+
+## Final local application qualification
+
+The complete development run first exposes one parent-history defect. Returning from settings and immediately pressing browser Back can leave only the opening-parent-access message. A separate repeated Cancel-and-Back case reproduces the same stall against the unchanged application. Parent exit now commits its recorded origin synchronously through the installed router option. All 24 affected navigation, parent and entry-recovery cases pass afterward. The fix preserves the existing visit model, gate expiry, return focus and saved scroll. Its scheduling qualification applies to the current eager routes; adding asynchronous origin loaders requires requalification.
+
+The complete production build passes 107 browser cases with zero failures. The two existing development-only Query-consumer remount checks remain explicitly skipped in this build and pass in the focused development run. All 244 tracked files remain unchanged throughout production execution. This run includes every earlier teaching and writing scenario, all eleven parent cases and all five profile lifecycle cases. It does not qualify native hardware.
+
+The actual private preparation and course packages also pass two full-application production checks, at 1024 by 768 and 1280 by 800. They verify all nine guide sections, both decoded diagrams, the served package bytes and the source-backed read-only task preview. Preview issues no teaching or administration command. Exact preparation acknowledgement and animal confirmation retain the same child and allocate no teaching work. Root inspects both diagram captures and the preview at each size. All application, verification and source-input bytes remain unchanged during the passing run. Earlier private attempts exposed an ambiguous heading selector and accidental collection of an archived test copy; both are retained as observation failures, not application defects.
+
+The final source review has zero documented standards breaches and zero remaining Spec findings. One nonblocking generator-duplication judgment remains acknowledged. Fresh source refreshes confirm the parent-history correction, and a fresh comment audit finds no actionable issue in its two-file delta. Review axes complete serially because parallel agent creation reaches the tool's thread limit. These are local inherited-model reviews, with no external or cross-model claim. The independent production verdict and exact-head CI remain separate pending checks.
+
+The latest workflow instruction requires a GitHub-recognized closing reference in every implementation PR, verification that its issue closes after merge, and deletion of both merged branch refs. Earlier issues #1–#9 and their PR links are verified, and their already-merged local branches are removed after exact merged-tree checks. The active issue #10 branch remains until its own merge.
+
+This feature remains within supplied Lessons 1–6. Book-bearing packages, scans, builds, private test artifacts and captures remain excluded from the public repository. Native adaptation, offline-shell qualification and content publication retain their separate delivery gates.

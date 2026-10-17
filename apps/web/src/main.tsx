@@ -402,6 +402,7 @@ function ApplicationShell() {
     }
     returnBookmark.current = visit.origin;
     navigate(originAddress(visit.origin), {
+      flushSync: true,
       state:
         visit.origin.kind === "menu"
           ? { menuEntryKey: visit.origin.entryKey }
