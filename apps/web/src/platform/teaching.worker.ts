@@ -2,14 +2,14 @@ import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import { createTeachingApplication } from "@readatthree/storage";
 import type { SqlExecutor } from "@readatthree/storage";
 import { parseDevelopmentPackage } from "@readatthree/teaching";
-import type { TeachingApplication } from "@readatthree/teaching";
+import type { WritingApplication } from "@readatthree/teaching";
 import { hashText } from "./hash.ts";
 import { parseRequest } from "./protocol.ts";
 import type { WorkerResponse } from "./protocol.ts";
 
-let application: Promise<TeachingApplication> | undefined;
+let application: Promise<WritingApplication> | undefined;
 
-function bootstrap(content: unknown): Promise<TeachingApplication> {
+function bootstrap(content: unknown): Promise<WritingApplication> {
   return new Promise((resolve, reject) => {
     navigator.locks
       .request(
@@ -73,16 +73,17 @@ self.addEventListener("message", (event: MessageEvent<unknown>) => {
   const request = parseRequest(event.data);
   void (async () => {
     try {
-      if (request.kind === "open") application ??= bootstrap(request.content);
+      if (request.kind === "openRecovery")
+        application ??= bootstrap(request.content);
       if (!application) throw new Error("The local store has not been opened.");
       const app = await application;
       let response: WorkerResponse;
       switch (request.kind) {
-        case "open":
+        case "openRecovery":
           response = {
             id: request.id,
-            kind: "projection",
-            value: await app.open(),
+            kind: "inventory",
+            value: await app.openRecovery(request.opening),
           };
           break;
         case "read":
@@ -99,17 +100,62 @@ self.addEventListener("message", (event: MessageEvent<unknown>) => {
             value: await app.dispatch(request.command),
           };
           break;
+        case "readInk":
+          response = {
+            id: request.id,
+            kind: "inkSnapshot",
+            value: await app.readInk({ token: request.token }),
+          };
+          break;
+        case "dispatchInk":
+          response = {
+            id: request.id,
+            kind: "inkReceipt",
+            value: await app.dispatchInk(request.command),
+          };
+          break;
+        case "recoverInk":
+          response = {
+            id: request.id,
+            kind: "inkReceipt",
+            value: await app.recoverInk({
+              recoveryId: request.recoveryId,
+              command: request.command,
+            }),
+          };
+          break;
+        case "recoverTeaching":
+          response = {
+            id: request.id,
+            kind: "receipt",
+            value: await app.recoverTeaching({
+              recoveryId: request.recoveryId,
+              command: request.command,
+            }),
+          };
+          break;
+        case "reconcileRecovery":
+          response = {
+            id: request.id,
+            kind: "projection",
+            value: await app.reconcileRecovery({
+              recoveryId: request.recoveryId,
+              choice: request.choice,
+            }),
+          };
+          break;
+        default: {
+          const exhaustive: never = request;
+          throw new Error(String(exhaustive));
+        }
       }
       self.postMessage(response);
-    } catch (error) {
-      const message =
-        request.kind === "open"
-          ? "The local reading store could not open safely. Your saved data has been kept. Close other reading windows and retry."
-          : "The local save could not be confirmed. Keep your saved place and retry the same action.";
+    } catch {
       self.postMessage({
         id: request.id,
         kind: "failed",
-        message,
+        message:
+          "The local save could not be confirmed. Keep this reading window open and retry the same action.",
       } satisfies WorkerResponse);
     }
   })();

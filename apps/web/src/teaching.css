@@ -762,3 +762,113 @@
 .teaching-parent-content[data-guidance="oral"] .teaching-copy-label {
   margin-right: 5px;
 }
+
+.teaching-writing {
+  grid-template-rows: 72px 176px minmax(0, 1fr) 64px;
+}
+
+.teaching-writing .teaching-parent-panel {
+  width: calc(100% - 96px);
+  max-width: none;
+  height: 176px;
+}
+
+.teaching-writing .teaching-save-area {
+  min-height: 64px;
+  padding: 6px 30px;
+}
+
+.teaching-writing-arena {
+  grid-template-rows: minmax(0, 1fr) 54px;
+  gap: 12px;
+  padding: 24px 154px 0 48px;
+}
+
+.teaching-writing-board {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border-radius: 8px;
+  background: #fff;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  overscroll-behavior: none;
+}
+
+.teaching-writing-arena .teaching-parent-controls {
+  top: 24px;
+  right: 24px;
+}
+
+.teaching-writing-footer {
+  display: flex;
+  align-items: start;
+  justify-content: flex-end;
+}
+
+.teaching-writing-footer .teaching-button {
+  min-height: 44px;
+  padding: 10px 14px;
+  font-size: 12px;
+}
+
+@media (max-height: 680px) {
+  .teaching-writing {
+    grid-template-rows: 60px 168px minmax(0, 1fr) 60px;
+  }
+
+  .teaching-writing .teaching-parent-panel {
+    width: calc(100% - 64px);
+    height: 168px;
+    padding: 12px 20px;
+  }
+
+  .teaching-writing-arena {
+    padding: 20px 142px 0 32px;
+    grid-template-rows: minmax(0, 1fr) 44px;
+    gap: 10px;
+  }
+
+  .teaching-writing .teaching-save-area {
+    min-height: 60px;
+  }
+
+  .teaching-writing-arena .teaching-parent-controls {
+    top: 20px;
+    right: 16px;
+  }
+}
+
+.teaching-writing-arena .teaching-action {
+  white-space: normal;
+  text-align: center;
+  line-height: 1.25;
+}
+
+.teaching-writing-arena .teaching-navigation-actions {
+  grid-template-rows: 86px 110px;
+}
+
+.teaching-writing-arena .teaching-continue {
+  min-height: 110px;
+}
+
+.teaching-writing-arena .teaching-parent-controls {
+  height: 280px;
+}
+
+@media (max-height: 680px) {
+  .teaching-writing-arena .teaching-navigation-actions {
+    grid-template-rows: 62px 86px;
+  }
+
+  .teaching-writing-arena .teaching-continue {
+    min-height: 86px;
+  }
+
+  .teaching-writing-arena .teaching-parent-controls {
+    height: 222px;
+  }
+}

@@ -17,7 +17,7 @@ import type {
 import { verifyGraphInputReview } from "./graph.ts";
 import { authorOralBody, createOralFixtureBody, oralGuidance } from "./oral.ts";
 import { parseLessonSources } from "./source.ts";
-import type { RawAuthoringInput } from "./source.ts";
+import type { RawAuthoringInput, SourceAuthoringInput } from "./source.ts";
 
 type Body = Serialized<ControlDevelopmentBody>;
 type Node = Serialized<ControlNode>;
@@ -273,16 +273,18 @@ function sentenceParts(input: { span: Span }): Span[] {
     .map((text) => ({ ...input.span, copy: { ...input.span.copy, text } }));
 }
 export function createContinuousOralBody(input: RawAuthoringInput): Body {
-  const sources = parseLessonSources({
-    value: input.lessons,
-    purpose: "cumulative",
-  });
-  const previous = authorOralBody({
-    sources,
+  return authorContinuousBody({
+    sources: parseLessonSources({
+      value: input.lessons,
+      purpose: "cumulative",
+    }),
     overviewMarkdown: input.overviewMarkdown,
   });
+}
+export function authorContinuousBody(input: SourceAuthoringInput): Body {
+  const previous = authorOralBody(input);
   const source = required(
-    sources.lessons
+    input.sources.lessons
       .find((lesson) => lesson.number === 1)
       ?.tasks.find((task) => task.number === 3)?.sourceContentMarkdown,
   );

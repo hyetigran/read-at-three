@@ -30,6 +30,7 @@ const authoredFiles = (
 const internalAuthorModules = new Map([
   [join(root, "tools/content/graph"), "authorGraphBody"],
   [join(root, "tools/content/oral"), "authorOralBody"],
+  [join(root, "tools/content/continuous"), "authorContinuousBody"],
 ]);
 for (const file of authoredFiles) {
   const source = parse(await readFile(file, "utf8"), {

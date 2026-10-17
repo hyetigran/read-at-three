@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { createGraphBody } from "../../tools/content/graph.ts";
 import { createOralBody } from "../../tools/content/oral.ts";
 import { createContinuousOralBody } from "../../tools/content/continuous.ts";
+import { createWritingBody } from "../../tools/content/writing.ts";
 import { parseLessonSources } from "../../tools/content/source.ts";
 
 const task = {
@@ -122,6 +123,7 @@ test("public cumulative factories retain graph-first source and curriculum error
     createGraphBody,
     createOralBody,
     createContinuousOralBody,
+    createWritingBody,
   ]) {
     assert.throws(() => createBody({ lessons: {}, overviewMarkdown: "" }), {
       message: cumulativeError,
