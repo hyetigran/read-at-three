@@ -132,7 +132,7 @@ test("Task4 s correction restarts whole review; stale Resume cannot take selecti
   await f.act(first.app, "continue");
   const retest = await first.app.read();
   if (retest.kind !== "teaching") throw new Error("Review retest missing");
-  assert.equal(retest.turn.glyph, "m");
+  assert.equal("glyph" in retest.turn && retest.turn.glyph, "m");
   await f.act(first.app, "pause");
   const paused = await first.app.read();
   if (paused.kind === "recovery") throw new Error("Unexpected recovery");

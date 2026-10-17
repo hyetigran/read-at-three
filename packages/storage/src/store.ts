@@ -10,6 +10,8 @@ import {
   parseId,
   parseDevelopmentPackage,
   parseReceipt,
+  parseCommand,
+  currentCheckpoint,
   parseTeachingState,
   validatePosition,
   validateAcceptanceState,
@@ -22,6 +24,7 @@ import type {
   CompletionProof,
   DevelopmentPackage,
   HashFunction,
+  GraphAction,
   IdFactory,
   Owner,
   PackageHash,
@@ -68,7 +71,7 @@ function durableReceipt({
   };
 }
 function acceptedId(state: TeachingState) {
-  return state.kind === "graph"
+  return state.kind === "graph" || state.kind === "graphControls"
     ? state.acceptedOccurrenceIds.at(-1)
     : state.acceptedNodeIds.at(-1);
 }
@@ -213,17 +216,45 @@ export function createTeachingApplication({
         else if (active.activePackageHash !== content.packageHash) {
           const previous = pinned(active.activePackageHash);
           await ensurePackage(previous);
-          if (
+          const cumulative =
+            previous.body.coverage === "lesson1-sounds-complete" &&
+            content.body.coverage === "lesson1-sounds-oral-complete" &&
+            previous.body.courseId === content.body.courseId &&
+            previous.body.lessonId === content.body.lessonId &&
+            previous.body.tasks.every(
+              (old) =>
+                content.body.coverage === "lesson1-sounds-oral-complete" &&
+                content.body.tasks.some(
+                  (entry) =>
+                    entry.kind === "printedGraphV1" &&
+                    canonical(entry.task) === canonical(old),
+                ),
+            ) &&
+            canonical(previous.body.lessonTasks) ===
+              canonical(content.body.lessonTasks);
+          const legacyCumulative =
             previous.body.coverage === "partial-first-m" &&
-            content.body.coverage === "lesson1-sounds-complete" &&
+            content.body.coverage === "lesson1-sounds-oral-complete" &&
             previous.body.lessonId === content.body.lessonId &&
             content.body.tasks.some(
-              (task) =>
-                task.id ===
-                (previous.body.coverage === "partial-first-m"
-                  ? previous.body.taskId
-                  : null),
-            )
+              (entry) =>
+                entry.kind === "printedGraphV1" &&
+                previous.body.coverage === "partial-first-m" &&
+                entry.task.id === previous.body.taskId,
+            );
+          if (
+            cumulative ||
+            legacyCumulative ||
+            (previous.body.coverage === "partial-first-m" &&
+              content.body.coverage === "lesson1-sounds-complete" &&
+              previous.body.lessonId === content.body.lessonId &&
+              content.body.tasks.some(
+                (task) =>
+                  task.id ===
+                  (previous.body.coverage === "partial-first-m"
+                    ? previous.body.taskId
+                    : null),
+              ))
           )
             await db
               .update(schema.courseActivation)
@@ -316,7 +347,60 @@ export function createTeachingApplication({
         baseline,
         state: before,
       });
-      const occurrenceId = acceptedId(after);
+      let action: GraphAction | undefined;
+      if (advance.acceptingCommand !== null) {
+        const semantics: unknown = JSON.parse(advance.acceptingCommand);
+        if (
+          typeof semantics !== "object" ||
+          semantics === null ||
+          !("kind" in semantics) ||
+          !("payload" in semantics) ||
+          canonical(Object.keys(semantics).sort()) !==
+            canonical(["kind", "payload"])
+        )
+          throw new Error("Invalid accepting command preimage");
+        if ((await hash(canonical(semantics))) !== advance.payloadHash)
+          throw new Error("Accepting command payload hash changed");
+        const command = parseCommand({
+          ...semantics,
+          commandId: advance.commandId,
+          owner,
+          scope: {
+            kind: "session",
+            id: row.sessionId,
+            generation: owner.generation,
+          },
+          expectedRevision: "0",
+          payloadHash: advance.payloadHash,
+        });
+        if (command.kind !== "navigate" && command.kind !== "advance")
+          throw new Error("Invalid accepting command kind");
+        if (
+          command.payload.packageHash !== run.packageHash ||
+          command.payload.sessionId !== row.sessionId ||
+          command.payload.runId !== run.runId
+        )
+          throw new Error("Accepting command ownership changed");
+        if (command.kind === "navigate") {
+          if (
+            (before.kind !== "graph" && before.kind !== "graphControls") ||
+            command.payload.checkpointId !== currentCheckpoint(before).id
+          )
+            throw new Error("Accepting command checkpoint changed");
+          action = command.payload.action;
+          if (before.kind === "graph" && action.kind !== "continue")
+            throw new Error("Printed acceptance command changed");
+        } else if (
+          before.kind !== "teaching" ||
+          command.payload.nodeId !== before.nodeId
+        )
+          throw new Error("Legacy acceptance target changed");
+      } else if (before.kind === "graphControls")
+        throw new Error("Control acceptance requires explicit command");
+      const occurrenceId =
+        before.kind === "graphControls"
+          ? currentCheckpoint(before).occurrenceId
+          : acceptedId(after);
       if (!occurrenceId) throw new Error("Accepted occurrence is missing");
       validateAcceptanceTransition({
         content: value,
@@ -324,6 +408,7 @@ export function createTeachingApplication({
         before,
         after,
         occurrenceId,
+        ...(action ? { action } : {}),
       });
       const proof = completionProof(value, after);
       if (advance.afterRunStatus !== (proof ? "completed" : "inProgress"))
@@ -746,6 +831,10 @@ export function createTeachingApplication({
             status: "accepted",
             commandId: command.commandId,
             payloadHash: command.payloadHash,
+            acceptingCommand: canonical({
+              kind: command.kind,
+              payload: command.payload,
+            }),
             stateVersion: 1,
             beforeState: canonical(before),
             afterState: canonical(plan.after),

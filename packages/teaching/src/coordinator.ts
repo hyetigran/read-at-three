@@ -1,3 +1,4 @@
+import { controlActions } from "./control-engine.ts";
 import {
   canonical,
   deepFreeze,
@@ -5,6 +6,7 @@ import {
   parseCommand,
   parseId,
   graphTask,
+  taskDefinition,
 } from "./content.ts";
 import {
   currentCheckpoint,
@@ -32,6 +34,8 @@ import type {
   TeachingIntent,
   TransitionPlan,
   TaskId,
+  ReviewSelectionAction,
+  ReviewChoice,
 } from "./types.ts";
 const added = (text: string) => ({ kind: "added", text }) as const;
 const choice = (
@@ -45,17 +49,57 @@ const choice = (
 export async function prepareCommand({
   projection,
   action,
+  request,
   ids,
   hash,
 }: {
   projection: CommittedProjection;
   action?: AvailableAction;
+  request?: Readonly<{ action: ReviewSelectionAction; choice: ReviewChoice }>;
   ids: IdFactory;
   hash: HashFunction;
 }): Promise<TeachingCommand> {
   if (projection.kind === "recovery")
     throw new Error("No command is available");
+  let requested: AvailableAction | undefined;
+  if (request) {
+    if (
+      action ||
+      projection.kind !== "reviewSelection" ||
+      projection.committedChoice !== null ||
+      canonical(request.action) !== canonical(projection.selectionAction)
+    )
+      throw new Error("Review selection capability unavailable");
+    const choice = request.choice;
+    if (
+      choice.kind === "items" &&
+      (choice.itemIds.length === 0 ||
+        new Set(choice.itemIds).size !== choice.itemIds.length ||
+        choice.itemIds.some(
+          (id) => !projection.items.some((item) => item.itemId === id),
+        ))
+    )
+      throw new Error("Complete explicit review choice invalid");
+    const ordered: ReviewChoice =
+      choice.kind === "none"
+        ? choice
+        : {
+            kind: "items",
+            itemIds: projection.items
+              .filter((item) => choice.itemIds.includes(item.itemId))
+              .map((item) => item.itemId),
+          };
+    requested = {
+      label: request.action.selectLabel,
+      intent: {
+        kind: "commitReviewSelection",
+        reviewId: request.action.reviewId,
+        choice: ordered,
+      },
+    };
+  }
   const selected =
+    requested ??
     action ??
     projection.actions.find((entry) => entry.intent.kind === "continue") ??
     projection.actions.find(
@@ -63,9 +107,10 @@ export async function prepareCommand({
     );
   if (
     !selected ||
-    !projection.actions.some(
-      (entry) => canonical(entry) === canonical(selected),
-    )
+    (!requested &&
+      !projection.actions.some(
+        (entry) => canonical(entry) === canonical(selected),
+      ))
   )
     throw new Error("Action is unavailable at this saved position");
   const intent = selected.intent;
@@ -106,7 +151,11 @@ export async function prepareCommand({
       },
     };
   else {
-    if (projection.kind !== "teaching" && projection.kind !== "completed")
+    if (
+      projection.kind !== "teaching" &&
+      projection.kind !== "completed" &&
+      projection.kind !== "reviewSelection"
+    )
       throw new Error("Teaching action is unavailable");
     const envelope = {
       ...common,
@@ -176,8 +225,10 @@ function catalogFor(
       ...task,
       completed: context.completedTaskIds.includes(task.id),
       available:
-        active.body.coverage === "lesson1-sounds-complete" &&
-        active.body.tasks.some((entry) => entry.id === task.id),
+        active.body.coverage !== "partial-first-m" &&
+        active.body.tasks.some(
+          (entry) => ("task" in entry ? entry.task.id : entry.id) === task.id,
+        ),
       packageHash: active.packageHash,
       savedSessionId: saved?.sessionId ?? null,
     };
@@ -250,7 +301,8 @@ function selectionActions(
   }
   if (
     current?.runStatus === "inProgress" &&
-    current.state.kind === "graph" &&
+    (current.state.kind === "graph" ||
+      current.state.kind === "graphControls") &&
     current.packageHash === active.packageHash
   ) {
     actions.push(
@@ -309,7 +361,8 @@ export function createCoordinator({
       validatePosition(content, session.state, session.taskId);
       const engine = project(content, session.state);
       if (
-        session.state.kind === "graph" &&
+        (session.state.kind === "graph" ||
+          session.state.kind === "graphControls") &&
         (completionProof(content, session.state) !== null) !==
           (session.runStatus === "completed")
       )
@@ -317,14 +370,18 @@ export function createCoordinator({
       const title =
         content.body.coverage === "partial-first-m"
           ? content.body.title
-          : graphTask(content, session.taskId).task.title;
+          : taskDefinition(content, session.taskId).graph.task.title;
       const taskNumber =
         content.body.coverage === "partial-first-m"
           ? 1
-          : graphTask(content, session.taskId).task.number;
+          : taskDefinition(content, session.taskId).graph.task.number;
       const actions: AvailableAction[] = [];
       if (session.status === "active" && session.runStatus === "inProgress") {
-        if (engine.kind === "teaching")
+        if (session.state.kind === "graphControls")
+          actions.push(
+            ...controlActions(content, session.state, session.runStatus),
+          );
+        else if (engine.kind === "teaching")
           actions.push(choice("Continue", { kind: "continue" }));
         if (session.state.kind === "graph") {
           if (session.state.checkpointIndex > 0)
@@ -353,12 +410,19 @@ export function createCoordinator({
       } else if (
         session.runStatus === "completed" &&
         context.undoRunId === session.runId &&
-        session.state.kind === "graph"
+        (session.state.kind === "graph" ||
+          session.state.kind === "graphControls")
       ) {
-        if (session.state.checkpointIndex > 0)
-          actions.push(choice("Back", { kind: "back" }));
-        if (engine.kind === "teaching")
-          actions.push(choice("Continue", { kind: "continue" }));
+        if (session.state.kind === "graphControls")
+          actions.push(
+            ...controlActions(content, session.state, session.runStatus),
+          );
+        else {
+          if (session.state.checkpointIndex > 0)
+            actions.push(choice("Back", { kind: "back" }));
+          if (engine.kind === "teaching")
+            actions.push(choice("Continue", { kind: "continue" }));
+        }
       }
       return deepFreeze({
         ...engine,
@@ -372,7 +436,8 @@ export function createCoordinator({
         runStatus: session.runStatus,
         sessionStatus: session.status,
         checkpointId:
-          session.state.kind === "graph"
+          session.state.kind === "graph" ||
+          session.state.kind === "graphControls"
             ? currentCheckpoint(session.state).id
             : null,
         taskId: session.taskId,
@@ -483,13 +548,13 @@ export function createCoordinator({
               taskId = content.body.taskId;
             } else {
               taskId = command.payload.taskId;
-              if (content.body.coverage !== "lesson1-sounds-complete")
+              if (content.body.coverage === "partial-first-m")
                 return reject(
                   "legacy-start",
                   "Legacy preview can only be resumed.",
                 );
               try {
-                graphTask(content, taskId);
+                taskDefinition(content, taskId);
               } catch {
                 return reject(
                   "task-unavailable",
@@ -610,7 +675,8 @@ export function createCoordinator({
             };
           } else {
             if (
-              session.state.kind !== "graph" ||
+              (session.state.kind !== "graph" &&
+                session.state.kind !== "graphControls") ||
               currentCheckpoint(session.state).id !==
                 command.payload.checkpointId
             )

@@ -1,3 +1,4 @@
+import { compileControlTask } from "./control-content.ts";
 import canonicalize from "canonicalize";
 import { unicodeLength } from "./unicode-length.ts";
 import type {
@@ -117,7 +118,8 @@ export async function parseDevelopmentPackage(
     )
       throw new Error("Duplicate task metadata");
     const seen = new Set<TaskId>();
-    for (const task of input.body.tasks) {
+    for (const entryTask of input.body.tasks) {
+      const task = "task" in entryTask ? entryTask.task : entryTask;
       if (seen.has(task.id)) throw new Error("Duplicate available task");
       seen.add(task.id);
       const entry = metadata.get(task.id);
@@ -127,7 +129,11 @@ export async function parseDevelopmentPackage(
         canonical(entry.title) !== canonical(task.title)
       )
         throw new Error("Task metadata mismatch");
-      compileTask(task);
+      if (input.body.coverage === "lesson1-sounds-oral-complete") {
+        if ("kind" in entryTask && entryTask.kind === "graphControls")
+          compileControlTask(entryTask.task);
+        else if ("task" in entryTask) compileTask(entryTask.task);
+      } else if (!("task" in entryTask)) compileTask(entryTask);
     }
   }
   return deepFreeze(input);
@@ -135,7 +141,7 @@ export async function parseDevelopmentPackage(
 export function parseTeachingState(input: unknown): TeachingState {
   if (!validateState(input))
     throw new Error("Stored teaching state schema is unsupported");
-  if (input.kind === "graph") {
+  if (input.kind === "graph" || input.kind === "graphControls") {
     parseCounter(input.nextOccurrenceNumber);
     parseCounter(input.nextCheckpointNumber);
   }
@@ -276,9 +282,33 @@ export function graphTask(
   content: DevelopmentPackage,
   taskId: TaskId,
 ): CompiledTask {
+  if (content.body.coverage === "lesson1-sounds-oral-complete") {
+    const entry = content.body.tasks.find((entry) => entry.task.id === taskId);
+    if (!entry || entry.kind !== "printedGraphV1")
+      throw new Error("Printed task is not available in exact package");
+    return compileTask(entry.task);
+  }
   if (content.body.coverage !== "lesson1-sounds-complete")
     throw new Error("Graph package required");
   const task = content.body.tasks.find((entry) => entry.id === taskId);
   if (!task) throw new Error("Task is not available in exact package");
   return compileTask(task);
+}
+
+export function taskDefinition(content: DevelopmentPackage, taskId: TaskId) {
+  if (content.body.coverage === "lesson1-sounds-oral-complete") {
+    const entry = content.body.tasks.find((entry) => entry.task.id === taskId);
+    if (!entry) throw new Error("Task unavailable in exact package");
+    if (entry.kind === "graphControls")
+      return {
+        kind: "graphControls",
+        graph: compileControlTask(entry.task),
+      } as const;
+  }
+  return { kind: "printedGraphV1", graph: graphTask(content, taskId) } as const;
+}
+export function controlTask(content: DevelopmentPackage, taskId: TaskId) {
+  const entry = taskDefinition(content, taskId);
+  if (entry.kind !== "graphControls") throw new Error("Control task required");
+  return entry.graph;
 }

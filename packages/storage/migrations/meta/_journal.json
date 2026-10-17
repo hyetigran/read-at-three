@@ -15,6 +15,13 @@
       "when": 1792193922752,
       "tag": "0001_sound_task_credits",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1792197600000,
+      "tag": "0002_accepting_command",
+      "breakpoints": true
     }
   ]
 }

@@ -325,6 +325,53 @@ export const taskRun = sqliteTable(
     index("run_package").on(table.packageHash),
   ],
 );
+export const taskAdvanceV2 = sqliteTable(
+  "task_advance",
+  {
+    advanceId: advanceId("advance_id").primaryKey(),
+    runId: runId("run_id").notNull(),
+    profileId: profileId("profile_id").notNull(),
+    generation: counter("generation").notNull(),
+    seq: counter("seq").notNull(),
+    previousAdvanceId: advanceId("previous_advance_id"),
+    status: text("status", { enum: ["accepted", "withdrawn"] }).notNull(),
+    commandId: commandId("command_id").notNull(),
+    payloadHash: payloadHash("payload_hash").notNull(),
+    stateVersion: integer("state_version").notNull(),
+    beforeState: text("before_state").notNull(),
+    afterState: text("after_state").notNull(),
+    beforeRunStatus: text("before_run_status", {
+      enum: ["inProgress"],
+    }).notNull(),
+    afterRunStatus: text("after_run_status", {
+      enum: ["inProgress", "completed", "skipped"],
+    }).notNull(),
+    acceptedRunRevision: counter("accepted_run_revision").notNull(),
+  },
+  (table) => [
+    nonnegative("generation"),
+    nonnegative("accepted_run_revision"),
+    check("advance_seq", sql`typeof(seq)='integer' AND seq>0`),
+    check("advance_status", sql`status IN ('accepted','withdrawn')`),
+    hash("payload_hash"),
+    check("advance_state_version", sql`state_version=1`),
+    check("advance_before_json", sql`json_valid(before_state)`),
+    check("advance_after_json", sql`json_valid(after_state)`),
+    check("advance_before_status", sql`before_run_status='inProgress'`),
+    check(
+      "advance_after_status",
+      sql`after_run_status IN ('inProgress','completed','skipped')`,
+    ),
+    unique().on(table.runId, table.seq),
+    unique().on(table.advanceId, table.runId),
+    foreignKey({
+      columns: [table.runId, table.profileId, table.generation],
+      foreignColumns: [taskRun.runId, taskRun.profileId, taskRun.generation],
+    }),
+    index("task_advance_chain").on(table.runId, table.seq, table.status),
+  ],
+);
+
 export const taskAdvance = sqliteTable(
   "task_advance",
   {
@@ -337,6 +384,7 @@ export const taskAdvance = sqliteTable(
     status: text("status", { enum: ["accepted", "withdrawn"] }).notNull(),
     commandId: commandId("command_id").notNull(),
     payloadHash: payloadHash("payload_hash").notNull(),
+    acceptingCommand: text("accepting_command"),
     stateVersion: integer("state_version").notNull(),
     beforeState: text("before_state").notNull(),
     afterState: text("after_state").notNull(),

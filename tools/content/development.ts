@@ -13,6 +13,7 @@ import type {
   TeachingNodeInput,
 } from "@readatthree/teaching";
 import { prepareGraphContent } from "./graph.ts";
+import { prepareOralContent } from "./oral.ts";
 
 const hash = async (text: string) =>
   createHash("sha256").update(text).digest("hex");
@@ -40,7 +41,9 @@ async function save(body: DevelopmentBodyInput, path: string) {
   );
 }
 
-if (process.argv.includes("--graph")) {
+if (!process.argv.includes("--graph") && !process.argv.includes("--legacy")) {
+  await prepareOralContent({ fixture });
+} else if (process.argv.includes("--graph")) {
   await prepareGraphContent({ fixture });
 } else if (fixture) {
   const nodes: TeachingNodeInput[] = [

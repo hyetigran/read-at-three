@@ -35,4 +35,12 @@ export const migrations = [
       "UPDATE installation SET database_version=2",
     ],
   },
+  {
+    version: 3,
+    id: "issue-04-accepting-command",
+    statements: [
+      "ALTER TABLE `task_advance` ADD `accepting_command` text;",
+      "UPDATE installation SET database_version=3",
+    ],
+  },
 ] as const;

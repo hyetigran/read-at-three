@@ -15,7 +15,12 @@ export type IdKind =
   | "occurrence"
   | "checkpoint"
   | "correction"
-  | "credit";
+  | "credit"
+  | "item"
+  | "policy"
+  | "review"
+  | "queue"
+  | "cycle";
 export type Id<Kind extends IdKind> = string & { readonly __brand: Kind };
 export type ProfileId = Id<"profile">;
 export type SessionId = Id<"session">;
@@ -121,7 +126,8 @@ export type GraphDevelopmentBody = Readonly<{
   lessonTasks: readonly LessonTask[];
   tasks: readonly GraphTask[];
 }>;
-export type DevelopmentBody = LegacyDevelopmentBody | GraphDevelopmentBody;
+export type DevelopmentBody =
+  LegacyDevelopmentBody | GraphDevelopmentBody | ControlDevelopmentBody;
 export type DevelopmentBodyInput = Serialized<DevelopmentBody>;
 export type TeachingNodeInput = Serialized<TeachingNode>;
 export type DevelopmentPackage = Readonly<{
@@ -180,8 +186,9 @@ export type GraphTeachingState = Readonly<{
   checkpointIndex: number;
   nextCheckpointNumber: Counter;
 }>;
-export type TeachingState = LegacyTeachingState | GraphTeachingState;
-export type GraphAction = Readonly<
+export type TeachingState =
+  LegacyTeachingState | GraphTeachingState | ControlTeachingState;
+export type PrintedGraphAction = Readonly<
   | { kind: "continue" | "back" | "repeat" | "pause" }
   | { kind: "help"; correctionId: CorrectionId }
 >;
@@ -199,7 +206,7 @@ export type AvailableAction = Readonly<
   | {
       label: Copy;
       intent: Extract<TeachingIntent, { kind: "help" }>;
-      correctionPreview: GraphNode;
+      correctionPreview: GraphNode | ControlTurnNode;
     }
 >;
 export type Owner = Readonly<{ profileId: ProfileId; generation: Counter }>;
@@ -211,12 +218,13 @@ export type GraphTurn = GraphNode &
     checkpointId: CheckpointId;
   }>;
 export type EngineProjection =
-  | { kind: "teaching"; turn: TeachingNode | GraphTurn }
+  | { kind: "teaching"; turn: TeachingNode | GraphTurn | ControlTurn }
   | {
       kind: "frontier";
       status: "inProgress";
       unmetObligations: readonly NodeId[];
     }
+  | ControlSelectionProjection
   | { kind: "completed" };
 export type Recovery = Readonly<{
   kind: "recovery";
@@ -418,3 +426,202 @@ export interface TeachingStore {
   resolvePackage(packageHash: PackageHash): Promise<DevelopmentPackage>;
   transaction<T>(work: (tx: TeachingTransaction) => Promise<T>): Promise<T>;
 }
+
+export type ItemId = Id<"item">;
+export type PolicyId = Id<"policy">;
+export type ReviewId = Id<"review">;
+export type QueueId = Id<"queue">;
+export type CycleId = Id<"cycle">;
+export type Destination = Readonly<
+  { kind: "node"; nodeId: NodeId } | { kind: "end" }
+>;
+export type ControlSource = Readonly<{
+  id: NodeId;
+  sourceRefs: readonly SourceRef[];
+  guidance: readonly ParentSpan[];
+}>;
+export type ControlTurnNode = ControlSource &
+  Readonly<{
+    kind: "turn";
+    route: "normal" | "support";
+    parentRole: "model" | "listen";
+    itemId: ItemId | null;
+    presentation: Readonly<{ kind: "oral" }>;
+    next: Destination;
+  }>;
+export type UntilFirmNode = ControlSource &
+  Readonly<{
+    kind: "untilFirm";
+    policyId: PolicyId;
+    cycleEntryNodeId: NodeId;
+    cycleExitNodeId: NodeId;
+    next: Destination;
+  }>;
+export type SelectiveReviewNode = ControlSource &
+  Readonly<{
+    kind: "selectiveReview";
+    reviewId: ReviewId;
+    items: readonly Readonly<{
+      itemId: ItemId;
+      parentLabel: Copy;
+      entryNodeId: NodeId;
+      exitNodeId: NodeId;
+    }>[];
+    returnNodeId: NodeId;
+    exitNodeId: NodeId;
+  }>;
+export type ControlNode =
+  | ControlTurnNode
+  | UntilFirmNode
+  | SelectiveReviewNode
+  | (ControlSource &
+      Readonly<{ kind: "reviewExit"; reviewId: ReviewId; next: Destination }>);
+export type ControlCorrection = Readonly<{
+  id: CorrectionId;
+  label: Copy;
+  scope: "normal" | "review" | "any";
+  eligibleNodeIds: readonly NodeId[];
+  instructionNodeIds: readonly NodeId[];
+  retestNodeIds: readonly NodeId[];
+  sourceRefs: readonly SourceRef[];
+}>;
+export type ControlTask = Readonly<{
+  id: TaskId;
+  number: number;
+  title: Copy;
+  startNodeId: NodeId;
+  nodes: readonly ControlNode[];
+  corrections: readonly ControlCorrection[];
+}>;
+export type MixedTask = Readonly<
+  | { kind: "printedGraphV1"; task: GraphTask }
+  | { kind: "graphControls"; task: ControlTask }
+>;
+export type ControlDevelopmentBody = Omit<
+  GraphDevelopmentBody,
+  "coverage" | "tasks"
+> &
+  Readonly<{
+    coverage: "lesson1-sounds-oral-complete";
+    tasks: readonly MixedTask[];
+  }>;
+export type ReviewChoice = Readonly<
+  { kind: "none" } | { kind: "items"; itemIds: readonly ItemId[] }
+>;
+export type GraphAction =
+  | PrintedGraphAction
+  | Readonly<
+      | { kind: "parentReady"; policyId: PolicyId }
+      | {
+          kind: "commitReviewSelection";
+          reviewId: ReviewId;
+          choice: ReviewChoice;
+        }
+      | { kind: "confirmReviewItem"; queueId: QueueId; itemId: ItemId }
+    >;
+export type ReviewSelectionAction = Readonly<{
+  kind: "reviewSelection";
+  reviewId: ReviewId;
+  eligibleItems: readonly Readonly<{ itemId: ItemId; label: Copy }>[];
+  selectLabel: Copy;
+  emptyLabel: Copy;
+}>;
+export type ControlOccurrence = Readonly<{
+  id: OccurrenceId;
+  target: Readonly<
+    | { kind: "node"; nodeId: NodeId }
+    | { kind: "reviewConfirmation"; queueId: QueueId; itemId: ItemId }
+  >;
+  obligation: "required" | "practice" | "support";
+}>;
+export type ControlFlow = Readonly<
+  { kind: "normal" } | { kind: "review"; queueId: QueueId; index: number }
+>;
+export type ControlDelivery = Readonly<
+  | { kind: "source" }
+  | { kind: "cycle"; cycleId: CycleId }
+  | { kind: "repeat"; returnCheckpointId: CheckpointId }
+>;
+export type ControlResume = Readonly<{
+  flow: ControlFlow;
+  delivery: ControlDelivery;
+}>;
+export type ControlContext = Readonly<
+  | { kind: "delivering"; resume: ControlResume }
+  | { kind: "selection"; reviewId: ReviewId }
+  | { kind: "terminal" }
+  | {
+      kind: "correction";
+      correctionId: CorrectionId;
+      triggerOccurrenceId: OccurrenceId;
+      owedOccurrenceId: OccurrenceId;
+      suspended: ControlResume;
+      instructionOccurrenceIds: readonly OccurrenceId[];
+      retestOccurrenceIds: readonly OccurrenceId[];
+      phase: Readonly<{ kind: "instruction" | "retest"; index: number }>;
+    }
+>;
+export type ControlCheckpoint = Readonly<{
+  id: CheckpointId;
+  occurrenceId: OccurrenceId | null;
+  context: ControlContext;
+}>;
+export type ReviewQueue = Readonly<{
+  id: QueueId;
+  reviewId: ReviewId;
+  selectionOccurrenceId: OccurrenceId;
+  choice: ReviewChoice;
+  items: readonly Readonly<{
+    itemId: ItemId;
+    routeOccurrences: readonly OccurrenceId[];
+    confirmationOccurrenceId: OccurrenceId;
+  }>[];
+  returnNodeId: NodeId;
+  exitNodeId: NodeId;
+  exitOccurrenceId: OccurrenceId;
+}>;
+export type CycleBinding = Readonly<{
+  id: CycleId;
+  policyId: PolicyId;
+  gateOccurrenceId: OccurrenceId;
+  turnOccurrenceIds: readonly OccurrenceId[];
+}>;
+export type ControlTeachingState = Readonly<{
+  version: 1;
+  kind: "graphControls";
+  taskId: TaskId;
+  occurrences: readonly ControlOccurrence[];
+  acceptedOccurrenceIds: readonly OccurrenceId[];
+  cycles: readonly CycleBinding[];
+  cycleOutcomes: readonly Readonly<{
+    cycleId: CycleId;
+    kind: "independent" | "supported";
+  }>[];
+  queues: readonly ReviewQueue[];
+  checkpoints: readonly ControlCheckpoint[];
+  checkpointIndex: number;
+  nextOccurrenceNumber: Counter;
+  nextCheckpointNumber: Counter;
+}>;
+export type ControlTurn = ControlTurnNode &
+  Readonly<{
+    extraPractice: boolean;
+    routeKind: "delivering" | "correction";
+    occurrenceId: OccurrenceId;
+    checkpointId: CheckpointId;
+  }>;
+export type ControlSelectionProjection = Readonly<{
+  kind: "reviewSelection";
+  reviewId: ReviewId;
+  items: ReviewSelectionAction["eligibleItems"];
+  selectionAction: ReviewSelectionAction;
+  presentation: Readonly<{ kind: "oral" }>;
+  guidance: readonly ParentSpan[];
+  committedChoice: ReviewChoice | null;
+}>;
+export type AcceptingCommand = {
+  [Kind in TeachingCommand["kind"]]: Pick<
+    Extract<TeachingCommand, { kind: Kind }>,
+    "kind" | "payload"
+  >;
+}[TeachingCommand["kind"]];
