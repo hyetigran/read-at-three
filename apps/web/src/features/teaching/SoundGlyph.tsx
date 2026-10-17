@@ -1,4 +1,7 @@
-export function SoundGlyph({ glyph }: { glyph: "m" | "s" }) {
+import { printedGlyphAssets } from "@readatthree/teaching";
+import type { PrintedGlyph } from "@readatthree/teaching";
+export function SoundGlyph({ glyph }: { glyph: PrintedGlyph }) {
+  const asset = printedGlyphAssets[glyph];
   return (
     <svg
       className={`teaching-glyph teaching-glyph-${glyph}`}
@@ -6,14 +9,11 @@ export function SoundGlyph({ glyph }: { glyph: "m" | "s" }) {
       role="img"
       aria-label={glyph}
     >
-      {glyph === "m" ? (
-        <path d="M35 220V80h42v20c12-16 27-24 46-24 24 0 40 10 49 29 14-19 31-29 52-29 37 0 56 24 56 63v81h-42v-77c0-19-8-29-23-29-19 0-30 13-30 33v73h-42v-77c0-19-8-29-23-29-19 0-33 13-33 33v73Z" />
-      ) : (
-        <path
-          transform="translate(-23.25 13.6) scale(1.15 0.8667)"
-          d="M225 105c-8-22-31-33-64-33-43 0-70 20-70 51 0 30 24 40 60 48 25 5 34 9 34 18 0 10-10 15-28 15-21 0-34-8-39-23l-34 13c9 29 35 44 73 44 44 0 72-20 72-53 0-28-21-40-59-48-27-6-37-9-37-19 0-8 10-14 26-14 17 0 29 6 34 18Z"
-        />
-      )}
+      <path
+        d={asset.path}
+        transform={asset.transform ?? undefined}
+        fillRule={asset.fillRule}
+      />
     </svg>
   );
 }

@@ -1,4 +1,8 @@
-import { reviewedCourseExtension, parseExtensionReview } from "./extension.ts";
+import {
+  reviewedCourseExtension,
+  reviewedPrintedCourseExtension,
+  parseExtensionReview,
+} from "./extension.ts";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -460,8 +464,42 @@ export async function prepareCourseContent(input: { fixture: boolean }) {
       throw new Error("Reviewed extension package identity changed");
     if (extension.body.coverage !== "course-development-v2")
       throw new Error("Expected reviewed content capability");
-    body = extension.body;
-    value = { formatVersion: 1, packageHash: extension.packageHash, body };
+    const printedBytes = await readFile(
+      resolve(root, ".local/runtime/lesson-03-development-package.json"),
+    );
+    const printedReview = parseExtensionReview(
+      JSON.parse(
+        await readFile(
+          resolve(root, ".local/runtime/lesson-03-input-review.json"),
+          "utf8",
+        ),
+      ),
+    );
+    if (
+      printedReview.basePackageHash !== extension.packageHash ||
+      printedReview.candidateSha256 !== digest(printedBytes) ||
+      canonical(printedReview.sourceInputs) !==
+        canonical([...review.sources, ...review.scans])
+    )
+      throw new Error(
+        "Printed extension review does not match exact predecessor and source inputs",
+      );
+    for (const item of printedReview.evidenceInputs)
+      if (digest(await readFile(resolve(root, item.path))) !== item.sha256)
+        throw new Error(
+          "Printed extension authoring evidence changed; review again",
+        );
+    const printed = await reviewedPrintedCourseExtension({
+      previous: extension,
+      candidate: JSON.parse(printedBytes.toString("utf8")),
+      hash,
+    });
+    if (printed.packageHash !== printedReview.packageHash)
+      throw new Error("Printed extension package identity changed");
+    if (printed.body.coverage !== "course-development-v3")
+      throw new Error("Expected reviewed printed capability");
+    body = printed.body;
+    value = { formatVersion: 1, packageHash: printed.packageHash, body };
   }
   const path = resolve(
     root,
@@ -487,7 +525,7 @@ export async function prepareCourseContent(input: { fixture: boolean }) {
           sources: review.sources,
           scans: review.scans,
           scope:
-            "Six supplied lesson catalogs, 45 ordered tasks; complete executable Lessons 1 and 2. Publication remains unapproved.",
+            "Six supplied lesson catalogs, 45 ordered tasks; complete executable Lessons 1 and 2 and Lesson 3 printed Tasks 1, 2 and 4. Publication remains unapproved.",
           lessons: review.lessons,
           laterTeaching:
             "Absent. Metadata does not create instructional definitions or completion credit.",

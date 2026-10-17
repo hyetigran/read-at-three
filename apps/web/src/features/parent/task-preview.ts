@@ -1,5 +1,5 @@
 import { parseRuntimePackage, resolvedLessons } from "@readatthree/teaching";
-import type { GraphTask, PackageHash } from "@readatthree/teaching";
+import type { GraphTask, BoardTask, PackageHash } from "@readatthree/teaching";
 import { hashText } from "@/platform/hash.ts";
 import type { ParentLifetime } from "./parent-visit.ts";
 
@@ -9,7 +9,11 @@ export type TaskPreviewTicket = Readonly<{
   packageHash: PackageHash;
 }>;
 export type FirstTaskPreview =
-  | Readonly<{ kind: "available"; ticket: TaskPreviewTicket; task: GraphTask }>
+  | Readonly<{
+      kind: "available";
+      ticket: TaskPreviewTicket;
+      task: GraphTask | BoardTask;
+    }>
   | Readonly<{
       kind: "unavailable";
       ticket: TaskPreviewTicket;
@@ -45,7 +49,10 @@ export async function readFirstTaskPreview({
     const entry = resolvedLessons(content)
       .find((lesson) => lesson.number === 1)
       ?.tasks.find((entry) => entry.task.number === 1);
-    if (!entry || entry.kind !== "printedGraphV1")
+    if (
+      !entry ||
+      (entry.kind !== "printedGraphV1" && entry.kind !== "printedGraphV2")
+    )
       return unavailable("missing");
     return { kind: "available", ticket, task: entry.task };
   } catch {

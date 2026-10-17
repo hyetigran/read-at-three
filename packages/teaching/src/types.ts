@@ -106,6 +106,34 @@ export type GraphNode = Readonly<{
   cue: Readonly<{ kind: "sustain"; minimumMs: number | null }>;
   next: Readonly<{ kind: "node"; nodeId: NodeId } | { kind: "end" }>;
 }>;
+export type PrintedGlyph = "m" | "a" | "s";
+export type PrintedCue = Readonly<
+  | { kind: "none" }
+  | { kind: "underSymbolHold"; hold: "parentControlled" }
+  | {
+      kind: "endpointSweep";
+      preparation: "touchStart" | "parentControlledStartHold";
+    }
+>;
+export type PrintedBoard = Readonly<{
+  assetId: "single-a" | "vertical-mas" | "two-above-one-mas";
+  reviewId: "printed-boards-l03-v1";
+  assetHash: string;
+}>;
+export type BoardPresentation = Readonly<{
+  kind: "printedBoard";
+  board: PrintedBoard;
+  focus: PrintedGlyph;
+  cue: PrintedCue;
+}>;
+export type BoardNode = Omit<GraphNode, "glyph" | "cue"> &
+  Readonly<{
+    presentation: BoardPresentation;
+  }>;
+export type PrintedNode = GraphNode | BoardNode;
+export type BoardTask = Omit<GraphTask, "nodes"> &
+  Readonly<{ nodes: readonly BoardNode[] }>;
+export type BoardTurn = BoardNode & Omit<GraphTurn, keyof GraphNode>;
 export type CorrectionSpec = Readonly<{
   id: CorrectionId;
   eligibleNodeIds: readonly NodeId[];
@@ -238,7 +266,7 @@ export type AvailableAction = Readonly<
   | {
       label: Copy;
       intent: Extract<TeachingIntent, { kind: "help" }>;
-      correctionPreview: GraphNode | ControlTurnNode;
+      correctionPreview: PrintedNode | ControlTurnNode;
     }
 >;
 export type Owner = Readonly<{ profileId: ProfileId; generation: Counter }>;
@@ -250,7 +278,10 @@ export type GraphTurn = GraphNode &
     checkpointId: CheckpointId;
   }>;
 export type EngineProjection =
-  | { kind: "teaching"; turn: TeachingNode | GraphTurn | ControlTurn }
+  | {
+      kind: "teaching";
+      turn: TeachingNode | GraphTurn | BoardTurn | ControlTurn;
+    }
   | {
       kind: "frontier";
       status: "inProgress";
@@ -623,6 +654,7 @@ export type ControlTask = Readonly<{
 }>;
 export type MixedTask = Readonly<
   | { kind: "printedGraphV1"; task: GraphTask }
+  | { kind: "printedGraphV2"; task: BoardTask }
   | { kind: "graphControls"; task: ControlTask }
   | { kind: "soundWritingV1"; task: WritingTask }
   | { kind: "writingPracticePlanV2"; task: WritingPracticePlan }
@@ -635,7 +667,7 @@ export type ControlDevelopmentBody = Omit<
     coverage: "lesson1-sounds-oral-complete";
     tasks: readonly Exclude<
       MixedTask,
-      { kind: "soundWritingV1" | "writingPracticePlanV2" }
+      { kind: "soundWritingV1" | "writingPracticePlanV2" | "printedGraphV2" }
     >[];
   }>;
 export type ReviewChoice = Readonly<
@@ -905,4 +937,7 @@ export type WritingDevelopmentBody = Omit<
   ControlDevelopmentBody,
   "coverage" | "tasks"
 > &
-  Readonly<{ coverage: "lesson1-complete"; tasks: readonly MixedTask[] }>;
+  Readonly<{
+    coverage: "lesson1-complete";
+    tasks: readonly Exclude<MixedTask, { kind: "printedGraphV2" }>[];
+  }>;

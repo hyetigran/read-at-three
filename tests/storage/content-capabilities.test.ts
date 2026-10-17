@@ -140,19 +140,7 @@ test("V10 widens installed content without losing existing foreign-key linked pa
   assert.equal(committedAcknowledgementLost, true);
   assert.equal(db.prepare("PRAGMA foreign_keys").get()?.foreign_keys, 1);
   assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 10);
-  const committedBytes = await readFile(file);
-  await initializeDatabase(executor, hash);
-  assert.deepEqual(await readFile(file), committedBytes);
-  assert.deepEqual(
-    db.prepare("SELECT * FROM installed_package").all(),
-    beforePackage,
-  );
-  assert.deepEqual(
-    db.prepare("SELECT * FROM course_activation").all(),
-    beforeActivation,
-  );
-  assert.deepEqual(db.prepare("PRAGMA foreign_key_check").all(), []);
-  assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 10);
+  db.exec("BEGIN IMMEDIATE");
   const newHash = "f".repeat(64);
   db.prepare(
     "INSERT INTO installed_package VALUES(?,?,?,2,?,1,?,'ready',?)",
@@ -173,6 +161,22 @@ test("V10 widens installed content without losing existing foreign-key linked pa
         .run(newHash),
     /CHECK/,
   );
+  db.exec("ROLLBACK");
+  await initializeDatabase(executor, hash);
+  assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 11);
+  const committedBytes = await readFile(file);
+  await initializeDatabase(executor, hash);
+  assert.deepEqual(await readFile(file), committedBytes);
+  assert.deepEqual(
+    db.prepare("SELECT * FROM installed_package").all(),
+    beforePackage,
+  );
+  assert.deepEqual(
+    db.prepare("SELECT * FROM course_activation").all(),
+    beforeActivation,
+  );
+  assert.deepEqual(db.prepare("PRAGMA foreign_key_check").all(), []);
+  assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 11);
 });
 
 test("V2 writing uses one durable executor with eight turns, explicit phase confirmation, restart and terminal Undo", async (t) => {

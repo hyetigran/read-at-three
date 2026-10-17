@@ -1,3 +1,4 @@
+import { projectPrintedTurn } from "./content.ts";
 import { resolvedLessons } from "./course-content.ts";
 import type { RuntimePackage } from "./course-content.ts";
 import { writingTask } from "./writing.ts";
@@ -774,13 +775,7 @@ export function project(
     if (!node) throw new Error("Current node is unavailable");
     return {
       kind: "teaching",
-      turn: {
-        ...node,
-        extraPractice: current.kind !== "normal",
-        routeKind: checkpoint.context.kind,
-        occurrenceId: current.id,
-        checkpointId: checkpoint.id,
-      },
+      turn: projectPrintedTurn({ node, occurrence: current, checkpoint }),
     };
   }
   return state.kind === "teaching"
@@ -816,9 +811,9 @@ function graphCompletionProof(
     requiredOccurrenceIds: required.map((entry) => entry.id),
     sourceRefs: [
       ...new Set(
-        graph.task.nodes
-          .filter((node) => node.kind === "normal")
-          .flatMap((node) => node.sourceRefs),
+        graph.normalNodeIds.flatMap(
+          (id) => graph.nodes.get(id)?.sourceRefs ?? [],
+        ),
       ),
     ],
   });

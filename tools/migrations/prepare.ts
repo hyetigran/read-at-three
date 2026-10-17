@@ -614,8 +614,60 @@ if (arguments_.includes("--check")) {
   if ((await readFile(packagePath, "utf8")) !== packageSql)
     throw new Error("Content capability migration stale");
 } else await writeFile(packagePath, packageSql);
+const currentPackageStatements = await generateSQLiteMigration(
+  await generateSQLiteDrizzleJson({}),
+  await generateSQLiteDrizzleJson({
+    installedPackage: schema.installedPackage,
+  }),
+);
+const firstPackageStatements = await generateSQLiteMigration(
+  await generateSQLiteDrizzleJson({}),
+  await generateSQLiteDrizzleJson({
+    installedPackage: schema.installedPackageV1,
+  }),
+);
+if (
+  canonical(
+    firstPackageStatements.map((statement) =>
+      statement.replace(
+        "content_schema_version=1",
+        "content_schema_version IN (1,2,3)",
+      ),
+    ),
+  ) !== canonical(currentPackageStatements)
+)
+  throw new Error(
+    "Current Drizzle package DDL differs beyond the reviewed capability widening",
+  );
+const boardPackageStatements = [
+  packageOriginal
+    .replace(
+      "CHECK(content_schema_version=1)",
+      "CHECK(content_schema_version IN (1,2,3))",
+    )
+    .replace(
+      "CREATE TABLE installed_package ",
+      "CREATE TABLE installed_package_v11 ",
+    ),
+  "INSERT INTO installed_package_v11 SELECT * FROM installed_package",
+  "DROP TABLE installed_package",
+  "ALTER TABLE installed_package_v11 RENAME TO installed_package",
+  "UPDATE installation SET database_version = 11",
+];
+const boardPackagePath = resolve(
+  root,
+  "packages/storage/migrations/0010_printed_boards.sql",
+);
+const boardPackageSql =
+  boardPackageStatements
+    .map((statement) => statement.trim().replace(/;$/, ""))
+    .join(";\n--> statement-breakpoint\n") + ";\n";
+if (arguments_.includes("--check")) {
+  if ((await readFile(boardPackagePath, "utf8")) !== boardPackageSql)
+    throw new Error("Printed board migration stale");
+} else await writeFile(boardPackagePath, boardPackageSql);
 const output = await format(
-  `export const migrationStatements = ${JSON.stringify(statements)} as const;\nexport const migrations = [{version:1, id:"issue-02-initial", statements:migrationStatements}, {version:2, id:"issue-03-sound-task-credits", statements:${JSON.stringify(upgrades)}}, {version:3,id:"issue-04-accepting-command",statements:${JSON.stringify(finalStatements)}}, {version:4,id:"issue-06-canonical-ink",statements:${JSON.stringify(writingStatements)}}, {version:5,id:"issue-07-ink-editing",statements:${JSON.stringify(editingStatements)}}, {version:6,id:"issue-08-lesson-support",statements:${JSON.stringify(lessonStatements)}}, {version:7,id:"issue-09-advance-withdrawal",statements:${JSON.stringify(reversibleStatements)}}, {version:8,id:"issue-10-child-profiles",statements:${JSON.stringify(profileStatements)}}, {version:9,id:"issue-11-profile-removal",statements:${JSON.stringify(removalStatements)}}, {version:10,id:"issue-12-content-capabilities",foreignKeys:"rebuild",statements:${JSON.stringify(packageStatements)}}] as const;\n`,
+  `export const migrationStatements = ${JSON.stringify(statements)} as const;\nexport const migrations = [{version:1, id:"issue-02-initial", statements:migrationStatements}, {version:2, id:"issue-03-sound-task-credits", statements:${JSON.stringify(upgrades)}}, {version:3,id:"issue-04-accepting-command",statements:${JSON.stringify(finalStatements)}}, {version:4,id:"issue-06-canonical-ink",statements:${JSON.stringify(writingStatements)}}, {version:5,id:"issue-07-ink-editing",statements:${JSON.stringify(editingStatements)}}, {version:6,id:"issue-08-lesson-support",statements:${JSON.stringify(lessonStatements)}}, {version:7,id:"issue-09-advance-withdrawal",statements:${JSON.stringify(reversibleStatements)}}, {version:8,id:"issue-10-child-profiles",statements:${JSON.stringify(profileStatements)}}, {version:9,id:"issue-11-profile-removal",statements:${JSON.stringify(removalStatements)}}, {version:10,id:"issue-12-content-capabilities",foreignKeys:"rebuild",statements:${JSON.stringify(packageStatements)}},{version:11,id:"issue-13-printed-boards",foreignKeys:"rebuild",statements:${JSON.stringify(boardPackageStatements)}}] as const;\n`,
   { parser: "typescript" },
 );
 const path = resolve(root, "packages/storage/src/generated-migration.ts");

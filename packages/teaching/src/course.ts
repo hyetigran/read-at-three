@@ -147,14 +147,16 @@ export function courseProjection({
             ?.outcome ?? "unseen";
       const authoredArt =
         active.body.coverage === "course-development" ||
-        active.body.coverage === "course-development-v2"
+        active.body.coverage === "course-development-v2" ||
+        active.body.coverage === "course-development-v3"
           ? active.body.lessons
               .find((item) => item.lessonId === lesson.lessonId)
               ?.lessonTasks.find((item) => item.id === task.id)?.artKey
           : null;
       if (
         (active.body.coverage === "course-development" ||
-          active.body.coverage === "course-development-v2") &&
+          active.body.coverage === "course-development-v2" ||
+          active.body.coverage === "course-development-v3") &&
         !authoredArt
       )
         throw new Error("Required activity art mapping is missing");

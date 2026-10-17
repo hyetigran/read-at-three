@@ -526,7 +526,13 @@ export function PreparationReader({
                                 <ParentSpanText span={span} />
                               </p>
                             ))}
-                            <SoundGlyph glyph={node.glyph} />
+                            <SoundGlyph
+                              glyph={
+                                "presentation" in node
+                                  ? node.presentation.focus
+                                  : node.glyph
+                              }
+                            />
                           </article>
                         ))
                     : null}

@@ -887,3 +887,126 @@
 .teaching-undo-slot .teaching-button {
   width: 100%;
 }
+
+.teaching-printed-board {
+  grid-template-rows: 64px 150px minmax(0, 1fr) 54px;
+}
+.teaching-printed-board .teaching-parent-panel {
+  height: 150px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+.teaching-printed-board .teaching-arena {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.printed-board-activity {
+  width: min(670px, 100%);
+  height: 100%;
+  position: relative;
+  padding: 8px 0 24px;
+}
+.printed-board {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  justify-items: center;
+  align-items: center;
+}
+.printed-board-single {
+  grid-template-rows: 1fr;
+}
+.printed-board-verticalThree {
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+}
+.printed-board-twoAboveOne {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+.printed-board-twoAboveOne .printed-board-cell:last-child {
+  grid-column: 1 / -1;
+}
+.printed-board-cell {
+  position: relative;
+  width: min(260px, 100%);
+  height: 100%;
+  max-height: 210px;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) 28px;
+  justify-items: center;
+  padding: 3px 12px;
+  border-radius: 12px;
+  outline: 3px solid transparent;
+}
+.printed-board-cell[data-focused="true"] {
+  outline-color: #9b426b;
+  background: #ffffff24;
+}
+.printed-board-cell .teaching-glyph {
+  width: auto;
+  height: 100%;
+  max-width: 100%;
+}
+.printed-board-diagram-slot {
+  position: relative;
+  height: 28px;
+  max-width: 100%;
+}
+.printed-board-diagram {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  fill: currentColor;
+}
+.printed-board-marker {
+  fill: #d72665;
+  transition:
+    cx 150ms linear,
+    cy 150ms linear;
+}
+.printed-board-contact {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 48px;
+  height: 48px;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+.printed-board-contact:focus-visible {
+  outline: 3px solid #211b46;
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .printed-board-marker {
+    transition: none;
+  }
+}
+.teaching-screen .printed-board-contact[data-origin="added"] {
+  padding: 0;
+  background: transparent;
+}
+.teaching-printed-board .teaching-header {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 24px;
+}
+.teaching-printed-board .teaching-location,
+.teaching-printed-board .teaching-header-actions {
+  position: static;
+}
+.teaching-printed-board .teaching-header h1 {
+  min-width: 0;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.teaching-printed-board .teaching-header-actions {
+  min-width: 0;
+}

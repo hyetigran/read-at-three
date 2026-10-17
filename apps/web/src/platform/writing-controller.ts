@@ -26,7 +26,7 @@ import type {
   AvailableAction,
   ControlTurnNode,
   DocumentToken,
-  GraphNode,
+  PrintedNode,
   InkChunk,
   InkCommand,
   InkPoint,
@@ -103,7 +103,7 @@ export type AdministrationOutcome =
   | CommandRejection;
 export type ControllerState = Readonly<{
   operation: Operation;
-  correctionPreview: GraphNode | ControlTurnNode | null;
+  correctionPreview: PrintedNode | ControlTurnNode | null;
   practiceControlsReady: boolean;
   inputSuspended: boolean;
 }>;

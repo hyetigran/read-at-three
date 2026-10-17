@@ -71,3 +71,11 @@ export * from "./profile-removal.ts";
 export * from "./support.ts";
 
 export { guidanceCopies, requirePlainGuidance } from "./guidance.ts";
+
+export { printedBoardAssets, resolvePrintedPresentation } from "./printed.ts";
+
+export {
+  printedGlyphAssets,
+  printedDiagramAsset,
+  printedBoardAssetHash,
+} from "./printed-assets.ts";

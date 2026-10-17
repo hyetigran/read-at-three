@@ -78,3 +78,47 @@ export async function reviewedCourseExtension(input: {
     throw new Error("Later lessons require their own reviewed extension");
   return candidate;
 }
+
+export async function reviewedPrintedCourseExtension(input: {
+  previous: RuntimePackage;
+  candidate: unknown;
+  hash: HashFunction;
+}) {
+  const candidate = await parseRuntimePackage(input.candidate, input.hash);
+  if (
+    input.previous.body.coverage !== "course-development-v2" ||
+    candidate.body.coverage !== "course-development-v3" ||
+    !cumulativeExtension({ previous: input.previous, candidate })
+  )
+    throw new Error(
+      "Printed extension must preserve exact predecessor curriculum",
+    );
+  if (
+    canonical(
+      input.previous.body.lessons.map(
+        ({ tasks: _tasks, ...catalog }) => catalog,
+      ),
+    ) !==
+    canonical(
+      candidate.body.lessons.map(({ tasks: _tasks, ...catalog }) => catalog),
+    )
+  )
+    throw new Error("Printed extension changed source catalog");
+  for (const [index, lesson] of candidate.body.lessons.entries()) {
+    const before = input.previous.body.lessons[index];
+    if (!before) throw new Error("Printed extension changed lesson catalog");
+    if (index === 2) {
+      if (
+        before.tasks.length !== 0 ||
+        canonical(lesson.tasks.map((entry) => entry.task.number)) !==
+          canonical([1, 2, 4]) ||
+        lesson.tasks.some((entry) => entry.kind !== "printedGraphV2")
+      )
+        throw new Error(
+          "Printed extension requires exactly reviewed tasks 1, 2 and 4",
+        );
+    } else if (canonical(lesson.tasks) !== canonical(before.tasks))
+      throw new Error("Printed extension changed predecessor task definitions");
+  }
+  return candidate;
+}

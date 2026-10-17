@@ -1,3 +1,4 @@
+import { projectPrintedPreview } from "./content.ts";
 import { parseCounter } from "./identity.ts";
 import { courseProjection } from "./course.ts";
 import type { ApplicationRead, CourseReadTarget } from "./course.ts";
@@ -555,7 +556,7 @@ export function createCoordinator({
                 actions.push({
                   label: added("Help"),
                   intent: { kind: "help", correctionId: spec.id },
-                  correctionPreview,
+                  correctionPreview: projectPrintedPreview(correctionPreview),
                 });
               }
             }
@@ -625,6 +626,7 @@ export function createCoordinator({
           : writing &&
               engine.kind === "teaching" &&
               "presentation" in engine.turn &&
+              engine.turn.kind === "turn" &&
               engine.turn.presentation.kind === "writing" &&
               documents
             ? { kind: "writing", turn: engine.turn, documents }
