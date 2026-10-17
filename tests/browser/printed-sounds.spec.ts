@@ -1,3 +1,4 @@
+import { browserBaseURL } from "./environment.ts";
 import {
   installInitialSetupObservation,
   completeInitialSetup,
@@ -7,10 +8,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
-const base =
-  process.env.READING_BROWSER_BUILD === "1"
-    ? "http://127.0.0.1:5175"
-    : "http://127.0.0.1:5174";
+const base = browserBaseURL;
 const first = "fixture.graph.l01.t01.s01.model-m";
 async function turn(page: Page, suffix: string) {
   await expect(page.locator("main[data-turn-id]")).toHaveAttribute(

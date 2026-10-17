@@ -1669,7 +1669,10 @@ export function createWritingController({
         ],
       }));
     },
-    canWrite: () => !fenced && state.operation.kind === "idle",
+    canWrite: () =>
+      !fenced &&
+      state.operation.kind === "idle" &&
+      [...documents.values()].some((view) => view.snapshot.writable),
     close() {
       closed = true;
       operationSerial++;

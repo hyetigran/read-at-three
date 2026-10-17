@@ -297,3 +297,282 @@ test("V2 writing uses one durable executor with eight turns, explicit phase conf
   assert.equal(undone.kind, "writing");
   assert.equal((await act(app, f.ids, "confirmIndependent")).kind, "committed");
 });
+
+test("V2 rejects wrong, stale and repeated phase requests without SQL changes and retains ink through Skip and Undo", async (t) => {
+  const {
+    parseCommand,
+    prepareInkCommand,
+    parseId,
+    encodeInkPoints,
+    canonical,
+    layerForPhase,
+  } = await import("@readatthree/teaching");
+  const { selectedInk, prepareSelectedInk, executeInk } =
+    await import("./selected-support.ts");
+  const content = await parseRuntimePackage(
+      await syntheticPlanEnvelope(),
+      hash,
+    ),
+    f = await storageFixture(t, content),
+    { app, db } = await f.connectReady();
+  const initial = await selectedProjection(app);
+  assert.equal(initial.kind, "entry");
+  if (initial.kind !== "entry") throw new Error("Entry missing");
+  const task = resolvedLessons(content)[0]?.tasks.find(
+    (entry) => entry.kind === "writingPracticePlanV2",
+  );
+  assert.ok(task);
+  const start = initial.actions.find(
+    (action) =>
+      action.intent.kind === "start" && action.intent.taskId === task.task.id,
+  );
+  assert.ok(start);
+  await executeTeaching(
+    app,
+    await prepareSelectedTeaching(app, () =>
+      prepareCommand({
+        projection: initial,
+        request: { kind: "action", action: start },
+        ids: f.ids,
+        hash,
+      }),
+    ),
+  );
+  function graph() {
+    return db
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+      )
+      .all()
+      .map((row) => {
+        if (typeof row.name !== "string") throw new Error("Table name missing");
+        return [
+          row.name,
+          db.prepare(`SELECT * FROM "${row.name}" ORDER BY rowid`).all(),
+        ];
+      });
+  }
+  async function current() {
+    const p = await selectedProjection(app);
+    if (p.kind !== "writing") throw new Error("Writing required");
+    return p;
+  }
+  async function draw() {
+    const p = await current();
+    if (p.turn.presentation.kind !== "writing")
+      throw new Error("Writing target missing");
+    const token = p.documents.find(
+      (document) =>
+        p.turn.presentation.kind === "writing" &&
+        document.targetId === p.turn.presentation.targetId,
+    );
+    assert.ok(token);
+    const layer = layerForPhase(token.phase),
+      strokeId = parseId({ kind: "stroke", value: f.ids() });
+    const begin = await prepareSelectedInk(app, () =>
+      prepareInkCommand({
+        token,
+        edit: {
+          kind: "begin",
+          strokeId,
+          layer,
+          brush: {
+            kind: "round",
+            width: 4,
+            colorRole: layer === "model" ? "model" : "child",
+            cap: "round",
+            join: "round",
+          },
+          chunks: [
+            {
+              chunkIndex: 0,
+              firstPointIndex: 0,
+              pointCount: 2,
+              codecVersion: 1,
+              payload: [
+                ...encodeInkPoints({
+                  points: [
+                    { x: 100, y: 200, elapsedMs: 0 },
+                    { x: 150, y: 220, elapsedMs: 20 },
+                  ],
+                  bounds: { width: 1600, height: 400 },
+                }),
+              ],
+            },
+          ],
+        },
+        ids: f.ids,
+        hash,
+      }),
+    );
+    const receipt = await executeInk(app, begin);
+    assert.equal(receipt.kind, "inkCommitted");
+    if (receipt.kind !== "inkCommitted") throw new Error("Ink did not commit");
+    const final = await prepareSelectedInk(app, () =>
+      prepareInkCommand({
+        token: receipt.token,
+        edit: {
+          kind: "finalize",
+          strokeId,
+          layer,
+          chunks: [],
+          status: "finished",
+        },
+        ids: f.ids,
+        hash,
+      }),
+    );
+    assert.equal((await executeInk(app, final)).kind, "inkCommitted");
+  }
+  await draw();
+  await act(app, f.ids, "continue");
+  await act(app, f.ids, "continue");
+  let p = await current();
+  const tracing = p.actions.find(
+    (action) => action.intent.kind === "confirmTracing",
+  );
+  assert.ok(tracing);
+  const correct = await prepareWritingCommand({
+    projection: p,
+    action: tracing,
+    barrier: { kind: "writing", documents: p.documents },
+    ids: f.ids,
+    hash,
+  });
+  assert.equal(correct.kind, "writingNavigate");
+  if (correct.kind !== "writingNavigate")
+    throw new Error("Phase command missing");
+  const other = p.documents.find(
+    (document) =>
+      correct.payload.action.kind === "confirmTracing" &&
+      document.targetId !== correct.payload.action.targetId,
+  );
+  assert.ok(other);
+  const changes = [
+    {
+      action: {
+        kind: "confirmTracing",
+        targetId: other.targetId,
+        nodeId: p.turn.id,
+        phase: "childTracing",
+      },
+    },
+    {
+      action: {
+        kind: "confirmIndependent",
+        targetId:
+          correct.payload.action.kind === "confirmTracing"
+            ? correct.payload.action.targetId
+            : other.targetId,
+        nodeId: p.turn.id,
+        phase: "childIndependentWriting",
+      },
+    },
+    { expectedRevision: "999" },
+  ];
+  for (const change of changes) {
+    const payload = {
+      ...correct.payload,
+      ...("action" in change ? { action: change.action } : {}),
+    };
+    const invalid = parseCommand({
+      ...correct,
+      commandId: f.ids(),
+      expectedRevision:
+        "expectedRevision" in change
+          ? change.expectedRevision
+          : correct.expectedRevision,
+      payload,
+      payloadHash: await hash(canonical({ kind: correct.kind, payload })),
+    });
+    const operation = await prepareSelectedTeaching(app, () => invalid),
+      before = graph();
+    assert.equal((await executeTeaching(app, operation)).kind, "rejected");
+    assert.deepEqual(graph(), before);
+  }
+  await draw();
+  p = await current();
+  const validAction = p.actions.find(
+    (action) => action.intent.kind === "confirmTracing",
+  );
+  assert.ok(validAction);
+  const accepted = await prepareSelectedTeaching(app, () =>
+    prepareWritingCommand({
+      projection: p,
+      action: validAction,
+      barrier: { kind: "writing", documents: p.documents },
+      ids: f.ids,
+      hash,
+    }),
+  );
+  const acceptedReceipt = await executeTeaching(app, accepted);
+  assert.equal(acceptedReceipt.kind, "committed");
+  const after = graph();
+  assert.deepEqual(await executeTeaching(app, accepted), acceptedReceipt);
+  assert.deepEqual(graph(), after);
+  const next = await current();
+  assert.equal(accepted.command.kind, "writingNavigate");
+  if (accepted.command.kind !== "writingNavigate")
+    throw new Error("Accepted phase command missing");
+  const duplicatePayload = {
+    ...accepted.command.payload,
+    barrier: { kind: "writing", documents: next.documents },
+  };
+  const duplicate = parseCommand({
+    ...accepted.command,
+    commandId: f.ids(),
+    expectedRevision: next.revision,
+    payload: duplicatePayload,
+    payloadHash: await hash(
+      canonical({ kind: accepted.command.kind, payload: duplicatePayload }),
+    ),
+  });
+  const beforeDuplicate = graph();
+  assert.equal(
+    (
+      await executeTeaching(
+        app,
+        await prepareSelectedTeaching(app, () => duplicate),
+      )
+    ).kind,
+    "rejected",
+  );
+  assert.deepEqual(graph(), beforeDuplicate);
+  await draw();
+  const beforeSkip = await current();
+  const saved = await Promise.all(
+    beforeSkip.documents.map((token) => selectedInk(app, { token })),
+  );
+  assert.equal(saved.flatMap((snapshot) => snapshot.strokes).length, 3);
+  assert.equal((await act(app, f.ids, "skipWriting")).kind, "committed");
+  const skipped = await selectedProjection(app);
+  assert.equal(skipped.kind, "writingResult");
+  if (skipped.kind !== "writingResult") throw new Error("Skip result missing");
+  assert.equal(skipped.outcome, "skipped");
+  assert.equal(skipped.runStatus, "skipped");
+  const retained = await Promise.all(
+    skipped.documents.map((token) => selectedInk(app, { token })),
+  );
+  assert.deepEqual(
+    retained.map((snapshot) => snapshot.strokes),
+    saved.map((snapshot) => snapshot.strokes),
+  );
+  assert.deepEqual(
+    retained.map((snapshot) => snapshot.histories),
+    saved.map((snapshot) => snapshot.histories),
+  );
+  assert.equal((await act(app, f.ids, "undoAdvance")).kind, "committed");
+  const restored = await current();
+  assert.equal(restored.turn.id, beforeSkip.turn.id);
+  const resumed = await Promise.all(
+    restored.documents.map((token) => selectedInk(app, { token })),
+  );
+  assert.deepEqual(
+    resumed.map((snapshot) => snapshot.strokes),
+    saved.map((snapshot) => snapshot.strokes),
+  );
+  assert.deepEqual(
+    resumed.map((snapshot) => snapshot.histories),
+    saved.map((snapshot) => snapshot.histories),
+  );
+});

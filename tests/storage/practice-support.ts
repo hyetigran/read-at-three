@@ -23,11 +23,15 @@ import type {
   PracticeControl,
   TeachingIntent,
   SelectedApplication,
+  RuntimePackage,
 } from "@readatthree/teaching";
 import { writingFixture } from "../teaching/writing-fixture.ts";
 import { hash, storageFixture } from "./support.ts";
-export async function practiceFixture(t: Parameters<typeof storageFixture>[0]) {
-  const fixture = await storageFixture(t, await writingFixture());
+export async function practiceFixture(
+  t: Parameters<typeof storageFixture>[0],
+  supplied?: RuntimePackage,
+) {
+  const fixture = await storageFixture(t, supplied ?? (await writingFixture()));
   async function action(
     app: SelectedApplication,
     kind: TeachingIntent["kind"],

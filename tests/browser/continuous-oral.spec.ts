@@ -1,3 +1,4 @@
+import { browserBaseURL } from "./environment.ts";
 import {
   installInitialSetupObservation,
   completeInitialSetup,
@@ -9,10 +10,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const base =
-  process.env.READING_BROWSER_BUILD === "1"
-    ? "http://127.0.0.1:5175"
-    : "http://127.0.0.1:5174";
+const base = browserBaseURL;
 const taskId = "fixture.graph.l01.t03";
 
 async function at({ page, suffix }: { page: Page; suffix: string }) {
