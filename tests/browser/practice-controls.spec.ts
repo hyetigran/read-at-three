@@ -1,7 +1,8 @@
 import { expect, test } from "@playwright/test";
-import { visibleInkStrokes } from "@readatthree/teaching";
+import { visibleInkStrokes, decodeInkPoints } from "@readatthree/teaching";
 import {
   atWritableWriting,
+  boardPoint,
   drawStroke,
   latestDocuments,
   probe,
@@ -281,4 +282,192 @@ test("known control rejection stays fenced until canonical reload without reexec
   await writingAction(page, "Undo ink");
   expect(await controls()).toBe(2);
   expect(await childIds(page)).toHaveLength(1);
+});
+
+for (const stale of [
+  "down",
+  "move",
+  "up",
+  "cancel",
+  "lostpointercapture",
+  "coalesced",
+]) {
+  test(`events from before a fence cannot reuse the mouse contact through stale ${stale}`, async ({
+    page,
+  }) => {
+    await prepare(page);
+    const old = await boardPoint(page, 100, 100),
+      stray = await boardPoint(page, 900, 100);
+    await page.mouse.move(old.x, old.y);
+    await page.mouse.down();
+    await page.evaluate(({ x, y }) => {
+      const event = new PointerEvent("pointermove", {
+        bubbles: true,
+        pointerId: 1,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+        buttons: 1,
+        clientX: x,
+        clientY: y,
+      });
+      const events = new Map(
+        ["down", "move", "up", "cancel", "lostpointercapture"].map((kind) => [
+          kind,
+          new PointerEvent(
+            kind === "lostpointercapture" ? kind : `pointer${kind}`,
+            {
+              bubbles: true,
+              pointerId: 1,
+              pointerType: "mouse",
+              isPrimary: true,
+              button: 0,
+              buttons: 1,
+              clientX: x,
+              clientY: y,
+            },
+          ),
+        ]),
+      );
+      events.set("coalesced", event);
+      Object.defineProperty(window, "oldInkEvents", {
+        configurable: true,
+        value: events,
+      });
+      window.dispatchEvent(new Event("resize"));
+    }, stray);
+    await page.mouse.up();
+    await expect(
+      page.getByRole("button", { name: "Undo ink", exact: true }),
+    ).toBeEnabled();
+    if (stale === "down")
+      await page.evaluate(
+        "document.querySelector('canvas').dispatchEvent(window.oldInkEvents.get('down'))",
+      );
+    const current = await boardPoint(page, 300, 100);
+    await page.mouse.move(current.x, current.y);
+    await page.mouse.down();
+    if (stale !== "down")
+      await page.evaluate((kind) => {
+        const value: unknown = Reflect.get(window, "oldInkEvents");
+        if (!(value instanceof Map)) throw new Error("Old events missing");
+        const event: unknown = value.get(kind);
+        if (!(event instanceof PointerEvent))
+          throw new Error("Old pointer event missing");
+        const canvas = document.querySelector("canvas");
+        if (!canvas) throw new Error("Canvas missing");
+        if (kind === "coalesced") {
+          const fresh = new PointerEvent("pointermove", {
+            bubbles: true,
+            pointerId: 1,
+            pointerType: "mouse",
+            isPrimary: true,
+            buttons: 1,
+          });
+          Object.defineProperty(fresh, "getCoalescedEvents", {
+            value: () => [event],
+          });
+          canvas.dispatchEvent(fresh);
+        } else canvas.dispatchEvent(event);
+      }, stale);
+    const end = await boardPoint(page, 350, 120);
+    await page.mouse.move(end.x, end.y);
+    await page.mouse.up();
+    await expect(
+      page.getByRole("button", { name: "Undo ink", exact: true }),
+    ).toBeEnabled();
+    await page.reload();
+    await atWritableWriting(page, "m-tracing");
+    const saved = (await latestDocuments(page))[0];
+    if (!saved) throw new Error("Restored document required");
+    const child = saved.strokes.filter((stroke) => stroke.layer === "tracing");
+    expect(
+      child.map((stroke) => ({
+        status: stroke.status,
+        points: stroke.pointCount,
+      })),
+    ).toEqual([
+      { status: "interrupted", points: 1 },
+      { status: "finished", points: 3 },
+    ]);
+    const points = child[1]?.chunks.flatMap((chunk) =>
+      decodeInkPoints({
+        payload: Uint8Array.from(chunk.payload),
+        pointCount: chunk.pointCount,
+        bounds: saved.bounds,
+      }),
+    );
+    expect(points?.map((point) => Math.round(point.x))).toEqual([
+      300, 350, 350,
+    ]);
+  });
+}
+
+test("events created while a control input fence is closed cannot start after reopening", async ({
+  page,
+}) => {
+  await prepare(page);
+  await drawStroke(page, [{ x: 180, y: 110 }]);
+  await expect(
+    page.getByRole("button", { name: "Undo ink", exact: true }),
+  ).toBeEnabled();
+  await page.evaluate("window.armWritingFault('hold-teaching')");
+  await page.getByRole("button", { name: "Undo ink", exact: true }).click();
+  await expect
+    .poll(() => page.evaluate("window.hasHeldTeachingWrite()"))
+    .toBe(true);
+  const stray = await boardPoint(page, 900, 100);
+  await page.evaluate(
+    ({ x, y }) =>
+      Object.defineProperty(window, "closedInkDown", {
+        configurable: true,
+        value: new PointerEvent("pointerdown", {
+          bubbles: true,
+          pointerId: 1,
+          pointerType: "mouse",
+          isPrimary: true,
+          button: 0,
+          buttons: 1,
+          clientX: x,
+          clientY: y,
+        }),
+      }),
+    stray,
+  );
+  await page.evaluate("window.releaseHeldTeachingWrite()");
+  await expect(
+    page.getByRole("button", { name: "Redo ink", exact: true }),
+  ).toBeEnabled();
+  await page.evaluate(
+    "document.querySelector('canvas').dispatchEvent(window.closedInkDown)",
+  );
+  await drawStroke(page, [
+    { x: 400, y: 100 },
+    { x: 450, y: 120 },
+  ]);
+  await expect(
+    page.getByRole("button", { name: "Undo ink", exact: true }),
+  ).toBeEnabled();
+  await page.reload();
+  await atWritableWriting(page, "m-tracing");
+  const saved = (await latestDocuments(page))[0];
+  if (!saved) throw new Error("Saved document missing");
+  const child = saved.strokes.filter((stroke) => stroke.layer === "tracing");
+  expect(
+    child.map((stroke) => ({
+      status: stroke.status,
+      points: stroke.pointCount,
+    })),
+  ).toEqual([{ status: "finished", points: 3 }]);
+  expect(
+    child[0]?.chunks
+      .flatMap((chunk) =>
+        decodeInkPoints({
+          payload: Uint8Array.from(chunk.payload),
+          pointCount: chunk.pointCount,
+          bounds: saved.bounds,
+        }),
+      )
+      .map((point) => Math.round(point.x)),
+  ).toEqual([400, 450, 450]);
 });

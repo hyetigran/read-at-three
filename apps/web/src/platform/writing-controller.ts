@@ -84,6 +84,7 @@ export type InkContact = Readonly<{
   strokeId: StrokeId;
   originalToken: DocumentToken;
   fenceSerial: number;
+  startedAt: number;
 }>;
 const brushFor = (layer: RenderStroke["layer"]): BrushSpec => ({
   kind: "round",
@@ -140,6 +141,7 @@ export function createWritingController({
   let active: Capture | null = null;
   let fenced = true;
   let fenceSerial = 0;
+  let inputEligibleAt = performance.now();
   let operationSerial = 0;
   let closed = false;
   let semanticReservation = 0;
@@ -197,6 +199,7 @@ export function createWritingController({
   }
   function fence() {
     fenceSerial++;
+    inputEligibleAt = performance.now();
     fenced = true;
     if (active) {
       active.status = "interrupted";
@@ -206,11 +209,13 @@ export function createWritingController({
     paint();
   }
   function reopenInput() {
+    const wasFenced = fenced;
     fenced =
       state.operation.kind !== "idle" ||
       !connected ||
       !isTeachingViewport() ||
       document.visibilityState !== "visible";
+    if (wasFenced && !fenced) inputEligibleAt = performance.now();
     paint();
   }
   client.onLoss(() => {
@@ -892,10 +897,13 @@ export function createWritingController({
   function begin(
     documentId: DocumentToken["documentId"],
     sample: InkSample,
+    startedAt: number,
   ): InkContact | null {
     const view = documents.get(documentId);
     if (
       fenced ||
+      !Number.isFinite(startedAt) ||
+      startedAt < inputEligibleAt ||
       active ||
       !view?.snapshot.writable ||
       state.operation.kind !== "idle"
@@ -911,6 +919,7 @@ export function createWritingController({
       strokeId,
       originalToken: view.snapshot.token,
       fenceSerial,
+      startedAt,
     });
     const capture: Capture = {
       strokeId,

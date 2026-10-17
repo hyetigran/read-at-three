@@ -110,11 +110,15 @@ test(
         Object.defineProperty(crypto.subtle, "digest", descriptor);
       else Reflect.deleteProperty(crypto.subtle, "digest");
     });
-    const first = f.controller.begin(f.board.snapshot.token.documentId, {
-      x: 100,
-      y: 100,
-      elapsedMs: 0,
-    });
+    const first = f.controller.begin(
+      f.board.snapshot.token.documentId,
+      {
+        x: 100,
+        y: 100,
+        elapsedMs: 0,
+      },
+      performance.now(),
+    );
     if (!first) throw new Error("First contact required");
     await entered.promise;
     f.controller.append(
@@ -126,11 +130,15 @@ test(
       })),
     );
     f.controller.finish(first, "finished");
-    const second = f.controller.begin(f.board.snapshot.token.documentId, {
-      x: 300,
-      y: 100,
-      elapsedMs: 0,
-    });
+    const second = f.controller.begin(
+      f.board.snapshot.token.documentId,
+      {
+        x: 300,
+        y: 100,
+        elapsedMs: 0,
+      },
+      performance.now(),
+    );
     if (!second) throw new Error("Rapid second contact required");
     f.controller.append(
       second,
@@ -176,18 +184,34 @@ test(
 test("original contact token and fence serial prevent old callbacks from joining a later gesture", async (t) => {
   const f = await controllerFixture(t),
     token = f.board.snapshot.token;
-  const old = f.controller.begin(token.documentId, {
-    x: 100,
-    y: 100,
-    elapsedMs: 0,
-  });
+  const old = f.controller.begin(
+    token.documentId,
+    {
+      x: 100,
+      y: 100,
+      elapsedMs: 0,
+    },
+    performance.now(),
+  );
   if (!old) throw new Error("Old contact required");
   await f.controller.interrupt();
-  const current = f.controller.begin(token.documentId, {
-    x: 300,
-    y: 100,
-    elapsedMs: 0,
-  });
+  assert.equal(
+    f.controller.begin(
+      token.documentId,
+      { x: 900, y: 100, elapsedMs: 0 },
+      old.startedAt,
+    ),
+    null,
+  );
+  const current = f.controller.begin(
+    token.documentId,
+    {
+      x: 300,
+      y: 100,
+      elapsedMs: 0,
+    },
+    performance.now(),
+  );
   if (!current) throw new Error("New contact required");
   assert.notEqual(current.fenceSerial, old.fenceSerial);
   assert.deepEqual(old.originalToken, token);
