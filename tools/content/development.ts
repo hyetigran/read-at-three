@@ -14,6 +14,7 @@ import type {
 } from "@readatthree/teaching";
 import { prepareGraphContent } from "./graph.ts";
 import { prepareOralContent } from "./oral.ts";
+import { prepareContinuousOralContent } from "./continuous.ts";
 
 const hash = async (text: string) =>
   createHash("sha256").update(text).digest("hex");
@@ -42,7 +43,8 @@ async function save(body: DevelopmentBodyInput, path: string) {
 }
 
 if (!process.argv.includes("--graph") && !process.argv.includes("--legacy")) {
-  await prepareOralContent({ fixture });
+  if (process.argv.includes("--oral")) await prepareOralContent({ fixture });
+  else await prepareContinuousOralContent({ fixture });
 } else if (process.argv.includes("--graph")) {
   await prepareGraphContent({ fixture });
 } else if (fixture) {

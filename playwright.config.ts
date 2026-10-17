@@ -5,6 +5,7 @@ const port = build ? 5175 : 5174;
 
 export default defineConfig({
   testDir: "./tests/browser",
+  outputDir: build ? "test-results/production" : "test-results/development",
   fullyParallel: false,
   workers: 1,
   timeout: 45000,

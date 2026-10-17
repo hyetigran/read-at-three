@@ -444,7 +444,7 @@ export type ControlTurnNode = ControlSource &
   Readonly<{
     kind: "turn";
     route: "normal" | "support";
-    parentRole: "model" | "listen";
+    parentRole: "model" | "together" | "listen";
     itemId: ItemId | null;
     presentation: Readonly<{ kind: "oral" }>;
     next: Destination;
