@@ -909,7 +909,7 @@ const schema31 = {
         },
         kind: { const: "turn" },
         route: { enum: ["normal", "support"] },
-        parentRole: { enum: ["model", "listen"] },
+        parentRole: { enum: ["model", "together", "listen"] },
         itemId: {
           anyOf: [
             { type: "string", minLength: 1, maxLength: 200 },
@@ -3175,7 +3175,7 @@ const schema45 = {
     },
     kind: { const: "turn" },
     route: { enum: ["normal", "support"] },
-    parentRole: { enum: ["model", "listen"] },
+    parentRole: { enum: ["model", "together", "listen"] },
     itemId: {
       anyOf: [
         { type: "string", minLength: 1, maxLength: 200 },
@@ -4156,7 +4156,11 @@ function validate24(
     }
     if (data.parentRole !== undefined) {
       let data14 = data.parentRole;
-      if (!(data14 === "model" || data14 === "listen")) {
+      if (!(
+        data14 === "model" ||
+        data14 === "together" ||
+        data14 === "listen"
+      )) {
         const err51 = {
           instancePath: instancePath + "/parentRole",
           schemaPath: "#/properties/parentRole/enum",
@@ -24925,7 +24929,7 @@ const schema52 = {
         },
         kind: { const: "turn" },
         route: { enum: ["normal", "support"] },
-        parentRole: { enum: ["model", "listen"] },
+        parentRole: { enum: ["model", "together", "listen"] },
         itemId: {
           anyOf: [
             { type: "string", minLength: 1, maxLength: 200 },
@@ -37343,7 +37347,7 @@ const schema55 = {
         },
         kind: { const: "turn" },
         route: { enum: ["normal", "support"] },
-        parentRole: { enum: ["model", "listen"] },
+        parentRole: { enum: ["model", "together", "listen"] },
         itemId: {
           anyOf: [
             { type: "string", minLength: 1, maxLength: 200 },
@@ -43057,7 +43061,7 @@ const schema60 = {
         },
         kind: { const: "turn" },
         route: { enum: ["normal", "support"] },
-        parentRole: { enum: ["model", "listen"] },
+        parentRole: { enum: ["model", "together", "listen"] },
         itemId: {
           anyOf: [
             { type: "string", minLength: 1, maxLength: 200 },
@@ -44583,7 +44587,7 @@ const schema62 = {
                 },
                 kind: { const: "turn" },
                 route: { enum: ["normal", "support"] },
-                parentRole: { enum: ["model", "listen"] },
+                parentRole: { enum: ["model", "together", "listen"] },
                 itemId: {
                   anyOf: [
                     { type: "string", minLength: 1, maxLength: 200 },
@@ -45162,7 +45166,7 @@ const schema62 = {
         },
         kind: { const: "turn" },
         route: { enum: ["normal", "support"] },
-        parentRole: { enum: ["model", "listen"] },
+        parentRole: { enum: ["model", "together", "listen"] },
         itemId: {
           anyOf: [
             { type: "string", minLength: 1, maxLength: 200 },
@@ -47555,7 +47559,7 @@ const schema70 = {
     },
     kind: { const: "turn" },
     route: { enum: ["normal", "support"] },
-    parentRole: { enum: ["model", "listen"] },
+    parentRole: { enum: ["model", "together", "listen"] },
     itemId: {
       anyOf: [
         { type: "string", minLength: 1, maxLength: 200 },
@@ -48535,7 +48539,11 @@ function validate35(
     }
     if (data.parentRole !== undefined) {
       let data14 = data.parentRole;
-      if (!(data14 === "model" || data14 === "listen")) {
+      if (!(
+        data14 === "model" ||
+        data14 === "together" ||
+        data14 === "listen"
+      )) {
         const err51 = {
           instancePath: instancePath + "/parentRole",
           schemaPath: "#/properties/parentRole/enum",
@@ -60355,7 +60363,11 @@ function validate31(
           }
           if (data67.parentRole !== undefined) {
             let data112 = data67.parentRole;
-            if (!(data112 === "model" || data112 === "listen")) {
+            if (!(
+              data112 === "model" ||
+              data112 === "together" ||
+              data112 === "listen"
+            )) {
               const err388 = {
                 instancePath: instancePath + "/turn/parentRole",
                 schemaPath:
@@ -72299,7 +72311,7 @@ const schema96 = {
         },
         kind: { const: "turn" },
         route: { enum: ["normal", "support"] },
-        parentRole: { enum: ["model", "listen"] },
+        parentRole: { enum: ["model", "together", "listen"] },
         itemId: {
           anyOf: [
             { type: "string", minLength: 1, maxLength: 200 },

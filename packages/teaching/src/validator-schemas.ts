@@ -114,7 +114,7 @@ const controlTurnNode = record({
   ...controlSource,
   kind: { const: "turn" },
   route: { enum: ["normal", "support"] },
-  parentRole: { enum: ["model", "listen"] },
+  parentRole: { enum: ["model", "together", "listen"] },
   itemId: nullableId,
   presentation: oralPresentation,
   next: destination,

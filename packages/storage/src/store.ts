@@ -46,6 +46,34 @@ import {
 import * as schema from "./schema.ts";
 import { utf8, equalBytes, decodeUtf8 } from "./utf8.ts";
 
+function isCumulativeOralExtension({
+  previous,
+  candidate,
+}: {
+  previous: DevelopmentPackage;
+  candidate: DevelopmentPackage;
+}): boolean {
+  if (
+    previous.body.coverage !== "lesson1-sounds-oral-complete" ||
+    candidate.body.coverage !== "lesson1-sounds-oral-complete"
+  )
+    return false;
+  const old = previous.body,
+    next = candidate.body;
+  if (
+    old.courseId !== next.courseId ||
+    old.lessonId !== next.lessonId ||
+    canonical(old.title) !== canonical(next.title) ||
+    canonical(old.lessonTasks) !== canonical(next.lessonTasks) ||
+    next.tasks.length <= old.tasks.length
+  )
+    return false;
+  const retained = next.tasks.filter((entry) =>
+    old.tasks.some((previousEntry) => previousEntry.task.id === entry.task.id),
+  );
+  return canonical(retained) === canonical(old.tasks);
+}
+
 type AdvanceRow = typeof schema.taskAdvance.$inferSelect;
 type RunRow = typeof schema.taskRun.$inferSelect;
 function durableReceipt({
@@ -244,6 +272,7 @@ export function createTeachingApplication({
             );
           if (
             cumulative ||
+            isCumulativeOralExtension({ previous, candidate: content }) ||
             legacyCumulative ||
             (previous.body.coverage === "partial-first-m" &&
               content.body.coverage === "lesson1-sounds-complete" &&

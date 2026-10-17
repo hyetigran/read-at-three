@@ -97,6 +97,49 @@ function policyAfter({
   const next = graph.nodes.get(node.next.nodeId);
   return next?.kind === "untilFirm" ? next : undefined;
 }
+type CorrectionContext = Extract<ControlContext, { kind: "correction" }>;
+function correctionRoute({
+  graph,
+  context,
+}: {
+  graph: CompiledControlTask;
+  context: CorrectionContext;
+}) {
+  const specification = required(
+    graph.task.corrections.find((c) => c.id === context.correctionId),
+  );
+  const nodeIds =
+    context.phase.kind === "instruction"
+      ? specification.instructionNodeIds
+      : specification.retestNodeIds;
+  const occurrenceIds =
+    context.phase.kind === "instruction"
+      ? context.instructionOccurrenceIds
+      : context.retestOccurrenceIds;
+  const nextId = nodeIds[context.phase.index + 1];
+  const next = nextId === undefined ? undefined : graph.nodes.get(nextId);
+  return {
+    nodeIds,
+    occurrenceIds,
+    index: context.phase.index,
+    gate:
+      nodeIds[context.phase.index + 1] !== undefined &&
+      next?.kind === "untilFirm"
+        ? next
+        : undefined,
+  };
+}
+function correctionBindings({
+  context,
+  occurrenceIds,
+}: {
+  context: CorrectionContext;
+  occurrenceIds: readonly OccurrenceId[];
+}): CorrectionContext {
+  return context.phase.kind === "instruction"
+    ? { ...context, instructionOccurrenceIds: occurrenceIds }
+    : { ...context, retestOccurrenceIds: occurrenceIds };
+}
 function initialCycles({
   graph,
   occurrences,
@@ -188,8 +231,7 @@ export function validateControlPosition({
       if (
         !node ||
         (currentOccurrence.obligation !== "support" &&
-          node.kind === "turn" &&
-          node.route === "support") ||
+          !graph.normalNodeIds.includes(node.id)) ||
         (i >= initial.occurrences.length &&
           currentOccurrence.obligation === "required" &&
           !state.queues.some((q) =>
@@ -267,9 +309,14 @@ export function validateControlPosition({
     if (
       cycleBinding.turnOccurrenceIds.some((id) => !accepted.has(id)) ||
       (outcome.kind === "independent" &&
-        cycleBinding.turnOccurrenceIds.some(
-          (id) => occurrence({ state, id }).obligation === "support",
-        ))
+        cycleBinding.turnOccurrenceIds.some((id) => {
+          const currentOccurrence = occurrence({ state, id });
+          const node = nodeFor({ graph, currentOccurrence });
+          return (
+            currentOccurrence.obligation === "support" ||
+            (node.kind === "turn" && node.parentRole === "together")
+          );
+        }))
     )
       throw new Error(
         "Cycle outcome has unfinished response or false independence",
@@ -430,24 +477,32 @@ export function validateControlPosition({
         nodeFor({ graph, currentOccurrence: owed }).kind !== "turn"
       )
         throw new Error("Correction owed response invalid");
-      const route =
-        context.phase.kind === "instruction"
-          ? correctionSpec.instructionNodeIds
-          : correctionSpec.retestNodeIds;
-      const bindings =
-        context.phase.kind === "instruction"
-          ? context.instructionOccurrenceIds
-          : context.retestOccurrenceIds;
+      for (const kind of [
+        "instruction",
+        "retest",
+      ] satisfies CorrectionContext["phase"]["kind"][]) {
+        const route = correctionRoute({
+          graph,
+          context: { ...context, phase: { kind, index: 0 } },
+        });
+        if (
+          route.occurrenceIds.length !== route.nodeIds.length ||
+          new Set(route.occurrenceIds).size !== route.occurrenceIds.length ||
+          route.occurrenceIds.some(
+            (id, i) =>
+              nodeFor({ graph, currentOccurrence: occurrence({ state, id }) })
+                .id !== route.nodeIds[i] ||
+              occurrence({ state, id }).obligation !== "support",
+          )
+        )
+          throw new Error("Correction route bindings invalid");
+      }
+      const route = correctionRoute({ graph, context });
       if (
-        bindings.length !== route.length ||
-        bindings.some(
-          (id, i) =>
-            nodeFor({ graph, currentOccurrence: occurrence({ state, id }) })
-              .id !== route[i] ||
-            occurrence({ state, id }).obligation !== "support",
-        ) ||
-        route[context.phase.index] !== node.id ||
-        bindings[context.phase.index] !== current.id ||
+        !Number.isInteger(route.index) ||
+        route.index < 0 ||
+        route.nodeIds[route.index] !== node.id ||
+        route.occurrenceIds[route.index] !== current.id ||
         current.obligation !== "support"
       )
         throw new Error("Correction route cursor invalid");
@@ -638,7 +693,18 @@ function validateCheckpointRoute({
     if (
       nextContext.kind === "correction" &&
       nextContext.phase.kind === "instruction" &&
-      nextContext.phase.index === 0
+      nextContext.phase.index === 0 &&
+      (previousContext.kind !== "correction" ||
+        (!same({
+          a: nextContext.instructionOccurrenceIds,
+          b: previousContext.instructionOccurrenceIds,
+        }) &&
+          nextContext.instructionOccurrenceIds.every(
+            (id) => !previousContext.instructionOccurrenceIds.includes(id),
+          ) &&
+          nextContext.retestOccurrenceIds.every(
+            (id) => !previousContext.retestOccurrenceIds.includes(id),
+          )))
     ) {
       if (
         previousContext.kind !== "delivering" &&
@@ -770,53 +836,43 @@ function validateCheckpointRoute({
         nextContext.triggerOccurrenceId ===
           previousContext.triggerOccurrenceId &&
         same({ a: nextContext.suspended, b: previousContext.suspended }) &&
-        same({
-          a: nextContext.instructionOccurrenceIds,
-          b: previousContext.instructionOccurrenceIds,
-        })
+        accepted.has(current.id)
       ) {
         const a = previousContext.phase,
           b = nextContext.phase;
-        if (
-          a.kind === "instruction" &&
-          same({
-            a: previousContext.retestOccurrenceIds,
-            b: nextContext.retestOccurrenceIds,
-          }) &&
-          ((b.kind === "instruction" && b.index === a.index + 1) ||
-            (b.kind === "retest" &&
-              b.index === 0 &&
-              a.index === previousContext.instructionOccurrenceIds.length - 1))
-        )
-          continue;
-        if (a.kind === "retest" && b.kind === "retest") {
-          const nextId = previousContext.retestOccurrenceIds[a.index + 1],
-            node = nextId
-              ? nodeFor({
-                  graph,
-                  currentOccurrence: occurrence({ state, id: nextId }),
-                })
-              : undefined;
+        const route = correctionRoute({ graph, context: previousContext });
+        const nextRoute = correctionRoute({ graph, context: nextContext });
+        const inactiveUnchanged =
+          a.kind === "instruction"
+            ? same({
+                a: previousContext.retestOccurrenceIds,
+                b: nextContext.retestOccurrenceIds,
+              })
+            : same({
+                a: previousContext.instructionOccurrenceIds,
+                b: nextContext.instructionOccurrenceIds,
+              });
+        if (inactiveUnchanged && a.kind === b.kind) {
+          const gateId = route.occurrenceIds[a.index + 1];
           if (
-            same({
-              a: previousContext.retestOccurrenceIds,
-              b: nextContext.retestOccurrenceIds,
-            }) &&
-            b.index === a.index + (node?.kind === "untilFirm" ? 2 : 1) &&
-            (node?.kind !== "untilFirm" || accepted.has(required(nextId)))
+            same({ a: route.occurrenceIds, b: nextRoute.occurrenceIds }) &&
+            b.index === a.index + (route.gate ? 2 : 1) &&
+            (!route.gate || accepted.has(required(gateId)))
           )
             continue;
-          if (node?.kind === "untilFirm") {
-            const route = required(graph.cycleRoutes.get(node.policyId)),
-              start = a.index - route.length + 1;
+          if (route.gate) {
+            const cycleNodes = required(
+                graph.cycleRoutes.get(route.gate.policyId),
+              ),
+              start = a.index - cycleNodes.length + 1;
             const cycleBinding = state.cycles.find(
               (c) =>
-                c.gateOccurrenceId === nextId &&
+                c.gateOccurrenceId === gateId &&
                 same({
                   a: c.turnOccurrenceIds,
-                  b: nextContext.retestOccurrenceIds.slice(
+                  b: nextRoute.occurrenceIds.slice(
                     start,
-                    start + route.length,
+                    start + cycleNodes.length,
                   ),
                 }),
             );
@@ -824,32 +880,42 @@ function validateCheckpointRoute({
               cycleBinding &&
               b.index === start &&
               same({
-                a: previousContext.retestOccurrenceIds.slice(0, start),
-                b: nextContext.retestOccurrenceIds.slice(0, start),
+                a: route.occurrenceIds.slice(0, start),
+                b: nextRoute.occurrenceIds.slice(0, start),
               }) &&
               same({
-                a: previousContext.retestOccurrenceIds.slice(a.index + 1),
-                b: nextContext.retestOccurrenceIds.slice(a.index + 1),
+                a: route.occurrenceIds.slice(a.index + 1),
+                b: nextRoute.occurrenceIds.slice(a.index + 1),
               })
             )
               continue;
           }
         }
+        const endIndex = a.index + (route.gate ? 2 : 1);
+        if (
+          a.kind === "instruction" &&
+          b.kind === "retest" &&
+          b.index === 0 &&
+          endIndex === route.occurrenceIds.length &&
+          (!route.gate ||
+            accepted.has(required(route.occurrenceIds[a.index + 1]))) &&
+          same({
+            a: previousContext.instructionOccurrenceIds,
+            b: nextContext.instructionOccurrenceIds,
+          }) &&
+          same({
+            a: previousContext.retestOccurrenceIds,
+            b: nextContext.retestOccurrenceIds,
+          })
+        )
+          continue;
       }
       if (previousContext.phase.kind === "retest") {
-        const index = previousContext.phase.index,
-          nextId = previousContext.retestOccurrenceIds[index + 1],
-          node = nextId
-            ? nodeFor({
-                graph,
-                currentOccurrence: occurrence({ state, id: nextId }),
-              })
-            : undefined;
+        const route = correctionRoute({ graph, context: previousContext });
         const finished =
-          index === previousContext.retestOccurrenceIds.length - 1 ||
-          (node?.kind === "untilFirm" &&
-            index === previousContext.retestOccurrenceIds.length - 2 &&
-            accepted.has(required(nextId)));
+          route.index + (route.gate ? 2 : 1) === route.occurrenceIds.length &&
+          (!route.gate ||
+            accepted.has(required(route.occurrenceIds[route.index + 1])));
         if (
           finished &&
           following({
@@ -929,7 +995,7 @@ export function controlCompletionProof({
     sourceRefs: [
       ...new Set(
         graph.task.nodes
-          .filter((n) => n.kind !== "turn" || n.route === "normal")
+          .filter((n) => graph.normalNodeIds.includes(n.id))
           .flatMap((n) => n.sourceRefs),
       ),
     ],
@@ -1162,7 +1228,14 @@ export function evaluateControls({
       if (!outcomes.some((o) => o.cycleId === cycleBinding.id))
         outcomes.push({
           cycleId: cycleBinding.id,
-          kind: supported ? "supported" : "independent",
+          kind:
+            supported ||
+            cycleBinding.turnOccurrenceIds.some((id) => {
+              const turn = nodeFor({ graph, currentOccurrence: byId(id) });
+              return turn.kind === "turn" && turn.parentRole === "together";
+            })
+              ? "supported"
+              : "independent",
         });
       if (action.kind === "parentReady") {
         if (action.policyId !== policy.policyId)
@@ -1265,6 +1338,10 @@ export function evaluateControls({
           (id) => allocNode({ id, kind: "support" }).id,
         );
       cycles.push(
+        ...initialCycles({
+          graph,
+          occurrences: instructionOccurrenceIds.map(byId),
+        }),
         ...initialCycles({ graph, occurrences: retestOccurrenceIds.map(byId) }),
       );
       return {
@@ -1384,28 +1461,32 @@ export function evaluateControls({
           supported: false,
         });
       else {
-        const correctionContext = checkpoint.context,
-          correctionSpec = required(
-            graph.task.corrections.find(
-              (s) => s.id === correctionContext.correctionId,
-            ),
-          );
-        const bindings =
-          correctionContext.phase.kind === "instruction"
-            ? correctionContext.instructionOccurrenceIds
-            : correctionContext.retestOccurrenceIds;
-        const advanceRetest = (index: number): ControlCheckpoint => {
-          const next = correctionContext.retestOccurrenceIds[index];
-          if (next) {
+        const correctionContext = checkpoint.context;
+        const route = correctionRoute({ graph, context: correctionContext });
+        const advanceRoute = ({
+          index,
+        }: {
+          index: number;
+        }): ControlCheckpoint => {
+          const next = route.occurrenceIds[index];
+          if (next)
             return {
               id: nextCheckpointId,
-              occurrenceId: byId(next).id,
+              occurrenceId: next,
               context: {
                 ...correctionContext,
-                phase: { kind: "retest", index },
+                phase: { kind: correctionContext.phase.kind, index },
               },
             };
-          }
+          if (correctionContext.phase.kind === "instruction")
+            return {
+              id: nextCheckpointId,
+              occurrenceId: required(correctionContext.retestOccurrenceIds[0]),
+              context: {
+                ...correctionContext,
+                phase: { kind: "retest", index: 0 },
+              },
+            };
           const owed = byId(correctionContext.owedOccurrenceId);
           accept(owed.id);
           return proceed({
@@ -1414,81 +1495,62 @@ export function evaluateControls({
             supported: true,
           });
         };
-        if (correctionContext.phase.kind === "instruction") {
-          if (action.kind !== "continue")
-            throw new Error("Decision requires retest");
-          const next = bindings[correctionContext.phase.index + 1];
-          if (next) {
-            return {
-              id: nextCheckpointId,
-              occurrenceId: byId(next).id,
-              context: {
-                ...correctionContext,
-                phase: {
-                  kind: "instruction",
-                  index: correctionContext.phase.index + 1,
-                },
-              },
-            };
-          } else return advanceRetest(0);
-        } else {
-          const nextId = bindings[correctionContext.phase.index + 1],
-            nextNode = nextId
-              ? nodeFor({ graph, currentOccurrence: byId(nextId) })
-              : undefined;
-          if (nextNode?.kind === "untilFirm") {
-            const binding = required(
-              cycles.find(
-                (cycle) =>
-                  cycle.gateOccurrenceId === nextId &&
-                  cycle.turnOccurrenceIds.includes(current.id),
-              ),
-            );
-            if (binding.turnOccurrenceIds.some((id) => !accepted.includes(id)))
-              throw new Error("Support cycle unfinished");
-            if (!outcomes.some((o) => o.cycleId === binding.id))
-              outcomes.push({ cycleId: binding.id, kind: "supported" });
-            if (action.kind === "parentReady") {
-              if (action.policyId !== nextNode.policyId)
-                throw new Error("Wrong support readiness");
-              accept(required(nextId));
-              return advanceRetest(correctionContext.phase.index + 2);
-            } else if (action.kind === "continue") {
-              const route = required(graph.cycleRoutes.get(nextNode.policyId)),
-                freshOccurrences = route.map((id) =>
-                  allocNode({ id, kind: "support" }),
-                ),
-                freshIds = freshOccurrences.map((o) => o.id);
-              const first = required(freshOccurrences[0]);
-              cycles.push({
-                id: parseId({ kind: "cycle", value: `cycle-${first.id}` }),
-                policyId: nextNode.policyId,
-                gateOccurrenceId: required(nextId),
-                turnOccurrenceIds: freshIds,
-              });
-              const start = correctionContext.phase.index - route.length + 1,
-                retestOccurrenceIds = [
-                  ...correctionContext.retestOccurrenceIds,
-                ];
-              retestOccurrenceIds.splice(start, route.length, ...freshIds);
-              return {
-                id: nextCheckpointId,
-                occurrenceId: first.id,
-                context: {
-                  ...correctionContext,
-                  retestOccurrenceIds,
-                  phase: { kind: "retest", index: start },
-                },
-              };
-            } else throw new Error("Support cycle needs explicit readiness");
-          } else {
-            if (nextId) {
-              if (action.kind !== "continue")
-                throw new Error("Decision unavailable before retest exit");
-              return advanceRetest(correctionContext.phase.index + 1);
-            } else return advanceRetest(correctionContext.phase.index + 1);
+        if (route.gate) {
+          const gate = route.gate,
+            nextId = required(route.occurrenceIds[route.index + 1]);
+          const binding = required(
+            cycles.find(
+              (c) =>
+                c.gateOccurrenceId === nextId &&
+                c.turnOccurrenceIds.includes(current.id),
+            ),
+          );
+          if (binding.turnOccurrenceIds.some((id) => !accepted.includes(id)))
+            throw new Error("Support cycle unfinished");
+          if (!outcomes.some((o) => o.cycleId === binding.id))
+            outcomes.push({ cycleId: binding.id, kind: "supported" });
+          if (action.kind === "parentReady") {
+            if (action.policyId !== gate.policyId)
+              throw new Error("Wrong support readiness");
+            accept(nextId);
+            return advanceRoute({ index: route.index + 2 });
           }
+          if (action.kind !== "continue")
+            throw new Error("Support cycle needs explicit readiness");
+          const cycleNodes = required(graph.cycleRoutes.get(gate.policyId));
+          const fresh = cycleNodes.map((id) =>
+            allocNode({ id, kind: "support" }),
+          );
+          const first = required(fresh[0]),
+            freshIds = fresh.map((o) => o.id);
+          cycles.push({
+            id: parseId({ kind: "cycle", value: `cycle-${first.id}` }),
+            policyId: gate.policyId,
+            gateOccurrenceId: nextId,
+            turnOccurrenceIds: freshIds,
+          });
+          const start = route.index - cycleNodes.length + 1,
+            occurrenceIds = [...route.occurrenceIds];
+          occurrenceIds.splice(start, cycleNodes.length, ...freshIds);
+          return {
+            id: nextCheckpointId,
+            occurrenceId: first.id,
+            context: {
+              ...correctionBindings({
+                context: correctionContext,
+                occurrenceIds,
+              }),
+              phase: { kind: correctionContext.phase.kind, index: start },
+            },
+          };
         }
+        if (
+          (correctionContext.phase.kind === "instruction" ||
+            route.index + 1 < route.occurrenceIds.length) &&
+          action.kind !== "continue"
+        )
+          throw new Error("Decision unavailable before correction route exit");
+        return advanceRoute({ index: route.index + 1 });
       }
     } else {
       const _exhaustive: never = action.kind;
@@ -1561,24 +1623,10 @@ export function projectControls({
       checkpoint.context.kind !== "correction")
   )
     throw new Error("Control presentation unavailable");
-  const retestNext =
-    checkpoint.context.kind === "correction" &&
-    checkpoint.context.phase.kind === "retest"
-      ? checkpoint.context.retestOccurrenceIds[
-          checkpoint.context.phase.index + 1
-        ]
-      : undefined;
-  const nextNode = retestNext
-    ? nodeFor({
-        graph,
-        currentOccurrence: occurrence({ state, id: retestNext }),
-      })
-    : undefined;
   const gate =
-    nextNode?.kind === "untilFirm"
-      ? nextNode
-      : checkpoint.context.kind === "delivering" &&
-          checkpoint.context.resume.delivery.kind !== "repeat"
+    checkpoint.context.kind === "correction"
+      ? correctionRoute({ graph, context: checkpoint.context }).gate
+      : checkpoint.context.resume.delivery.kind !== "repeat"
         ? policyAfter({ graph, node })
         : undefined;
   return {
@@ -1626,17 +1674,15 @@ export function controlActions({
   } else if (status === "completed") return actions;
   else if (node.kind === "turn") {
     const context = checkpoint.context;
-    const correctionSpec =
+    const activeRoute =
       context.kind === "correction"
-        ? required(
-            graph.task.corrections.find((s) => s.id === context.correctionId),
-          )
+        ? correctionRoute({ graph, context })
         : undefined;
     const resolves =
       context.kind !== "correction" ||
       (context.phase.kind === "retest" &&
-        context.phase.index ===
-          required(correctionSpec).retestNodeIds.length - 1);
+        activeRoute !== undefined &&
+        activeRoute.index === activeRoute.nodeIds.length - 1);
     const owed =
       context.kind === "correction"
         ? occurrence({ state, id: context.owedOccurrenceId })
@@ -1648,22 +1694,12 @@ export function controlActions({
           : context.kind === "delivering"
             ? context.resume
             : undefined;
-    const retestNext =
-      context.kind === "correction" && context.phase.kind === "retest"
-        ? context.retestOccurrenceIds[context.phase.index + 1]
-        : undefined;
-    const retestNextNode = retestNext
-      ? nodeFor({
-          graph,
-          currentOccurrence: occurrence({ state, id: retestNext }),
-        })
-      : undefined;
+    const supportGate = activeRoute?.gate;
     const policy =
-      retestNextNode?.kind === "untilFirm"
-        ? retestNextNode
-        : resolves && resume?.delivery.kind !== "repeat"
-          ? policyAfter({ graph, node: source })
-          : undefined;
+      supportGate ??
+      (resolves && resume?.delivery.kind !== "repeat"
+        ? policyAfter({ graph, node: source })
+        : undefined);
     if (policy) {
       add({ text: "Practice again", intent: { kind: "continue" } });
       add({

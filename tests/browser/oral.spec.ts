@@ -158,7 +158,7 @@ test("nonadjacent choices run in source order and Back reconfirms without skippi
   await expect(page.locator('[data-task-number="2"]')).toContainText(
     "Completed",
   );
-  await expect(page.locator('[data-available="false"]')).toHaveCount(2);
+  await expect(page.locator('[data-available="false"]')).toHaveCount(1);
 });
 
 test("Task 5 keeps four responses and general correction repeats from the exercise start", async ({

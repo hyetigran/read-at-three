@@ -16,6 +16,8 @@ import type {
   ParentSpan,
   Serialized,
 } from "@readatthree/teaching";
+import { parseLessonSources } from "./source.ts";
+import type { RawAuthoringInput, SourceAuthoringInput } from "./source.ts";
 
 type CopyInput = Serialized<Copy>;
 type SpanInput = Serialized<ParentSpan>;
@@ -23,14 +25,6 @@ type NodeInput = Serialized<GraphNode>;
 type TaskInput = Serialized<GraphTask>;
 type LessonTaskInput = Serialized<LessonTask>;
 type BodyInput = Serialized<GraphDevelopmentBody>;
-type SourceTask = {
-  number: number;
-  title: string;
-  sourceContentMarkdown: string;
-};
-type LessonSources = {
-  lessons: { number: number; tasks: SourceTask[] }[];
-};
 type NodeScript = Pick<NodeInput, "guidance" | "sourceRefs">;
 type NormalPlan = Readonly<{
   step: number;
@@ -239,35 +233,6 @@ export function createGraphFixtureBody(): BodyInput {
   });
 }
 
-const validateSources = new Ajv2020({ strict: true }).compile<LessonSources>({
-  type: "object",
-  properties: {
-    lessons: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          number: { type: "integer" },
-          tasks: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                number: { type: "integer" },
-                title: { type: "string", minLength: 1 },
-                sourceContentMarkdown: { type: "string", minLength: 1 },
-              },
-              required: ["number", "title", "sourceContentMarkdown"],
-            },
-          },
-        },
-        required: ["number", "tasks"],
-      },
-    },
-  },
-  required: ["lessons"],
-});
-
 export function orderedGuidance(input: {
   text: string;
   sourceRef: string;
@@ -345,13 +310,18 @@ function generalCorrection(markdown: string): string {
   return correction;
 }
 
-export function createGraphBody(input: {
-  lessons: unknown;
-  overviewMarkdown: string;
-}): BodyInput {
-  if (!validateSources(input.lessons))
-    throw new Error("The authorized local lesson records are invalid.");
-  const lesson = input.lessons.lessons.find((item) => item.number === 1);
+export function createGraphBody(input: RawAuthoringInput): BodyInput {
+  return authorGraphBody({
+    sources: parseLessonSources({
+      value: input.lessons,
+      purpose: "cumulative",
+    }),
+    overviewMarkdown: input.overviewMarkdown,
+  });
+}
+
+export function authorGraphBody(input: SourceAuthoringInput): BodyInput {
+  const lesson = input.sources.lessons.find((item) => item.number === 1);
   if (
     !lesson ||
     lesson.tasks.length !== 6 ||

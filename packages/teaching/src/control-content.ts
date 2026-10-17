@@ -67,8 +67,13 @@ export function compileControlTask(task: ControlTask): CompiledControlTask {
           : null;
   }
   if (
-    normalNodeIds.length !==
-    task.nodes.filter((n) => n.kind !== "turn" || n.route === "normal").length
+    task.nodes.some(
+      (n) =>
+        ((n.kind === "turn" && n.route === "normal") ||
+          n.kind === "selectiveReview" ||
+          n.kind === "reviewExit") &&
+        !normalNodeIds.includes(n.id),
+    )
   )
     throw new Error("Unreachable normal control node");
   const route = ({
@@ -97,18 +102,32 @@ export function compileControlTask(task: ControlTask): CompiledControlTask {
         throw new Error("Control guidance source missing");
     if (n.kind !== "untilFirm") continue;
     if (policies.has(n.policyId)) throw new Error("Duplicate readiness policy");
-    const cycle = route({ entry: n.cycleEntryNodeId, exit: n.cycleExitNodeId });
+    const normalOwner = normalNodeIds.includes(n.id);
+    const instructionOwners = task.corrections.filter((c) =>
+      c.instructionNodeIds.includes(n.id),
+    );
+    if (Number(normalOwner) + instructionOwners.length !== 1)
+      throw new Error("Readiness policy needs one defining owner");
+    const owner = normalOwner
+      ? normalNodeIds
+      : instructionOwners[0]?.instructionNodeIds;
+    if (!owner || (!normalOwner && n.next.kind !== "end"))
+      throw new Error("Support readiness gate must be terminal");
+    const start = owner.indexOf(n.cycleEntryNodeId),
+      end = owner.indexOf(n.cycleExitNodeId);
+    if (start < 0 || end < start || owner[end + 1] !== n.id)
+      throw new Error("Readiness cycle must end immediately before its gate");
+    const cycle = owner.slice(start, end + 1);
     if (
       cycle.some((id) => {
         const node = nodes.get(id);
         return (
           !node ||
           node.kind !== "turn" ||
-          node.route !== "normal" ||
+          node.route !== (normalOwner ? "normal" : "support") ||
           occupied.has(id)
         );
-      }) ||
-      normalNodeIds[normalNodeIds.indexOf(n.cycleExitNodeId) + 1] !== n.id
+      })
     )
       throw new Error("Readiness cycle must end immediately before its gate");
     if (nodes.get(n.cycleExitNodeId)?.kind !== "turn")
@@ -194,7 +213,7 @@ export function compileControlTask(task: ControlTask): CompiledControlTask {
         !n ||
         n.kind !== "turn" ||
         n.route !== "normal" ||
-        n.parentRole !== "listen"
+        n.parentRole === "model"
       )
         throw new Error("Invalid oral correction eligibility");
     }
@@ -202,8 +221,9 @@ export function compileControlTask(task: ControlTask): CompiledControlTask {
       const n = nodes.get(id);
       if (
         !n ||
-        n.kind !== "turn" ||
-        n.route !== "support" ||
+        (n.kind !== "turn" && n.kind !== "untilFirm") ||
+        (n.kind === "turn" && n.route !== "support") ||
+        normalNodeIds.includes(id) ||
         n.next.kind !== "end"
       )
         throw new Error("Invalid oral instruction route");
@@ -215,6 +235,8 @@ export function compileControlTask(task: ControlTask): CompiledControlTask {
         throw new Error("Invalid oral retest route");
       if (n.kind === "turn" && n.route === "support") support.add(id);
       if (n.kind === "untilFirm") {
+        if (!normalNodeIds.includes(n.id))
+          throw new Error("Correction retest uses an instruction policy");
         const route = cycleRoutes.get(n.policyId);
         if (
           !route ||
@@ -232,13 +254,28 @@ export function compileControlTask(task: ControlTask): CompiledControlTask {
     if (
       !response ||
       response.kind !== "turn" ||
-      response.parentRole !== "listen" ||
+      response.parentRole === "model" ||
       c.eligibleNodeIds.some((id) => {
         const n = nodes.get(id);
         return n?.kind !== "turn" || n.itemId !== response.itemId;
       })
     )
       throw new Error("Retest exit does not resolve its eligible item");
+    for (const ids of [c.instructionNodeIds, c.retestNodeIds]) {
+      if (new Set(ids).size !== ids.length)
+        throw new Error("Duplicate correction route node");
+      for (const [policyId, cycle] of cycleRoutes) {
+        const gate = policies.get(policyId);
+        if (!gate) throw new Error("Missing readiness policy");
+        if (![...cycle, gate.id].some((id) => ids.includes(id))) continue;
+        const index = ids.indexOf(gate.id);
+        if (
+          index < cycle.length ||
+          canonical(ids.slice(index - cycle.length, index)) !== canonical(cycle)
+        )
+          throw new Error("Correction route omits complete readiness cycle");
+      }
+    }
     if (c.label.kind !== "added" && !c.sourceRefs.includes(c.label.sourceRef))
       throw new Error("Correction selector source reference missing");
   }

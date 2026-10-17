@@ -456,6 +456,12 @@ function SilentCue({
 type DisplayedTurn =
   TeachingNode | GraphTurn | GraphNode | ControlTurn | ControlTurnNode;
 
+const parentRoleLabels = {
+  model: "Parent models",
+  together: "Parent and child together",
+  listen: "Child responds",
+} satisfies Record<DisplayedTurn["parentRole"], string>;
+
 function GuidanceSpans({ guidance }: { guidance: readonly ParentSpan[] }) {
   return guidance.map((span, index) => (
     <p className={`teaching-guidance teaching-${span.kind}`} key={index}>
@@ -588,16 +594,14 @@ function TeachingActivity({
                 ? "Completed task · Reviewing saved context"
                 : routeKind === "correction" ||
                     routeKind === "correctionInstruction"
-                  ? "Correction · Follow the source retest"
+                  ? `Correction · ${parentRoleLabels[turn.parentRole]}`
                   : routeKind === "correctionRetest"
-                    ? "Retest"
+                    ? `Retest · ${parentRoleLabels[turn.parentRole]}`
                     : routeKind === "repeat"
-                      ? "Extra practice · Return to the saved turn afterward"
+                      ? `Extra practice · ${parentRoleLabels[turn.parentRole]}`
                       : "extraPractice" in turn && turn.extraPractice
-                        ? "Extra practice"
-                        : turn.parentRole === "model"
-                          ? "Parent models"
-                          : "Child responds"}
+                        ? `Extra practice · ${parentRoleLabels[turn.parentRole]}`
+                        : parentRoleLabels[turn.parentRole]}
           </AddedText>
           <AddedText>Parent only</AddedText>
         </div>

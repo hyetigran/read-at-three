@@ -77,7 +77,7 @@ test("complete six source obligations with stable anchors, completed Back and ex
   await expect(page.locator('[data-task-number="1"]')).toContainText(
     "Completed",
   );
-  await expect(page.locator('[data-available="false"]')).toHaveCount(2);
+  await expect(page.locator('[data-available="false"]')).toHaveCount(1);
   await page.keyboard.press("Escape");
   await turn(page, "s01.model-m");
 });
@@ -89,14 +89,14 @@ test("Repeat and Again correction preserve owed responses through Pause/reload/R
   await turn(page, "s02.response-m");
   await page.getByRole("button", { name: "Repeat", exact: true }).click();
   await expect(
-    page.getByText("Extra practice · Return to the saved turn afterward", {
+    page.getByText("Extra practice · Child responds", {
       exact: true,
     }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await turn(page, "s02.response-m");
   await expect(
-    page.getByText("Extra practice · Return to the saved turn afterward", {
+    page.getByText("Extra practice · Child responds", {
       exact: true,
     }),
   ).toHaveCount(0);

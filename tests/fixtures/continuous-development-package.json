@@ -1,0 +1,3555 @@
+{
+  "formatVersion": 1,
+  "packageHash": "216cd28b8fb47745d3e2699dff6e382290371c43934cfda5d40e0e6b96c340ba",
+  "body": {
+    "courseId": "fixture.course",
+    "releaseId": "fixture.continuous.release.1",
+    "coverage": "lesson1-sounds-oral-complete",
+    "title": { "kind": "added", "text": "Synthetic lesson 1" },
+    "lessonId": "fixture.lesson",
+    "lessonTasks": [
+      {
+        "id": "fixture.task",
+        "number": 1,
+        "title": { "kind": "added", "text": "Synthetic task 1" },
+        "optional": false
+      },
+      {
+        "id": "fixture.graph.l01.t02",
+        "number": 2,
+        "title": { "kind": "added", "text": "Synthetic task 2" },
+        "optional": false
+      },
+      {
+        "id": "fixture.graph.l01.t03",
+        "number": 3,
+        "title": { "kind": "added", "text": "Synthetic task 3" },
+        "optional": false
+      },
+      {
+        "id": "fixture.graph.l01.t04",
+        "number": 4,
+        "title": { "kind": "added", "text": "Synthetic task 4" },
+        "optional": false
+      },
+      {
+        "id": "fixture.graph.l01.t05",
+        "number": 5,
+        "title": { "kind": "added", "text": "Synthetic task 5" },
+        "optional": false
+      },
+      {
+        "id": "fixture.graph.l01.t06",
+        "number": 6,
+        "title": { "kind": "added", "text": "Synthetic task 6" },
+        "optional": true
+      }
+    ],
+    "tasks": [
+      {
+        "kind": "printedGraphV1",
+        "task": {
+          "id": "fixture.task",
+          "number": 1,
+          "title": { "kind": "added", "text": "Synthetic task 1" },
+          "startNodeId": "fixture.graph.l01.t01.s01.model-m",
+          "nodes": [
+            {
+              "id": "fixture.graph.l01.t01.s01.model-m",
+              "kind": "normal",
+              "sourceRefs": [
+                "fixture.graph.t1.s1",
+                "fixture.graph.pronunciation.continuous"
+              ],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": { "kind": "added", "text": "Synthetic m setup." }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic first-point action."
+                  }
+                },
+                {
+                  "kind": "speech",
+                  "copy": { "kind": "added", "text": "Synthetic cue prompt." }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic sustained-point action."
+                  }
+                },
+                {
+                  "kind": "speech",
+                  "copy": { "kind": "added", "text": "Synthetic m model." }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic release action."
+                  }
+                }
+              ],
+              "parentRole": "model",
+              "glyph": "m",
+              "cue": { "kind": "sustain", "minimumMs": 3000 },
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t01.s02.response-m"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t01.s02.response-m",
+              "kind": "normal",
+              "sourceRefs": [
+                "fixture.graph.t1.s2",
+                "fixture.graph.pronunciation.continuous"
+              ],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic child response setup."
+                  }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic first-point action."
+                  }
+                },
+                {
+                  "kind": "speech",
+                  "copy": { "kind": "added", "text": "Synthetic cue prompt." }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic sustained-point action."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": { "kind": "added", "text": "Synthetic m listen." }
+                }
+              ],
+              "parentRole": "listen",
+              "glyph": "m",
+              "cue": { "kind": "sustain", "minimumMs": 3000 },
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t01.s03.again-m"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t01.s03.again-m",
+              "kind": "normal",
+              "sourceRefs": [
+                "fixture.graph.t1.s3",
+                "fixture.graph.pronunciation.continuous"
+              ],
+              "guidance": [
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic first-point action."
+                  }
+                },
+                {
+                  "kind": "speech",
+                  "copy": { "kind": "added", "text": "Synthetic cue prompt." }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic sustained-point action."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": { "kind": "added", "text": "Synthetic m listen." }
+                },
+                {
+                  "kind": "praise",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic response praise."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "glyph": "m",
+              "cue": { "kind": "sustain", "minimumMs": 3000 },
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t01.s04.model-s"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t01.s04.model-s",
+              "kind": "normal",
+              "sourceRefs": [
+                "fixture.graph.t1.s4",
+                "fixture.graph.pronunciation.continuous"
+              ],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": { "kind": "added", "text": "Synthetic s setup." }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic first-point action."
+                  }
+                },
+                {
+                  "kind": "speech",
+                  "copy": { "kind": "added", "text": "Synthetic cue prompt." }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic sustained-point action."
+                  }
+                },
+                {
+                  "kind": "speech",
+                  "copy": { "kind": "added", "text": "Synthetic s model." }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic release action."
+                  }
+                }
+              ],
+              "parentRole": "model",
+              "glyph": "s",
+              "cue": { "kind": "sustain", "minimumMs": 3000 },
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t01.s05.response-s"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t01.s05.response-s",
+              "kind": "normal",
+              "sourceRefs": [
+                "fixture.graph.t1.s5",
+                "fixture.graph.pronunciation.continuous"
+              ],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic child response setup."
+                  }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic first-point action."
+                  }
+                },
+                {
+                  "kind": "speech",
+                  "copy": { "kind": "added", "text": "Synthetic cue prompt." }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic sustained-point action."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": { "kind": "added", "text": "Synthetic s listen." }
+                }
+              ],
+              "parentRole": "listen",
+              "glyph": "s",
+              "cue": { "kind": "sustain", "minimumMs": 3000 },
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t01.s06.again-s"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t01.s06.again-s",
+              "kind": "normal",
+              "sourceRefs": [
+                "fixture.graph.t1.s6",
+                "fixture.graph.pronunciation.continuous"
+              ],
+              "guidance": [
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic first-point action."
+                  }
+                },
+                {
+                  "kind": "speech",
+                  "copy": { "kind": "added", "text": "Synthetic cue prompt." }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic sustained-point action."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": { "kind": "added", "text": "Synthetic s listen." }
+                },
+                {
+                  "kind": "praise",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic response praise."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "glyph": "s",
+              "cue": { "kind": "sustain", "minimumMs": 3000 },
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t01.correction-m",
+              "kind": "correction",
+              "sourceRefs": ["fixture.graph.t1.correction.m"],
+              "guidance": [
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction action."
+                  }
+                },
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic m correction model."
+                  }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic source retest route."
+                  }
+                }
+              ],
+              "parentRole": "model",
+              "glyph": "m",
+              "cue": { "kind": "sustain", "minimumMs": null },
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t01.correction-s",
+              "kind": "correction",
+              "sourceRefs": ["fixture.graph.t1.correction.s"],
+              "guidance": [
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction action."
+                  }
+                },
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic s correction model."
+                  }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic source retest route."
+                  }
+                }
+              ],
+              "parentRole": "model",
+              "glyph": "s",
+              "cue": { "kind": "sustain", "minimumMs": null },
+              "next": { "kind": "end" }
+            }
+          ],
+          "corrections": [
+            {
+              "id": "fixture.graph.l01.t01.help-m",
+              "eligibleNodeIds": [
+                "fixture.graph.l01.t01.s02.response-m",
+                "fixture.graph.l01.t01.s03.again-m"
+              ],
+              "instructionNodeId": "fixture.graph.l01.t01.correction-m",
+              "retestNodeIds": ["fixture.graph.l01.t01.s02.response-m"],
+              "continuationNodeId": "fixture.graph.l01.t01.s03.again-m",
+              "sourceRefs": ["fixture.graph.t1.correction.m"]
+            },
+            {
+              "id": "fixture.graph.l01.t01.help-s",
+              "eligibleNodeIds": [
+                "fixture.graph.l01.t01.s05.response-s",
+                "fixture.graph.l01.t01.s06.again-s"
+              ],
+              "instructionNodeId": "fixture.graph.l01.t01.correction-s",
+              "retestNodeIds": ["fixture.graph.l01.t01.s05.response-s"],
+              "continuationNodeId": "fixture.graph.l01.t01.s06.again-s",
+              "sourceRefs": ["fixture.graph.t1.correction.s"]
+            }
+          ]
+        }
+      },
+      {
+        "kind": "graphControls",
+        "task": {
+          "id": "fixture.graph.l01.t02",
+          "number": 2,
+          "title": { "kind": "added", "text": "Synthetic task 2" },
+          "startNodeId": "fixture.graph.l01.t02.model",
+          "nodes": [
+            {
+              "id": "fixture.graph.l01.t02.model",
+              "kind": "turn",
+              "route": "normal",
+              "sourceRefs": ["fixture.oral.t2.s1"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic oral parent model."
+                  }
+                }
+              ],
+              "parentRole": "model",
+              "itemId": "fixture.graph.l01.t02.item-01",
+              "presentation": { "kind": "oral" },
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t02.response-01"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t02.response-01",
+              "kind": "turn",
+              "route": "normal",
+              "sourceRefs": ["fixture.oral.t2.response1"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic oral item 1 prompt."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t02.item-01",
+              "presentation": { "kind": "oral" },
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t02.first-item-firm"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t02.first-item-firm",
+              "kind": "untilFirm",
+              "sourceRefs": ["fixture.oral.t2.s2"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic repeat until the parent judges firm."
+                  }
+                }
+              ],
+              "policyId": "fixture.graph.l01.t02.until-firm",
+              "cycleEntryNodeId": "fixture.graph.l01.t02.response-01",
+              "cycleExitNodeId": "fixture.graph.l01.t02.response-01",
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t02.response-02"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t02.response-02",
+              "kind": "turn",
+              "route": "normal",
+              "sourceRefs": ["fixture.oral.t2.response2"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic oral item 2 prompt."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t02.item-02",
+              "presentation": { "kind": "oral" },
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t02.response-03"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t02.response-03",
+              "kind": "turn",
+              "route": "normal",
+              "sourceRefs": ["fixture.oral.t2.response3"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic oral item 3 prompt."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t02.item-03",
+              "presentation": { "kind": "oral" },
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t02.response-04"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t02.response-04",
+              "kind": "turn",
+              "route": "normal",
+              "sourceRefs": ["fixture.oral.t2.response4"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic oral item 4 prompt."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t02.item-04",
+              "presentation": { "kind": "oral" },
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t02.response-05"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t02.response-05",
+              "kind": "turn",
+              "route": "normal",
+              "sourceRefs": ["fixture.oral.t2.response5"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic oral item 5 prompt."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t02.item-05",
+              "presentation": { "kind": "oral" },
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t02.response-06"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t02.response-06",
+              "kind": "turn",
+              "route": "normal",
+              "sourceRefs": ["fixture.oral.t2.response6"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic oral item 6 prompt."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t02.item-06",
+              "presentation": { "kind": "oral" },
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t02.select-review"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t02.select-review",
+              "kind": "selectiveReview",
+              "sourceRefs": ["fixture.oral.t2.s8"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic parent chooses troublesome items to repeat."
+                  }
+                }
+              ],
+              "reviewId": "fixture.graph.l01.t02.review",
+              "items": [
+                {
+                  "itemId": "fixture.graph.l01.t02.item-01",
+                  "parentLabel": {
+                    "kind": "added",
+                    "text": "Synthetic item 1"
+                  },
+                  "entryNodeId": "fixture.graph.l01.t02.response-01",
+                  "exitNodeId": "fixture.graph.l01.t02.first-item-firm"
+                },
+                {
+                  "itemId": "fixture.graph.l01.t02.item-02",
+                  "parentLabel": {
+                    "kind": "added",
+                    "text": "Synthetic item 2"
+                  },
+                  "entryNodeId": "fixture.graph.l01.t02.response-02",
+                  "exitNodeId": "fixture.graph.l01.t02.response-02"
+                },
+                {
+                  "itemId": "fixture.graph.l01.t02.item-03",
+                  "parentLabel": {
+                    "kind": "added",
+                    "text": "Synthetic item 3"
+                  },
+                  "entryNodeId": "fixture.graph.l01.t02.response-03",
+                  "exitNodeId": "fixture.graph.l01.t02.response-03"
+                },
+                {
+                  "itemId": "fixture.graph.l01.t02.item-04",
+                  "parentLabel": {
+                    "kind": "added",
+                    "text": "Synthetic item 4"
+                  },
+                  "entryNodeId": "fixture.graph.l01.t02.response-04",
+                  "exitNodeId": "fixture.graph.l01.t02.response-04"
+                },
+                {
+                  "itemId": "fixture.graph.l01.t02.item-05",
+                  "parentLabel": {
+                    "kind": "added",
+                    "text": "Synthetic item 5"
+                  },
+                  "entryNodeId": "fixture.graph.l01.t02.response-05",
+                  "exitNodeId": "fixture.graph.l01.t02.response-05"
+                },
+                {
+                  "itemId": "fixture.graph.l01.t02.item-06",
+                  "parentLabel": {
+                    "kind": "added",
+                    "text": "Synthetic item 6"
+                  },
+                  "entryNodeId": "fixture.graph.l01.t02.response-06",
+                  "exitNodeId": "fixture.graph.l01.t02.response-06"
+                }
+              ],
+              "returnNodeId": "fixture.graph.l01.t02.select-review",
+              "exitNodeId": "fixture.graph.l01.t02.review-exit"
+            },
+            {
+              "id": "fixture.graph.l01.t02.review-exit",
+              "kind": "reviewExit",
+              "sourceRefs": ["fixture.oral.t2.s8"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic parent chooses troublesome items to repeat."
+                  }
+                }
+              ],
+              "reviewId": "fixture.graph.l01.t02.review",
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-slow-1.instruction",
+              "kind": "turn",
+              "route": "support",
+              "sourceRefs": ["fixture.oral.t2.correction.slow"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic slow correction for item 1."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t02.item-01",
+              "presentation": { "kind": "oral" },
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-quiet-1.instruction",
+              "kind": "turn",
+              "route": "support",
+              "sourceRefs": ["fixture.oral.t2.correction.quiet"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic quiet correction for item 1."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t02.item-01",
+              "presentation": { "kind": "oral" },
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-slow-2.instruction",
+              "kind": "turn",
+              "route": "support",
+              "sourceRefs": ["fixture.oral.t2.correction.slow"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic slow correction for item 2."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t02.item-02",
+              "presentation": { "kind": "oral" },
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-quiet-2.instruction",
+              "kind": "turn",
+              "route": "support",
+              "sourceRefs": ["fixture.oral.t2.correction.quiet"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic quiet correction for item 2."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t02.item-02",
+              "presentation": { "kind": "oral" },
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-slow-3.instruction",
+              "kind": "turn",
+              "route": "support",
+              "sourceRefs": ["fixture.oral.t2.correction.slow"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic slow correction for item 3."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t02.item-03",
+              "presentation": { "kind": "oral" },
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-quiet-3.instruction",
+              "kind": "turn",
+              "route": "support",
+              "sourceRefs": ["fixture.oral.t2.correction.quiet"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic quiet correction for item 3."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t02.item-03",
+              "presentation": { "kind": "oral" },
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-slow-4.instruction",
+              "kind": "turn",
+              "route": "support",
+              "sourceRefs": ["fixture.oral.t2.correction.slow"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic slow correction for item 4."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t02.item-04",
+              "presentation": { "kind": "oral" },
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-quiet-4.instruction",
+              "kind": "turn",
+              "route": "support",
+              "sourceRefs": ["fixture.oral.t2.correction.quiet"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic quiet correction for item 4."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t02.item-04",
+              "presentation": { "kind": "oral" },
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-slow-5.instruction",
+              "kind": "turn",
+              "route": "support",
+              "sourceRefs": ["fixture.oral.t2.correction.slow"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic slow correction for item 5."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t02.item-05",
+              "presentation": { "kind": "oral" },
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-quiet-5.instruction",
+              "kind": "turn",
+              "route": "support",
+              "sourceRefs": ["fixture.oral.t2.correction.quiet"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic quiet correction for item 5."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t02.item-05",
+              "presentation": { "kind": "oral" },
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-slow-6.instruction",
+              "kind": "turn",
+              "route": "support",
+              "sourceRefs": ["fixture.oral.t2.correction.slow"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic slow correction for item 6."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t02.item-06",
+              "presentation": { "kind": "oral" },
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-quiet-6.instruction",
+              "kind": "turn",
+              "route": "support",
+              "sourceRefs": ["fixture.oral.t2.correction.quiet"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic quiet correction for item 6."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t02.item-06",
+              "presentation": { "kind": "oral" },
+              "next": { "kind": "end" }
+            }
+          ],
+          "corrections": [
+            {
+              "id": "fixture.graph.l01.t02.correction-slow-1.any",
+              "label": { "kind": "added", "text": "Synthetic slow help" },
+              "scope": "any",
+              "eligibleNodeIds": ["fixture.graph.l01.t02.response-01"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t02.correction-slow-1.instruction"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t02.response-01",
+                "fixture.graph.l01.t02.first-item-firm"
+              ],
+              "sourceRefs": ["fixture.oral.t2.correction.slow"]
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-quiet-1.normal",
+              "label": { "kind": "added", "text": "Synthetic quiet help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t02.response-01"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t02.correction-quiet-1.instruction"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t02.model",
+                "fixture.graph.l01.t02.response-01",
+                "fixture.graph.l01.t02.first-item-firm"
+              ],
+              "sourceRefs": ["fixture.oral.t2.correction.quiet"]
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-quiet-1.review",
+              "label": { "kind": "added", "text": "Synthetic quiet help" },
+              "scope": "review",
+              "eligibleNodeIds": ["fixture.graph.l01.t02.response-01"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t02.correction-quiet-1.instruction"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t02.response-01",
+                "fixture.graph.l01.t02.first-item-firm"
+              ],
+              "sourceRefs": ["fixture.oral.t2.correction.quiet"]
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-slow-2.normal",
+              "label": { "kind": "added", "text": "Synthetic slow help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t02.response-02"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t02.correction-slow-2.instruction"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t02.model",
+                "fixture.graph.l01.t02.response-01",
+                "fixture.graph.l01.t02.first-item-firm",
+                "fixture.graph.l01.t02.response-02"
+              ],
+              "sourceRefs": ["fixture.oral.t2.correction.slow"]
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-slow-2.review",
+              "label": { "kind": "added", "text": "Synthetic slow help" },
+              "scope": "review",
+              "eligibleNodeIds": ["fixture.graph.l01.t02.response-02"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t02.correction-slow-2.instruction"
+              ],
+              "retestNodeIds": ["fixture.graph.l01.t02.response-02"],
+              "sourceRefs": ["fixture.oral.t2.correction.slow"]
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-quiet-2.normal",
+              "label": { "kind": "added", "text": "Synthetic quiet help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t02.response-02"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t02.correction-quiet-2.instruction"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t02.model",
+                "fixture.graph.l01.t02.response-01",
+                "fixture.graph.l01.t02.first-item-firm",
+                "fixture.graph.l01.t02.response-02"
+              ],
+              "sourceRefs": ["fixture.oral.t2.correction.quiet"]
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-quiet-2.review",
+              "label": { "kind": "added", "text": "Synthetic quiet help" },
+              "scope": "review",
+              "eligibleNodeIds": ["fixture.graph.l01.t02.response-02"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t02.correction-quiet-2.instruction"
+              ],
+              "retestNodeIds": ["fixture.graph.l01.t02.response-02"],
+              "sourceRefs": ["fixture.oral.t2.correction.quiet"]
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-slow-3.normal",
+              "label": { "kind": "added", "text": "Synthetic slow help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t02.response-03"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t02.correction-slow-3.instruction"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t02.model",
+                "fixture.graph.l01.t02.response-01",
+                "fixture.graph.l01.t02.first-item-firm",
+                "fixture.graph.l01.t02.response-02",
+                "fixture.graph.l01.t02.response-03"
+              ],
+              "sourceRefs": ["fixture.oral.t2.correction.slow"]
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-slow-3.review",
+              "label": { "kind": "added", "text": "Synthetic slow help" },
+              "scope": "review",
+              "eligibleNodeIds": ["fixture.graph.l01.t02.response-03"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t02.correction-slow-3.instruction"
+              ],
+              "retestNodeIds": ["fixture.graph.l01.t02.response-03"],
+              "sourceRefs": ["fixture.oral.t2.correction.slow"]
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-quiet-3.normal",
+              "label": { "kind": "added", "text": "Synthetic quiet help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t02.response-03"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t02.correction-quiet-3.instruction"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t02.model",
+                "fixture.graph.l01.t02.response-01",
+                "fixture.graph.l01.t02.first-item-firm",
+                "fixture.graph.l01.t02.response-02",
+                "fixture.graph.l01.t02.response-03"
+              ],
+              "sourceRefs": ["fixture.oral.t2.correction.quiet"]
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-quiet-3.review",
+              "label": { "kind": "added", "text": "Synthetic quiet help" },
+              "scope": "review",
+              "eligibleNodeIds": ["fixture.graph.l01.t02.response-03"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t02.correction-quiet-3.instruction"
+              ],
+              "retestNodeIds": ["fixture.graph.l01.t02.response-03"],
+              "sourceRefs": ["fixture.oral.t2.correction.quiet"]
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-slow-4.normal",
+              "label": { "kind": "added", "text": "Synthetic slow help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t02.response-04"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t02.correction-slow-4.instruction"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t02.model",
+                "fixture.graph.l01.t02.response-01",
+                "fixture.graph.l01.t02.first-item-firm",
+                "fixture.graph.l01.t02.response-02",
+                "fixture.graph.l01.t02.response-03",
+                "fixture.graph.l01.t02.response-04"
+              ],
+              "sourceRefs": ["fixture.oral.t2.correction.slow"]
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-slow-4.review",
+              "label": { "kind": "added", "text": "Synthetic slow help" },
+              "scope": "review",
+              "eligibleNodeIds": ["fixture.graph.l01.t02.response-04"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t02.correction-slow-4.instruction"
+              ],
+              "retestNodeIds": ["fixture.graph.l01.t02.response-04"],
+              "sourceRefs": ["fixture.oral.t2.correction.slow"]
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-quiet-4.normal",
+              "label": { "kind": "added", "text": "Synthetic quiet help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t02.response-04"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t02.correction-quiet-4.instruction"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t02.model",
+                "fixture.graph.l01.t02.response-01",
+                "fixture.graph.l01.t02.first-item-firm",
+                "fixture.graph.l01.t02.response-02",
+                "fixture.graph.l01.t02.response-03",
+                "fixture.graph.l01.t02.response-04"
+              ],
+              "sourceRefs": ["fixture.oral.t2.correction.quiet"]
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-quiet-4.review",
+              "label": { "kind": "added", "text": "Synthetic quiet help" },
+              "scope": "review",
+              "eligibleNodeIds": ["fixture.graph.l01.t02.response-04"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t02.correction-quiet-4.instruction"
+              ],
+              "retestNodeIds": ["fixture.graph.l01.t02.response-04"],
+              "sourceRefs": ["fixture.oral.t2.correction.quiet"]
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-slow-5.normal",
+              "label": { "kind": "added", "text": "Synthetic slow help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t02.response-05"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t02.correction-slow-5.instruction"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t02.model",
+                "fixture.graph.l01.t02.response-01",
+                "fixture.graph.l01.t02.first-item-firm",
+                "fixture.graph.l01.t02.response-02",
+                "fixture.graph.l01.t02.response-03",
+                "fixture.graph.l01.t02.response-04",
+                "fixture.graph.l01.t02.response-05"
+              ],
+              "sourceRefs": ["fixture.oral.t2.correction.slow"]
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-slow-5.review",
+              "label": { "kind": "added", "text": "Synthetic slow help" },
+              "scope": "review",
+              "eligibleNodeIds": ["fixture.graph.l01.t02.response-05"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t02.correction-slow-5.instruction"
+              ],
+              "retestNodeIds": ["fixture.graph.l01.t02.response-05"],
+              "sourceRefs": ["fixture.oral.t2.correction.slow"]
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-quiet-5.normal",
+              "label": { "kind": "added", "text": "Synthetic quiet help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t02.response-05"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t02.correction-quiet-5.instruction"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t02.model",
+                "fixture.graph.l01.t02.response-01",
+                "fixture.graph.l01.t02.first-item-firm",
+                "fixture.graph.l01.t02.response-02",
+                "fixture.graph.l01.t02.response-03",
+                "fixture.graph.l01.t02.response-04",
+                "fixture.graph.l01.t02.response-05"
+              ],
+              "sourceRefs": ["fixture.oral.t2.correction.quiet"]
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-quiet-5.review",
+              "label": { "kind": "added", "text": "Synthetic quiet help" },
+              "scope": "review",
+              "eligibleNodeIds": ["fixture.graph.l01.t02.response-05"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t02.correction-quiet-5.instruction"
+              ],
+              "retestNodeIds": ["fixture.graph.l01.t02.response-05"],
+              "sourceRefs": ["fixture.oral.t2.correction.quiet"]
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-slow-6.normal",
+              "label": { "kind": "added", "text": "Synthetic slow help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t02.response-06"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t02.correction-slow-6.instruction"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t02.model",
+                "fixture.graph.l01.t02.response-01",
+                "fixture.graph.l01.t02.first-item-firm",
+                "fixture.graph.l01.t02.response-02",
+                "fixture.graph.l01.t02.response-03",
+                "fixture.graph.l01.t02.response-04",
+                "fixture.graph.l01.t02.response-05",
+                "fixture.graph.l01.t02.response-06"
+              ],
+              "sourceRefs": ["fixture.oral.t2.correction.slow"]
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-slow-6.review",
+              "label": { "kind": "added", "text": "Synthetic slow help" },
+              "scope": "review",
+              "eligibleNodeIds": ["fixture.graph.l01.t02.response-06"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t02.correction-slow-6.instruction"
+              ],
+              "retestNodeIds": ["fixture.graph.l01.t02.response-06"],
+              "sourceRefs": ["fixture.oral.t2.correction.slow"]
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-quiet-6.normal",
+              "label": { "kind": "added", "text": "Synthetic quiet help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t02.response-06"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t02.correction-quiet-6.instruction"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t02.model",
+                "fixture.graph.l01.t02.response-01",
+                "fixture.graph.l01.t02.first-item-firm",
+                "fixture.graph.l01.t02.response-02",
+                "fixture.graph.l01.t02.response-03",
+                "fixture.graph.l01.t02.response-04",
+                "fixture.graph.l01.t02.response-05",
+                "fixture.graph.l01.t02.response-06"
+              ],
+              "sourceRefs": ["fixture.oral.t2.correction.quiet"]
+            },
+            {
+              "id": "fixture.graph.l01.t02.correction-quiet-6.review",
+              "label": { "kind": "added", "text": "Synthetic quiet help" },
+              "scope": "review",
+              "eligibleNodeIds": ["fixture.graph.l01.t02.response-06"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t02.correction-quiet-6.instruction"
+              ],
+              "retestNodeIds": ["fixture.graph.l01.t02.response-06"],
+              "sourceRefs": ["fixture.oral.t2.correction.quiet"]
+            }
+          ]
+        }
+      },
+      {
+        "kind": "graphControls",
+        "task": {
+          "id": "fixture.graph.l01.t03",
+          "number": 3,
+          "title": { "kind": "added", "text": "Synthetic task 3" },
+          "startNodeId": "fixture.graph.l01.t03.am-model",
+          "nodes": [
+            {
+              "id": "fixture.graph.l01.t03.am-model",
+              "kind": "turn",
+              "route": "normal",
+              "parentRole": "model",
+              "itemId": "fixture.graph.l01.t03.am",
+              "presentation": { "kind": "oral" },
+              "sourceRefs": ["fixture.continuous.source"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous parent model."
+                  }
+                }
+              ],
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t03.am-together"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t03.am-together",
+              "kind": "turn",
+              "route": "normal",
+              "parentRole": "together",
+              "itemId": "fixture.graph.l01.t03.am",
+              "presentation": { "kind": "oral" },
+              "sourceRefs": ["fixture.continuous.source"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic am together turn."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                }
+              ],
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t03.am-again"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t03.am-again",
+              "kind": "turn",
+              "route": "normal",
+              "parentRole": "together",
+              "itemId": "fixture.graph.l01.t03.am",
+              "presentation": { "kind": "oral" },
+              "sourceRefs": ["fixture.continuous.source"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic am again turn."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                }
+              ],
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t03.am-firm"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t03.am-firm",
+              "kind": "untilFirm",
+              "policyId": "fixture.graph.l01.t03.am-until-firm",
+              "cycleEntryNodeId": "fixture.graph.l01.t03.am-again",
+              "cycleExitNodeId": "fixture.graph.l01.t03.am-again",
+              "sourceRefs": ["fixture.continuous.source"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic parent judges joint practice firm."
+                  }
+                }
+              ],
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t03.am-independent"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t03.am-independent",
+              "kind": "turn",
+              "route": "normal",
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t03.am",
+              "presentation": { "kind": "oral" },
+              "sourceRefs": ["fixture.continuous.source"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic am independent turn."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                }
+              ],
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t03.if-together"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t03.if-together",
+              "kind": "turn",
+              "route": "normal",
+              "parentRole": "together",
+              "itemId": "fixture.graph.l01.t03.if",
+              "presentation": { "kind": "oral" },
+              "sourceRefs": ["fixture.continuous.source"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic if together turn."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                }
+              ],
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t03.if-again"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t03.if-again",
+              "kind": "turn",
+              "route": "normal",
+              "parentRole": "together",
+              "itemId": "fixture.graph.l01.t03.if",
+              "presentation": { "kind": "oral" },
+              "sourceRefs": ["fixture.continuous.source"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic if again turn."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                }
+              ],
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t03.if-firm"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t03.if-firm",
+              "kind": "untilFirm",
+              "policyId": "fixture.graph.l01.t03.if-until-firm",
+              "cycleEntryNodeId": "fixture.graph.l01.t03.if-again",
+              "cycleExitNodeId": "fixture.graph.l01.t03.if-again",
+              "sourceRefs": ["fixture.continuous.source"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic parent judges joint practice firm."
+                  }
+                }
+              ],
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t03.if-independent"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t03.if-independent",
+              "kind": "turn",
+              "route": "normal",
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t03.if",
+              "presentation": { "kind": "oral" },
+              "sourceRefs": ["fixture.continuous.source"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic if independent turn."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                }
+              ],
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t03.in-together"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t03.in-together",
+              "kind": "turn",
+              "route": "normal",
+              "parentRole": "together",
+              "itemId": "fixture.graph.l01.t03.in",
+              "presentation": { "kind": "oral" },
+              "sourceRefs": ["fixture.continuous.source"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic in together turn."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                }
+              ],
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t03.in-again"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t03.in-again",
+              "kind": "turn",
+              "route": "normal",
+              "parentRole": "together",
+              "itemId": "fixture.graph.l01.t03.in",
+              "presentation": { "kind": "oral" },
+              "sourceRefs": ["fixture.continuous.source"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic in again turn."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                }
+              ],
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t03.in-firm"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t03.in-firm",
+              "kind": "untilFirm",
+              "policyId": "fixture.graph.l01.t03.in-until-firm",
+              "cycleEntryNodeId": "fixture.graph.l01.t03.in-again",
+              "cycleExitNodeId": "fixture.graph.l01.t03.in-again",
+              "sourceRefs": ["fixture.continuous.source"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic parent judges joint practice firm."
+                  }
+                }
+              ],
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t03.in-independent"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t03.in-independent",
+              "kind": "turn",
+              "route": "normal",
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t03.in",
+              "presentation": { "kind": "oral" },
+              "sourceRefs": ["fixture.continuous.source"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic in independent turn."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                },
+                {
+                  "kind": "praise",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous praise."
+                  }
+                }
+              ],
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-am-together.model",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction model."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "model",
+              "itemId": "fixture.graph.l01.t03.am",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-am-together.together",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction together."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "together",
+              "itemId": "fixture.graph.l01.t03.am",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-am-together.firm",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction firm."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "untilFirm",
+              "policyId": "fixture.graph.l01.t03.correction-am-together.until-firm",
+              "cycleEntryNodeId": "fixture.graph.l01.t03.correction-am-together.together",
+              "cycleExitNodeId": "fixture.graph.l01.t03.correction-am-together.together"
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-am-together.test",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction test."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                },
+                {
+                  "kind": "praise",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous praise."
+                  }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic restart at the first turn."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t03.am",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-am-again.model",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction model."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "model",
+              "itemId": "fixture.graph.l01.t03.am",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-am-again.together",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction together."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "together",
+              "itemId": "fixture.graph.l01.t03.am",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-am-again.firm",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction firm."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "untilFirm",
+              "policyId": "fixture.graph.l01.t03.correction-am-again.until-firm",
+              "cycleEntryNodeId": "fixture.graph.l01.t03.correction-am-again.together",
+              "cycleExitNodeId": "fixture.graph.l01.t03.correction-am-again.together"
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-am-again.test",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction test."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                },
+                {
+                  "kind": "praise",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous praise."
+                  }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic restart at the first turn."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t03.am",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-am-independent.model",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction model."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "model",
+              "itemId": "fixture.graph.l01.t03.am",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-am-independent.together",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction together."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "together",
+              "itemId": "fixture.graph.l01.t03.am",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-am-independent.firm",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction firm."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "untilFirm",
+              "policyId": "fixture.graph.l01.t03.correction-am-independent.until-firm",
+              "cycleEntryNodeId": "fixture.graph.l01.t03.correction-am-independent.together",
+              "cycleExitNodeId": "fixture.graph.l01.t03.correction-am-independent.together"
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-am-independent.test",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction test."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                },
+                {
+                  "kind": "praise",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous praise."
+                  }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic restart at the first turn."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t03.am",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-if-together.model",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction model."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "model",
+              "itemId": "fixture.graph.l01.t03.if",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-if-together.together",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction together."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "together",
+              "itemId": "fixture.graph.l01.t03.if",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-if-together.firm",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction firm."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "untilFirm",
+              "policyId": "fixture.graph.l01.t03.correction-if-together.until-firm",
+              "cycleEntryNodeId": "fixture.graph.l01.t03.correction-if-together.together",
+              "cycleExitNodeId": "fixture.graph.l01.t03.correction-if-together.together"
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-if-together.test",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction test."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                },
+                {
+                  "kind": "praise",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous praise."
+                  }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic restart at the first turn."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t03.if",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-if-again.model",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction model."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "model",
+              "itemId": "fixture.graph.l01.t03.if",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-if-again.together",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction together."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "together",
+              "itemId": "fixture.graph.l01.t03.if",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-if-again.firm",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction firm."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "untilFirm",
+              "policyId": "fixture.graph.l01.t03.correction-if-again.until-firm",
+              "cycleEntryNodeId": "fixture.graph.l01.t03.correction-if-again.together",
+              "cycleExitNodeId": "fixture.graph.l01.t03.correction-if-again.together"
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-if-again.test",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction test."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                },
+                {
+                  "kind": "praise",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous praise."
+                  }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic restart at the first turn."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t03.if",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-if-independent.model",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction model."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "model",
+              "itemId": "fixture.graph.l01.t03.if",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-if-independent.together",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction together."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "together",
+              "itemId": "fixture.graph.l01.t03.if",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-if-independent.firm",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction firm."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "untilFirm",
+              "policyId": "fixture.graph.l01.t03.correction-if-independent.until-firm",
+              "cycleEntryNodeId": "fixture.graph.l01.t03.correction-if-independent.together",
+              "cycleExitNodeId": "fixture.graph.l01.t03.correction-if-independent.together"
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-if-independent.test",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction test."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                },
+                {
+                  "kind": "praise",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous praise."
+                  }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic restart at the first turn."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t03.if",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-in-together.model",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction model."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "model",
+              "itemId": "fixture.graph.l01.t03.in",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-in-together.together",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction together."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "together",
+              "itemId": "fixture.graph.l01.t03.in",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-in-together.firm",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction firm."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "untilFirm",
+              "policyId": "fixture.graph.l01.t03.correction-in-together.until-firm",
+              "cycleEntryNodeId": "fixture.graph.l01.t03.correction-in-together.together",
+              "cycleExitNodeId": "fixture.graph.l01.t03.correction-in-together.together"
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-in-together.test",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction test."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                },
+                {
+                  "kind": "praise",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous praise."
+                  }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic restart at the first turn."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t03.in",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-in-again.model",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction model."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "model",
+              "itemId": "fixture.graph.l01.t03.in",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-in-again.together",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction together."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "together",
+              "itemId": "fixture.graph.l01.t03.in",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-in-again.firm",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction firm."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "untilFirm",
+              "policyId": "fixture.graph.l01.t03.correction-in-again.until-firm",
+              "cycleEntryNodeId": "fixture.graph.l01.t03.correction-in-again.together",
+              "cycleExitNodeId": "fixture.graph.l01.t03.correction-in-again.together"
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-in-again.test",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction test."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                },
+                {
+                  "kind": "praise",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous praise."
+                  }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic restart at the first turn."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t03.in",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-in-independent.model",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction model."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "model",
+              "itemId": "fixture.graph.l01.t03.in",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-in-independent.together",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction together."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "together",
+              "itemId": "fixture.graph.l01.t03.in",
+              "presentation": { "kind": "oral" }
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-in-independent.firm",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction firm."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "untilFirm",
+              "policyId": "fixture.graph.l01.t03.correction-in-independent.until-firm",
+              "cycleEntryNodeId": "fixture.graph.l01.t03.correction-in-independent.together",
+              "cycleExitNodeId": "fixture.graph.l01.t03.correction-in-independent.together"
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-in-independent.test",
+              "sourceRefs": ["fixture.continuous.correction"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction test."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous response."
+                  }
+                },
+                {
+                  "kind": "praise",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic continuous praise."
+                  }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic restart at the first turn."
+                  }
+                }
+              ],
+              "next": { "kind": "end" },
+              "kind": "turn",
+              "route": "support",
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t03.in",
+              "presentation": { "kind": "oral" }
+            }
+          ],
+          "corrections": [
+            {
+              "id": "fixture.graph.l01.t03.correction-am-together",
+              "label": { "kind": "added", "text": "Synthetic continuous help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t03.am-together"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t03.correction-am-together.model",
+                "fixture.graph.l01.t03.correction-am-together.together",
+                "fixture.graph.l01.t03.correction-am-together.firm",
+                "fixture.graph.l01.t03.correction-am-together.test"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t03.am-model",
+                "fixture.graph.l01.t03.am-together"
+              ],
+              "sourceRefs": ["fixture.continuous.correction"]
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-am-again",
+              "label": { "kind": "added", "text": "Synthetic continuous help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t03.am-again"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t03.correction-am-again.model",
+                "fixture.graph.l01.t03.correction-am-again.together",
+                "fixture.graph.l01.t03.correction-am-again.firm",
+                "fixture.graph.l01.t03.correction-am-again.test"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t03.am-model",
+                "fixture.graph.l01.t03.am-together",
+                "fixture.graph.l01.t03.am-again",
+                "fixture.graph.l01.t03.am-firm"
+              ],
+              "sourceRefs": ["fixture.continuous.correction"]
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-am-independent",
+              "label": { "kind": "added", "text": "Synthetic continuous help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t03.am-independent"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t03.correction-am-independent.model",
+                "fixture.graph.l01.t03.correction-am-independent.together",
+                "fixture.graph.l01.t03.correction-am-independent.firm",
+                "fixture.graph.l01.t03.correction-am-independent.test"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t03.am-model",
+                "fixture.graph.l01.t03.am-together",
+                "fixture.graph.l01.t03.am-again",
+                "fixture.graph.l01.t03.am-firm",
+                "fixture.graph.l01.t03.am-independent"
+              ],
+              "sourceRefs": ["fixture.continuous.correction"]
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-if-together",
+              "label": { "kind": "added", "text": "Synthetic continuous help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t03.if-together"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t03.correction-if-together.model",
+                "fixture.graph.l01.t03.correction-if-together.together",
+                "fixture.graph.l01.t03.correction-if-together.firm",
+                "fixture.graph.l01.t03.correction-if-together.test"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t03.am-model",
+                "fixture.graph.l01.t03.am-together",
+                "fixture.graph.l01.t03.am-again",
+                "fixture.graph.l01.t03.am-firm",
+                "fixture.graph.l01.t03.am-independent",
+                "fixture.graph.l01.t03.if-together"
+              ],
+              "sourceRefs": ["fixture.continuous.correction"]
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-if-again",
+              "label": { "kind": "added", "text": "Synthetic continuous help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t03.if-again"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t03.correction-if-again.model",
+                "fixture.graph.l01.t03.correction-if-again.together",
+                "fixture.graph.l01.t03.correction-if-again.firm",
+                "fixture.graph.l01.t03.correction-if-again.test"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t03.am-model",
+                "fixture.graph.l01.t03.am-together",
+                "fixture.graph.l01.t03.am-again",
+                "fixture.graph.l01.t03.am-firm",
+                "fixture.graph.l01.t03.am-independent",
+                "fixture.graph.l01.t03.if-together",
+                "fixture.graph.l01.t03.if-again",
+                "fixture.graph.l01.t03.if-firm"
+              ],
+              "sourceRefs": ["fixture.continuous.correction"]
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-if-independent",
+              "label": { "kind": "added", "text": "Synthetic continuous help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t03.if-independent"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t03.correction-if-independent.model",
+                "fixture.graph.l01.t03.correction-if-independent.together",
+                "fixture.graph.l01.t03.correction-if-independent.firm",
+                "fixture.graph.l01.t03.correction-if-independent.test"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t03.am-model",
+                "fixture.graph.l01.t03.am-together",
+                "fixture.graph.l01.t03.am-again",
+                "fixture.graph.l01.t03.am-firm",
+                "fixture.graph.l01.t03.am-independent",
+                "fixture.graph.l01.t03.if-together",
+                "fixture.graph.l01.t03.if-again",
+                "fixture.graph.l01.t03.if-firm",
+                "fixture.graph.l01.t03.if-independent"
+              ],
+              "sourceRefs": ["fixture.continuous.correction"]
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-in-together",
+              "label": { "kind": "added", "text": "Synthetic continuous help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t03.in-together"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t03.correction-in-together.model",
+                "fixture.graph.l01.t03.correction-in-together.together",
+                "fixture.graph.l01.t03.correction-in-together.firm",
+                "fixture.graph.l01.t03.correction-in-together.test"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t03.am-model",
+                "fixture.graph.l01.t03.am-together",
+                "fixture.graph.l01.t03.am-again",
+                "fixture.graph.l01.t03.am-firm",
+                "fixture.graph.l01.t03.am-independent",
+                "fixture.graph.l01.t03.if-together",
+                "fixture.graph.l01.t03.if-again",
+                "fixture.graph.l01.t03.if-firm",
+                "fixture.graph.l01.t03.if-independent",
+                "fixture.graph.l01.t03.in-together"
+              ],
+              "sourceRefs": ["fixture.continuous.correction"]
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-in-again",
+              "label": { "kind": "added", "text": "Synthetic continuous help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t03.in-again"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t03.correction-in-again.model",
+                "fixture.graph.l01.t03.correction-in-again.together",
+                "fixture.graph.l01.t03.correction-in-again.firm",
+                "fixture.graph.l01.t03.correction-in-again.test"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t03.am-model",
+                "fixture.graph.l01.t03.am-together",
+                "fixture.graph.l01.t03.am-again",
+                "fixture.graph.l01.t03.am-firm",
+                "fixture.graph.l01.t03.am-independent",
+                "fixture.graph.l01.t03.if-together",
+                "fixture.graph.l01.t03.if-again",
+                "fixture.graph.l01.t03.if-firm",
+                "fixture.graph.l01.t03.if-independent",
+                "fixture.graph.l01.t03.in-together",
+                "fixture.graph.l01.t03.in-again",
+                "fixture.graph.l01.t03.in-firm"
+              ],
+              "sourceRefs": ["fixture.continuous.correction"]
+            },
+            {
+              "id": "fixture.graph.l01.t03.correction-in-independent",
+              "label": { "kind": "added", "text": "Synthetic continuous help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t03.in-independent"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t03.correction-in-independent.model",
+                "fixture.graph.l01.t03.correction-in-independent.together",
+                "fixture.graph.l01.t03.correction-in-independent.firm",
+                "fixture.graph.l01.t03.correction-in-independent.test"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t03.am-model",
+                "fixture.graph.l01.t03.am-together",
+                "fixture.graph.l01.t03.am-again",
+                "fixture.graph.l01.t03.am-firm",
+                "fixture.graph.l01.t03.am-independent",
+                "fixture.graph.l01.t03.if-together",
+                "fixture.graph.l01.t03.if-again",
+                "fixture.graph.l01.t03.if-firm",
+                "fixture.graph.l01.t03.if-independent",
+                "fixture.graph.l01.t03.in-together",
+                "fixture.graph.l01.t03.in-again",
+                "fixture.graph.l01.t03.in-firm",
+                "fixture.graph.l01.t03.in-independent"
+              ],
+              "sourceRefs": ["fixture.continuous.correction"]
+            }
+          ]
+        }
+      },
+      {
+        "kind": "printedGraphV1",
+        "task": {
+          "id": "fixture.graph.l01.t04",
+          "number": 4,
+          "title": { "kind": "added", "text": "Synthetic task 4" },
+          "startNodeId": "fixture.graph.l01.t04.s01.response-m",
+          "nodes": [
+            {
+              "id": "fixture.graph.l01.t04.s01.response-m",
+              "kind": "normal",
+              "sourceRefs": [
+                "fixture.graph.t4.s1",
+                "fixture.graph.pronunciation.continuous"
+              ],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": { "kind": "added", "text": "Synthetic m setup." }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic first-point action."
+                  }
+                },
+                {
+                  "kind": "speech",
+                  "copy": { "kind": "added", "text": "Synthetic cue prompt." }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic sustained-point action."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": { "kind": "added", "text": "Synthetic m listen." }
+                }
+              ],
+              "parentRole": "listen",
+              "glyph": "m",
+              "cue": { "kind": "sustain", "minimumMs": 3000 },
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t04.s02.response-s"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t04.s02.response-s",
+              "kind": "normal",
+              "sourceRefs": [
+                "fixture.graph.t4.s2",
+                "fixture.graph.pronunciation.continuous"
+              ],
+              "guidance": [
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic first-point action."
+                  }
+                },
+                {
+                  "kind": "speech",
+                  "copy": { "kind": "added", "text": "Synthetic cue prompt." }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic sustained-point action."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": { "kind": "added", "text": "Synthetic s listen." }
+                }
+              ],
+              "parentRole": "listen",
+              "glyph": "s",
+              "cue": { "kind": "sustain", "minimumMs": 3000 },
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t04.correction-m",
+              "kind": "correction",
+              "sourceRefs": ["fixture.graph.t4.correction.m"],
+              "guidance": [
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction action."
+                  }
+                },
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic m correction model."
+                  }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic response invitation."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic m correction response."
+                  }
+                },
+                {
+                  "kind": "praise",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction praise."
+                  }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic source retest route."
+                  }
+                }
+              ],
+              "parentRole": "model",
+              "glyph": "m",
+              "cue": { "kind": "sustain", "minimumMs": null },
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t04.correction-s",
+              "kind": "correction",
+              "sourceRefs": ["fixture.graph.t4.correction.s"],
+              "guidance": [
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction action."
+                  }
+                },
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic s correction model."
+                  }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic response invitation."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic s correction response."
+                  }
+                },
+                {
+                  "kind": "praise",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic correction praise."
+                  }
+                },
+                {
+                  "kind": "action",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic source retest route."
+                  }
+                }
+              ],
+              "parentRole": "model",
+              "glyph": "s",
+              "cue": { "kind": "sustain", "minimumMs": null },
+              "next": { "kind": "end" }
+            }
+          ],
+          "corrections": [
+            {
+              "id": "fixture.graph.l01.t04.help-m",
+              "eligibleNodeIds": ["fixture.graph.l01.t04.s01.response-m"],
+              "instructionNodeId": "fixture.graph.l01.t04.correction-m",
+              "retestNodeIds": [
+                "fixture.graph.l01.t04.s01.response-m",
+                "fixture.graph.l01.t04.s02.response-s"
+              ],
+              "continuationNodeId": null,
+              "sourceRefs": ["fixture.graph.t4.correction.m"]
+            },
+            {
+              "id": "fixture.graph.l01.t04.help-s",
+              "eligibleNodeIds": ["fixture.graph.l01.t04.s02.response-s"],
+              "instructionNodeId": "fixture.graph.l01.t04.correction-s",
+              "retestNodeIds": [
+                "fixture.graph.l01.t04.s01.response-m",
+                "fixture.graph.l01.t04.s02.response-s"
+              ],
+              "continuationNodeId": null,
+              "sourceRefs": ["fixture.graph.t4.correction.s"]
+            }
+          ]
+        }
+      },
+      {
+        "kind": "graphControls",
+        "task": {
+          "id": "fixture.graph.l01.t05",
+          "number": 5,
+          "title": { "kind": "added", "text": "Synthetic task 5" },
+          "startNodeId": "fixture.graph.l01.t05.response-01",
+          "nodes": [
+            {
+              "id": "fixture.graph.l01.t05.response-01",
+              "kind": "turn",
+              "route": "normal",
+              "sourceRefs": ["fixture.oral.t5.response1"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic oral item 1 prompt."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t05.item-01",
+              "presentation": { "kind": "oral" },
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t05.response-02"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t05.response-02",
+              "kind": "turn",
+              "route": "normal",
+              "sourceRefs": ["fixture.oral.t5.response2"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic oral item 2 prompt."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t05.item-02",
+              "presentation": { "kind": "oral" },
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t05.response-03"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t05.response-03",
+              "kind": "turn",
+              "route": "normal",
+              "sourceRefs": ["fixture.oral.t5.response3"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic oral item 3 prompt."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t05.item-03",
+              "presentation": { "kind": "oral" },
+              "next": {
+                "kind": "node",
+                "nodeId": "fixture.graph.l01.t05.response-04"
+              }
+            },
+            {
+              "id": "fixture.graph.l01.t05.response-04",
+              "kind": "turn",
+              "route": "normal",
+              "sourceRefs": ["fixture.oral.t5.response4"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic oral item 4 prompt."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t05.item-04",
+              "presentation": { "kind": "oral" },
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t05.correction-slow-1.instruction",
+              "kind": "turn",
+              "route": "support",
+              "sourceRefs": ["fixture.oral.t5.correction.slow"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic slow correction for item 1."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t05.item-01",
+              "presentation": { "kind": "oral" },
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t05.correction-quiet-1.instruction",
+              "kind": "turn",
+              "route": "support",
+              "sourceRefs": ["fixture.oral.t5.correction.quiet"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic quiet correction for item 1."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t05.item-01",
+              "presentation": { "kind": "oral" },
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t05.correction-slow-2.instruction",
+              "kind": "turn",
+              "route": "support",
+              "sourceRefs": ["fixture.oral.t5.correction.slow"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic slow correction for item 2."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t05.item-02",
+              "presentation": { "kind": "oral" },
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t05.correction-quiet-2.instruction",
+              "kind": "turn",
+              "route": "support",
+              "sourceRefs": ["fixture.oral.t5.correction.quiet"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic quiet correction for item 2."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t05.item-02",
+              "presentation": { "kind": "oral" },
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t05.correction-slow-3.instruction",
+              "kind": "turn",
+              "route": "support",
+              "sourceRefs": ["fixture.oral.t5.correction.slow"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic slow correction for item 3."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t05.item-03",
+              "presentation": { "kind": "oral" },
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t05.correction-quiet-3.instruction",
+              "kind": "turn",
+              "route": "support",
+              "sourceRefs": ["fixture.oral.t5.correction.quiet"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic quiet correction for item 3."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t05.item-03",
+              "presentation": { "kind": "oral" },
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t05.correction-slow-4.instruction",
+              "kind": "turn",
+              "route": "support",
+              "sourceRefs": ["fixture.oral.t5.correction.slow"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic slow correction for item 4."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t05.item-04",
+              "presentation": { "kind": "oral" },
+              "next": { "kind": "end" }
+            },
+            {
+              "id": "fixture.graph.l01.t05.correction-quiet-4.instruction",
+              "kind": "turn",
+              "route": "support",
+              "sourceRefs": ["fixture.oral.t5.correction.quiet"],
+              "guidance": [
+                {
+                  "kind": "speech",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic quiet correction for item 4."
+                  }
+                },
+                {
+                  "kind": "expected",
+                  "copy": {
+                    "kind": "added",
+                    "text": "Synthetic whole response."
+                  }
+                }
+              ],
+              "parentRole": "listen",
+              "itemId": "fixture.graph.l01.t05.item-04",
+              "presentation": { "kind": "oral" },
+              "next": { "kind": "end" }
+            }
+          ],
+          "corrections": [
+            {
+              "id": "fixture.graph.l01.t05.correction-slow-1.normal",
+              "label": { "kind": "added", "text": "Synthetic slow help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t05.response-01"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t05.correction-slow-1.instruction"
+              ],
+              "retestNodeIds": ["fixture.graph.l01.t05.response-01"],
+              "sourceRefs": ["fixture.oral.t5.correction.slow"]
+            },
+            {
+              "id": "fixture.graph.l01.t05.correction-quiet-1.normal",
+              "label": { "kind": "added", "text": "Synthetic quiet help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t05.response-01"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t05.correction-quiet-1.instruction"
+              ],
+              "retestNodeIds": ["fixture.graph.l01.t05.response-01"],
+              "sourceRefs": ["fixture.oral.t5.correction.quiet"]
+            },
+            {
+              "id": "fixture.graph.l01.t05.correction-slow-2.normal",
+              "label": { "kind": "added", "text": "Synthetic slow help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t05.response-02"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t05.correction-slow-2.instruction"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t05.response-01",
+                "fixture.graph.l01.t05.response-02"
+              ],
+              "sourceRefs": ["fixture.oral.t5.correction.slow"]
+            },
+            {
+              "id": "fixture.graph.l01.t05.correction-quiet-2.normal",
+              "label": { "kind": "added", "text": "Synthetic quiet help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t05.response-02"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t05.correction-quiet-2.instruction"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t05.response-01",
+                "fixture.graph.l01.t05.response-02"
+              ],
+              "sourceRefs": ["fixture.oral.t5.correction.quiet"]
+            },
+            {
+              "id": "fixture.graph.l01.t05.correction-slow-3.normal",
+              "label": { "kind": "added", "text": "Synthetic slow help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t05.response-03"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t05.correction-slow-3.instruction"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t05.response-01",
+                "fixture.graph.l01.t05.response-02",
+                "fixture.graph.l01.t05.response-03"
+              ],
+              "sourceRefs": ["fixture.oral.t5.correction.slow"]
+            },
+            {
+              "id": "fixture.graph.l01.t05.correction-quiet-3.normal",
+              "label": { "kind": "added", "text": "Synthetic quiet help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t05.response-03"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t05.correction-quiet-3.instruction"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t05.response-01",
+                "fixture.graph.l01.t05.response-02",
+                "fixture.graph.l01.t05.response-03"
+              ],
+              "sourceRefs": ["fixture.oral.t5.correction.quiet"]
+            },
+            {
+              "id": "fixture.graph.l01.t05.correction-slow-4.normal",
+              "label": { "kind": "added", "text": "Synthetic slow help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t05.response-04"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t05.correction-slow-4.instruction"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t05.response-01",
+                "fixture.graph.l01.t05.response-02",
+                "fixture.graph.l01.t05.response-03",
+                "fixture.graph.l01.t05.response-04"
+              ],
+              "sourceRefs": ["fixture.oral.t5.correction.slow"]
+            },
+            {
+              "id": "fixture.graph.l01.t05.correction-quiet-4.normal",
+              "label": { "kind": "added", "text": "Synthetic quiet help" },
+              "scope": "normal",
+              "eligibleNodeIds": ["fixture.graph.l01.t05.response-04"],
+              "instructionNodeIds": [
+                "fixture.graph.l01.t05.correction-quiet-4.instruction"
+              ],
+              "retestNodeIds": [
+                "fixture.graph.l01.t05.response-01",
+                "fixture.graph.l01.t05.response-02",
+                "fixture.graph.l01.t05.response-03",
+                "fixture.graph.l01.t05.response-04"
+              ],
+              "sourceRefs": ["fixture.oral.t5.correction.quiet"]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

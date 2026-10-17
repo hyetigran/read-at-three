@@ -52,6 +52,8 @@ SPA stage completes all application functionality and shared contract fixtures f
 | Diagnostics               | **Selected:** custom local ring log, 1 MiB cap; no external SDK               | Allowlisted errors/versions/aggregate timing only. No ink/source/profile identifiers. Parent previews support report.                                                                                               |
 | Formatting / commit tools | **Installed:** Prettier 3.9.10, Husky 9.1.7, lint-staged 16.4.0               | All MIT; exact versions/integrity locked in root package-lock. Default Prettier config `{}`. Hooks format staged supported files, then check all supported project files. Re-run formatter/hook fixture on upgrade. |
 
+Private raw lesson records use the installed Ajv JTD validator so TypeScript derives their shape from one schema. Its `int32range: false` option retains the existing unrestricted finite-integer rule. A parser refinement preserves nonempty task text for cumulative authoring and the legacy generator's empty-text acceptance. Each raw factory parses once, then passes typed records through its internal authoring chain. Runtime package validation continues to use JSON Schema 2020-12 and the generated portable validators.
+
 Accounts, billing, cloud DB, sync, speech scoring, and remote AI are **unnecessary for the core scope**. Passphrase-protected complete parent backup/export/import is selected for v1. Optional parent audio, hosting/store channels and cloud build services remain separate engineering or release selections.
 
 ## Backup and profile technology contract

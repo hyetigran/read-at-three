@@ -221,13 +221,30 @@ function catalogFor(
     };
   });
 }
-function selectionActions(
-  active: DevelopmentPackage,
-  context: StoredContext,
-  catalog: readonly CatalogTask[],
-): AvailableAction[] {
+function selectionActions({
+  active,
+  content,
+  context,
+  catalog,
+}: {
+  active: DevelopmentPackage;
+  content: DevelopmentPackage;
+  context: StoredContext;
+  catalog: readonly CatalogTask[];
+}): AvailableAction[] {
   const actions: AvailableAction[] = [];
   const current = context.session;
+  const sameCompleteTask =
+    current !== null &&
+    (current.packageHash === active.packageHash ||
+      (content.body.coverage === "lesson1-sounds-oral-complete" &&
+        active.body.coverage === "lesson1-sounds-oral-complete" &&
+        canonical(
+          content.body.tasks.find((entry) => entry.task.id === current.taskId),
+        ) ===
+          canonical(
+            active.body.tasks.find((entry) => entry.task.id === current.taskId),
+          )));
   if (current?.status === "paused")
     actions.push(
       choice("Resume", {
@@ -267,7 +284,7 @@ function selectionActions(
             sessionId: current.sessionId,
           }),
         );
-      else if (current.packageHash !== active.packageHash)
+      else if (!sameCompleteTask)
         actions.push(
           choice("Start full task", {
             kind: "restart",
@@ -290,7 +307,7 @@ function selectionActions(
     current?.runStatus === "inProgress" &&
     (current.state.kind === "graph" ||
       current.state.kind === "graphControls") &&
-    current.packageHash === active.packageHash
+    sameCompleteTask
   ) {
     actions.push(
       choice("Restart task", {
@@ -322,7 +339,15 @@ export function createCoordinator({
       const context = await store.current();
       const active = await store.resolvePackage(context.activePackageHash);
       const catalog = catalogFor(active, context);
-      const selections = selectionActions(active, context, catalog);
+      const content = await store.resolvePackage(
+        context.session?.packageHash ?? context.activePackageHash,
+      );
+      const selections = selectionActions({
+        active,
+        content,
+        context,
+        catalog,
+      });
       if (!context.session) {
         if (active.body.coverage === "partial-first-m")
           selections.push(
@@ -344,7 +369,6 @@ export function createCoordinator({
         });
       }
       const session = context.session;
-      const content = await store.resolvePackage(session.packageHash);
       validatePosition(content, session.state, session.taskId);
       const engine = project(content, session.state);
       if (
