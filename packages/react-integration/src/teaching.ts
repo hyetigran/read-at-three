@@ -132,6 +132,26 @@ function keyFor(read: ReadEnvelope): readonly string[] {
       : []),
   ];
 }
+function matchesCommandReceipt({
+  command,
+  receipt,
+}: Readonly<{
+  command: TeachingCommand;
+  receipt: CommitReceipt;
+}>) {
+  return (
+    receipt.commandId === command.commandId &&
+    receipt.revision === increment(command.expectedRevision) &&
+    receipt.packageHash === command.payload.packageHash &&
+    (command.kind === "start" ||
+      command.kind === "select" ||
+      command.kind === "writingSelect" ||
+      (receipt.sessionId === command.payload.sessionId &&
+        receipt.runId === command.payload.runId)) &&
+    receipt.owner.profileId === command.owner.profileId &&
+    receipt.owner.generation === command.owner.generation
+  );
+}
 function matchesReceipt({
   projection,
   command,
@@ -144,25 +164,27 @@ function matchesReceipt({
   return (
     projection.kind !== "recovery" &&
     projection.kind !== "entry" &&
-    receipt.commandId === command.commandId &&
-    receipt.revision === increment(command.expectedRevision) &&
-    (command.kind === "start" ||
-      command.kind === "select" ||
-      command.kind === "writingSelect" ||
-      (receipt.sessionId === command.payload.sessionId &&
-        receipt.runId === command.payload.runId)) &&
-    receipt.owner.profileId === command.owner.profileId &&
-    receipt.owner.generation === command.owner.generation &&
+    matchesCommandReceipt({ command, receipt }) &&
     projection.owner.profileId === receipt.owner.profileId &&
     projection.owner.generation === receipt.owner.generation &&
     projection.sessionId === receipt.sessionId &&
     projection.runId === receipt.runId &&
     projection.packageHash === receipt.packageHash &&
-    projection.packageHash === command.payload.packageHash &&
     (command.scope.kind === "profile"
       ? projection.profileRevision
       : projection.revision) === receipt.revision
   );
+}
+function targetFor(expectation: ReadExpectation): CourseReadTarget {
+  if (expectation.kind !== "receipt") return { kind: "cursor" };
+  if (
+    !matchesCommandReceipt({
+      command: expectation.prepared.command,
+      receipt: expectation.receipt,
+    })
+  )
+    throw new Error("The saved reading place did not match this save.");
+  return { kind: "accepted", receipt: expectation.receipt };
 }
 const readOnlyControls: PracticeControlsSummary = Object.freeze({
   kind: "readOnly",
@@ -342,7 +364,8 @@ export function createCommittedTeaching({
     if (expectation.kind === "receipt") {
       if (
         expectation.restoreBinding.kind === "reconciled" &&
-        !read.application
+        (!read.application ||
+          expectation.prepared.command.kind === "writingControl")
       ) {
         if (
           canonical(view) !== canonical(expectation.restoreBinding.projection)
@@ -402,11 +425,7 @@ export function createCommittedTeaching({
       queryKey,
       staleTime: 0,
       queryFn: async () => {
-        const value = await repository.read(
-          expectation.kind === "receipt"
-            ? { kind: "accepted", receipt: expectation.receipt }
-            : { kind: "cursor" },
-        );
+        const value = await repository.read(targetFor(expectation));
         if (value.projection.kind === "recovery")
           throw new TeachingRecoveryError(value.projection);
         checkRead();
@@ -431,11 +450,7 @@ export function createCommittedTeaching({
         queryKey: canonicalKey,
         queryFn: async () => {
           checkLease(readingLease);
-          const next = await repository.read(
-            expectation.kind === "receipt"
-              ? { kind: "accepted", receipt: expectation.receipt }
-              : { kind: "cursor" },
-          );
+          const next = await repository.read(targetFor(expectation));
           checkLease(readingLease);
           verify(next, expectation);
           if (JSON.stringify(keyFor(next)) !== JSON.stringify(canonicalKey))
