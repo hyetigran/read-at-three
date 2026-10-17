@@ -277,7 +277,7 @@ function ApplicationShell() {
       if (container instanceof HTMLElement)
         container.scrollTop = bookmark.scrollTop;
     } else if (bookmark.kind === "savedWork") {
-      const container = document.querySelector(".course-saved-content");
+      const container = document.querySelector(".course-saved");
       if (container instanceof HTMLElement)
         container.scrollTop = bookmark.scrollTop;
     }
@@ -318,7 +318,7 @@ function ApplicationShell() {
       .flatMap((lesson) => lesson.tasks.flatMap((task) => task.history))
       .find((work) => location.pathname === `/work/${work.runId}`);
     if (work) {
-      const container = document.querySelector(".course-saved-content");
+      const container = document.querySelector(".course-saved");
       return {
         kind: "savedWork",
         runId: work.runId,

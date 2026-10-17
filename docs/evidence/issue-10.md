@@ -1,6 +1,6 @@
 # Issue 10 implementation evidence
 
-Issue #10 is in progress on `issue-10-child-profiles`, based on merged main `b251a02`. Commits `3ca6538`, `2e4ead5` and `75b678a` implement the directory foundation, profile administration and original portrait assets. Commit `dbc5daa` implements selected-owner operations and controller adoption. The preparation compiler, provider and initial parent setup screens are implemented. Broader profile interaction and complete browser regression qualification remain pending.
+Issue #10 is in progress on `issue-10-child-profiles`, based on merged main `b251a02`. Commits `3ca6538`, `2e4ead5` and `75b678a` implement the directory foundation, profile administration and original portrait assets. Commit `dbc5daa` implements selected-owner operations and controller adoption. The preparation provider, initial setup and core profile interactions are implemented and have focused browser checks. Live-input schedules, process restart and complete browser regression qualification remain pending.
 
 ## Directory foundation
 
@@ -59,6 +59,18 @@ The first actual browser tracer was committed while the unchanged application st
 Two additional failures were reproduced before correction. Retry after a stale preparation command previously advanced to the animal form after reloading; it now stays in the guide without another administration attempt. An actual diagram decode failure previously lacked recovery; it now disables acknowledgement, shows highlighted recovery and retries the same verified payload before acknowledgement can proceed. The initial rejection probe observed the page too early, so its apparent pass was discarded and the final route was checked after the operation settled.
 
 Strict root, web and Worker checks and both pure parent-visit tests pass. The 14 original browser files remain unchanged, including all 516 expectation matchers and one ordinary `toString` call in the preservation inventory. The complete earlier teaching-browser suite has not run through the new setup flow yet. Profile creation and editing, cancellation, physical process restart, selection races, same-child return navigation, source typography and both landscape sizes still require their broader verification unit. These focused results do not complete issue #10.
+
+## Profile interaction checkpoint
+
+Root independently passes all ten focused profile cases in development and the production build, plus strict root, web and Worker checks and both pure visit tests. Creating and selecting children, optional and duplicate names, editing another child without selection, discarding drafts and renewed route gates operate through the actual Worker and OPFS. Editing B while A is selected preserves A's complete application and saved handwriting. Returning to A after selection changes preserves its course, teaching, historical work and strokes, with explicit expected profile revisions and document input fences.
+
+Map and long-menu returns restore focus and exact scroll at both target landscape sizes. Teaching returns to the same paused run and requires explicit Resume. A measured saved-work case exposed a scroll bug: the shell captured an inner element rather than the actual scrolling screen. The two corrected selectors restore the observed five-pixel origin exactly. Earlier attempts without overflow or with browser scrolling during the click are retained as observation limitations.
+
+A separate case holds an actual committed creation receipt, leaves the parent route, then loses the main-thread acknowledgement. Retry resolves the exact original command through administration recovery. It creates no duplicate child and does not revive the retired gate. This is a transport fault after a real commit; the earlier storage tests separately cover SQLite commit faults. The 14 original browser files and all their assertions remain unchanged.
+
+The private production reader component also passes exact source text and semantic formatting comparisons. Root independently reruns the corrected comparison over 97 fields and all 46 source marks. It catches deliberate DOM removals of partial bold and underline while preserving exact text. The earlier part-based audit had an insufficient partial-range comparison; its reports remain intact and its mark claim is superseded by this check. Component evidence does not qualify full application gates or storage.
+
+The minimum 900-by-600 map check found that the new profile button covers part of Lesson 6. Its layout fix remains pending. Physical browser process restart, unsupported stored-avatar rendering, active handwriting contact, held cues, live Undo after switching, late callback schedules, preparation availability and the complete earlier browser suite also remain pending. These focused checkpoints do not complete issue #10.
 
 ## Original portrait assets
 
