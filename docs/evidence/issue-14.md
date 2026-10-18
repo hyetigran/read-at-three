@@ -1,6 +1,6 @@
 # Issue 14 implementation evidence
 
-Issue [#14](https://github.com/hyetigran/read-at-three/issues/14) adds Lesson 3 Tasks 3 and 5. Implementation and focused checks are complete. Full regression suites, independent compatibility and built verification, final review, exact-head CI and merge remain outstanding. This record will distinguish those gates as their actual results arrive.
+Issue [#14](https://github.com/hyetigran/read-at-three/issues/14) adds Lesson 3 Tasks 3 and 5. The oral implementation and its independent source, compatibility and built checks are complete. Complete local suites passed at the earlier reviewed head. Its CI exposed an existing OPFS initialization defect; the focused correction passes, while full current-head suites, fresh review, CI and merge remain outstanding.
 
 Supplied curriculum, source scans, review maps and development packages remain private. Public behavioral fixtures contain synthetic added copy. Engineering implementation does not authorize public curriculum distribution, native delivery or the complete SPA handoff.
 
@@ -22,8 +22,18 @@ The existing control engine now advances through the active cycle's bound occurr
 
 The focused pure regression fails before the correction and passes afterward. It executes every required response, multiple complete additional cycles and final parent readiness with serialized position validation. Focused real SQLite tests pass physical close/reopen, pause/resume, Back separately from Undo, before-COMMIT rollback, committed acknowledgement loss and exact Retry. Every support route retains the independent owed response until retest.
 
+## OPFS acquisition correction
+
+[CI run 39080150783](https://github.com/hyetigran/read-at-three/actions/runs/39080150783) passes 364 Node and 123 development browser tests. Production passes 120 tests, skips two existing development-only cases, and fails the original complete pool-byte preservation test. The production failure is retained. Ten unchanged focused local repetitions pass but do not resolve it.
+
+The pinned initializer can interpret and truncate an acquired unused file before another handle acquisition fails. Its pending sibling can also acquire a handle after cleanup. Real native-OPFS probes reproduce both mechanisms using explicitly synthesized residual bytes, with complete before/after file images and actual lock-reacquisition checks. The original CI image is unavailable, so its precise originating interruption is not claimed. Root independently observes the full-byte preservation assertion fail on the unchanged build.
+
+The existing checked transform now waits for every parallel acquisition outcome before interpreting metadata. Any failed acquisition closes all successful handles and propagates the original error. Successful completion order and return shape remain intact. The exact dependency checksum and method-occurrence guards fail closed. No dependency, teaching, curriculum, database or ink version changes.
+
+Two new public native regressions fail before the correction and pass afterward. They retain complete file-name, size and hash equality, actual native ordering and lock release, and exact saved teaching recovery. Both new cases and the untouched original held-file test pass in development and production. No timeout, retry or expected-hash relaxation masks the failure.
+
 ## Qualification status
 
-All three TypeScript projects, validator and migration freshness, portable boundaries and default whole-project formatting pass at the frozen implementation checkpoint. Focused neutral browser checks pass all three supported landscape sizes. Focused actual-source SQLite checks pass. Full Node, development browser and production browser suites are running against the frozen application source.
+Earlier complete local qualification at the cleanup-only head passed 364 Node tests, 123 development browser tests and 121 production browser tests with two existing skips. Independent source, compatibility and built reviews also passed. Those results remain historical evidence, separate from the failed CI and corrected initialization path.
 
-Independent qualification is checking complete prior API/SQL expectations, real saved-state activation, actual source rendering and physical browser restarts. These remain pending rather than inferred from focused tests. Native touch/stylus behavior, physical OS lifecycle, signed distribution and public content approval remain later gates.
+The corrected transform passes both new native cases and the original held-file case in each browser mode. All three TypeScript projects and exact transform guard probes pass. Current-head full suites, independent review and exact-head CI remain required before merge. Native touch/stylus behavior, physical OS lifecycle, signed distribution and public content approval remain later gates.
