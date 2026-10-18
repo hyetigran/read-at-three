@@ -10,6 +10,8 @@ import { selectionValidationSchemas } from "../../packages/teaching/src/selectio
 
 import { preparationValidationSchemas } from "../../packages/teaching/src/preparation-schemas.ts";
 
+import { publicationEnvelopeSchema } from "../../packages/teaching/src/publication-schemas.ts";
+
 const arguments_ = process.argv.slice(2);
 if (arguments_.some((argument) => argument !== "--check")) {
   throw new Error("Usage: generate-validators.ts [--check]");
@@ -185,7 +187,29 @@ const preparationDeclarations =
         `export declare const ${name}: ValidateFunction<${domain}>;`,
     )
     .join("\n");
+const publicationAjv = new AjvJTD({ code: { source: true, esm: true } });
+publicationAjv.addSchema(
+  publicationEnvelopeSchema,
+  "validatePublicationEnvelope",
+);
+const publicationJavascript = standaloneCode(publicationAjv, {
+  validatePublicationEnvelope: "validatePublicationEnvelope",
+});
+if (/\b(?:require|eval|Function)\b/u.test(publicationJavascript))
+  throw new Error("Unreviewed publication validator dependency");
+const publicationDeclarations =
+  'import type { ValidateFunction } from "ajv";\nimport type { PublicationEnvelope } from "./publication-schemas.ts";\nexport declare const validatePublicationEnvelope: ValidateFunction<PublicationEnvelope>;\n';
 for (const { filename, source, parser } of [
+  {
+    filename: "generated-publication-validators.js",
+    source: publicationJavascript,
+    parser: "babel",
+  },
+  {
+    filename: "generated-publication-validators.d.ts",
+    source: publicationDeclarations,
+    parser: "typescript",
+  },
   {
     filename: "generated-preparation-validators.js",
     source: preparationJavascript,

@@ -79,3 +79,24 @@ export {
   printedDiagramAsset,
   printedBoardAssetHash,
 } from "./printed-assets.ts";
+
+export {
+  publicationLimits,
+  publicationUtf8,
+  parseCanonicalPublicationJson,
+  decodePublicationSignature,
+  requireEd25519Spki,
+  verifyPublication,
+  verifyPublicationResource,
+} from "./publication.ts";
+export type {
+  PublicationHash,
+  PublicationCrypto,
+  PublicationTrustKey,
+  VerifiedPublication,
+} from "./publication.ts";
+export type {
+  ManifestBody,
+  PublicationEnvelope,
+  PublicationResource,
+} from "./publication-schemas.ts";

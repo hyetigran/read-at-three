@@ -1,5 +1,6 @@
 import type { RuntimePackage } from "./course-content.ts";
 export type IdKind =
+  | "asset"
   | "profile"
   | "session"
   | "run"
