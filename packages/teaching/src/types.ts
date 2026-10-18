@@ -115,11 +115,12 @@ export type PrintedCue = Readonly<
       preparation: "touchStart" | "parentControlledStartHold";
     }
 >;
-export type PrintedBoard = Readonly<{
-  assetId: "single-a" | "vertical-mas" | "two-above-one-mas";
-  reviewId: "printed-boards-l03-v1";
-  assetHash: string;
-}>;
+export type PrintedBoard = {
+  [K in keyof typeof import("./printed.ts").reviewedPrintedBoards]: Pick<
+    (typeof import("./printed.ts").reviewedPrintedBoards)[K],
+    "assetId" | "reviewId" | "assetHash"
+  >;
+}[keyof typeof import("./printed.ts").reviewedPrintedBoards];
 export type BoardPresentation = Readonly<{
   kind: "printedBoard";
   board: PrintedBoard;
@@ -601,7 +602,7 @@ export type ControlSource = Readonly<{
 }>;
 export type ConnectedPointingPresentation = Readonly<{
   kind: "connectedPointing";
-  board: "am" | "sa";
+  board: keyof typeof import("./connected-pointing.ts").connectedPointingBoards;
   role: "model" | "follow" | "guided";
 }>;
 export type ControlTurnNode = ControlSource &

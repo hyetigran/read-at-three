@@ -3,6 +3,7 @@ import {
   reviewedPrintedCourseExtension,
   reviewedOralCourseExtension,
   reviewedConnectedCourseExtension,
+  reviewedLessonFourCourseExtension,
   parseExtensionReview,
 } from "./extension.ts";
 import { createHash } from "node:crypto";
@@ -578,8 +579,50 @@ export async function prepareCourseContent(input: { fixture: boolean }) {
       throw new Error("Connected extension package identity changed");
     if (connected.body.coverage !== "course-development-v4")
       throw new Error("Expected reviewed connected capability");
-    body = connected.body;
-    value = { formatVersion: 1, packageHash: connected.packageHash, body };
+    if (
+      connected.packageHash !==
+      "06ab8b8ec07c2aecfc357793cbba68ace83c33abf2c489e14b84b96336c3b076"
+    )
+      throw new Error(
+        "Lesson four extension requires the exact accepted issue-15 predecessor",
+      );
+    const lessonFourBytes = await readFile(
+      resolve(root, ".local/runtime/lesson-04-development-package.json"),
+    );
+    const lessonFourReview = parseExtensionReview(
+      JSON.parse(
+        await readFile(
+          resolve(root, ".local/runtime/lesson-04-input-review.json"),
+          "utf8",
+        ),
+      ),
+    );
+    if (
+      lessonFourReview.basePackageHash !== connected.packageHash ||
+      lessonFourReview.candidateSha256 !== digest(lessonFourBytes) ||
+      canonical(lessonFourReview.sourceInputs) !==
+        canonical([...review.sources, ...review.scans])
+    )
+      throw new Error(
+        "Lesson four extension review does not match exact predecessor and source inputs",
+      );
+    for (const item of lessonFourReview.evidenceInputs)
+      if (digest(await readFile(resolve(root, item.path))) !== item.sha256)
+        throw new Error(
+          "Lesson four extension authoring evidence changed; review again",
+        );
+    const lessonFour = await reviewedLessonFourCourseExtension({
+      previous: connected,
+      candidate: JSON.parse(lessonFourBytes.toString("utf8")),
+      hash,
+    });
+    if (
+      lessonFour.packageHash !== lessonFourReview.packageHash ||
+      lessonFour.body.coverage !== "course-development-v4"
+    )
+      throw new Error("Reviewed lesson four package identity changed");
+    body = lessonFour.body;
+    value = { formatVersion: 1, packageHash: lessonFour.packageHash, body };
   }
   const path = resolve(
     root,
@@ -605,7 +648,7 @@ export async function prepareCourseContent(input: { fixture: boolean }) {
           sources: review.sources,
           scans: review.scans,
           scope:
-            "Six supplied lesson catalogs, 45 ordered tasks; complete executable Lessons 1, 2 and 3, including connected pointing Tasks 6 and 7 and optional writing Task 8. Publication remains unapproved.",
+            "Six supplied lesson catalogs, 45 ordered tasks; complete executable Lessons 1 through 4, including all seven Lesson 4 tasks and optional writing. Publication remains unapproved.",
           lessons: review.lessons,
           laterTeaching:
             "Absent. Metadata does not create instructional definitions or completion credit.",

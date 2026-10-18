@@ -233,3 +233,62 @@ export async function reviewedConnectedCourseExtension(input: {
   }
   return candidate;
 }
+
+export async function reviewedLessonFourCourseExtension(input: {
+  previous: RuntimePackage;
+  candidate: unknown;
+  hash: HashFunction;
+}) {
+  const candidate = await parseRuntimePackage(input.candidate, input.hash);
+  if (
+    input.previous.body.coverage !== "course-development-v4" ||
+    candidate.body.coverage !== "course-development-v4" ||
+    !candidate.body.requiredEngineCapabilities.includes(
+      "reviewed-board-layouts-l04-v1",
+    ) ||
+    !cumulativeExtension({ previous: input.previous, candidate })
+  )
+    throw new Error(
+      "Lesson four extension must preserve exact predecessor curriculum",
+    );
+  if (
+    canonical(
+      input.previous.body.lessons.map(
+        ({ tasks: _tasks, ...catalog }) => catalog,
+      ),
+    ) !==
+    canonical(
+      candidate.body.lessons.map(({ tasks: _tasks, ...catalog }) => catalog),
+    )
+  )
+    throw new Error("Lesson four extension changed source catalog");
+  for (const [index, lesson] of candidate.body.lessons.entries()) {
+    const before = input.previous.body.lessons[index];
+    if (!before)
+      throw new Error("Lesson four extension changed lesson catalog");
+    if (index === 3) {
+      if (
+        before.tasks.length !== 0 ||
+        canonical(lesson.tasks.map((entry) => entry.task.number)) !==
+          canonical([1, 2, 3, 4, 5, 6, 7]) ||
+        canonical(lesson.tasks.map((entry) => entry.kind)) !==
+          canonical([
+            "printedGraphV2",
+            "graphControls",
+            "printedGraphV2",
+            "graphControls",
+            "graphControls",
+            "graphControls",
+            "writingPracticePlanV2",
+          ])
+      )
+        throw new Error(
+          "Lesson four extension requires all seven reviewed tasks",
+        );
+    } else if (canonical(lesson.tasks) !== canonical(before.tasks))
+      throw new Error(
+        "Lesson four extension changed predecessor task definitions",
+      );
+  }
+  return candidate;
+}

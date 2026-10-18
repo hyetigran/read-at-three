@@ -1,3 +1,4 @@
+import { deepFreeze } from "./identity.ts";
 import { printedGlyphAssets } from "./printed-assets.ts";
 import type { ConnectedPointingPresentation } from "./types.ts";
 
@@ -33,10 +34,29 @@ export const connectedPointingGeometry = {
     { x: 325, y: 0, width: 310, height: 235 },
   ],
 } as const;
-export const connectedPointingBoards = {
-  am: { glyphs: ["a", "m"], geometry: connectedPointingGeometry },
-  sa: { glyphs: ["s", "a"], geometry: connectedPointingGeometry },
-} as const;
+export const connectedPointingBoards = deepFreeze({
+  ma: {
+    reviewId: "connected-pointing-l04-v1",
+    assetHash:
+      "49bbbf47cb3dc9f6671483146edc219b8f98113698ce9d54bab3f1d9922a17a6",
+    glyphs: ["m", "a"],
+    geometry: connectedPointingGeometry,
+  },
+  am: {
+    reviewId: "connected-pointing-l03-v1",
+    assetHash:
+      "b8e9fe9a3e39ebc3802f12931890ba0be4902e794efc79d7b341f4f5d5c305d4",
+    glyphs: ["a", "m"],
+    geometry: connectedPointingGeometry,
+  },
+  sa: {
+    reviewId: "connected-pointing-l03-v1",
+    assetHash:
+      "d878304bef9016702b8ff63f425910c9ee99c01eb199a9ec7c1eca2ac7e0c48e",
+    glyphs: ["s", "a"],
+    geometry: connectedPointingGeometry,
+  },
+} as const);
 export type ConnectedPointingRegion = "start" | "first" | "second";
 export function connectedPointingRegion({
   x,

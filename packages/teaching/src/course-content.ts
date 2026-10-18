@@ -46,6 +46,7 @@ export type CumulativeDevelopmentBody = CumulativeBodyFields &
           | "guidance-runs-v2"
           | "printed-board-cues-v2"
           | "connected-pointing-v1"
+          | "reviewed-board-layouts-l04-v1"
         )[];
       }
     | {
