@@ -58,7 +58,8 @@ export function createWebPublicationResources(
   return {
     async download({ mode, hash, path }) {
       input.signal.throwIfAborted();
-      const url = location(mode, hash, path);
+      const url = new URL(`/_reading/download/${mode}/${hash}/${path}`, origin)
+        .href;
       const fetched = await fetch(url, {
         signal: input.signal,
         redirect: "error",

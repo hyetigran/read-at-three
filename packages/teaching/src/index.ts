@@ -119,3 +119,24 @@ export type {
   VerifiedPublicationClosure,
   PublicationClosureResult,
 } from "./publication-resources.ts";
+export {
+  ShellError,
+  shellLimits,
+  shellDescriptorPath,
+  shellServiceWorkerPath,
+  shellEntries,
+  shellResourceMedia,
+  verifyShellDescriptor,
+  verifyShellResource,
+} from "./shell.ts";
+export type {
+  ShellHash,
+  ShellPolicy,
+  VerifiedShell,
+  ShellObservation,
+} from "./shell.ts";
+export type {
+  ShellDescriptor,
+  ShellBody,
+  ShellResource,
+} from "./shell-schemas.ts";

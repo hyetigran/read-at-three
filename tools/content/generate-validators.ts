@@ -12,6 +12,8 @@ import { preparationValidationSchemas } from "../../packages/teaching/src/prepar
 
 import { publicationEnvelopeSchema } from "../../packages/teaching/src/publication-schemas.ts";
 
+import { shellDescriptorSchema } from "../../packages/teaching/src/shell-schemas.ts";
+
 const arguments_ = process.argv.slice(2);
 if (arguments_.some((argument) => argument !== "--check")) {
   throw new Error("Usage: generate-validators.ts [--check]");
@@ -199,7 +201,26 @@ if (/\b(?:require|eval|Function)\b/u.test(publicationJavascript))
   throw new Error("Unreviewed publication validator dependency");
 const publicationDeclarations =
   'import type { ValidateFunction } from "ajv";\nimport type { PublicationEnvelope } from "./publication-schemas.ts";\nexport declare const validatePublicationEnvelope: ValidateFunction<PublicationEnvelope>;\n';
+const shellAjv = new AjvJTD({ code: { source: true, esm: true } });
+shellAjv.addSchema(shellDescriptorSchema, "validateShellDescriptor");
+const shellJavascript = standaloneCode(shellAjv, {
+  validateShellDescriptor: "validateShellDescriptor",
+});
+if (/\b(?:require|eval|Function)\b/u.test(shellJavascript))
+  throw new Error("Unreviewed shell validator dependency");
+const shellDeclarations =
+  'import type { ValidateFunction } from "ajv";\nimport type { ShellDescriptor } from "./shell-schemas.ts";\nexport declare const validateShellDescriptor: ValidateFunction<ShellDescriptor>;\n';
 for (const { filename, source, parser } of [
+  {
+    filename: "generated-shell-validators.js",
+    source: shellJavascript,
+    parser: "babel",
+  },
+  {
+    filename: "generated-shell-validators.d.ts",
+    source: shellDeclarations,
+    parser: "typescript",
+  },
   {
     filename: "generated-publication-validators.js",
     source: publicationJavascript,
