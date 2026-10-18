@@ -1100,3 +1100,13 @@
   fill: #d72665;
   pointer-events: none;
 }
+
+.teaching-connected-child-voiced .teaching-connected-board {
+  height: 300px;
+  max-height: none;
+}
+
+.teaching-printed-board:has(.teaching-connected-child-voiced) .teaching-arena {
+  min-width: 0;
+  padding: 0;
+}

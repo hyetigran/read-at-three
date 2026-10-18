@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import type { BoardPresentation } from "@readatthree/teaching";
 import {
-  reviewedPrintedBoards,
+  allReviewedPrintedBoards,
+  lessonFiveCompletionAssetPayload,
   printedDiagramAsset,
   compactPrintedGeometry,
 } from "@readatthree/teaching";
@@ -100,7 +101,10 @@ export function PrintedBoardActivity({
     publish({ stage, contact, generation: token });
     if (stage === "startTouch")
       schedule(
-        intent.kind === "underSymbolHold" ? "movingUnder" : "movingEnd",
+        intent.kind === "underSymbolHold" ||
+          intent.kind === "rhymeHoldThenSweep"
+          ? "movingUnder"
+          : "movingEnd",
         contact,
         250,
         token,
@@ -122,7 +126,18 @@ export function PrintedBoardActivity({
   function release(contact: Contact) {
     if (!matches(contact)) return;
     const active = current.current;
-    if (!blocked.current && active.stage === "startHold") {
+    if (
+      !blocked.current &&
+      intent.kind === "rhymeHoldThenSweep" &&
+      active.stage === "underHold"
+    ) {
+      publish({
+        stage: "releasedSweep",
+        contact: null,
+        generation: active.generation,
+      });
+      schedule("endpointFeedback", null, 150, active.generation);
+    } else if (!blocked.current && active.stage === "startHold") {
       publish({
         stage: "releasedSweep",
         contact: null,
@@ -145,7 +160,8 @@ export function PrintedBoardActivity({
       document.removeEventListener("visibilitychange", end);
     };
   }, []);
-  const board = reviewedPrintedBoards[presentation.board.assetId];
+  const board = allReviewedPrintedBoards[presentation.board.assetId];
+  const rhyme = presentation.board.assetId === "single-m-rhyme-l05";
   const stage = disabled ? "idle" : run.stage;
   const markerPosition =
     stage === "underHold" || stage === "movingUnder"
@@ -160,14 +176,20 @@ export function PrintedBoardActivity({
         : printedDiagramAsset.start;
   return (
     <div
-      className={`printed-board-activity${board.layout === "verticalFour" ? " printed-board-compact" : ""}`}
+      className={`printed-board-activity${board.layout === "verticalFour" ? " printed-board-compact" : ""}${rhyme ? " printed-board-rhyme" : ""}`}
       style={
         board.layout === "verticalFour"
           ? {
               width: compactPrintedGeometry.width,
               height: compactPrintedGeometry.height,
             }
-          : undefined
+          : rhyme
+            ? {
+                width: lessonFiveCompletionAssetPayload.single.width,
+                height: lessonFiveCompletionAssetPayload.single.height,
+                padding: 0,
+              }
+            : undefined
       }
     >
       <div
@@ -194,7 +216,15 @@ export function PrintedBoardActivity({
                     width: compactPrintedGeometry.width,
                     gridTemplateRows: `${compactPrintedGeometry.glyphHeight}px minmax(0,1fr)`,
                   }
-                : undefined
+                : rhyme
+                  ? {
+                      width: lessonFiveCompletionAssetPayload.single.width,
+                      height: lessonFiveCompletionAssetPayload.single.height,
+                      maxHeight: "none",
+                      padding: 0,
+                      gridTemplateRows: "250px 52px",
+                    }
+                  : undefined
             }
             data-target={glyph}
             data-focused={glyph === presentation.focus}
@@ -212,7 +242,9 @@ export function PrintedBoardActivity({
                       height: compactPrintedGeometry.diagramHeight,
                       top: compactPrintedGeometry.diagramTop,
                     }
-                  : { aspectRatio: `${diagramWidth} / ${diagramHeight}` }
+                  : rhyme
+                    ? { width: 310, height: 52 }
+                    : { aspectRatio: `${diagramWidth} / ${diagramHeight}` }
               }
             >
               <svg

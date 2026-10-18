@@ -1,3 +1,4 @@
+import { lessonFiveCompletionAssetHash } from "./generated-lesson-five-completion-asset-hash.ts";
 import { deepFreeze } from "./identity.ts";
 import {
   printedBoardAssetHash,
@@ -62,6 +63,19 @@ export const reviewedPrintedBoards = deepFreeze({
   ...historicalReviewedPrintedBoards,
   ...lessonFivePrintedBoards,
 });
+export const lessonFiveCompletionBoards = deepFreeze({
+  "single-m-rhyme-l05": {
+    assetId: "single-m-rhyme-l05",
+    reviewId: "rhyming-connected-writing-l05-v1",
+    assetHash: lessonFiveCompletionAssetHash,
+    layout: "single",
+    targets: ["m"],
+  },
+} as const);
+export const allReviewedPrintedBoards = deepFreeze({
+  ...reviewedPrintedBoards,
+  ...lessonFiveCompletionBoards,
+});
 export function resolvePrintedPresentation(presentation: BoardPresentation) {
   validateBoardPresentation(presentation);
   return presentation;
@@ -71,13 +85,13 @@ export function validateBoardPresentation(
 ): void {
   if (
     presentation.board.reviewId !==
-      reviewedPrintedBoards[presentation.board.assetId].reviewId ||
+      allReviewedPrintedBoards[presentation.board.assetId].reviewId ||
     presentation.board.assetHash !==
-      reviewedPrintedBoards[presentation.board.assetId].assetHash
+      allReviewedPrintedBoards[presentation.board.assetId].assetHash
   )
     throw new Error("Printed asset review changed");
   const targets: readonly PrintedGlyph[] =
-    reviewedPrintedBoards[presentation.board.assetId].targets;
+    allReviewedPrintedBoards[presentation.board.assetId].targets;
   if (!targets.includes(presentation.focus))
     throw new Error("Printed focus is absent from reviewed board");
   if (
@@ -102,7 +116,16 @@ export function validateControlPrintedTurn(
   if (node.presentation.kind !== "printedBoard") return;
   validateBoardPresentation(node.presentation);
   const cue = node.presentation.cue;
-  if (cue.kind !== "childUnderSymbol" && node.parentRole === "together")
+  if (
+    cue.kind === "rhymeHoldThenSweep" &&
+    presentationIsNotRhyme(node.presentation)
+  )
+    throw new Error("Rhyme hold requires reviewed initial m");
+  if (
+    cue.kind !== "childUnderSymbol" &&
+    cue.kind !== "rhymeHoldThenSweep" &&
+    node.parentRole === "together"
+  )
     throw new Error("Parent pointing does not have together delivery");
   if (
     cue.kind === "childUnderSymbol" &&
@@ -112,4 +135,11 @@ export function validateControlPrintedTurn(
         : node.parentRole !== "together" || node.route !== "support"))
   )
     throw new Error("Child pointing participant does not match its delivery");
+}
+
+function presentationIsNotRhyme(presentation: BoardPresentation) {
+  return (
+    presentation.board.assetId !== "single-m-rhyme-l05" ||
+    presentation.focus !== "m"
+  );
 }

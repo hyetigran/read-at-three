@@ -35,6 +35,10 @@ export function ParentSpanText({ span }: { span: ParentSpan }) {
       <strong key={index}>
         <CopyText copy={run.copy} />
       </strong>
+    ) : run.emphasis === "italic" ? (
+      <em key={index}>
+        <CopyText copy={run.copy} />
+      </em>
     ) : (
       <span key={index}>
         <CopyText copy={run.copy} />

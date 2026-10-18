@@ -1,8 +1,27 @@
 import { deepFreeze } from "./identity.ts";
-import { printedGlyphAssets } from "./printed-assets.ts";
+import { currentPrintedGlyphAssets } from "./printed-assets.ts";
 import type { ConnectedPointingPresentation } from "./types.ts";
 
+import { lessonFiveCompletionAssetHash } from "./generated-lesson-five-completion-asset-hash.ts";
 export const connectedPointingRoles = {
+  echo: {
+    parentRole: "listen",
+    voice: "child",
+    pointer: "none",
+    label: "Child voices · Parent listens",
+  },
+  childConnect: {
+    parentRole: "listen",
+    voice: "child",
+    pointer: "child",
+    label: "Child voices and points · Parent listens",
+  },
+  togetherGuided: {
+    parentRole: "together",
+    voice: "both",
+    pointer: "parentGuidesChild",
+    label: "Parent and child voice · Parent guides child’s finger",
+  },
   model: {
     parentRole: "model",
     voice: "parent",
@@ -35,6 +54,18 @@ export const connectedPointingGeometry = {
   ],
 } as const;
 export const connectedPointingBoards = deepFreeze({
+  ēm: {
+    reviewId: "rhyming-connected-writing-l05-v1",
+    assetHash: lessonFiveCompletionAssetHash,
+    glyphs: ["ē", "m"],
+    geometry: connectedPointingGeometry,
+  },
+  ēs: {
+    reviewId: "rhyming-connected-writing-l05-v1",
+    assetHash: lessonFiveCompletionAssetHash,
+    glyphs: ["ē", "s"],
+    geometry: connectedPointingGeometry,
+  },
   ma: {
     reviewId: "connected-pointing-l04-v1",
     assetHash:
@@ -79,7 +110,7 @@ export function connectedPointingSvg(
     geometry = asset.geometry;
   const glyphs = asset.glyphs
     .map((key, index) => {
-      const glyph = printedGlyphAssets[key],
+      const glyph = currentPrintedGlyphAssets[key],
         placement = geometry.glyphs[index];
       if (!placement) throw new Error("Missing connected glyph placement");
       return `<svg x="${placement.x}" y="${placement.y}" width="${placement.width}" height="${placement.height}" viewBox="0 0 310 250"><path d="${glyph.path}" fill-rule="${glyph.fillRule}"${glyph.transform ? ` transform="${glyph.transform}"` : ""}/></svg>`;
