@@ -36,6 +36,8 @@ The retained migration test reaches genuine version 11 after a lost acknowledgem
 
 The development support-information test also expects database version 11 while the application correctly reports 12. Its literal expectation changes to 12; its bounded metadata, origin scope, codec and no-mutation checks remain. Application code is unchanged by these test corrections.
 
+The first complete production browser attempt reports 122 passes, two existing skips and four failures. Two lesson-sequence cases exceed their deadlines; the support case has the version expectation above. The remaining failure occurs before cue contact because the test installs an advancing simulated clock and then pauses it at the same, already-past instant. A neutral real Chromium reproduction forces that setup failure. Direct Playwright `pauseAt` installs the clock as needed and freezes it at the target. Removing the redundant install call preserves every cue assertion and the exact 250, 150, 2999 and 1 millisecond advances. Both production cue cases then pass. No application, timeout or retry changes mask these failures.
+
 ## Remaining qualification
 
 Type checking, generated validator freshness, migration freshness and module boundaries pass. Default whole-project formatting passes. Successful full Node qualification remains required after the migration test correction. Development and production browser regressions are running and have reported failures that require terminal diagnostics and resolution. No full regression success is claimed.
