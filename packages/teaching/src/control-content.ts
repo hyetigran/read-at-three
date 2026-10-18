@@ -1,3 +1,4 @@
+import { connectedPointingRoles } from "./connected-pointing.ts";
 import { guidanceCopies } from "./guidance.ts";
 import { canonical } from "./identity.ts";
 import type {
@@ -103,6 +104,15 @@ export function compileControlTask(task: ControlTask): CompiledControlTask {
         )
       )
         throw new Error("Control guidance source missing");
+    if (
+      n.kind === "turn" &&
+      n.presentation.kind === "connectedPointing" &&
+      (n.parentRole !==
+        connectedPointingRoles[n.presentation.role].parentRole ||
+        (n.presentation.role === "guided" && n.route !== "support") ||
+        n.itemId === null)
+    )
+      throw new Error("Connected pointing role does not match its delivery");
     if (n.kind !== "untilFirm") continue;
     if (policies.has(n.policyId)) throw new Error("Duplicate readiness policy");
     const normalOwner = normalNodeIds.includes(n.id);
@@ -210,6 +220,41 @@ export function compileControlTask(task: ControlTask): CompiledControlTask {
     )
       throw new Error("Invalid correction routes");
     corrections.add(c.id);
+    const pointingEligible = c.eligibleNodeIds
+      .map((id) => nodes.get(id))
+      .filter(
+        (n) =>
+          n?.kind === "turn" && n.presentation.kind === "connectedPointing",
+      );
+    if (pointingEligible.length > 0) {
+      for (const id of c.eligibleNodeIds) {
+        const eligible = nodes.get(id);
+        if (
+          eligible?.kind !== "turn" ||
+          eligible.presentation.kind !== "connectedPointing" ||
+          eligible.presentation.role !== "follow"
+        )
+          throw new Error("Connected pointing Help requires a child follow");
+        for (const [ids, role] of [
+          [c.instructionNodeIds, "guided"],
+          [c.retestNodeIds, "follow"],
+        ] as const) {
+          for (const routeId of ids) {
+            const routeNode = nodes.get(routeId);
+            if (routeNode?.kind === "untilFirm" && role === "guided") continue;
+            if (
+              routeNode?.kind !== "turn" ||
+              routeNode.presentation.kind !== "connectedPointing" ||
+              routeNode.presentation.role !== role ||
+              routeNode.presentation.board !== eligible.presentation.board
+            )
+              throw new Error(
+                "Connected pointing correction must preserve board and participants",
+              );
+          }
+        }
+      }
+    }
     for (const id of c.eligibleNodeIds) {
       const n = nodes.get(id);
       if (

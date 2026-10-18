@@ -2,7 +2,7 @@ import type { HashFunction } from "../../teaching/src/index.ts";
 import type { SqlExecutor } from "./executor.ts";
 import { migrations } from "./generated-migration.ts";
 export { migrationStatements } from "./generated-migration.ts";
-export const DATABASE_VERSION = 11;
+export const DATABASE_VERSION = 12;
 export type MigrationDataHook = (
   version: number,
 ) => Promise<(() => Promise<void>) | undefined>;
@@ -115,19 +115,21 @@ export async function initializeDatabase(
               })
             : undefined;
         const packageCreate =
-          /^CREATE TABLE installed_package(?:_v10|_v11)? /.test(original);
+          /^CREATE TABLE installed_package(?:_v10|_v11|_v12)? /.test(original);
         const statement =
           packageCreate && appliedVersion >= 10
             ? original
                 .replace(
-                  /^CREATE TABLE installed_package(?:_v10|_v11)? /,
+                  /^CREATE TABLE installed_package(?:_v10|_v11|_v12)? /,
                   'CREATE TABLE "installed_package" ',
                 )
                 .replace(
-                  /CHECK\(content_schema_version(?:=1| IN \(1,2\)| IN \(1,2,3\))\)/,
-                  appliedVersion >= 11
-                    ? "CHECK(content_schema_version IN (1,2,3))"
-                    : "CHECK(content_schema_version IN (1,2))",
+                  /CHECK\(content_schema_version(?:=1| IN \(1,2\)| IN \(1,2,3\)| IN \(1,2,3,4\))\)/,
+                  appliedVersion >= 12
+                    ? "CHECK(content_schema_version IN (1,2,3,4))"
+                    : appliedVersion >= 11
+                      ? "CHECK(content_schema_version IN (1,2,3))"
+                      : "CHECK(content_schema_version IN (1,2))",
                 )
             : (replacement ?? original);
         if (!statement.startsWith("CREATE ")) continue;

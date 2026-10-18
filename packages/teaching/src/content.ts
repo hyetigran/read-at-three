@@ -339,6 +339,7 @@ export function graphTask(
     content.body.coverage === "course-development" ||
     content.body.coverage === "course-development-v2" ||
     content.body.coverage === "course-development-v3" ||
+    content.body.coverage === "course-development-v4" ||
     content.body.coverage === "lesson1-sounds-oral-complete" ||
     content.body.coverage === "lesson1-complete"
   ) {
@@ -368,6 +369,7 @@ export function taskDefinition({
     content.body.coverage === "course-development" ||
     content.body.coverage === "course-development-v2" ||
     content.body.coverage === "course-development-v3" ||
+    content.body.coverage === "course-development-v4" ||
     content.body.coverage === "lesson1-sounds-oral-complete" ||
     content.body.coverage === "lesson1-complete"
   ) {

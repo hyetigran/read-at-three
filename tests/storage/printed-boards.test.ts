@@ -25,7 +25,7 @@ test("printed slow acceptance leaves fast due through physical SQLite reopen and
   assert.equal(view.kind, "teaching");
   if (view.kind !== "teaching") throw new Error("Fast response required");
   assert.equal(view.turn.id, "fixture.board.fast");
-  assert.equal(first.db.prepare("PRAGMA user_version").get()?.user_version, 11);
+  assert.equal(first.db.prepare("PRAGMA user_version").get()?.user_version, 12);
   const before = view;
   first.db.close();
   const next = f.connect();
@@ -186,7 +186,7 @@ test("printed correction retests the first response and leaves Again owed from b
 import { migrations } from "../../packages/storage/src/generated-migration.ts";
 import { initializeDatabase } from "../../packages/storage/src/migration.ts";
 import { executorFor } from "./support.ts";
-test("V11 migration rolls back the whole V10 file on refused COMMIT and retries a lost acknowledgement without changing installed manifests", async (t) => {
+test("V11 migration rolls back the whole V10 file on refused COMMIT and recovers a lost acknowledgement through current initialization without changing installed manifests", async (t) => {
   const f = await storageFixture(t);
   const { db, executor } = f.connect();
   db.exec("PRAGMA foreign_keys=ON");
@@ -255,6 +255,14 @@ test("V11 migration rolls back the whole V10 file on refused COMMIT and retries 
     /lost reply/,
   );
   assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 11);
+  assert.deepEqual(
+    db.prepare("SELECT * FROM installed_package").all(),
+    original,
+  );
+  assert.equal(db.prepare("PRAGMA foreign_keys").get()?.foreign_keys, 1);
+  assert.deepEqual(db.prepare("PRAGMA foreign_key_check").all(), []);
+  await initializeDatabase(executor, hash);
+  assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 12);
   const committed = await readFile(file);
   await initializeDatabase(executor, hash);
   assert.deepEqual(await readFile(file), committed);

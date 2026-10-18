@@ -72,7 +72,11 @@ export * from "./support.ts";
 
 export { guidanceCopies, requirePlainGuidance } from "./guidance.ts";
 
-export { printedBoardAssets, resolvePrintedPresentation } from "./printed.ts";
+export {
+  printedBoardAssets,
+  reviewedPrintedBoards,
+  resolvePrintedPresentation,
+} from "./printed.ts";
 
 export {
   printedGlyphAssets,
@@ -140,3 +144,5 @@ export type {
   ShellBody,
   ShellResource,
 } from "./shell-schemas.ts";
+
+export * from "./connected-pointing.ts";

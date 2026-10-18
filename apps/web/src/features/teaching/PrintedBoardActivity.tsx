@@ -1,7 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import type { BoardPresentation } from "@readatthree/teaching";
-import { printedBoardAssets, printedDiagramAsset } from "@readatthree/teaching";
+import {
+  reviewedPrintedBoards,
+  printedDiagramAsset,
+} from "@readatthree/teaching";
 import { SoundGlyph } from "./SoundGlyph";
 
 const diagramWidth = Number(printedDiagramAsset.viewBox.split(" ")[2]);
@@ -139,7 +142,7 @@ export function PrintedBoardActivity({
       document.removeEventListener("visibilitychange", end);
     };
   }, []);
-  const board = printedBoardAssets[presentation.board.assetId];
+  const board = reviewedPrintedBoards[presentation.board.assetId];
   const stage = disabled ? "idle" : run.stage;
   return (
     <div className="printed-board-activity">
