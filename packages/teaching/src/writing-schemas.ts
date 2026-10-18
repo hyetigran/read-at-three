@@ -998,3 +998,42 @@ export const practiceControlsSummarySchema = {
 } satisfies JSONSchemaType<
   Serialized<import("./ink.ts").PracticeControlsSummary>
 >;
+
+const absentScript = {
+  ...script,
+  properties: {
+    sourceRefs: { ...refs, minItems: 0, maxItems: 0 },
+    guidance: { ...script.properties.guidance, minItems: 0, maxItems: 0 },
+  },
+};
+export const reviewedWritingPlanSchema = {
+  ...writingPlanSchema,
+  properties: {
+    ...writingPlanSchema.properties,
+    targets: {
+      ...writingPlanSchema.properties.targets,
+      items: {
+        ...writingPlanSchema.properties.targets.items,
+        properties: {
+          ...writingPlanSchema.properties.targets.items.properties,
+          sound: {
+            ...writingPlanSchema.properties.targets.items.properties.sound,
+            properties: {
+              ...writingPlanSchema.properties.targets.items.properties.sound
+                .properties,
+              affirmation: { oneOf: [script, absentScript] },
+            },
+          },
+          tracing: {
+            ...writingPlanSchema.properties.targets.items.properties.tracing,
+            properties: {
+              ...writingPlanSchema.properties.targets.items.properties.tracing
+                .properties,
+              praise: { oneOf: [script, absentScript] },
+            },
+          },
+        },
+      },
+    },
+  },
+};

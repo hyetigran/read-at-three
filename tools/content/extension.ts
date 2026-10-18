@@ -1,9 +1,14 @@
 import {
   canonical,
   cumulativeExtension,
+  guidanceCopies,
   parseRuntimePackage,
 } from "@readatthree/teaching";
-import type { HashFunction, RuntimePackage } from "@readatthree/teaching";
+import type {
+  HashFunction,
+  ParentSpan,
+  RuntimePackage,
+} from "@readatthree/teaching";
 import { Ajv } from "ajv/dist/jtd.js";
 import type { JTDDataType, SomeJTDSchemaType } from "ajv/dist/jtd.js";
 
@@ -229,6 +234,98 @@ export async function reviewedConnectedCourseExtension(input: {
     } else if (canonical(lesson.tasks) !== canonical(before.tasks))
       throw new Error(
         "Connected extension changed predecessor task definitions",
+      );
+  }
+  return candidate;
+}
+
+function requirePopulatedSpeech(guidance: readonly ParentSpan[]) {
+  if (
+    guidance.some(
+      (span) =>
+        span.kind === "speech" &&
+        guidanceCopies(span).every((copy) => copy.text.trim().length === 0),
+    )
+  )
+    throw new Error(
+      "Lesson four guidance contains a whitespace-only speech block",
+    );
+}
+
+export async function reviewedLessonFourCourseExtension(input: {
+  previous: RuntimePackage;
+  candidate: unknown;
+  hash: HashFunction;
+}) {
+  const candidate = await parseRuntimePackage(input.candidate, input.hash);
+  if (
+    input.previous.body.coverage !== "course-development-v4" ||
+    candidate.body.coverage !== "course-development-v4" ||
+    !candidate.body.requiredEngineCapabilities.includes(
+      "reviewed-board-layouts-l04-v1",
+    ) ||
+    !cumulativeExtension({ previous: input.previous, candidate })
+  )
+    throw new Error(
+      "Lesson four extension must preserve exact predecessor curriculum",
+    );
+  if (
+    canonical(
+      input.previous.body.lessons.map(
+        ({ tasks: _tasks, ...catalog }) => catalog,
+      ),
+    ) !==
+    canonical(
+      candidate.body.lessons.map(({ tasks: _tasks, ...catalog }) => catalog),
+    )
+  )
+    throw new Error("Lesson four extension changed source catalog");
+  for (const [index, lesson] of candidate.body.lessons.entries()) {
+    const before = input.previous.body.lessons[index];
+    if (!before)
+      throw new Error("Lesson four extension changed lesson catalog");
+    if (index === 3) {
+      if (
+        before.tasks.length !== 0 ||
+        canonical(lesson.tasks.map((entry) => entry.task.number)) !==
+          canonical([1, 2, 3, 4, 5, 6, 7]) ||
+        canonical(lesson.tasks.map((entry) => entry.kind)) !==
+          canonical([
+            "printedGraphV2",
+            "graphControls",
+            "printedGraphV2",
+            "graphControls",
+            "graphControls",
+            "graphControls",
+            "writingPracticePlanV2",
+          ])
+      )
+        throw new Error(
+          "Lesson four extension requires all seven reviewed tasks",
+        );
+      for (const entry of lesson.tasks) {
+        if (entry.kind === "writingPracticePlanV2") {
+          const scripts = [
+            entry.task.introduction,
+            ...entry.task.targets.flatMap((target) => [
+              target.demonstration,
+              target.sound.prompt,
+              target.sound.expected,
+              target.sound.affirmation,
+              target.tracing.instruction,
+              target.tracing.praise,
+              target.independent.instruction,
+              target.independent.praise,
+            ]),
+          ];
+          for (const script of scripts) requirePopulatedSpeech(script.guidance);
+        } else if ("nodes" in entry.task)
+          for (const node of entry.task.nodes)
+            if ("guidance" in node) requirePopulatedSpeech(node.guidance);
+      }
+    } else if (canonical(lesson.tasks) !== canonical(before.tasks))
+      throw new Error(
+        "Lesson four extension changed predecessor task definitions",
       );
   }
   return candidate;
