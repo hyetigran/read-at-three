@@ -1,4 +1,8 @@
-import { validateBoardNode, resolvePrintedPresentation } from "./printed.ts";
+import {
+  validateBoardNode,
+  resolvePrintedPresentation,
+  validateControlPrintedTurn,
+} from "./printed.ts";
 import { guidanceCopies, requirePlainGuidance } from "./guidance.ts";
 import type { RuntimePackage } from "./course-content.ts";
 import { resolvedTask } from "./course-content.ts";
@@ -190,6 +194,18 @@ export function parseProjection(
     }
   }
   if (input.kind !== "recovery") {
+    if (
+      input.kind === "teaching" &&
+      "kind" in input.turn &&
+      input.turn.kind === "turn"
+    )
+      validateControlPrintedTurn(input.turn);
+    for (const action of input.actions)
+      if (
+        "correctionPreview" in action &&
+        action.correctionPreview.kind === "turn"
+      )
+        validateControlPrintedTurn(action.correctionPreview);
     if (
       input.kind === "teaching" &&
       "presentation" in input.turn &&

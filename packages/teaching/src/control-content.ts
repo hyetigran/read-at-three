@@ -1,3 +1,4 @@
+import { validateControlPrintedTurn } from "./printed.ts";
 import { connectedPointingRoles } from "./connected-pointing.ts";
 import { guidanceCopies } from "./guidance.ts";
 import { canonical } from "./identity.ts";
@@ -113,6 +114,7 @@ export function compileControlTask(task: ControlTask): CompiledControlTask {
         n.itemId === null)
     )
       throw new Error("Connected pointing role does not match its delivery");
+    if (n.kind === "turn") validateControlPrintedTurn(n);
     if (n.kind !== "untilFirm") continue;
     if (policies.has(n.policyId)) throw new Error("Duplicate readiness policy");
     const normalOwner = normalNodeIds.includes(n.id);

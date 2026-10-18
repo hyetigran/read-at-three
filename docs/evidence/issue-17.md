@@ -1,0 +1,33 @@
+# Issue 17 evidence
+
+Issue 17 adds Lesson 5 Tasks 1 through 6, long ē and child-owned pointing feedback. The lesson retains its nine-task catalog and remains unfinished. Parent judgments commit responses; touch, cue timing and keyboard feedback cannot grant progress. The change preserves DB12, canonical ink, command receipts and the 28 predecessor definitions.
+
+## Design and source
+
+The selected design extends the existing printed registry with a closed child cue and a private contact reducer. Parent timer feedback remains separate. The four-row presentation fits the existing landscape teaching shell. Only its scoped layout changes arena padding. The historical five-capability grammar and glyph registry remain closed; a separate sixth-capability branch admits the new content.
+
+The initial source candidate passes the book-text and teaching-flow audit, but independent review withholds approval. Its new asset digest omits geometry fields, and adding a glyph changes historical digest inputs. The corrected candidate uses a complete canonical descriptor and preserves the historical glyph view and digest. A follow-up review catches shared parent marker literals bypassing that descriptor. The final marker derives the same coordinates from the descriptor, preserving all nine stage positions and parent timer behavior. Earlier findings remain recorded.
+
+Fresh independent review approves the exact corrected candidate for local development. It checks 782 source assertions, all 20 complete instruction and correction strings, all 13 diagrams, 51 normal acceptances, an extra full oral practice cycle, all 16 child Help contexts and four earlier Help contexts. Every predecessor definition and all 45 catalog records remain exact. Added or generalized correction policies retain explicit adapted provenance. Root reads the report, inspects actual compact artwork and reruns 91 immutable bindings and six observers.
+
+The normal content CLI accepts the genuine independent record and reproduces the complete approved JSON exactly. Root checks task counts 6/7/8/7/6/0, all 28 predecessors, all 45 catalog entries and the exact added capability. Source and runtime artifacts remain private. Publication remains pending.
+
+## Historical state and focused behavior
+
+An actual-main reader is frozen before implementation from merge commit `bd704ba0ff51d0ae9d417d8fd7bae3cfda7d7438`. Its 257 files match literal Git blobs. A new corpus contains 110 real Lesson 4 database checkpoints, complete command and ink history, and 1,577 persisted exact retries. The existing 48 predecessor cases compare equal under historical and actual-main readers, including 1,075 retries. Root reruns the sealed read-only verifier with 23,400 checks. This establishes before evidence. The subsequent new-reader run passes all 158 checkpoints and 2,652 persisted retries with complete API, SQL and physical-file equality. Root reruns its read-only verifier with 3,268 checks. The uninterrupted original process exits 0; its original owner retains process observation after a cross-context tool-handle handoff fails. No qualification is restarted.
+
+Focused real SQLite tests deliver all 51 new normal responses with close/reopen and exact receipt Retry, all child Help routes, mandatory Again and whole oral replay. Browser checks exercise contact cancellation and unchanged teaching state at all three landscape sizes. An initial Repeat observer expected the normal occurrence to be consumed too early. Corrected assertions preserve both temporary practice and the original owed response. A synthetic blur observer also omitted focus restoration; the corrected test restores focus after checking cancellation. These observer failures remain retained.
+
+No immutable pre-correction component/CSS source capsule exists for the earliest development browser captures. Their logs and screenshots are retained, but they do not prove exact source-byte equality. Independent review instead freshly freezes and renders current components at 900 by 600. Actual production application qualification at all three viewports remains separate.
+
+## Current gates
+
+Whole-project default formatting, strict application and Worker types, validator and asset-identity freshness, migrations and module boundaries pass. The complete Node suite passes all 464 tests with no failures, skips or cancellations. Both genuine old-reader refusal cases preserve full SQL, physical bytes and IDs. All 28 individually rehashed predecessor mutations refuse before either output changes. Root reruns 26 refusal and 326 mutation/restoration checks.
+
+The authoring review metadata is corrected to describe complete Lessons 1–4 plus Lesson 5 Tasks 1–6. Only two tool strings and their emitted review fields change. Another normal CLI run exits 0, preserves the runtime package bytes exactly and preserves all other genuine inputs. The original mutation/restoration record is retained before this legitimate metadata change.
+
+Actual-source production verification finds two visible issues at 900 by 600. The long oral heading overlaps the profile controls, and the added Help label extends beyond its navigation button. The qualified CSS correction is integrated: a shrinkable header grid and wrapped Help text. Root checks 36 actual production states across three sizes, with exact parent, board, glyph, contact, navigation and save-anchor equality. Long headings clear profile actions and complete highlighted Help wording fits its button. The pre-existing 40-pixel Repeat height is unchanged; this is not a claim that all older support controls satisfy a 44-pixel target.
+
+The first complete production browser command exits 1 with 127 passed, two existing skips and five errors opening missing Playwright trace/network/zip files. An isolated header test omitted an explicit output directory and cleared the shared root diagnostics folder. This run is contaminated and is not a pass. Its log is retained. The isolated configuration now uses its own absolute output directory. Full browser verification is rerunning after the UI corrections, using separate absolute diagnostics directories. The development command also exits 1: 130 passed and four errors opening missing trace files from the same diagnostics incident. Neither command establishes a complete browser pass.
+
+Actual-source production Worker/OPFS qualification, UI integration, final independent Standards and Spec reviews, exact-head hosted CI and merge remain pending. No complete SPA, offline, native, physical-device or publication approval is asserted.

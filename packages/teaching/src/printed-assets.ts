@@ -40,3 +40,44 @@ export const printedDiagramAsset = {
 } as const;
 export const printedBoardAssetHash =
   "ac0c0fd66046bbfc4048f4c8b4f5334391e9ade24d79934cfc93ff770f84e2f8";
+
+export const currentPrintedGlyphAssets = {
+  ...printedGlyphAssets,
+  ē: {
+    path: "M221 156H117c3 23 16 35 38 35 16 0 28-6 35-18l33 17c-14 24-37 36-69 36-47 0-77-30-77-77 0-48 30-80 75-80 45 0 71 29 71 76Zm-42-29c-2-18-11-27-27-27-17 0-29 10-34 27ZM102 34H207V54H102Z",
+    transform: null,
+    fillRule: "evenodd",
+    sha256: "d561c63f2492ac1c4a0832aa141c224535126a2a188c19cf55c8c9ee636ea52f",
+  },
+} as const;
+export const lessonFivePrintedBoardLayouts = {
+  "single-long-e-l05": { layout: "single", targets: ["ē"] },
+  "vertical-asme-l05": {
+    layout: "verticalFour",
+    targets: ["a", "s", "m", "ē"],
+  },
+  "vertical-esma-l05": {
+    layout: "verticalFour",
+    targets: ["ē", "s", "m", "a"],
+  },
+} as const;
+export const compactPrintedGeometry = {
+  width: 280,
+  height: 320,
+  rowHeight: 80,
+  glyphHeight: 40,
+  glyphWidth: 62,
+  existingGlyphScale: 1.35,
+  diagramWidth: 244,
+  diagramTop: 33.5652,
+  diagramHeight: 27.1304,
+  contactSize: 48,
+  glyphViewBoxes: { ē: "65 25 170 210", historical: "0 0 310 250" },
+} as const;
+export const lessonFivePrintedAssetPayload = {
+  glyphs: currentPrintedGlyphAssets,
+  diagram: printedDiagramAsset,
+  layouts: lessonFivePrintedBoardLayouts,
+  compact: compactPrintedGeometry,
+} as const;
+export { lessonFivePrintedAssetHash } from "./generated-lesson-five-asset-hash.ts";

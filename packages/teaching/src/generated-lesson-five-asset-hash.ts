@@ -1,0 +1,2 @@
+export const lessonFivePrintedAssetHash =
+  "b30522c5c75297e70b31b746e34ab1fe6b8fb586826642ee50efaed02f9a6087";
