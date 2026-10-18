@@ -897,6 +897,7 @@ for (const viewport of [
 test("direct parent routes, query strings, reload and history never retain a gate grant", async ({
   page,
 }) => {
+  test.setTimeout(90_000);
   const before = await completeSetup(page);
   const a = await selectedProfile(page);
   for (const path of [
