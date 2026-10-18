@@ -80,6 +80,9 @@ export {
 
 export {
   printedGlyphAssets,
+  currentPrintedGlyphAssets,
+  compactPrintedGeometry,
+  lessonFivePrintedAssetPayload,
   printedDiagramAsset,
   printedBoardAssetHash,
 } from "./printed-assets.ts";

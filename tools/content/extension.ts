@@ -239,7 +239,10 @@ export async function reviewedConnectedCourseExtension(input: {
   return candidate;
 }
 
-function requirePopulatedSpeech(guidance: readonly ParentSpan[]) {
+function requirePopulatedSpeech(
+  guidance: readonly ParentSpan[],
+  lesson = "Lesson four",
+) {
   if (
     guidance.some(
       (span) =>
@@ -248,7 +251,7 @@ function requirePopulatedSpeech(guidance: readonly ParentSpan[]) {
     )
   )
     throw new Error(
-      "Lesson four guidance contains a whitespace-only speech block",
+      `${lesson} guidance contains a whitespace-only speech block`,
     );
 }
 
@@ -327,6 +330,82 @@ export async function reviewedLessonFourCourseExtension(input: {
       throw new Error(
         "Lesson four extension changed predecessor task definitions",
       );
+  }
+  return candidate;
+}
+
+export async function reviewedLessonFiveCourseExtension(input: {
+  previous: RuntimePackage;
+  candidate: unknown;
+  hash: HashFunction;
+}) {
+  const candidate = await parseRuntimePackage(input.candidate, input.hash);
+  if (
+    input.previous.body.coverage !== "course-development-v4" ||
+    candidate.body.coverage !== "course-development-v4" ||
+    !candidate.body.requiredEngineCapabilities.includes(
+      "child-pointed-single-sounds-l05-v1",
+    ) ||
+    !cumulativeExtension({ previous: input.previous, candidate })
+  )
+    throw new Error(
+      "Lesson five extension must preserve exact predecessor curriculum",
+    );
+  const before = input.previous.body;
+  if (
+    canonical(
+      before.lessons.map(({ tasks: _tasks, ...catalog }) => catalog),
+    ) !==
+    canonical(
+      candidate.body.lessons.map(({ tasks: _tasks, ...catalog }) => catalog),
+    )
+  )
+    throw new Error("Lesson five extension changed source catalog");
+  for (const [index, lesson] of candidate.body.lessons.entries()) {
+    const prior = before.lessons[index];
+    if (!prior) throw new Error("Lesson five extension changed lesson catalog");
+    if (index !== 4) {
+      if (canonical(lesson.tasks) !== canonical(prior.tasks))
+        throw new Error(
+          "Lesson five extension changed predecessor task definitions",
+        );
+      continue;
+    }
+    if (
+      prior.tasks.length !== 0 ||
+      canonical(lesson.tasks.map((entry) => entry.task.number)) !==
+        canonical([1, 2, 3, 4, 5, 6]) ||
+      canonical(lesson.tasks.map((entry) => entry.kind)) !==
+        canonical([
+          "printedGraphV2",
+          "printedGraphV2",
+          "graphControls",
+          "graphControls",
+          "graphControls",
+          "graphControls",
+        ])
+    )
+      throw new Error(
+        "Lesson five extension requires exactly six reviewed tasks",
+      );
+    for (const entry of lesson.tasks)
+      if ("nodes" in entry.task)
+        for (const node of entry.task.nodes)
+          if ("guidance" in node) {
+            requirePopulatedSpeech(node.guidance, "Lesson five");
+            if (
+              node.guidance.some((span) =>
+                /(^|\n)\s*>\s/.test(
+                  guidanceCopies(span)
+                    .map((copy) => copy.text)
+                    .join(""),
+                ),
+              )
+            )
+              throw new Error(
+                "Lesson five guidance contains a transcription quote marker",
+              );
+          }
   }
   return candidate;
 }

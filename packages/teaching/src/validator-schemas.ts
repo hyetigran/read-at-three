@@ -1,4 +1,7 @@
-import { reviewedPrintedBoards } from "./printed.ts";
+import {
+  reviewedPrintedBoards,
+  historicalReviewedPrintedBoards,
+} from "./printed.ts";
 import { printedBoardAssetHash } from "./printed-assets.ts";
 import { activityArtKeys } from "./course-art.ts";
 import {
@@ -660,7 +663,7 @@ const reviewedBoardPresentation = {
   properties: {
     ...boardPresentation.properties,
     board: {
-      oneOf: Object.values(reviewedPrintedBoards).map((board) =>
+      oneOf: Object.values(historicalReviewedPrintedBoards).map((board) =>
         record({
           assetId: { const: board.assetId },
           reviewId: { const: board.reviewId },
@@ -771,12 +774,121 @@ const cumulativeReviewedBoards = {
     },
   },
 };
+const currentBoardPresentation = record({
+  ...reviewedBoardPresentation.properties,
+  board: {
+    oneOf: Object.values(reviewedPrintedBoards).map((board) =>
+      record({
+        assetId: { const: board.assetId },
+        reviewId: { const: board.reviewId },
+        assetHash: { const: board.assetHash },
+      }),
+    ),
+  },
+  focus: { enum: ["m", "a", "s", "ē"] },
+  cue: {
+    oneOf: [
+      ...boardPresentation.properties.cue.oneOf,
+      record({
+        kind: { const: "childUnderSymbol" },
+        pace: { enum: ["slow", "fast"] },
+        participant: { enum: ["child", "parentGuidesChild"] },
+      }),
+    ],
+  },
+});
+const currentBoardNode = record({
+  ...reviewedBoardNode.properties,
+  presentation: currentBoardPresentation,
+});
+const currentControlTurnNode = record({
+  ...reviewedConnectedControlTurnNode.properties,
+  presentation: {
+    oneOf: [
+      ...reviewedConnectedControlTurnNode.properties.presentation.oneOf,
+      currentBoardPresentation,
+    ],
+  },
+});
+const currentControlTask = {
+  ...reviewedConnectedControlTask,
+  properties: {
+    ...reviewedConnectedControlTask.properties,
+    nodes: list(
+      { oneOf: [currentControlTurnNode, ...controlNode.oneOf.slice(1)] },
+      1000,
+      1,
+    ),
+  },
+};
+const currentBoardTask = {
+  ...reviewedBoardTask,
+  properties: {
+    ...reviewedBoardTask.properties,
+    nodes: list(currentBoardNode, 1000, 1),
+  },
+};
+const reviewedBody = cumulativeReviewedBoards.properties.body;
+const childPointedCumulative = {
+  ...cumulativeReviewedBoards,
+  properties: {
+    ...cumulativeReviewedBoards.properties,
+    body: {
+      ...reviewedBody,
+      properties: {
+        ...reviewedBody.properties,
+        requiredEngineCapabilities: {
+          ...reviewedBody.properties.requiredEngineCapabilities,
+          items: {
+            type: "string",
+            enum: [
+              ...reviewedBody.properties.requiredEngineCapabilities.items.enum,
+              "child-pointed-single-sounds-l05-v1",
+            ],
+          },
+          minItems: 6,
+          maxItems: 6,
+        },
+        lessons: {
+          ...reviewedBody.properties.lessons,
+          items: {
+            ...reviewedBody.properties.lessons.items,
+            properties: {
+              ...reviewedBody.properties.lessons.items.properties,
+              tasks: list(
+                {
+                  oneOf: [
+                    ...reviewedBody.properties.lessons.items.properties.tasks.items.oneOf.filter(
+                      (entry) =>
+                        entry.properties.kind.const !== "printedGraphV2" &&
+                        entry.properties.kind.const !== "graphControls",
+                    ),
+                    record({
+                      kind: { const: "printedGraphV2" },
+                      task: currentBoardTask,
+                    }),
+                    record({
+                      kind: { const: "graphControls" },
+                      task: currentControlTask,
+                    }),
+                  ],
+                },
+                100,
+              ),
+            },
+          },
+        },
+      },
+    },
+  },
+};
 const cumulativePackageSchema = {
   oneOf: [
     ...oldCumulativePackageSchema.oneOf,
     cumulativeV3,
     cumulativeV4,
     cumulativeReviewedBoards,
+    childPointedCumulative,
   ],
 };
 const normalContext = record({ kind: { const: "normal" } });
@@ -892,7 +1004,7 @@ const action = {
       label: copy,
       intent: helpIntent,
       correctionPreview: {
-        oneOf: [graphNode, reviewedBoardNode, reviewedConnectedControlTurnNode],
+        oneOf: [graphNode, currentBoardNode, currentControlTurnNode],
       },
     }),
   ],
@@ -1006,7 +1118,7 @@ const graphTurn = record({
   checkpointId: id,
 });
 const boardTurn = record({
-  ...reviewedBoardNode.properties,
+  ...currentBoardNode.properties,
   extraPractice: { type: "boolean" },
   routeKind: {
     enum: ["normal", "repeat", "correctionInstruction", "correctionRetest"],
@@ -1026,7 +1138,7 @@ const projectionSchema = {
           graphTurn,
           boardTurn,
           record({
-            ...reviewedConnectedControlTurnNode.properties,
+            ...currentControlTurnNode.properties,
             extraPractice: { type: "boolean" },
             routeKind: { enum: ["delivering", "correction"] },
             occurrenceId: id,
@@ -1197,6 +1309,12 @@ const rootSchemas = {
 };
 
 const sharedDefinitions = {
+  currentBoardPresentation,
+  currentBoardNode,
+  currentControlTurnNode,
+  currentControlTask,
+  currentBoardTask,
+  childPointedCumulative,
   reviewedWritingPlanSchema,
   reviewedBoardTask,
   reviewedConnectedControlTask,

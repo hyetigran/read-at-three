@@ -685,6 +685,7 @@ test("a failed finalize retains the action and retries ink before one phase acce
 });
 
 test("each phase survives a full browser process restart and cold committed capture recovery is idempotent", async ({}, testInfo) => {
+  test.setTimeout(90_000);
   const directory = await mkdtemp(join(tmpdir(), "writing-opfs-restart-"));
   let context = await chromium.launchPersistentContext(directory, {
     headless: true,

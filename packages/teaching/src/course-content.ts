@@ -47,6 +47,7 @@ export type CumulativeDevelopmentBody = CumulativeBodyFields &
           | "printed-board-cues-v2"
           | "connected-pointing-v1"
           | "reviewed-board-layouts-l04-v1"
+          | "child-pointed-single-sounds-l05-v1"
         )[];
       }
     | {
@@ -269,7 +270,11 @@ export async function parseRuntimePackage(
                 node.presentation.kind !== "oral" &&
                 !(
                   input.body.coverage === "course-development-v4" &&
-                  node.presentation.kind === "connectedPointing"
+                  (node.presentation.kind === "connectedPointing" ||
+                    (node.presentation.kind === "printedBoard" &&
+                      input.body.requiredEngineCapabilities.includes(
+                        "child-pointed-single-sounds-l05-v1",
+                      )))
                 ),
             )
           )
