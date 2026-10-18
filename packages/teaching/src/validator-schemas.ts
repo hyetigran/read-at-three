@@ -1402,3 +1402,25 @@ export const validatorSchemas = {
   validateProjection: withDefinitions(rootSchemas.validateProjection),
   validateResult: withDefinitions(rootSchemas.validateResult),
 };
+
+export const runtimeCapabilityProfiles = [
+  { contentSchemaVersion: 1, capabilities: ["course-development"] },
+  ...[
+    v2Body,
+    cumulativeV3.properties.body,
+    cumulativeV4.properties.body,
+    cumulativeReviewedBoards.properties.body,
+    childPointedCumulative.properties.body,
+  ].map((body) => {
+    const props = body.properties;
+    if (
+      !("contentSchemaVersion" in props) ||
+      !("requiredEngineCapabilities" in props)
+    )
+      throw new Error("Missing runtime capability profile");
+    return {
+      contentSchemaVersion: props.contentSchemaVersion.const,
+      capabilities: props.requiredEngineCapabilities.items.enum,
+    };
+  }),
+];

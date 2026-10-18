@@ -2,7 +2,7 @@ import type { HashFunction } from "../../teaching/src/index.ts";
 import type { SqlExecutor } from "./executor.ts";
 import { migrations } from "./generated-migration.ts";
 export { migrationStatements } from "./generated-migration.ts";
-export const DATABASE_VERSION = 12;
+export const DATABASE_VERSION = 13;
 export type MigrationDataHook = (
   version: number,
 ) => Promise<(() => Promise<void>) | undefined>;

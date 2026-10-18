@@ -156,3 +156,41 @@ export {
   InstalledTeachingError,
 } from "./installed-teaching.ts";
 export type { InstalledTeaching } from "./installed-teaching.ts";
+
+export {
+  parseInitialInstallCommand,
+  makeInitialInstallCommand,
+  parseInstallationFact,
+} from "./installation.ts";
+export type {
+  InitialInstallCommand,
+  InstallationFact,
+  InstallationRead,
+  InstallationCatalog,
+  InstallationObservation,
+  ActivationWitness,
+  ParentMaterialRequest,
+  ParentMaterialRead,
+  PortableInstallationApplication,
+} from "./installation.ts";
+export type {
+  InstalledApplicationOptions,
+  InstallationLease,
+} from "./installation-material.ts";
+export { parsePublicationHash } from "./publication.ts";
+
+export { InstalledContentUnavailableError } from "./installation.ts";
+
+export type { ParentMaterialFailure } from "./installation.ts";
+
+export { parseParentMaterialRequest } from "./installation.ts";
+
+export { initialInstallIdentity } from "./installation.ts";
+export {
+  createInstallationMaterials,
+  parseInstallMaterial,
+  requireInstallMaterial,
+  requireInstallationLease,
+  UnsupportedInstallProfileError,
+} from "./installation-material.ts";
+export type { SignedInstallMaterial } from "./installation-material.ts";

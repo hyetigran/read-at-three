@@ -706,3 +706,172 @@ test("publication reread cache loss remains missing rather than corrupt", async 
     },
   );
 });
+
+test("bounded publication response preserves exact lengths, metadata, decoded limits and cancellation", async () => {
+  const cases = [
+    {
+      mode: "maximum",
+      bytes: [1, 2, 3],
+      length: null,
+      encoding: null,
+      limit: 3,
+      ok: true,
+    },
+    {
+      mode: "maximum",
+      bytes: [1, 2],
+      length: null,
+      encoding: null,
+      limit: 3,
+      ok: true,
+    },
+    {
+      mode: "maximum",
+      bytes: [1, 2, 3],
+      length: "2",
+      encoding: "gzip",
+      limit: 3,
+      ok: true,
+    },
+    {
+      mode: "maximum",
+      bytes: [],
+      length: null,
+      encoding: null,
+      limit: 3,
+      ok: false,
+    },
+    {
+      mode: "maximum",
+      bytes: [1, 2, 3, 4],
+      length: null,
+      encoding: null,
+      limit: 3,
+      ok: false,
+    },
+    {
+      mode: "maximum",
+      bytes: [1, 2, 3],
+      length: "4",
+      encoding: null,
+      limit: 3,
+      ok: false,
+    },
+    {
+      mode: "maximum",
+      bytes: [1, 2],
+      length: "3",
+      encoding: null,
+      limit: 3,
+      ok: false,
+    },
+    {
+      mode: "maximum",
+      bytes: [1, 2, 3],
+      length: "03",
+      encoding: null,
+      limit: 3,
+      ok: false,
+    },
+    {
+      mode: "maximum",
+      bytes: [1, 2, 3],
+      length: null,
+      encoding: "unknown",
+      limit: 3,
+      ok: false,
+    },
+    {
+      mode: "maximum",
+      bytes: [1, 2, 3],
+      length: null,
+      encoding: null,
+      limit: 3,
+      status: 404,
+      ok: false,
+    },
+    {
+      mode: "maximum",
+      bytes: [1, 2, 3],
+      length: null,
+      encoding: null,
+      limit: 3,
+      cancelled: true,
+      ok: false,
+    },
+    {
+      mode: "exact",
+      bytes: [1, 2, 3],
+      length: null,
+      encoding: null,
+      limit: 3,
+      ok: true,
+    },
+    {
+      mode: "exact",
+      bytes: [1, 2, 3],
+      length: "2",
+      encoding: "gzip",
+      limit: 3,
+      ok: true,
+    },
+    {
+      mode: "exact",
+      bytes: [1, 2],
+      length: null,
+      encoding: null,
+      limit: 3,
+      ok: false,
+    },
+    {
+      mode: "exact",
+      bytes: [1, 2, 3, 4],
+      length: null,
+      encoding: null,
+      limit: 3,
+      ok: false,
+    },
+    {
+      mode: "exact",
+      bytes: [1, 2, 3],
+      length: "2",
+      encoding: null,
+      limit: 3,
+      ok: false,
+    },
+  ];
+  for (const item of cases) {
+    let cancellations = 0;
+    const response: PublicationResponse = {
+      status: item.status ?? 200,
+      redirected: false,
+      exactUrl: true,
+      mediaType: "application/json",
+      contentLength: item.length,
+      contentEncoding: item.encoding,
+      chunks: (async function* () {
+        for (const value of item.bytes) yield new Uint8Array([value]);
+      })(),
+      cancel: async () => {
+        cancellations++;
+      },
+    };
+    const input = {
+      response,
+      mediaType: "application/json",
+      cancellation: {
+        throwIfCancelled() {
+          if (item.cancelled) throw Error("Retired response");
+        },
+      },
+    };
+    const read = readPublicationResponse(
+      item.mode === "exact"
+        ? { ...input, byteLength: item.limit }
+        : { ...input, maximumByteLength: item.limit },
+    );
+    if (item.ok) assert.deepEqual(await read, new Uint8Array(item.bytes));
+    else await assert.rejects(read);
+    assert.equal(cancellations, 1, JSON.stringify(item));
+  }
+});

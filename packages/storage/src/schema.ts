@@ -1303,3 +1303,81 @@ export const localDiagnostics = sqliteTable(
     check("diagnostics_bytes", sql`length(CAST(payload AS BLOB))<=1048576`),
   ],
 );
+
+export const installedRepresentation = sqliteTable(
+  "installed_representation",
+  {
+    packageHash: packageHash("package_hash").primaryKey(),
+    kind: text("kind", { enum: ["development-v1", "signed-v1"] }).notNull(),
+    mode: text("mode", { enum: ["fixture", "publication"] }),
+    curriculumUtf8: bytes("curriculum_utf8"),
+    preparationUtf8: bytes("preparation_utf8"),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.packageHash],
+      foreignColumns: [installedPackage.packageHash],
+    }),
+    check(
+      "installed_representation_supported",
+      sql`(kind='development-v1' AND mode IS NULL AND curriculum_utf8 IS NULL AND preparation_utf8 IS NULL) OR (kind='signed-v1' AND mode IS NOT NULL AND mode IN ('fixture','publication') AND typeof(curriculum_utf8)='blob' AND length(curriculum_utf8)>0 AND typeof(preparation_utf8)='blob' AND length(preparation_utf8)>0)`,
+    ),
+  ],
+);
+
+export const installationCommand = sqliteTable(
+  "installation_command",
+  {
+    installationId: installationId("installation_id").notNull(),
+    commandId: commandId("command_id").notNull(),
+    payloadHash: payloadHash("payload_hash").notNull(),
+    commandVersion: integer("command_version").notNull(),
+    resultVersion: integer("result_version").notNull(),
+    command: text("command").notNull(),
+    stage: text("stage", {
+      enum: ["accepted", "readyInactive", "activated", "rejected"],
+    }).notNull(),
+    result: text("result").notNull(),
+    registeredPackageHash: packageHash("registered_package_hash"),
+    activatedRevision: counter("activated_revision"),
+  },
+  (table) => [
+    primaryKey({ columns: [table.installationId, table.commandId] }),
+    foreignKey({
+      columns: [table.installationId],
+      foreignColumns: [installation.id],
+    }),
+    foreignKey({
+      columns: [table.registeredPackageHash],
+      foreignColumns: [installedPackage.packageHash],
+    }),
+    check(
+      "installation_fact_stage",
+      sql`(stage='accepted' AND registered_package_hash IS NULL AND activated_revision IS NULL) OR (stage='readyInactive' AND registered_package_hash IS NOT NULL AND activated_revision IS NULL) OR (stage='activated' AND registered_package_hash IS NOT NULL AND activated_revision IS NOT NULL) OR (stage='rejected' AND activated_revision IS NULL)`,
+    ),
+    check("installation_versions", sql`command_version=1 AND result_version=1`),
+    check(
+      "installation_revision",
+      sql`activated_revision IS NULL OR (typeof(activated_revision)='integer' AND activated_revision>=0)`,
+    ),
+    check(
+      "installation_registered_mirror",
+      sql`registered_package_hash IS json_extract(result,'$.registeredPackageHash') AND CAST(activated_revision AS TEXT) IS json_extract(result,'$.activationRevision')`,
+    ),
+    hash("payload_hash"),
+    check("installation_command_json", sql`json_valid(command)`),
+    check("installation_result_json", sql`json_valid(result)`),
+    check(
+      "installation_stage_supported",
+      sql`stage IN ('accepted','readyInactive','activated','rejected')`,
+    ),
+    check(
+      "installation_command_mirrors",
+      sql`coalesce(json_extract(command,'$.installationId')=installation_id AND json_extract(command,'$.commandId')=command_id AND json_extract(command,'$.version')=command_version AND json_extract(command,'$.kind')='initialInstall',0)`,
+    ),
+    check(
+      "installation_result_mirrors",
+      sql`coalesce(json_extract(result,'$.installationId')=installation_id AND json_extract(result,'$.commandId')=command_id AND json_extract(result,'$.payloadHash')=payload_hash AND json_extract(result,'$.version')=result_version AND json_extract(result,'$.kind')=stage,0)`,
+    ),
+  ],
+);

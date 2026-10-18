@@ -135,17 +135,21 @@ function inventory(
 export async function readPublicationResponse(
   input: Readonly<{
     response: PublicationResponse;
-    byteLength: number;
     mediaType: string;
     cancellation: PublicationCancellation;
-  }>,
+  }> &
+    (
+      | Readonly<{ byteLength: number; maximumByteLength?: never }>
+      | Readonly<{ maximumByteLength: number; byteLength?: never }>
+    ),
 ): Promise<Uint8Array> {
-  const { response, byteLength, mediaType, cancellation } = input;
+  const { response, mediaType, cancellation } = input;
+  const limit = input.byteLength ?? input.maximumByteLength;
   try {
     if (
-      !Number.isSafeInteger(byteLength) ||
-      byteLength < 1 ||
-      byteLength > publicationLimits.curriculumBytes
+      !Number.isSafeInteger(limit) ||
+      limit < 1 ||
+      limit > publicationLimits.curriculumBytes
     )
       invalid("response-length");
     if (response.status !== 200 || response.redirected || !response.exactUrl)
@@ -164,11 +168,18 @@ export async function readPublicationResponse(
         !Number.isSafeInteger(length) ||
         length < 1 ||
         (encoding === "identity"
-          ? length !== byteLength
+          ? input.byteLength !== undefined
+            ? length !== input.byteLength
+            : length > limit
           : length > publicationLimits.curriculumBytes)
       )
         invalid("response-length");
     }
+    const expectedLength =
+      input.byteLength ??
+      (encoding === "identity" && response.contentLength !== null
+        ? Number(response.contentLength)
+        : undefined);
     checkCancellation(cancellation);
     const chunks: Uint8Array[] = [];
     let block = new Uint8Array(0);
@@ -176,11 +187,11 @@ export async function readPublicationResponse(
     let size = 0;
     for await (const chunk of response.chunks) {
       checkCancellation(cancellation);
-      if (chunk.length > byteLength - size) invalid("response-length");
+      if (chunk.length > limit - size) invalid("response-length");
       let cursor = 0;
       while (cursor < chunk.length) {
         if (used === block.length) {
-          block = new Uint8Array(Math.min(65536, byteLength - size - cursor));
+          block = new Uint8Array(Math.min(65536, limit - size - cursor));
           chunks.push(block);
           used = 0;
         }
@@ -192,12 +203,14 @@ export async function readPublicationResponse(
       size += chunk.length;
     }
     checkCancellation(cancellation);
-    if (size !== byteLength) invalid("response-length");
+    if (size < 1 || (expectedLength !== undefined && size !== expectedLength))
+      invalid("response-length");
     const bytes = new Uint8Array(size);
     let offset = 0;
     for (const chunk of chunks) {
-      bytes.set(chunk, offset);
-      offset += chunk.length;
+      const count = Math.min(chunk.length, size - offset);
+      bytes.set(chunk.subarray(0, count), offset);
+      offset += count;
     }
     return bytes;
   } catch (error) {
@@ -400,4 +413,40 @@ function snapshot(input: VerificationInput): VerificationInput {
       unavailable("crypto", () => input.crypto.verifyEd25519(request)),
   };
   return { ...input, crypto, raw: Uint8Array.from(input.raw) };
+}
+
+export async function withVerifiedPublicationClosure<T>(
+  request: VerificationInput &
+    Readonly<{
+      run(
+        input: Readonly<{
+          publication: VerifiedPublication;
+          namespace: PublicationNamespace;
+        }>,
+      ): Promise<T>;
+    }>,
+): Promise<
+  | Readonly<{ kind: "verified-callback"; value: T }>
+  | Exclude<PublicationClosureResult, VerifiedPublicationClosure>
+> {
+  const input = snapshot(request);
+  const publication = await integrity("envelope-integrity", () =>
+    verifyPublication(input),
+  );
+  inventory(publication);
+  return input.ports.exclusive({
+    mode: input.mode,
+    hash: publication.hash,
+    run: async (namespace) => {
+      const result = await inspect(input, publication, namespace);
+      if (result.kind !== "verified-closure") return result;
+      checkCancellation(input.cancellation);
+      const value = await request.run({
+        publication: result.publication,
+        namespace,
+      });
+      checkCancellation(input.cancellation);
+      return { kind: "verified-callback", value };
+    },
+  });
 }

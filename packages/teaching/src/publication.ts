@@ -1,3 +1,4 @@
+import { runtimeCapabilityProfiles } from "./generated-runtime-profiles.ts";
 import { canonical, deepFreeze, parseId } from "./identity.ts";
 import { validatePublicationEnvelope } from "./generated-publication-validators.js";
 import type {
@@ -170,6 +171,10 @@ export function requireEd25519Spki(spki: Uint8Array): void {
   )
     throw new Error("Invalid Ed25519 SPKI");
 }
+export function parsePublicationHash(value: string): PublicationHash {
+  requireHash(value);
+  return value as PublicationHash;
+}
 function requireHash(value: string): void {
   if (!/^[a-f0-9]{64}$/.test(value)) throw new Error("Invalid SHA256");
 }
@@ -190,22 +195,13 @@ function requireMetadata(envelope: PublicationEnvelope): void {
   parseId({ kind: "review", value: envelope.signingKeyId });
   requireHash(envelope.packageHash);
   requireHash(body.sourceReviewManifestHash);
-  const expected =
-    body.contentSchemaVersion === 1
-      ? ["course-development"]
-      : body.contentSchemaVersion === 2
-        ? ["writing-practice-plan-v2", "guidance-runs-v2"]
-        : body.contentSchemaVersion === 3
-          ? [
-              "writing-practice-plan-v2",
-              "guidance-runs-v2",
-              "printed-board-cues-v2",
-            ]
-          : undefined;
   if (
-    !expected ||
-    canonical([...expected].sort()) !==
-      canonical([...body.requiredEngineCapabilities].sort())
+    !runtimeCapabilityProfiles.some(
+      (profile) =>
+        profile.contentSchemaVersion === body.contentSchemaVersion &&
+        canonical([...profile.capabilities].sort()) ===
+          canonical([...body.requiredEngineCapabilities].sort()),
+    )
   )
     throw new Error("Unsupported schema or capabilities");
   if (

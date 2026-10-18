@@ -1,3 +1,5 @@
+import { runtimeCapabilityProfiles } from "../../packages/teaching/src/validator-schemas.ts";
+import { installationValidationSchemas } from "../../packages/teaching/src/installation-schemas.ts";
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Ajv2020 } from "ajv/dist/2020.js";
@@ -210,7 +212,40 @@ if (/\b(?:require|eval|Function)\b/u.test(shellJavascript))
   throw new Error("Unreviewed shell validator dependency");
 const shellDeclarations =
   'import type { ValidateFunction } from "ajv";\nimport type { ShellDescriptor } from "./shell-schemas.ts";\nexport declare const validateShellDescriptor: ValidateFunction<ShellDescriptor>;\n';
+const installationAjv = new AjvJTD({
+  allErrors: true,
+  code: { source: true, esm: true },
+});
+for (const [name, schema] of Object.entries(installationValidationSchemas))
+  installationAjv.addSchema(schema, name);
+const installationJavascript = standaloneCode(
+  installationAjv,
+  Object.fromEntries(
+    Object.keys(installationValidationSchemas).map((name) => [name, name]),
+  ),
+);
+if (/\b(?:require|eval|Function)\b/u.test(installationJavascript))
+  throw new Error(
+    "Generated installation validators contain a runtime dependency",
+  );
+const installationDeclarations =
+  'import type { ValidateFunction } from "ajv";\nimport type { RawInitialInstallCommand,RawInstallationFact,RawParentMaterialRequest } from "./installation-schemas.ts";\nexport declare const validateInitialInstallCommand: ValidateFunction<RawInitialInstallCommand>;\nexport declare const validateInstallationFact: ValidateFunction<RawInstallationFact>;\nexport declare const validateParentMaterialRequest: ValidateFunction<RawParentMaterialRequest>;\n';
 for (const { filename, source, parser } of [
+  {
+    filename: "generated-runtime-profiles.ts",
+    source: `export const runtimeCapabilityProfiles=${JSON.stringify(runtimeCapabilityProfiles)};\n`,
+    parser: "typescript",
+  },
+  {
+    filename: "generated-installation-validators.js",
+    source: installationJavascript,
+    parser: "babel",
+  },
+  {
+    filename: "generated-installation-validators.d.ts",
+    source: installationDeclarations,
+    parser: "typescript",
+  },
   {
     filename: "generated-shell-validators.js",
     source: shellJavascript,
