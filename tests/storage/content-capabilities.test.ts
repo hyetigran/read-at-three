@@ -163,7 +163,7 @@ test("V10 widens installed content without losing existing foreign-key linked pa
   );
   db.exec("ROLLBACK");
   await initializeDatabase(executor, hash);
-  assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 11);
+  assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 12);
   const committedBytes = await readFile(file);
   await initializeDatabase(executor, hash);
   assert.deepEqual(await readFile(file), committedBytes);
@@ -176,7 +176,7 @@ test("V10 widens installed content without losing existing foreign-key linked pa
     beforeActivation,
   );
   assert.deepEqual(db.prepare("PRAGMA foreign_key_check").all(), []);
-  assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 11);
+  assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 12);
 });
 
 test("V2 writing uses one durable executor with eight turns, explicit phase confirmation, restart and terminal Undo", async (t) => {

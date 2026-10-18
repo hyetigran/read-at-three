@@ -631,7 +631,7 @@ if (
     firstPackageStatements.map((statement) =>
       statement.replace(
         "content_schema_version=1",
-        "content_schema_version IN (1,2,3)",
+        "content_schema_version IN (1,2,3,4)",
       ),
     ),
   ) !== canonical(currentPackageStatements)
@@ -666,8 +666,35 @@ if (arguments_.includes("--check")) {
   if ((await readFile(boardPackagePath, "utf8")) !== boardPackageSql)
     throw new Error("Printed board migration stale");
 } else await writeFile(boardPackagePath, boardPackageSql);
+const pointingPackageStatements = [
+  packageOriginal
+    .replace(
+      "CHECK(content_schema_version=1)",
+      "CHECK(content_schema_version IN (1,2,3,4))",
+    )
+    .replace(
+      "CREATE TABLE installed_package ",
+      "CREATE TABLE installed_package_v12 ",
+    ),
+  "INSERT INTO installed_package_v12 SELECT * FROM installed_package",
+  "DROP TABLE installed_package",
+  "ALTER TABLE installed_package_v12 RENAME TO installed_package",
+  "UPDATE installation SET database_version = 12",
+];
+const pointingPackagePath = resolve(
+  root,
+  "packages/storage/migrations/0011_connected_pointing.sql",
+);
+const pointingPackageSql =
+  pointingPackageStatements
+    .map((statement) => statement.trim().replace(/;$/, ""))
+    .join(";\n--> statement-breakpoint\n") + ";\n";
+if (arguments_.includes("--check")) {
+  if ((await readFile(pointingPackagePath, "utf8")) !== pointingPackageSql)
+    throw new Error("Connected pointing migration stale");
+} else await writeFile(pointingPackagePath, pointingPackageSql);
 const output = await format(
-  `export const migrationStatements = ${JSON.stringify(statements)} as const;\nexport const migrations = [{version:1, id:"issue-02-initial", statements:migrationStatements}, {version:2, id:"issue-03-sound-task-credits", statements:${JSON.stringify(upgrades)}}, {version:3,id:"issue-04-accepting-command",statements:${JSON.stringify(finalStatements)}}, {version:4,id:"issue-06-canonical-ink",statements:${JSON.stringify(writingStatements)}}, {version:5,id:"issue-07-ink-editing",statements:${JSON.stringify(editingStatements)}}, {version:6,id:"issue-08-lesson-support",statements:${JSON.stringify(lessonStatements)}}, {version:7,id:"issue-09-advance-withdrawal",statements:${JSON.stringify(reversibleStatements)}}, {version:8,id:"issue-10-child-profiles",statements:${JSON.stringify(profileStatements)}}, {version:9,id:"issue-11-profile-removal",statements:${JSON.stringify(removalStatements)}}, {version:10,id:"issue-12-content-capabilities",foreignKeys:"rebuild",statements:${JSON.stringify(packageStatements)}},{version:11,id:"issue-13-printed-boards",foreignKeys:"rebuild",statements:${JSON.stringify(boardPackageStatements)}}] as const;\n`,
+  `export const migrationStatements = ${JSON.stringify(statements)} as const;\nexport const migrations = [{version:1, id:"issue-02-initial", statements:migrationStatements}, {version:2, id:"issue-03-sound-task-credits", statements:${JSON.stringify(upgrades)}}, {version:3,id:"issue-04-accepting-command",statements:${JSON.stringify(finalStatements)}}, {version:4,id:"issue-06-canonical-ink",statements:${JSON.stringify(writingStatements)}}, {version:5,id:"issue-07-ink-editing",statements:${JSON.stringify(editingStatements)}}, {version:6,id:"issue-08-lesson-support",statements:${JSON.stringify(lessonStatements)}}, {version:7,id:"issue-09-advance-withdrawal",statements:${JSON.stringify(reversibleStatements)}}, {version:8,id:"issue-10-child-profiles",statements:${JSON.stringify(profileStatements)}}, {version:9,id:"issue-11-profile-removal",statements:${JSON.stringify(removalStatements)}}, {version:10,id:"issue-12-content-capabilities",foreignKeys:"rebuild",statements:${JSON.stringify(packageStatements)}},{version:11,id:"issue-13-printed-boards",foreignKeys:"rebuild",statements:${JSON.stringify(boardPackageStatements)}},{version:12,id:"issue-15-connected-pointing",foreignKeys:"rebuild",statements:${JSON.stringify(pointingPackageStatements)}}] as const;\n`,
   { parser: "typescript" },
 );
 const path = resolve(root, "packages/storage/src/generated-migration.ts");

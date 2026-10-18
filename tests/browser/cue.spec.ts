@@ -27,7 +27,6 @@ for (const reducedMotion of motionModes) {
     const target = page.locator(".teaching-target");
     const before = await target.boundingBox();
     const time = new Date("2030-01-01T00:00:00Z");
-    await page.clock.install({ time });
     await page.clock.pauseAt(time);
 
     const startBall = await cue

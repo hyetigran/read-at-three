@@ -1,3 +1,5 @@
+import { ConnectedPointingActivity } from "./ConnectedPointingActivity";
+import { connectedPointingRoles } from "@readatthree/teaching";
 import { PrintedBoardActivity } from "./PrintedBoardActivity";
 import type {
   AvailableAction,
@@ -442,6 +444,15 @@ function TeachingActivity({
     "presentation" in turn && turn.presentation.kind === "printedBoard"
       ? turn.presentation
       : null;
+  const connected =
+    "presentation" in turn && turn.presentation.kind === "connectedPointing"
+      ? turn.presentation
+      : null;
+  const connectedRetest =
+    connected?.role === "follow" && "route" in turn && turn.route === "support";
+  const roleLabel = connected
+    ? connectedPointingRoles[connected.role].label
+    : parentRoleLabels[turn.parentRole];
   const oral = "presentation" in turn && turn.presentation.kind === "oral";
   const primary = mainAction(actions);
   const routeKind = "routeKind" in turn ? turn.routeKind : "normal";
@@ -463,16 +474,18 @@ function TeachingActivity({
               ? "Correction preview · Not saved"
               : completed
                 ? "Completed task · Reviewing saved context"
-                : routeKind === "correction" ||
-                    routeKind === "correctionInstruction"
-                  ? `Correction · ${parentRoleLabels[turn.parentRole]}`
-                  : routeKind === "correctionRetest"
-                    ? `Retest · ${parentRoleLabels[turn.parentRole]}`
-                    : routeKind === "repeat"
-                      ? `Extra practice · ${parentRoleLabels[turn.parentRole]}`
-                      : "extraPractice" in turn && turn.extraPractice
-                        ? `Extra practice · ${parentRoleLabels[turn.parentRole]}`
-                        : parentRoleLabels[turn.parentRole]}
+                : connectedRetest
+                  ? `Retest · ${roleLabel}`
+                  : routeKind === "correction" ||
+                      routeKind === "correctionInstruction"
+                    ? `Correction · ${roleLabel}`
+                    : routeKind === "correctionRetest"
+                      ? `Retest · ${roleLabel}`
+                      : routeKind === "repeat"
+                        ? `Extra practice · ${roleLabel}`
+                        : "extraPractice" in turn && turn.extraPractice
+                          ? `Extra practice · ${roleLabel}`
+                          : roleLabel}
           </AddedText>
           <AddedText>Parent only</AddedText>
         </div>
@@ -483,6 +496,18 @@ function TeachingActivity({
           tabIndex={0}
         >
           <TurnGuidance turn={turn} />
+          {connected ? (
+            <p
+              id="connected-pointing-guidance"
+              className="teaching-connected-guidance"
+            >
+              <AddedText>
+                Contact feedback follows your finger. For keyboard feedback,
+                focus the diagram, hold Space or Enter, and use Left or Right.
+                Release the key or press Escape to clear.
+              </AddedText>
+            </p>
+          ) : null}
           {board?.cue.kind === "endpointSweep" &&
           board.cue.preparation === "parentControlledStartHold" ? (
             <p>
@@ -497,9 +522,24 @@ function TeachingActivity({
       <section
         className="teaching-arena"
         aria-label={oral ? "Oral practice" : "Sound practice"}
-        data-presentation={board ? "printedBoard" : oral ? "oral" : "printed"}
+        data-presentation={
+          connected
+            ? "connectedPointing"
+            : board
+              ? "printedBoard"
+              : oral
+                ? "oral"
+                : "printed"
+        }
       >
-        {board ? (
+        {connected ? (
+          <ConnectedPointingActivity
+            key={cueKey}
+            presentation={connected}
+            disabled={disabled || preview}
+            retire={retireCue}
+          />
+        ) : board ? (
           <PrintedBoardActivity
             key={cueKey}
             presentation={board}
@@ -515,7 +555,7 @@ function TeachingActivity({
             )}
           </div>
         )}
-        {board ? null : oral ? (
+        {connected || board ? null : oral ? (
           <div className="teaching-cue teaching-oral-cue" aria-hidden="true" />
         ) : (
           <SilentCue key={cueKey} disabled={disabled} minimumMs={minimumMs} />
@@ -883,7 +923,7 @@ export function TeachingScreen({
     );
     return (
       <main
-        className={`teaching-screen teaching-active${projection.kind === "teaching" && "presentation" in projection.turn && projection.turn.presentation.kind === "printedBoard" ? " teaching-printed-board" : ""}${projection.kind === "writing" || projection.kind === "writingResult" ? " teaching-writing" : ""}`}
+        className={`teaching-screen teaching-active${projection.kind === "teaching" && "presentation" in projection.turn && (projection.turn.presentation.kind === "printedBoard" || projection.turn.presentation.kind === "connectedPointing") ? " teaching-printed-board" : ""}${projection.kind === "writing" || projection.kind === "writingResult" ? " teaching-writing" : ""}`}
         aria-busy={busy}
         data-turn-id={
           displayedTurn?.id ??

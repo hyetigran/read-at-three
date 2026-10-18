@@ -599,13 +599,21 @@ export type ControlSource = Readonly<{
   sourceRefs: readonly SourceRef[];
   guidance: readonly ParentSpan[];
 }>;
+export type ConnectedPointingPresentation = Readonly<{
+  kind: "connectedPointing";
+  board: "am" | "sa";
+  role: "model" | "follow" | "guided";
+}>;
 export type ControlTurnNode = ControlSource &
   Readonly<{
     kind: "turn";
     route: "normal" | "support";
     parentRole: "model" | "together" | "listen";
     itemId: ItemId | null;
-    presentation: Readonly<{ kind: "oral" }> | WritingPresentation;
+    presentation:
+      | Readonly<{ kind: "oral" }>
+      | WritingPresentation
+      | ConnectedPointingPresentation;
     next: Destination;
   }>;
 export type UntilFirmNode = ControlSource &

@@ -175,3 +175,61 @@ export async function reviewedOralCourseExtension(input: {
   }
   return candidate;
 }
+
+export async function reviewedConnectedCourseExtension(input: {
+  previous: RuntimePackage;
+  candidate: unknown;
+  hash: HashFunction;
+}) {
+  const candidate = await parseRuntimePackage(input.candidate, input.hash);
+  if (
+    input.previous.body.coverage !== "course-development-v3" ||
+    candidate.body.coverage !== "course-development-v4" ||
+    !cumulativeExtension({ previous: input.previous, candidate })
+  )
+    throw new Error(
+      "Connected extension must preserve exact predecessor curriculum",
+    );
+  if (
+    canonical(
+      input.previous.body.lessons.map(
+        ({ tasks: _tasks, ...catalog }) => catalog,
+      ),
+    ) !==
+    canonical(
+      candidate.body.lessons.map(({ tasks: _tasks, ...catalog }) => catalog),
+    )
+  )
+    throw new Error("Connected extension changed source catalog");
+  for (const [index, lesson] of candidate.body.lessons.entries()) {
+    const before = input.previous.body.lessons[index];
+    if (!before) throw new Error("Connected extension changed lesson catalog");
+    if (index === 2) {
+      if (
+        canonical(before.tasks.map((entry) => entry.task.number)) !==
+          canonical([1, 2, 3, 4, 5]) ||
+        canonical(lesson.tasks.map((entry) => entry.task.number)) !==
+          canonical([1, 2, 3, 4, 5, 6, 7, 8]) ||
+        lesson.tasks.some(
+          (entry) =>
+            [6, 7].includes(entry.task.number) &&
+            (entry.kind !== "graphControls" ||
+              entry.task.nodes.some(
+                (node) =>
+                  node.kind === "turn" &&
+                  node.presentation.kind !== "connectedPointing",
+              )),
+        ) ||
+        lesson.tasks.find((entry) => entry.task.number === 8)?.kind !==
+          "writingPracticePlanV2"
+      )
+        throw new Error(
+          "Connected extension requires exactly reviewed pointing Tasks 6 and 7 and writing Task 8",
+        );
+    } else if (canonical(lesson.tasks) !== canonical(before.tasks))
+      throw new Error(
+        "Connected extension changed predecessor task definitions",
+      );
+  }
+  return candidate;
+}

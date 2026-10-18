@@ -255,7 +255,7 @@ export const profileAdministrationReceipt = sqliteTable(
     ),
   ],
 );
-function installedPackageTable(version: 1 | 2 | 3) {
+function installedPackageTable(version: 1 | 2 | 3 | 4) {
   return sqliteTable(
     "installed_package",
     {
@@ -279,7 +279,9 @@ function installedPackageTable(version: 1 | 2 | 3) {
           ? sql`content_schema_version=1`
           : version === 2
             ? sql`content_schema_version IN (1,2)`
-            : sql`content_schema_version IN (1,2,3)`,
+            : version === 3
+              ? sql`content_schema_version IN (1,2,3)`
+              : sql`content_schema_version IN (1,2,3,4)`,
       ),
       check("capabilities_json", sql`json_valid(capabilities)`),
       check("manifest_version_supported", sql`manifest_version=1`),
@@ -298,7 +300,7 @@ function installedPackageTable(version: 1 | 2 | 3) {
   );
 }
 export const installedPackageV1 = installedPackageTable(1);
-export const installedPackage = installedPackageTable(3);
+export const installedPackage = installedPackageTable(4);
 export const courseActivation = sqliteTable(
   "course_activation",
   {
