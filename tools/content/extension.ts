@@ -122,3 +122,56 @@ export async function reviewedPrintedCourseExtension(input: {
   }
   return candidate;
 }
+
+export async function reviewedOralCourseExtension(input: {
+  previous: RuntimePackage;
+  candidate: unknown;
+  hash: HashFunction;
+}) {
+  const candidate = await parseRuntimePackage(input.candidate, input.hash);
+  if (
+    input.previous.body.coverage !== "course-development-v3" ||
+    candidate.body.coverage !== "course-development-v3" ||
+    !cumulativeExtension({ previous: input.previous, candidate })
+  )
+    throw new Error(
+      "Oral extension must preserve exact predecessor curriculum",
+    );
+  if (
+    canonical(
+      input.previous.body.lessons.map(
+        ({ tasks: _tasks, ...catalog }) => catalog,
+      ),
+    ) !==
+    canonical(
+      candidate.body.lessons.map(({ tasks: _tasks, ...catalog }) => catalog),
+    )
+  )
+    throw new Error("Oral extension changed source catalog");
+  for (const [index, lesson] of candidate.body.lessons.entries()) {
+    const before = input.previous.body.lessons[index];
+    if (!before) throw new Error("Oral extension changed lesson catalog");
+    if (index === 2) {
+      if (
+        canonical(before.tasks.map((entry) => entry.task.number)) !==
+          canonical([1, 2, 4]) ||
+        canonical(lesson.tasks.map((entry) => entry.task.number)) !==
+          canonical([1, 2, 3, 4, 5]) ||
+        lesson.tasks.some(
+          (entry) =>
+            [3, 5].includes(entry.task.number) &&
+            (entry.kind !== "graphControls" ||
+              entry.task.nodes.some(
+                (node) =>
+                  node.kind === "turn" && node.presentation.kind !== "oral",
+              )),
+        )
+      )
+        throw new Error(
+          "Oral extension requires exactly reviewed tasks 3 and 5",
+        );
+    } else if (canonical(lesson.tasks) !== canonical(before.tasks))
+      throw new Error("Oral extension changed predecessor task definitions");
+  }
+  return candidate;
+}

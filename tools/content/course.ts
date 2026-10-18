@@ -1,6 +1,7 @@
 import {
   reviewedCourseExtension,
   reviewedPrintedCourseExtension,
+  reviewedOralCourseExtension,
   parseExtensionReview,
 } from "./extension.ts";
 import { createHash } from "node:crypto";
@@ -498,8 +499,42 @@ export async function prepareCourseContent(input: { fixture: boolean }) {
       throw new Error("Printed extension package identity changed");
     if (printed.body.coverage !== "course-development-v3")
       throw new Error("Expected reviewed printed capability");
-    body = printed.body;
-    value = { formatVersion: 1, packageHash: printed.packageHash, body };
+    const oralBytes = await readFile(
+      resolve(root, ".local/runtime/lesson-03-oral-development-package.json"),
+    );
+    const oralReview = parseExtensionReview(
+      JSON.parse(
+        await readFile(
+          resolve(root, ".local/runtime/lesson-03-oral-input-review.json"),
+          "utf8",
+        ),
+      ),
+    );
+    if (
+      oralReview.basePackageHash !== printed.packageHash ||
+      oralReview.candidateSha256 !== digest(oralBytes) ||
+      canonical(oralReview.sourceInputs) !==
+        canonical([...review.sources, ...review.scans])
+    )
+      throw new Error(
+        "Oral extension review does not match exact predecessor and source inputs",
+      );
+    for (const item of oralReview.evidenceInputs)
+      if (digest(await readFile(resolve(root, item.path))) !== item.sha256)
+        throw new Error(
+          "Oral extension authoring evidence changed; review again",
+        );
+    const oral = await reviewedOralCourseExtension({
+      previous: printed,
+      candidate: JSON.parse(oralBytes.toString("utf8")),
+      hash,
+    });
+    if (oral.packageHash !== oralReview.packageHash)
+      throw new Error("Oral extension package identity changed");
+    if (oral.body.coverage !== "course-development-v3")
+      throw new Error("Expected reviewed oral capability");
+    body = oral.body;
+    value = { formatVersion: 1, packageHash: oral.packageHash, body };
   }
   const path = resolve(
     root,
@@ -525,7 +560,7 @@ export async function prepareCourseContent(input: { fixture: boolean }) {
           sources: review.sources,
           scans: review.scans,
           scope:
-            "Six supplied lesson catalogs, 45 ordered tasks; complete executable Lessons 1 and 2 and Lesson 3 printed Tasks 1, 2 and 4. Publication remains unapproved.",
+            "Six supplied lesson catalogs, 45 ordered tasks; complete executable Lessons 1 and 2 and Lesson 3 printed Tasks 1, 2 and 4 and oral Tasks 3 and 5. Publication remains unapproved.",
           lessons: review.lessons,
           laterTeaching:
             "Absent. Metadata does not create instructional definitions or completion credit.",
