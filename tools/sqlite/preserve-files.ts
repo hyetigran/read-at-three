@@ -14,6 +14,58 @@ const expectedHash =
 const destructiveCleanup = "await thePool.removeVfs().catch(() => {});";
 const preservingCleanup = "thePool.releaseAccessHandles();";
 
+const originalAcquisition = `				async acquireAccessHandles(clearFiles = false) {
+					const files = [];
+					for await (const [name, h] of this.#dhOpaque) if ("file" === h.kind) files.push([name, h]);
+					return Promise.all(files.map(async ([name, h]) => {
+						try {
+							const ah = await h.createSyncAccessHandle();
+							this.#mapSAHToName.set(ah, name);
+							if (clearFiles) {
+								ah.truncate(HEADER_OFFSET_DATA);
+								this.setAssociatedPath(ah, "", 0);
+							} else {
+								const path = this.getAssociatedPath(ah);
+								if (path) this.#mapFilenameToSAH.set(path, ah);
+								else this.#availableSAH.add(ah);
+							}
+						} catch (e) {
+							this.storeErr(e);
+							this.releaseAccessHandles();
+							throw e;
+						}
+					}));
+				}`;
+const preservingAcquisition = `				async acquireAccessHandles(clearFiles = false) {
+					const files = [];
+					for await (const [name, h] of this.#dhOpaque) if ("file" === h.kind) files.push([name, h]);
+					const acquired = [];
+					const outcomes = await Promise.allSettled(files.map(async ([name, h]) => {
+						const ah = await h.createSyncAccessHandle();
+						acquired.push([name, ah]);
+					}));
+					for (const [name, ah] of acquired) this.#mapSAHToName.set(ah, name);
+					try {
+						const failed = outcomes.find((result) => result.status === "rejected");
+						if (failed) throw failed.reason;
+						for (const [, ah] of acquired) {
+							if (clearFiles) {
+								ah.truncate(HEADER_OFFSET_DATA);
+								this.setAssociatedPath(ah, "", 0);
+							} else {
+								const path = this.getAssociatedPath(ah);
+								if (path) this.#mapFilenameToSAH.set(path, ah);
+								else this.#availableSAH.add(ah);
+							}
+						}
+						return outcomes.map(() => undefined);
+					} catch (e) {
+						this.storeErr(e);
+						this.releaseAccessHandles();
+						throw e;
+					}
+				}`;
+
 export function preserveSqliteFiles(): Plugin {
   const source = readFileSync(artifact, "utf8");
   if (createHash("sha256").update(source).digest("hex") !== expectedHash) {
@@ -26,18 +78,28 @@ export function preserveSqliteFiles(): Plugin {
       "The pinned SQLite initialization cleanup must match exactly once.",
     );
   }
+  if (source.split(originalAcquisition).length !== 2) {
+    throw new Error(
+      "The pinned SQLite handle acquisition must match exactly once.",
+    );
+  }
   return {
     name: "preserve-sqlite-files-on-initialization-failure",
     enforce: "pre",
     transform(code, id) {
       if (id.split("?", 1)[0] !== artifact) return;
-      if (!code.includes(destructiveCleanup)) {
+      if (
+        code.split(destructiveCleanup).length !== 2 ||
+        code.split(originalAcquisition).length !== 2
+      ) {
         throw new Error(
           "SQLite preservation transform encountered an unexpected artifact.",
         );
       }
       return {
-        code: code.replace(destructiveCleanup, preservingCleanup),
+        code: code
+          .replace(destructiveCleanup, preservingCleanup)
+          .replace(originalAcquisition, preservingAcquisition),
         map: null,
       };
     },
