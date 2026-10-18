@@ -1,6 +1,6 @@
 # Issue 15 implementation evidence
 
-Issue [#15](https://github.com/hyetigran/read-at-three/issues/15) completes the Lesson 3 connected pointing tasks and optional handwriting task. Implementation and qualification are in progress. The branch starts at merged main `1f8c79f58864cef7b51634f4c3235524fb3963cc`.
+Issue [#15](https://github.com/hyetigran/read-at-three/issues/15) completes the Lesson 3 connected pointing tasks and optional handwriting task. [PR #49](https://github.com/hyetigran/read-at-three/pull/49) is a draft while qualification continues. The branch starts at merged main `1f8c79f58864cef7b51634f4c3235524fb3963cc`.
 
 ## Teaching behavior
 
@@ -26,12 +26,22 @@ Content schema 4 adds the connected presentation while retaining historical sche
 
 An independent raw SQL reference derives the complete expected transformation for 262 genuine physical database checkpoints. Each expectation retains every table value, receipt, source pin, ink value, schema object and root allocation. Only the reviewed version, migration ledger, package constraint and individually derived table allocations change. All eight application metadata negative controls remain included. They pass migration preconditions and retain their invalid metadata for subsequent application refusal checks.
 
-Candidate migration qualification compares all 262 outputs against those independent complete expectations. Separate focused checks cover rollback fault points, committed acknowledgement loss, physical reopening and predecessor reader refusal. The broader old and new application API comparison and cumulative activation qualification are still running. Physical migration evidence does not establish a replay of the original teaching producers.
+Candidate migration qualification compares all 262 outputs against those independent complete expectations. Separate focused checks cover rollback fault points, committed acknowledgement loss, physical reopening and predecessor reader refusal. All four genuine cumulative activation families pass exact retained views and ink, Pause and Resume, persisted Retry, physical restart, rollback and committed acknowledgement loss. The optional broader API comparison stopped after 26 completed checkpoints to reduce local resource pressure. Its remaining cases are unqualified; it is not reported as a 262-case pass. Physical migration evidence does not establish a replay of the original teaching producers.
+
+## Retained migration regression correction
+
+The first complete local Node run reports 398 passes, one timed-out controller test and one printed-board test file terminated by SIGKILL. The controller test passes unchanged when run alone. A sequential printed-board run passes eight cases and terminates at the same migration case. [CI run 39090312837](https://github.com/hyetigran/read-at-three/actions/runs/39090312837) also terminates after those eight cases, with exit 143. These are failed runs.
+
+The retained migration test reaches genuine version 11 after a lost acknowledgement, then calls the current initializer, which legitimately upgrades to version 12. Its old whole-file equality assertion still compares that result with version 11. A bounded reproduction retains the complete file hashes and installed manifests and exposes that stale expectation directly. The precise cause of process termination remains unproven. The test correction preserves the original rollback and intermediate version 11 checks, verifies the completed version 12 upgrade, and checks whole-file idempotence after that upgrade. An independent raw SQL comparison verifies this regression's exact physical version 12 output and complete retained data.
+
+The development support-information test also expects database version 11 while the application correctly reports 12. Its literal expectation changes to 12; its bounded metadata, origin scope, codec and no-mutation checks remain. Application code is unchanged by these test corrections.
 
 ## Remaining qualification
 
-Type checking, generated validator freshness, migration freshness and module boundaries pass. Default whole-project formatting passes. Full Node, development browser and production browser regressions are running. Development has reported failures that require terminal diagnostics and resolution. No full regression success is claimed.
+Type checking, generated validator freshness, migration freshness and module boundaries pass. Default whole-project formatting passes. Successful full Node qualification remains required after the migration test correction. Development and production browser regressions are running and have reported failures that require terminal diagnostics and resolution. No full regression success is claimed.
 
-Independent component reviews pass diagram geometry and expanded contact input at three landscape sizes. Their runtime evidence precedes a final unmount cleanup and removal of duplicate bottom guidance. Final actual-source production review must qualify those changes with real Worker and OPFS behavior. Standards review, Spec review, exact-head CI, merge, issue closure and branch deletion remain outstanding.
+Independent component reviews pass diagram geometry and expanded contact input at three landscape sizes. Final cleanup also passes actual component unmount, remount and retire-reference ownership checks. Actual-source production review has passed the pointing obligations at all three sizes and continues through writing and recovery. Root directly inspected fresh source-based screens. All added keyboard guidance now belongs to the top parent panel; no bottom instruction remains.
+
+Fixed-head Standards review at `3ecb2ea` has zero documented violations and one nonblocking P3 catalog-comparison duplication note. Spec review has zero actionable findings. These source reviews do not substitute for final runtime qualification. Review of the migration test correction, successful full regressions and exact-head CI, merge, issue closure and branch deletion remain outstanding.
 
 Reviews use independent local roles because configured external models and cloud tools are unavailable. Browser checks do not establish physical tablet, native, distribution or complete SPA handoff qualification.
