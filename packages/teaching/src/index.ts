@@ -100,3 +100,22 @@ export type {
   PublicationEnvelope,
   PublicationResource,
 } from "./publication-schemas.ts";
+
+export {
+  publicationEnvelopePath,
+  readPublicationResponse,
+  publishPublicationClosure,
+  PublicationResourceError,
+  revalidatePublicationClosure,
+} from "./publication-resources.ts";
+export type {
+  PublicationMode,
+  PublicationCancellation,
+  PublicationResponse,
+  PublicationNamespace,
+  PublicationResourcePorts,
+  PublicationIntegrityReason,
+  PublicationUnavailableReason,
+  VerifiedPublicationClosure,
+  PublicationClosureResult,
+} from "./publication-resources.ts";

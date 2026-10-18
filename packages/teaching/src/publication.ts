@@ -62,7 +62,7 @@ export function publicationUtf8(text: string): Uint8Array {
   }
   return Uint8Array.from(bytes);
 }
-function decodeUtf8(bytes: Uint8Array): string {
+export function decodePublicationUtf8(bytes: Uint8Array): string {
   let result = "";
   for (let i = 0; i < bytes.length;) {
     const first = bytes[i++];
@@ -123,7 +123,7 @@ function inspectJson(
 export function parseCanonicalPublicationJson(raw: Uint8Array): unknown {
   if (raw.length === 0 || raw.length > publicationLimits.envelopeBytes)
     throw new Error("Envelope byte limit");
-  const text = decodeUtf8(raw);
+  const text = decodePublicationUtf8(raw);
   let depth = 0,
     quoted = false,
     escaped = false;
