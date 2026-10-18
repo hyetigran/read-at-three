@@ -107,9 +107,14 @@ export type GraphNode = Readonly<{
   cue: Readonly<{ kind: "sustain"; minimumMs: number | null }>;
   next: Readonly<{ kind: "node"; nodeId: NodeId } | { kind: "end" }>;
 }>;
-export type PrintedGlyph = "m" | "a" | "s";
+export type PrintedGlyph = "m" | "a" | "s" | "ē";
 export type PrintedCue = Readonly<
   | { kind: "none" }
+  | {
+      kind: "childUnderSymbol";
+      pace: "slow" | "fast";
+      participant: "child" | "parentGuidesChild";
+    }
   | { kind: "underSymbolHold"; hold: "parentControlled" }
   | {
       kind: "endpointSweep";
@@ -615,7 +620,8 @@ export type ControlTurnNode = ControlSource &
     presentation:
       | Readonly<{ kind: "oral" }>
       | WritingPresentation
-      | ConnectedPointingPresentation;
+      | ConnectedPointingPresentation
+      | BoardPresentation;
     next: Destination;
   }>;
 export type UntilFirmNode = ControlSource &

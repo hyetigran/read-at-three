@@ -4,7 +4,9 @@ import type { BoardPresentation } from "@readatthree/teaching";
 import {
   reviewedPrintedBoards,
   printedDiagramAsset,
+  compactPrintedGeometry,
 } from "@readatthree/teaching";
+import { ChildPrintedContact } from "./ChildPrintedContact";
 import { SoundGlyph } from "./SoundGlyph";
 
 const diagramWidth = Number(printedDiagramAsset.viewBox.split(" ")[2]);
@@ -58,6 +60,7 @@ export function PrintedBoardActivity({
     publish({ stage: "idle" });
   }
   useLayoutEffect(() => {
+    if (intent.kind === "childUnderSymbol") return;
     retire.current = cancel;
     return () => {
       if (retire.current === cancel) retire.current = () => {};
@@ -144,10 +147,38 @@ export function PrintedBoardActivity({
   }, []);
   const board = reviewedPrintedBoards[presentation.board.assetId];
   const stage = disabled ? "idle" : run.stage;
+  const markerPosition =
+    stage === "underHold" || stage === "movingUnder"
+      ? printedDiagramAsset.under
+      : [
+            "movingEnd",
+            "endpointHeld",
+            "releasedSweep",
+            "endpointFeedback",
+          ].includes(stage)
+        ? printedDiagramAsset.endPoint
+        : printedDiagramAsset.start;
   return (
-    <div className="printed-board-activity">
+    <div
+      className={`printed-board-activity${board.layout === "verticalFour" ? " printed-board-compact" : ""}`}
+      style={
+        board.layout === "verticalFour"
+          ? {
+              width: compactPrintedGeometry.width,
+              height: compactPrintedGeometry.height,
+            }
+          : undefined
+      }
+    >
       <div
         className={`printed-board printed-board-${board.layout}`}
+        style={
+          board.layout === "verticalFour"
+            ? {
+                gridTemplateRows: `repeat(4, ${compactPrintedGeometry.rowHeight}px)`,
+              }
+            : undefined
+        }
         data-board={presentation.board.assetId}
         data-focus={presentation.focus}
         data-cue-stage={stage}
@@ -156,17 +187,40 @@ export function PrintedBoardActivity({
           <div
             key={glyph}
             className="printed-board-cell"
+            style={
+              board.layout === "verticalFour"
+                ? {
+                    height: compactPrintedGeometry.rowHeight,
+                    width: compactPrintedGeometry.width,
+                    gridTemplateRows: `${compactPrintedGeometry.glyphHeight}px minmax(0,1fr)`,
+                  }
+                : undefined
+            }
             data-target={glyph}
             data-focused={glyph === presentation.focus}
           >
-            <SoundGlyph glyph={glyph} />
+            <SoundGlyph
+              glyph={glyph}
+              compact={board.layout === "verticalFour"}
+            />
             <div
               className="printed-board-diagram-slot"
-              style={{ aspectRatio: `${diagramWidth} / ${diagramHeight}` }}
+              style={
+                board.layout === "verticalFour"
+                  ? {
+                      width: compactPrintedGeometry.diagramWidth,
+                      height: compactPrintedGeometry.diagramHeight,
+                      top: compactPrintedGeometry.diagramTop,
+                    }
+                  : { aspectRatio: `${diagramWidth} / ${diagramHeight}` }
+              }
             >
               <svg
                 className="printed-board-diagram"
                 viewBox={printedDiagramAsset.viewBox}
+                preserveAspectRatio={
+                  board.layout === "verticalFour" ? "none" : undefined
+                }
                 aria-hidden="true"
               >
                 <path
@@ -192,32 +246,23 @@ export function PrintedBoardActivity({
                   <circle
                     className="printed-board-marker"
                     data-stage={stage}
-                    cy={
-                      stage === "underHold" || stage === "movingUnder" ? 43 : 20
-                    }
-                    cx={
-                      stage === "underHold" || stage === "movingUnder"
-                        ? 155
-                        : [
-                              "movingEnd",
-                              "endpointHeld",
-                              "releasedSweep",
-                              "endpointFeedback",
-                            ].includes(stage)
-                          ? 285
-                          : 20
-                    }
+                    cy={markerPosition.y}
+                    cx={markerPosition.x}
                     r="11"
                   />
                 ) : null}
               </svg>
-              {glyph === presentation.focus && intent.kind !== "none" ? (
+              {glyph === presentation.focus &&
+              intent.kind !== "none" &&
+              intent.kind !== "childUnderSymbol" ? (
                 <button
                   type="button"
                   className="printed-board-contact"
                   aria-label="Play pointing cue"
                   data-origin="added"
                   style={{
+                    width: compactPrintedGeometry.contactSize,
+                    height: compactPrintedGeometry.contactSize,
                     left: `${(printedDiagramAsset.start.x / diagramWidth) * 100}%`,
                     top: `${(printedDiagramAsset.start.y / diagramHeight) * 100}%`,
                   }}
@@ -270,6 +315,14 @@ export function PrintedBoardActivity({
                     }
                   }}
                   onBlur={cancel}
+                />
+              ) : null}
+              {glyph === presentation.focus &&
+              intent.kind === "childUnderSymbol" ? (
+                <ChildPrintedContact
+                  cue={intent}
+                  disabled={disabled}
+                  retire={retire}
                 />
               ) : null}
             </div>

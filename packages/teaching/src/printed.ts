@@ -1,12 +1,16 @@
 import { deepFreeze } from "./identity.ts";
-import { printedBoardAssetHash } from "./printed-assets.ts";
+import {
+  printedBoardAssetHash,
+  lessonFivePrintedAssetHash,
+  lessonFivePrintedBoardLayouts,
+} from "./printed-assets.ts";
 import type { BoardPresentation, BoardNode, PrintedGlyph } from "./types.ts";
 export const printedBoardAssets = {
   "single-a": { layout: "single", targets: ["a"] },
   "vertical-mas": { layout: "verticalThree", targets: ["m", "a", "s"] },
   "two-above-one-mas": { layout: "twoAboveOne", targets: ["m", "a", "s"] },
 } as const;
-export const reviewedPrintedBoards = deepFreeze({
+export const historicalReviewedPrintedBoards = deepFreeze({
   "single-a": {
     assetId: "single-a",
     reviewId: "printed-boards-l03-v1",
@@ -34,6 +38,30 @@ export const reviewedPrintedBoards = deepFreeze({
     targets: ["s", "m", "a"],
   },
 } as const);
+export const lessonFivePrintedBoards = deepFreeze({
+  "single-long-e-l05": {
+    assetId: "single-long-e-l05",
+    reviewId: "printed-boards-l05-v1",
+    assetHash: lessonFivePrintedAssetHash,
+    ...lessonFivePrintedBoardLayouts["single-long-e-l05"],
+  },
+  "vertical-asme-l05": {
+    assetId: "vertical-asme-l05",
+    reviewId: "printed-boards-l05-v1",
+    assetHash: lessonFivePrintedAssetHash,
+    ...lessonFivePrintedBoardLayouts["vertical-asme-l05"],
+  },
+  "vertical-esma-l05": {
+    assetId: "vertical-esma-l05",
+    reviewId: "printed-boards-l05-v1",
+    assetHash: lessonFivePrintedAssetHash,
+    ...lessonFivePrintedBoardLayouts["vertical-esma-l05"],
+  },
+} as const);
+export const reviewedPrintedBoards = deepFreeze({
+  ...historicalReviewedPrintedBoards,
+  ...lessonFivePrintedBoards,
+});
 export function resolvePrintedPresentation(presentation: BoardPresentation) {
   validateBoardPresentation(presentation);
   return presentation;
@@ -62,6 +90,26 @@ export function validateBoardPresentation(
 
 export function validateBoardNode(node: BoardNode): void {
   validateBoardPresentation(node.presentation);
+  if (node.presentation.cue.kind === "childUnderSymbol")
+    throw new Error("Child pointing requires controlled delivery");
   if ((node.kind === "correction") !== (node.presentation.cue.kind === "none"))
     throw new Error("Only correction instructions are cue-free");
+}
+
+export function validateControlPrintedTurn(
+  node: import("./types.ts").ControlTurnNode,
+): void {
+  if (node.presentation.kind !== "printedBoard") return;
+  validateBoardPresentation(node.presentation);
+  const cue = node.presentation.cue;
+  if (cue.kind !== "childUnderSymbol" && node.parentRole === "together")
+    throw new Error("Parent pointing does not have together delivery");
+  if (
+    cue.kind === "childUnderSymbol" &&
+    (node.itemId === null ||
+      (cue.participant === "child"
+        ? node.parentRole !== "listen" || node.route !== "normal"
+        : node.parentRole !== "together" || node.route !== "support"))
+  )
+    throw new Error("Child pointing participant does not match its delivery");
 }
