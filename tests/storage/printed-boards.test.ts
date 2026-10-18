@@ -25,7 +25,7 @@ test("printed slow acceptance leaves fast due through physical SQLite reopen and
   assert.equal(view.kind, "teaching");
   if (view.kind !== "teaching") throw new Error("Fast response required");
   assert.equal(view.turn.id, "fixture.board.fast");
-  assert.equal(first.db.prepare("PRAGMA user_version").get()?.user_version, 11);
+  assert.equal(first.db.prepare("PRAGMA user_version").get()?.user_version, 12);
   const before = view;
   first.db.close();
   const next = f.connect();

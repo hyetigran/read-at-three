@@ -39,6 +39,16 @@ export type CumulativeDevelopmentBody = CumulativeBodyFields &
   Readonly<
     | { coverage: "course-development" }
     | {
+        coverage: "course-development-v4";
+        contentSchemaVersion: 4;
+        requiredEngineCapabilities: readonly (
+          | "writing-practice-plan-v2"
+          | "guidance-runs-v2"
+          | "printed-board-cues-v2"
+          | "connected-pointing-v1"
+        )[];
+      }
+    | {
         coverage: "course-development-v3";
         contentSchemaVersion: 3;
         requiredEngineCapabilities: readonly (
@@ -57,7 +67,8 @@ export type CumulativeDevelopmentBody = CumulativeBodyFields &
   >;
 export function packageMetadata(content: RuntimePackage) {
   return content.body.coverage === "course-development-v2" ||
-    content.body.coverage === "course-development-v3"
+    content.body.coverage === "course-development-v3" ||
+    content.body.coverage === "course-development-v4"
     ? {
         contentSchemaVersion: content.body.contentSchemaVersion,
         capabilities: content.body.requiredEngineCapabilities,
@@ -102,7 +113,8 @@ function resolveLessons(content: RuntimePackage): readonly ResolvedLesson[] {
   if (
     body.coverage === "course-development" ||
     body.coverage === "course-development-v2" ||
-    body.coverage === "course-development-v3"
+    body.coverage === "course-development-v3" ||
+    body.coverage === "course-development-v4"
   )
     return body.lessons.map((lesson) => ({
       kind: "resolvedLesson",
@@ -238,7 +250,10 @@ export async function parseRuntimePackage(
       seen.add(task.id);
       switch (entry.kind) {
         case "printedGraphV2":
-          if (input.body.coverage !== "course-development-v3")
+          if (
+            input.body.coverage !== "course-development-v3" &&
+            input.body.coverage !== "course-development-v4"
+          )
             throw new Error("Printed boards require capability");
           compileTask(entry.task);
           break;
@@ -249,7 +264,12 @@ export async function parseRuntimePackage(
           if (
             entry.task.nodes.some(
               (node) =>
-                node.kind === "turn" && node.presentation.kind !== "oral",
+                node.kind === "turn" &&
+                node.presentation.kind !== "oral" &&
+                !(
+                  input.body.coverage === "course-development-v4" &&
+                  node.presentation.kind === "connectedPointing"
+                ),
             )
           )
             throw new Error("Writing requires explicit capability");
@@ -261,7 +281,8 @@ export async function parseRuntimePackage(
         case "writingPracticePlanV2":
           if (
             input.body.coverage !== "course-development-v2" &&
-            input.body.coverage !== "course-development-v3"
+            input.body.coverage !== "course-development-v3" &&
+            input.body.coverage !== "course-development-v4"
           )
             throw new Error("Writing plan requires capability");
           compileWritingPlan(entry.task);
@@ -285,7 +306,8 @@ export function cumulativeExtension({
   if (
     (candidate.body.coverage !== "course-development" &&
       candidate.body.coverage !== "course-development-v2" &&
-      candidate.body.coverage !== "course-development-v3") ||
+      candidate.body.coverage !== "course-development-v3" &&
+      candidate.body.coverage !== "course-development-v4") ||
     previous.body.courseId !== candidate.body.courseId
   )
     return false;

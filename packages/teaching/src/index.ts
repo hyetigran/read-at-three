@@ -79,3 +79,5 @@ export {
   printedDiagramAsset,
   printedBoardAssetHash,
 } from "./printed-assets.ts";
+
+export * from "./connected-pointing.ts";

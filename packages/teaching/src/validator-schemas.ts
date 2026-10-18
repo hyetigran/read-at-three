@@ -182,6 +182,21 @@ const controlTurnNode = record({
   presentation: { oneOf: [oralPresentation, writingPresentationSchema] },
   next: destination,
 });
+const connectedPointingPresentation = record({
+  kind: { const: "connectedPointing" },
+  board: { enum: ["am", "sa"] },
+  role: { enum: ["model", "follow", "guided"] },
+});
+const connectedControlTurnNode = record({
+  ...controlTurnNode.properties,
+  presentation: {
+    oneOf: [
+      oralPresentation,
+      writingPresentationSchema,
+      connectedPointingPresentation,
+    ],
+  },
+});
 const controlNode = {
   oneOf: [
     controlTurnNode,
@@ -575,8 +590,71 @@ const cumulativeV3 = {
     },
   },
 };
+const connectedControlTask = record({
+  ...controlTask.properties,
+  nodes: list(
+    { oneOf: [connectedControlTurnNode, ...controlNode.oneOf.slice(1)] },
+    1000,
+    1,
+  ),
+});
+const v3Body = cumulativeV3.properties.body;
+const v3Lessons = v3Body.properties.lessons;
+const cumulativeV4 = {
+  ...cumulativeV3,
+  properties: {
+    ...cumulativeV3.properties,
+    body: {
+      ...v3Body,
+      properties: {
+        ...v3Body.properties,
+        coverage: { const: "course-development-v4" },
+        contentSchemaVersion: { const: 4 },
+        requiredEngineCapabilities: {
+          type: "array",
+          items: {
+            type: "string",
+            enum: [
+              "writing-practice-plan-v2",
+              "guidance-runs-v2",
+              "printed-board-cues-v2",
+              "connected-pointing-v1",
+            ],
+          },
+          minItems: 4,
+          maxItems: 4,
+          uniqueItems: true,
+        },
+        lessons: {
+          ...v3Lessons,
+          items: {
+            ...v3Lessons.items,
+            properties: {
+              ...v3Lessons.items.properties,
+              tasks: list(
+                {
+                  oneOf: [
+                    ...v3Lessons.items.properties.tasks.items.oneOf.filter(
+                      (entry) =>
+                        entry.properties.kind.const !== "graphControls",
+                    ),
+                    record({
+                      kind: { const: "graphControls" },
+                      task: connectedControlTask,
+                    }),
+                  ],
+                },
+                100,
+              ),
+            },
+          },
+        },
+      },
+    },
+  },
+};
 const cumulativePackageSchema = {
-  oneOf: [...oldCumulativePackageSchema.oneOf, cumulativeV3],
+  oneOf: [...oldCumulativePackageSchema.oneOf, cumulativeV3, cumulativeV4],
 };
 const normalContext = record({ kind: { const: "normal" } });
 const repeatContext = record({
@@ -690,7 +768,9 @@ const action = {
     record({
       label: copy,
       intent: helpIntent,
-      correctionPreview: { oneOf: [graphNode, boardNode, controlTurnNode] },
+      correctionPreview: {
+        oneOf: [graphNode, boardNode, connectedControlTurnNode],
+      },
     }),
   ],
 };
@@ -823,7 +903,7 @@ const projectionSchema = {
           graphTurn,
           boardTurn,
           record({
-            ...controlTurnNode.properties,
+            ...connectedControlTurnNode.properties,
             extraPractice: { type: "boolean" },
             routeKind: { enum: ["delivering", "correction"] },
             occurrenceId: id,
@@ -851,7 +931,7 @@ const projectionSchema = {
       kind: { const: "writing" },
       documents: list(documentTokenSchema, 2, 2),
       turn: record({
-        ...controlTurnNode.properties,
+        ...connectedControlTurnNode.properties,
         extraPractice: { type: "boolean" },
         routeKind: { enum: ["delivering", "correction"] },
         occurrenceId: id,

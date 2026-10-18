@@ -1010,3 +1010,34 @@
 .teaching-printed-board .teaching-header-actions {
   min-width: 0;
 }
+
+.teaching-connected-pointing {
+  width: min(100%, 680px);
+  display: grid;
+  justify-items: center;
+  align-self: center;
+}
+.teaching-connected-board {
+  overflow: visible;
+  width: 100%;
+  max-height: 30vh;
+  color: #202c37;
+  fill: currentColor;
+  touch-action: none;
+  user-select: none;
+}
+.teaching-connected-board:focus-visible {
+  outline: 3px solid #537761;
+  outline-offset: 4px;
+  border-radius: 12px;
+}
+.teaching-connected-contact {
+  fill: #f5d889;
+  stroke: #8a6021;
+  stroke-width: 3;
+}
+.teaching-connected-guidance {
+  font-size: 0.76rem;
+  line-height: 1.35;
+  margin: 0.25rem 1rem 0;
+}
