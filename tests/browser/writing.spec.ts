@@ -713,18 +713,36 @@ test("each phase survives a full browser process restart and cold committed capt
         100,
         authored.boardY + authored.guides.midline + 30,
       );
+      const previousRequests = (await requests(page)).length;
       await page.mouse.move(point.x, point.y);
       await page.mouse.down();
       await page.mouse.move(point.x + 20, point.y + 10);
       await expect
         .poll(
-          async () =>
-            (await requests(page)).filter(
+          async () => {
+            const sent = (await requests(page)).slice(previousRequests);
+            const replies = await responses(page);
+            return sent.filter(
               (request) =>
                 request.kind === "execute" &&
                 request.operation.kind === "ink" &&
-                request.operation.command.edit.kind === "checkpoint",
-            ).length,
+                request.operation.command.token.documentId ===
+                  authored.token.documentId &&
+                request.operation.command.edit.kind === "checkpoint" &&
+                request.operation.command.edit.layer ===
+                  phase.suffix.split("-")[1] &&
+                replies.some(
+                  (reply) =>
+                    reply.id === request.id &&
+                    reply.kind === "execution" &&
+                    reply.value.kind === "ink" &&
+                    reply.value.result.kind === "inkCommitted" &&
+                    reply.value.result.commandId ===
+                      request.operation.command.commandId,
+                ),
+            ).length;
+          },
+          { intervals: [50, 100, 250] },
         )
         .toBeGreaterThan(0);
       await context.close();

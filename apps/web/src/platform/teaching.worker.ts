@@ -37,11 +37,22 @@ function bootstrap(
   preparationInput: unknown,
 ): Promise<OpenedStore> {
   return new Promise((resolve, reject) => {
+    const ownership = new AbortController();
+    const ownershipDeadline = setTimeout(
+      () =>
+        ownership.abort(
+          new Error(
+            "Another tab has this child's local reading store open. Close it and retry.",
+          ),
+        ),
+      10000,
+    );
     navigator.locks
       .request(
         "read-at-three.sqlite.v1",
-        { ifAvailable: true },
+        { mode: "exclusive", signal: ownership.signal },
         async (lock) => {
+          clearTimeout(ownershipDeadline);
           if (!lock) {
             reject(
               new Error(
@@ -109,7 +120,10 @@ function bootstrap(
           }
         },
       )
-      .catch(reject);
+      .catch((error: unknown) => {
+        clearTimeout(ownershipDeadline);
+        reject(error);
+      });
   });
 }
 
