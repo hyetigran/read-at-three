@@ -54,8 +54,8 @@ async function writingAction(
 for (const task of [5, 6] as const) {
   test(`connected ${task} normal deliveries survive physical reopen, exact Retry, lost acknowledgement, Back and Undo`, async (t) => {
     const { content, taskIds } = await syntheticLessonFourCourse();
-    const task6Id = taskIds[4],
-      task7Id = taskIds[5];
+    const task5Id = taskIds[4],
+      task6Id = taskIds[5];
     const f = await storageFixture(t, content);
     let fault: "none" | "before" | "after" = "none";
     const hook: import("./support.ts").SqlHook = async (sql, work) => {
@@ -71,7 +71,7 @@ for (const task of [5, 6] as const) {
       return result;
     };
     let connection = await f.connectReady({ hook });
-    const taskId = task === 5 ? task6Id : task7Id;
+    const taskId = task === 5 ? task5Id : task6Id;
     await f.act(
       connection.app,
       "start",
@@ -151,11 +151,11 @@ for (const task of [5, 6] as const)
   for (const at of ["follow", "again"] as const) {
     test(`connected ${task} Help at ${at} reopens guided cycles and own-item independent retest`, async (t) => {
       const { content, taskIds } = await syntheticLessonFourCourse();
-      const task6Id = taskIds[4],
-        task7Id = taskIds[5];
+      const task5Id = taskIds[4],
+        task6Id = taskIds[5];
       const f = await storageFixture(t, content);
       let connection = await f.connectReady();
-      const taskId = task === 5 ? task6Id : task7Id;
+      const taskId = task === 5 ? task5Id : task6Id;
       await f.act(
         connection.app,
         "start",

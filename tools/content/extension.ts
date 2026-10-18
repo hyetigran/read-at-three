@@ -1,9 +1,14 @@
 import {
   canonical,
   cumulativeExtension,
+  guidanceCopies,
   parseRuntimePackage,
 } from "@readatthree/teaching";
-import type { HashFunction, RuntimePackage } from "@readatthree/teaching";
+import type {
+  HashFunction,
+  ParentSpan,
+  RuntimePackage,
+} from "@readatthree/teaching";
 import { Ajv } from "ajv/dist/jtd.js";
 import type { JTDDataType, SomeJTDSchemaType } from "ajv/dist/jtd.js";
 
@@ -234,6 +239,19 @@ export async function reviewedConnectedCourseExtension(input: {
   return candidate;
 }
 
+function requirePopulatedSpeech(guidance: readonly ParentSpan[]) {
+  if (
+    guidance.some(
+      (span) =>
+        span.kind === "speech" &&
+        guidanceCopies(span).every((copy) => copy.text.trim().length === 0),
+    )
+  )
+    throw new Error(
+      "Lesson four guidance contains a whitespace-only speech block",
+    );
+}
+
 export async function reviewedLessonFourCourseExtension(input: {
   previous: RuntimePackage;
   candidate: unknown;
@@ -285,6 +303,26 @@ export async function reviewedLessonFourCourseExtension(input: {
         throw new Error(
           "Lesson four extension requires all seven reviewed tasks",
         );
+      for (const entry of lesson.tasks) {
+        if (entry.kind === "writingPracticePlanV2") {
+          const scripts = [
+            entry.task.introduction,
+            ...entry.task.targets.flatMap((target) => [
+              target.demonstration,
+              target.sound.prompt,
+              target.sound.expected,
+              target.sound.affirmation,
+              target.tracing.instruction,
+              target.tracing.praise,
+              target.independent.instruction,
+              target.independent.praise,
+            ]),
+          ];
+          for (const script of scripts) requirePopulatedSpeech(script.guidance);
+        } else if ("nodes" in entry.task)
+          for (const node of entry.task.nodes)
+            if ("guidance" in node) requirePopulatedSpeech(node.guidance);
+      }
     } else if (canonical(lesson.tasks) !== canonical(before.tasks))
       throw new Error(
         "Lesson four extension changed predecessor task definitions",

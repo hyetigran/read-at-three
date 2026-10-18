@@ -289,3 +289,152 @@ test("the extension refuses independently rehashed predecessor changes and incom
     /all seven/,
   );
 });
+
+test("Lesson four authoring refuses whole blank speech in every node and writing script", async () => {
+  const { previous, content } = await syntheticLessonFourCourse();
+  if (content.body.coverage !== "course-development-v4")
+    throw Error("Synthetic v4 required");
+  const blank = {
+    kind: "speech",
+    runs: [{ copy: { kind: "added", text: " \t\n" }, emphasis: "plain" }],
+  } as const;
+  const lesson = content.body.lessons[3];
+  if (!lesson) throw Error("Synthetic lesson missing");
+  for (const entry of lesson.tasks) {
+    const tasks = [];
+    if (entry.kind === "writingPracticePlanV2") {
+      const script = {
+        sourceRefs: entry.task.introduction.sourceRefs,
+        guidance: [blank],
+      };
+      tasks.push({ ...entry, task: { ...entry.task, introduction: script } });
+      for (const [index, target] of entry.task.targets.entries()) {
+        const practices = [
+          { ...target, demonstration: script },
+          { ...target, sound: { ...target.sound, prompt: script } },
+          { ...target, sound: { ...target.sound, expected: script } },
+          { ...target, sound: { ...target.sound, affirmation: script } },
+          { ...target, tracing: { ...target.tracing, instruction: script } },
+          { ...target, tracing: { ...target.tracing, praise: script } },
+          {
+            ...target,
+            independent: { ...target.independent, instruction: script },
+          },
+          { ...target, independent: { ...target.independent, praise: script } },
+        ];
+        for (const practice of practices)
+          tasks.push({
+            ...entry,
+            task: {
+              ...entry.task,
+              targets: entry.task.targets.map((target, i) =>
+                i === index ? practice : target,
+              ),
+            },
+          });
+      }
+    } else if ("nodes" in entry.task) {
+      for (const node of entry.task.nodes)
+        if ("guidance" in node)
+          tasks.push({
+            ...entry,
+            task: {
+              ...entry.task,
+              nodes: entry.task.nodes.map((value) =>
+                value === node
+                  ? { ...value, guidance: [...node.guidance, blank] }
+                  : value,
+              ),
+            },
+          });
+    }
+    for (const changed of tasks) {
+      const body = {
+        ...content.body,
+        lessons: content.body.lessons.map((value) =>
+          value === lesson
+            ? {
+                ...value,
+                tasks: value.tasks.map((value) =>
+                  value === entry ? changed : value,
+                ),
+              }
+            : value,
+        ),
+      };
+      await assert.rejects(
+        reviewedLessonFourCourseExtension({
+          previous,
+          candidate: {
+            formatVersion: 1,
+            body,
+            packageHash: await hash(canonical(body)),
+          },
+          hash,
+        }),
+        /whitespace-only speech block/,
+      );
+    }
+  }
+});
+
+test("Lesson four authoring preserves whitespace runs within populated speech and absent scripts", async () => {
+  const { previous, content } = await syntheticLessonFourCourse();
+  if (content.body.coverage !== "course-development-v4")
+    throw Error("Synthetic v4 required");
+  const body = {
+    ...content.body,
+    lessons: content.body.lessons.map((lesson, i) =>
+      i !== 3
+        ? lesson
+        : {
+            ...lesson,
+            tasks: lesson.tasks.map((entry) =>
+              entry.kind === "printedGraphV2"
+                ? {
+                    ...entry,
+                    task: {
+                      ...entry.task,
+                      nodes: entry.task.nodes.map((node) => ({
+                        ...node,
+                        guidance: [
+                          ...node.guidance,
+                          {
+                            kind: "speech",
+                            runs: [
+                              {
+                                copy: { kind: "added", text: " " },
+                                emphasis: "plain",
+                              },
+                              {
+                                copy: {
+                                  kind: "added",
+                                  text: "Synthetic populated speech",
+                                },
+                                emphasis: "strong",
+                              },
+                              {
+                                copy: { kind: "added", text: "\n" },
+                                emphasis: "plain",
+                              },
+                            ],
+                          },
+                        ],
+                      })),
+                    },
+                  }
+                : entry,
+            ),
+          },
+    ),
+  };
+  const candidate = {
+    formatVersion: 1,
+    body,
+    packageHash: await hash(canonical(body)),
+  };
+  assert.deepEqual(
+    await reviewedLessonFourCourseExtension({ previous, candidate, hash }),
+    candidate,
+  );
+});
