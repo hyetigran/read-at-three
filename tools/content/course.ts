@@ -5,6 +5,7 @@ import {
   reviewedConnectedCourseExtension,
   reviewedLessonFourCourseExtension,
   reviewedLessonFiveCourseExtension,
+  reviewedLessonFiveCompletionExtension,
   parseExtensionReview,
 } from "./extension.ts";
 import { createHash } from "node:crypto";
@@ -657,8 +658,46 @@ export async function prepareCourseContent(input: { fixture: boolean }) {
       lessonFive.body.coverage !== "course-development-v4"
     )
       throw new Error("Reviewed lesson five package identity changed");
-    body = lessonFive.body;
-    value = { formatVersion: 1, packageHash: lessonFive.packageHash, body };
+    const completionBytes = await readFile(
+      resolve(
+        root,
+        ".local/runtime/lesson-05-complete-development-package.json",
+      ),
+    );
+    const completionReview = parseExtensionReview(
+      JSON.parse(
+        await readFile(
+          resolve(root, ".local/runtime/lesson-05-complete-input-review.json"),
+          "utf8",
+        ),
+      ),
+    );
+    if (
+      completionReview.basePackageHash !== lessonFive.packageHash ||
+      completionReview.candidateSha256 !== digest(completionBytes) ||
+      canonical(completionReview.sourceInputs) !==
+        canonical(lessonFiveReview.sourceInputs)
+    )
+      throw new Error(
+        "Lesson five completion review does not match exact predecessor and source inputs",
+      );
+    for (const item of completionReview.evidenceInputs)
+      if (digest(await readFile(resolve(root, item.path))) !== item.sha256)
+        throw new Error(
+          "Lesson five completion authoring evidence changed; review again",
+        );
+    const completion = await reviewedLessonFiveCompletionExtension({
+      previous: lessonFive,
+      candidate: JSON.parse(completionBytes.toString("utf8")),
+      hash,
+    });
+    if (
+      completion.packageHash !== completionReview.packageHash ||
+      completion.body.coverage !== "course-development-v4"
+    )
+      throw new Error("Reviewed lesson five completion identity changed");
+    body = completion.body;
+    value = { formatVersion: 1, packageHash: completion.packageHash, body };
   }
   const path = resolve(
     root,
@@ -684,10 +723,10 @@ export async function prepareCourseContent(input: { fixture: boolean }) {
           sources: review.sources,
           scans: review.scans,
           scope:
-            "Six supplied lesson catalogs, 45 ordered tasks; complete executable Lessons 1 through 4 and Lesson 5 Tasks 1 through 6. Lesson 5 Tasks 7 through 9 and Lesson 6 instructional definitions are absent. Publication remains unapproved.",
+            "Six supplied lesson catalogs, 45 ordered tasks; complete executable Lessons 1 through 5. Lesson 6 instructional definitions are absent. Publication remains unapproved.",
           lessons: review.lessons,
           laterTeaching:
-            "Lesson 5 Tasks 7 through 9 and Lesson 6 instructional definitions are absent. Catalog metadata does not create instructional definitions or completion credit.",
+            "Lesson 6 instructional definitions are absent. Catalog metadata does not create instructional definitions or completion credit.",
           publication: "pending",
           runtimePublicationApproval: "pending-separate-record",
         }),

@@ -75,6 +75,8 @@ export { guidanceCopies, requirePlainGuidance } from "./guidance.ts";
 export {
   printedBoardAssets,
   reviewedPrintedBoards,
+  allReviewedPrintedBoards,
+  lessonFiveCompletionBoards,
   resolvePrintedPresentation,
 } from "./printed.ts";
 
@@ -88,3 +90,5 @@ export {
 } from "./printed-assets.ts";
 
 export * from "./connected-pointing.ts";
+
+export * from "./lesson-five-completion-assets.ts";

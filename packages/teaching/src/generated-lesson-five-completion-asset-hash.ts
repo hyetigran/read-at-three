@@ -1,0 +1,2 @@
+export const lessonFiveCompletionAssetHash =
+  "08c3d7d3668bd0f425fc925d73ffac698b68e5101ddf71472e79e0e4912490ce";

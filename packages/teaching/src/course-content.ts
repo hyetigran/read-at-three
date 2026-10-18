@@ -48,6 +48,7 @@ export type CumulativeDevelopmentBody = CumulativeBodyFields &
           | "connected-pointing-v1"
           | "reviewed-board-layouts-l04-v1"
           | "child-pointed-single-sounds-l05-v1"
+          | "rhyming-connected-writing-l05-v1"
         )[];
       }
     | {
@@ -246,7 +247,8 @@ export async function parseRuntimePackage(
         canonical(item.title) !== canonical(task.title) ||
         item.optional !==
           (entry.kind === "soundWritingV1" ||
-            entry.kind === "writingPracticePlanV2")
+            entry.kind === "writingPracticePlanV2" ||
+            entry.kind === "writingPracticePlanV3")
       )
         throw new Error("Cumulative task membership is invalid");
       seen.add(task.id);
@@ -283,6 +285,16 @@ export async function parseRuntimePackage(
           break;
         case "soundWritingV1":
           compileWritingTask(entry.task);
+          break;
+        case "writingPracticePlanV3":
+          if (
+            input.body.coverage !== "course-development-v4" ||
+            !input.body.requiredEngineCapabilities.includes(
+              "rhyming-connected-writing-l05-v1",
+            )
+          )
+            throw new Error("Writing V3 requires explicit capability");
+          compileWritingPlan(entry.task);
           break;
         case "writingPracticePlanV2":
           if (

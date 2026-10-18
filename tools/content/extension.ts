@@ -409,3 +409,55 @@ export async function reviewedLessonFiveCourseExtension(input: {
   }
   return candidate;
 }
+
+export async function reviewedLessonFiveCompletionExtension(input: {
+  previous: RuntimePackage;
+  candidate: unknown;
+  hash: HashFunction;
+}) {
+  const candidate = await parseRuntimePackage(input.candidate, input.hash);
+  if (
+    input.previous.body.coverage !== "course-development-v4" ||
+    candidate.body.coverage !== "course-development-v4" ||
+    !candidate.body.requiredEngineCapabilities.includes(
+      "rhyming-connected-writing-l05-v1",
+    ) ||
+    !cumulativeExtension({ previous: input.previous, candidate })
+  )
+    throw new Error(
+      "Lesson five completion must preserve exact predecessor curriculum",
+    );
+  const before = input.previous.body;
+  if (
+    canonical(
+      before.lessons.map(({ tasks: _tasks, ...catalog }) => catalog),
+    ) !==
+    canonical(
+      candidate.body.lessons.map(({ tasks: _tasks, ...catalog }) => catalog),
+    )
+  )
+    throw new Error("Lesson five completion changed source catalog");
+  for (const [index, lesson] of candidate.body.lessons.entries()) {
+    const prior = before.lessons[index];
+    if (!prior)
+      throw new Error("Lesson five completion changed lesson catalog");
+    if (index !== 4) {
+      if (canonical(lesson.tasks) !== canonical(prior.tasks))
+        throw new Error(
+          "Lesson five completion changed predecessor task definitions",
+        );
+      continue;
+    }
+    if (
+      prior.tasks.length !== 6 ||
+      canonical(lesson.tasks.map((entry) => entry.task.number)) !==
+        canonical([1, 2, 3, 4, 5, 6, 7, 8, 9]) ||
+      canonical(lesson.tasks.slice(6).map((entry) => entry.kind)) !==
+        canonical(["graphControls", "graphControls", "writingPracticePlanV3"])
+    )
+      throw new Error(
+        "Lesson five completion requires exactly three reviewed final tasks",
+      );
+  }
+  return candidate;
+}

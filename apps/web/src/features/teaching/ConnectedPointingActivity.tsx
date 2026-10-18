@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import {
   connectedPointingBoards,
-  printedGlyphAssets,
+  lessonFiveCompletionAssetPayload,
+  currentPrintedGlyphAssets,
 } from "@readatthree/teaching";
 import type {
   ConnectedPointingPresentation,
@@ -98,6 +99,10 @@ export function ConnectedPointingActivity({
     return connectedContactRegion({
       x: point.x,
       y: point.y,
+      contactSize:
+        asset.reviewId === "rhyming-connected-writing-l05-v1"
+          ? lessonFiveCompletionAssetPayload.connected.contactSize
+          : 44,
       pixelsPerUnit: Math.min(
         Math.hypot(matrix.a, matrix.b),
         Math.hypot(matrix.c, matrix.d),
@@ -105,9 +110,20 @@ export function ConnectedPointingActivity({
     });
   }
   return (
-    <div className="teaching-connected-pointing">
+    <div
+      className={`teaching-connected-pointing${asset.reviewId === "rhyming-connected-writing-l05-v1" ? " teaching-connected-child-voiced" : ""}`}
+    >
       <svg
         ref={svg}
+        style={
+          asset.reviewId === "rhyming-connected-writing-l05-v1"
+            ? {
+                width: lessonFiveCompletionAssetPayload.connected.width,
+                height: lessonFiveCompletionAssetPayload.connected.height,
+                maxHeight: "none",
+              }
+            : undefined
+        }
         className="teaching-connected-board"
         viewBox={geometry.viewBox}
         role="group"
@@ -120,6 +136,7 @@ export function ConnectedPointingActivity({
         onPointerDown={(event) => {
           if (
             disabled ||
+            presentation.role === "echo" ||
             !event.isPrimary ||
             event.button !== 0 ||
             contact.current.kind !== "idle" ||
@@ -139,6 +156,7 @@ export function ConnectedPointingActivity({
           const current = contact.current;
           if (
             disabled ||
+            presentation.role === "echo" ||
             !event.isPrimary ||
             current.kind !== "pointer" ||
             current.pointerId !== event.pointerId
@@ -169,7 +187,7 @@ export function ConnectedPointingActivity({
         }}
         onBlur={clear}
         onKeyDown={(event) => {
-          if (disabled) return;
+          if (disabled || presentation.role === "echo") return;
           if (event.key === "Escape") clear();
           if (event.key === " " || event.key === "Enter") {
             event.preventDefault();
@@ -203,7 +221,13 @@ export function ConnectedPointingActivity({
             clear();
         }}
       >
-        {connectedContactRegions({ pixelsPerUnit }).map((circle) => (
+        {connectedContactRegions({
+          pixelsPerUnit,
+          contactSize:
+            asset.reviewId === "rhyming-connected-writing-l05-v1"
+              ? lessonFiveCompletionAssetPayload.connected.contactSize
+              : 44,
+        }).map((circle) => (
           <circle
             key={circle.kind}
             data-contact-region={circle.kind}
@@ -215,7 +239,7 @@ export function ConnectedPointingActivity({
           />
         ))}
         {asset.glyphs.map((key, index) => {
-          const glyph = printedGlyphAssets[key],
+          const glyph = currentPrintedGlyphAssets[key],
             placement = geometry.glyphs[index];
           return placement ? (
             <svg

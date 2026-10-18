@@ -623,13 +623,15 @@ function WritingActivity({
       ? projection.outcome === "skipped"
         ? "Optional writing skipped"
         : "Writing task complete"
-      : phase?.kind === "modelAndSound" || phase?.kind === "parentModel"
-        ? "Parent demonstrates"
-        : phase?.kind === "phaseConfirmation"
-          ? phase.phase === "childTracing"
-            ? "Child traces · Parent confirms"
-            : "Child writes · Parent confirms"
-          : "Child responds";
+      : phase?.kind === "parentInstruction"
+        ? "Parent gives instructions"
+        : phase?.kind === "modelAndSound" || phase?.kind === "parentModel"
+          ? "Parent demonstrates"
+          : phase?.kind === "phaseConfirmation"
+            ? phase.phase === "childTracing"
+              ? "Child traces · Parent confirms"
+              : "Child writes · Parent confirms"
+            : "Child responds";
   return (
     <>
       <section className="teaching-parent-panel" aria-label="Parent guidance">
