@@ -904,6 +904,13 @@
 .teaching-printed-board {
   grid-template-rows: 64px 150px minmax(0, 1fr) 54px;
 }
+.teaching-printed-board .teaching-save-area {
+  min-height: 0;
+  padding: 0 30px;
+}
+.teaching-printed-board .teaching-save-error {
+  padding: 2px 16px;
+}
 .teaching-printed-board .teaching-parent-panel {
   height: 150px;
   padding-top: 12px;
