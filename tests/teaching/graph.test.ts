@@ -13,7 +13,6 @@ import {
   validateAcceptanceTransition,
 } from "../../packages/teaching/src/index.ts";
 import type {
-  DevelopmentPackage,
   GraphAction,
   GraphTeachingState,
   TeachingState,
@@ -30,17 +29,23 @@ function graph(state: TeachingState): GraphTeachingState {
   if (state.kind !== "graph") throw new Error("Expected graph");
   return state;
 }
-function start(content: DevelopmentPackage, taskId = task1) {
+function start(
+  content: Awaited<ReturnType<typeof graphFixture>>,
+  taskId = task1,
+) {
   return graph(initialState(content, taskId));
 }
-function turn(content: DevelopmentPackage, state: GraphTeachingState) {
+function turn(
+  content: Awaited<ReturnType<typeof graphFixture>>,
+  state: GraphTeachingState,
+) {
   const screen = project(content, state);
   if (screen.kind !== "teaching" || !("occurrenceId" in screen.turn))
     throw new Error("Expected graph turn");
   return screen.turn;
 }
 function act(
-  content: DevelopmentPackage,
+  content: Awaited<ReturnType<typeof graphFixture>>,
   state: GraphTeachingState,
   action: GraphAction = { kind: "continue" },
   status: "inProgress" | "completed" = "inProgress",
@@ -49,7 +54,7 @@ function act(
   return { ...plan, after: graph(plan.after) };
 }
 function advance(
-  content: DevelopmentPackage,
+  content: Awaited<ReturnType<typeof graphFixture>>,
   state: GraphTeachingState,
   count: number,
 ) {

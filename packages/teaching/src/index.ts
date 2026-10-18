@@ -146,3 +146,10 @@ export type {
 } from "./shell-schemas.ts";
 
 export * from "./connected-pointing.ts";
+
+export {
+  parseDevelopmentInstalledTeaching,
+  parseSignedInstalledTeaching,
+  InstalledTeachingError,
+} from "./installed-teaching.ts";
+export type { InstalledTeaching } from "./installed-teaching.ts";

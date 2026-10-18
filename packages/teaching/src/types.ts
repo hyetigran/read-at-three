@@ -1,4 +1,4 @@
-import type { RuntimePackage } from "./course-content.ts";
+import type { InstalledTeaching } from "./installed-teaching.ts";
 export type IdKind =
   | "asset"
   | "profile"
@@ -535,7 +535,7 @@ export type SelectionPlan = Readonly<
 export type ApplyTransitionInput = Readonly<{
   command: TeachingCommand;
   context: StoredContext & { session: StoredSession };
-  content: RuntimePackage;
+  content: InstalledTeaching;
   before: TeachingState;
   receipt: CommitReceipt;
 }> &
@@ -548,7 +548,7 @@ export interface TeachingTransaction {
   receipt(
     command: TeachingCommand,
   ): Promise<{ payloadHash: PayloadHash; result: CommitReceipt } | null>;
-  ensurePackage(content: RuntimePackage): Promise<void>;
+  ensurePackage(content: InstalledTeaching): Promise<void>;
   writingBarrier?(input: {
     session: StoredSession;
     barrier: WritingBarrier;
@@ -556,7 +556,7 @@ export interface TeachingTransaction {
   select(input: {
     command: TeachingCommand;
     context: StoredContext;
-    content: RuntimePackage;
+    content: InstalledTeaching;
     selection: SelectionPlan;
     receipt: CommitReceipt;
   }): Promise<void>;
@@ -571,7 +571,7 @@ export interface TeachingTransaction {
     input: Readonly<{
       command: UndoAdvanceCommand;
       context: StoredContext & { session: StoredSession };
-      content: RuntimePackage;
+      content: InstalledTeaching;
       receipt: CommitReceipt;
     }>,
   ): Promise<void>;
@@ -584,7 +584,7 @@ export interface TeachingStore {
   documents?(input: {
     session: StoredSession;
   }): Promise<readonly DocumentToken[]>;
-  resolvePackage(packageHash: PackageHash): Promise<RuntimePackage>;
+  resolvePackage(packageHash: PackageHash): Promise<InstalledTeaching>;
   transaction<T>(work: (tx: TeachingTransaction) => Promise<T>): Promise<T>;
 }
 

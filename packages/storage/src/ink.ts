@@ -24,7 +24,7 @@ import {
   writingTask,
 } from "../../teaching/src/index.ts";
 import type {
-  RuntimePackage,
+  InstalledTeaching,
   DocumentToken,
   HashFunction,
   IdFactory,
@@ -62,7 +62,7 @@ export function createInkRepository({
   hash: HashFunction;
   resolve: (input: {
     token: DocumentToken;
-  }) => Promise<{ session: InkRunContext; content: RuntimePackage } | null>;
+  }) => Promise<{ session: InkRunContext; content: InstalledTeaching } | null>;
 }) {
   const db = drizzle(async (sql, parameters, method) => {
     if (method === "get") throw new Error("Array reads required");
@@ -141,10 +141,13 @@ export function createInkRepository({
     owner,
   }: {
     session: StoredSession;
-    content: RuntimePackage;
+    content: InstalledTeaching;
     owner: Owner;
   }) {
-    const task = writingTask({ content, taskId: session.taskId });
+    const task = writingTask({
+      content: content.document,
+      taskId: session.taskId,
+    });
     if (!task) return;
     for (const target of task.targets) {
       const documentId = parseId({ kind: "document", value: ids() });
@@ -156,13 +159,16 @@ export function createInkRepository({
           profileId: owner.profileId,
           generation: owner.generation,
           courseId: content.body.courseId,
-          packageHash: content.packageHash,
-          lessonId: lessonForTask({ content, taskId: session.taskId }),
+          packageHash: content.key,
+          lessonId: lessonForTask({
+            content: content.document,
+            taskId: session.taskId,
+          }),
           taskId: session.taskId,
           targetId: target.id,
           sourceRefs: canonical(target.sourceRefs),
           phase: writingPermission({
-            content,
+            content: content.document,
             state: session.state,
             targetId: target.id,
           }).phase,
@@ -199,7 +205,10 @@ export function createInkRepository({
     if (!owned({ row, expected })) throw new Error("Stale ink snapshot token");
     const binding = await resolve({ token: expected });
     if (!binding) throw new Error("Ink run ownership invalid");
-    const task = writingTask({ content: binding.content, taskId: row.taskId }),
+    const task = writingTask({
+        content: binding.content.document,
+        taskId: row.taskId,
+      }),
       target = task?.targets.find((t) => t.id === row.targetId);
     if (
       !target ||
@@ -208,7 +217,7 @@ export function createInkRepository({
       row.logicalHeight !== target.logicalHeight ||
       row.sourceRefs !== canonical(target.sourceRefs) ||
       writingPermission({
-        content: binding.content,
+        content: binding.content.document,
         state: binding.session.state,
         targetId: row.targetId,
       }).phase !== row.phase
@@ -318,7 +327,7 @@ export function createInkRepository({
         binding.session.status === "active" &&
         binding.session.runStatus === "inProgress" &&
         writingPermission({
-          content: binding.content,
+          content: binding.content.document,
           state: binding.session.state,
           targetId: row.targetId,
         }).writable,
@@ -601,7 +610,7 @@ export function createInkRepository({
         "Ink document changed before this command.",
       );
     const permission = writingPermission({
-      content: binding.content,
+      content: binding.content.document,
       state: binding.session.state,
       targetId: expected.targetId,
     });
@@ -842,14 +851,14 @@ export function createInkRepository({
     content,
   }: {
     session: StoredSession;
-    content: RuntimePackage;
+    content: InstalledTeaching;
   }) {
     for (const expected of await tokens({ session })) {
       await db
         .update(schema.inkDocument)
         .set({
           phase: writingPermission({
-            content,
+            content: content.document,
             state: session.state,
             targetId: expected.targetId,
           }).phase,

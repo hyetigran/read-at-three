@@ -13,6 +13,7 @@ import {
   canonical,
   parseDevelopmentPackage,
   parseRuntimePackage,
+  parseDevelopmentInstalledTeaching,
   prepareCommand,
   prepareWritingCommand,
 } from "../../packages/teaching/src/index.ts";
@@ -839,13 +840,17 @@ test("internal dependent-support recomputation retains prior Skip support and ro
     .get(writing.id);
   assert.ok(credit && typeof credit.credit_id === "string");
   const taskCreditId = parseId({ kind: "credit", value: credit.credit_id });
+  const installed = await parseDevelopmentInstalledTeaching({
+    document: content,
+    hash,
+  });
   const progress = createLessonProgress({
       executor,
       hash,
       ids: f.ids,
       pinned: (packageHash) => {
         assert.equal(packageHash, content.packageHash);
-        return content;
+        return installed;
       },
     }),
     before = db.prepare("SELECT * FROM task_credit ORDER BY credit_id").all(),
@@ -873,7 +878,7 @@ test("internal dependent-support recomputation retains prior Skip support and ro
         db.prepare("SELECT * FROM lesson_result").all(),
         originalResult,
       );
-      await progress.derive({ owner: view.witness.owner, content });
+      await progress.derive({ owner: view.witness.owner, content: installed });
       assert.equal(count(db, "lesson_credit"), 2);
       await progress.validate({
         owner: view.witness.owner,

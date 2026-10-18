@@ -1,3 +1,5 @@
+import { installedFixture } from "../installed-fixture.ts";
+import { hash } from "../lesson-two-fixture.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -13,7 +15,8 @@ import type { GraphAction } from "@readatthree/teaching";
 import { syntheticOralPairsCourse } from "../oral-pairs-fixture.ts";
 
 test("normal multi-response cycles preserve their bound identity through initial and optional groups", async () => {
-  const { content, task5Id } = await syntheticOralPairsCourse();
+  const { content: document, task5Id } = await syntheticOralPairsCourse();
+  const content = await installedFixture(document, hash);
   const initial = initialState(content, task5Id);
   if (initial.kind !== "graphControls")
     throw new Error("Control state required");
@@ -56,7 +59,7 @@ test("normal multi-response cycles preserve their bound identity through initial
       if (i < 13) act({ kind: "continue" });
     }
   }
-  const entry = taskDefinition({ content, taskId: task5Id });
+  const entry = taskDefinition({ content: content.document, taskId: task5Id });
   if (entry.kind !== "graphControls")
     throw new Error("Control definition required");
   const policy = [...entry.graph.policies.keys()][0];

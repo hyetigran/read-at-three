@@ -1,4 +1,4 @@
-import { canonical, deepFreeze } from "./identity.ts";
+import { canonical, deepFreeze, parseHash } from "./identity.ts";
 import {
   packageMetadata,
   parseRuntimePackage,
@@ -24,12 +24,14 @@ export type CurriculumFileHash = string & {
 export type InstalledTeaching =
   | Readonly<{
       kind: "development-v1";
+      key: PackageHash;
       identity: Readonly<{ kind: "development-v1"; hash: PackageHash }>;
       document: RuntimePackage;
       body: RuntimePackage["body"];
     }>
   | Readonly<{
       kind: "signed-v1";
+      key: PackageHash;
       identity: Readonly<{ kind: "signed-v1"; hash: PublicationHash }>;
       publication: VerifiedPublication;
       curriculumFile: Readonly<{
@@ -135,6 +137,7 @@ export async function parseSignedInstalledTeaching(
       throw new InstalledTeachingError();
     return deepFreeze({
       kind: "signed-v1",
+      key: parseHash({ kind: "package", value: input.publication.hash }),
       identity: { kind: "signed-v1", hash: input.publication.hash },
       publication: input.publication,
       curriculumFile: {
@@ -163,6 +166,7 @@ export async function parseDevelopmentInstalledTeaching(
     });
     return deepFreeze({
       kind: "development-v1",
+      key: document.packageHash,
       identity: { kind: "development-v1", hash: document.packageHash },
       document,
       body: document.body,

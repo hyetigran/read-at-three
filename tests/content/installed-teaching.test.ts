@@ -1,3 +1,8 @@
+import {
+  initialState,
+  completionProof,
+  evaluateGraph,
+} from "../../packages/teaching/src/index.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -125,6 +130,8 @@ test("signed teaching retains distinct authenticated manifest, exact file and in
   assert.deepEqual(signed.document, content);
   assert.equal(signed.document.packageHash, content.packageHash);
   assert.equal(signed.identity.hash, await hash(canonical(body)));
+  assert.equal(signed.key, await hash(canonical(body)));
+  assert.notEqual(signed.key, signed.document.packageHash);
   assert.equal(signed.curriculumFile.sha256, digest(bytes).toString("hex"));
   assert.equal(
     new Set([
@@ -148,6 +155,7 @@ test("signed teaching retains distinct authenticated manifest, exact file and in
   assert.equal(dev.body, content.body);
   assert.equal(dev.identity.kind, "development-v1");
   assert.equal(dev.identity.hash, content.packageHash);
+  assert.equal(dev.key, content.packageHash);
 });
 test("fresh valid signatures cannot substitute course, release, schema or ordered lessons", async () => {
   const { bytes, body } = await fixture();
@@ -342,4 +350,57 @@ test("inner body verification primitive outage remains unavailable after file au
     "unavailable",
   );
   assert.equal(calls, 2);
+});
+
+// New personal proofs must use the enclosing installed key; source definitions remain unchanged.
+test("signed printed completion and optional writing skip retain the publication key", async () => {
+  const { bytes, body } = await fixture();
+  const signed = await read(body, bytes);
+  const tasks = resolvedLessons(signed.document).flatMap(
+    (lesson) => lesson.tasks,
+  );
+  const printed = tasks.find((entry) => entry.kind === "printedGraphV2");
+  const writing = tasks.find(
+    (entry) =>
+      entry.kind === "writingPracticePlanV2" || entry.kind === "soundWritingV1",
+  );
+  assert.ok(printed);
+  assert.ok(writing);
+  let state = initialState(signed, printed.task.id);
+  for (let step = 0; completionProof(signed, state) === null; step++) {
+    assert.ok(
+      step < 20,
+      "Neutral printed fixture must reach its real terminal",
+    );
+    assert.equal(state.kind, "graph");
+    if (state.kind !== "graph") throw new Error("Printed fixture missing");
+    const plan = evaluateGraph({
+      content: signed,
+      state,
+      status: "inProgress",
+      action: { kind: "continue" },
+    });
+    state = plan.after;
+    if (plan.kind === "completion")
+      assert.equal(plan.completion.packageHash, signed.key);
+  }
+  assert.equal(completionProof(signed, state)?.packageHash, signed.key);
+  assert.notEqual(
+    completionProof(signed, state)?.packageHash,
+    signed.document.packageHash,
+  );
+  const initial = initialState(signed, writing.task.id);
+  assert.equal(initial.kind, "graphControls");
+  if (initial.kind !== "graphControls")
+    throw new Error("Writing fixture missing");
+  const skipped = evaluateGraph({
+    content: signed,
+    state: initial,
+    status: "inProgress",
+    action: { kind: "skipWriting" },
+  });
+  assert.equal(skipped.kind, "skip");
+  if (skipped.kind !== "skip") throw new Error("Writing skip unavailable");
+  assert.equal(skipped.skip.packageHash, signed.key);
+  assert.equal(completionProof(signed, skipped.after), null);
 });

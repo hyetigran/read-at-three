@@ -1,4 +1,4 @@
-import type { RuntimePackage } from "./course-content.ts";
+import type { InstalledTeaching } from "./installed-teaching.ts";
 import { writingTask } from "./writing.ts";
 import {
   canonical,
@@ -195,10 +195,10 @@ export function initialControlState({
   content,
   taskId,
 }: {
-  content: RuntimePackage;
+  content: InstalledTeaching;
   taskId: TaskId;
 }): ControlTeachingState {
-  const graph = controlTask({ content, taskId });
+  const graph = controlTask({ content: content.document, taskId });
   const occurrences = graph.normalNodeIds.map((id, i): ControlOccurrence => ({
     id: parseId({ kind: "occurrence", value: `occurrence-${i + 1}` }),
     target: { kind: "node", nodeId: id },
@@ -225,13 +225,16 @@ export function validateControlPosition({
   state,
   taskId,
 }: {
-  content: RuntimePackage;
+  content: InstalledTeaching;
   state: ControlTeachingState;
   taskId?: TaskId;
 }): void {
   if (taskId !== undefined && state.taskId !== taskId)
     throw new Error("Control task changed");
-  const graph = controlTask({ content, taskId: state.taskId }),
+  const graph = controlTask({
+      content: content.document,
+      taskId: state.taskId,
+    }),
     initial = initialControlState({ content, taskId: state.taskId });
   if (
     state.occurrences.length >= 10000 ||
@@ -1001,10 +1004,13 @@ export function controlCompletionProof({
   content,
   state,
 }: {
-  content: RuntimePackage;
+  content: InstalledTeaching;
   state: ControlTeachingState;
 }): CompletionProof | null {
-  const graph = controlTask({ content, taskId: state.taskId });
+  const graph = controlTask({
+    content: content.document,
+    taskId: state.taskId,
+  });
   const requiredIds = graph.normalNodeIds.map(
     (id) => normalOccurrence({ state, id }).id,
   );
@@ -1023,7 +1029,7 @@ export function controlCompletionProof({
     return null;
   return {
     taskId: state.taskId,
-    packageHash: content.packageHash,
+    packageHash: content.key,
     requiredOccurrenceIds: requiredIds,
     sourceRefs: [
       ...new Set(
@@ -1040,7 +1046,7 @@ export function evaluateControls({
   status,
   action: requestedAction,
 }: {
-  content: RuntimePackage;
+  content: InstalledTeaching;
   state: ControlTeachingState;
   status: "inProgress" | "completed";
   action: GraphAction;
@@ -1051,9 +1057,15 @@ export function evaluateControls({
     (controlCompletionProof({ content, state }) !== null)
   )
     throw new Error("Control run status does not match obligations");
-  const graph = controlTask({ content, taskId: state.taskId }),
+  const graph = controlTask({
+      content: content.document,
+      taskId: state.taskId,
+    }),
     checkpoint = controlCheckpoint(state);
-  const writing = writingTask({ content, taskId: state.taskId });
+  const writing = writingTask({
+    content: content.document,
+    taskId: state.taskId,
+  });
   if (requestedAction.kind === "skipWriting") {
     if (!writing || status !== "inProgress" || checkpoint.occurrenceId === null)
       throw new Error("Skip requires optional writing");
@@ -1069,7 +1081,7 @@ export function evaluateControls({
       occurrenceId: checkpoint.occurrenceId,
       skip: {
         taskId: state.taskId,
-        packageHash: content.packageHash,
+        packageHash: content.key,
         outcome: "skipped",
         sourceRefs: [...new Set(writing.nodes.flatMap((n) => n.sourceRefs))],
       },
@@ -1706,10 +1718,13 @@ export function projectControls({
   content,
   state,
 }: {
-  content: RuntimePackage;
+  content: InstalledTeaching;
   state: ControlTeachingState;
 }): EngineProjection {
-  const graph = controlTask({ content, taskId: state.taskId }),
+  const graph = controlTask({
+      content: content.document,
+      taskId: state.taskId,
+    }),
     checkpoint = controlCheckpoint(state);
   if (checkpoint.occurrenceId === null) return { kind: "completed" };
   const currentOccurrence = occurrence({ state, id: checkpoint.occurrenceId }),
@@ -1767,11 +1782,14 @@ export function controlActions({
   state,
   status,
 }: {
-  content: RuntimePackage;
+  content: InstalledTeaching;
   state: ControlTeachingState;
   status: "inProgress" | "completed";
 }): AvailableAction[] {
-  const graph = controlTask({ content, taskId: state.taskId }),
+  const graph = controlTask({
+      content: content.document,
+      taskId: state.taskId,
+    }),
     checkpoint = controlCheckpoint(state),
     actions: AvailableAction[] = [];
   const add = ({
@@ -1911,7 +1929,7 @@ export function controlActions({
           });
         }
     }
-    if (writingTask({ content, taskId: state.taskId }))
+    if (writingTask({ content: content.document, taskId: state.taskId }))
       add({ text: "Skip writing", intent: { kind: "skipWriting" } });
     add({ text: "Pause", intent: { kind: "pause" } });
   }

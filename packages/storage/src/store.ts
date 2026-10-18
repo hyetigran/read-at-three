@@ -25,6 +25,7 @@ import {
   parseCounter,
   parseId,
   parseRuntimePackage,
+  parseDevelopmentInstalledTeaching,
   parseReceipt,
   parseCommand,
   parseTeachingState,
@@ -52,6 +53,7 @@ import type {
   CommitReceipt,
   CommittedProjection,
   RuntimePackage,
+  InstalledTeaching,
   HashFunction,
   IdFactory,
   Owner,
@@ -131,7 +133,7 @@ function isCumulativeOralExtension({
 type RunRow = typeof schema.taskRunV6.$inferSelect;
 export function createTeachingApplication({
   executor,
-  content,
+  content: suppliedContent,
   ids,
   hash,
   preparation = { kind: "unavailable" },
@@ -183,23 +185,25 @@ export function createTeachingApplication({
       return { persistence: "memoryOnly", ring: diagnosticMemory };
     }
   }
-  const verified = new Map<PackageHash, RuntimePackage>();
+  let content: InstalledTeaching;
+  const verified = new Map<PackageHash, InstalledTeaching>();
   async function warmPackages() {
     verified.clear();
     const rows = await db.select().from(schema.installedPackage).all();
     for (const row of rows) {
       if (row.state !== "ready") continue;
-      const value = await parseRuntimePackage(
-        JSON.parse(decodeUtf8(row.verifiedManifest)),
+      const value = await parseDevelopmentInstalledTeaching({
+        document: JSON.parse(decodeUtf8(row.verifiedManifest)),
         hash,
-      );
+      });
       if (
-        value.packageHash !== row.packageHash ||
+        value.key !== row.packageHash ||
         value.body.courseId !== row.courseId ||
         value.body.releaseId !== row.releaseId ||
         row.storageKey !== row.packageHash ||
-        canonical(packageMetadata(value).capabilities) !== row.capabilities ||
-        packageMetadata(value).contentSchemaVersion !==
+        canonical(packageMetadata(value.document).capabilities) !==
+          row.capabilities ||
+        packageMetadata(value.document).contentSchemaVersion !==
           Number(row.contentSchemaVersion) ||
         Number(row.manifestVersion) !== 1
       )
@@ -214,11 +218,11 @@ export function createTeachingApplication({
     if (!value) throw new Error("Exact pinned package is unavailable");
     return value;
   }
-  async function ensurePackage(value: RuntimePackage) {
+  async function ensurePackage(value: InstalledTeaching) {
     const rows = await db
       .select()
       .from(schema.installedPackage)
-      .where(eq(schema.installedPackage.packageHash, value.packageHash))
+      .where(eq(schema.installedPackage.packageHash, value.key))
       .all();
     const row = rows[0];
     if (
@@ -226,12 +230,13 @@ export function createTeachingApplication({
       row.state !== "ready" ||
       row.courseId !== value.body.courseId ||
       row.releaseId !== value.body.releaseId ||
-      row.storageKey !== value.packageHash ||
+      row.storageKey !== value.key ||
       Number(row.contentSchemaVersion) !==
-        packageMetadata(value).contentSchemaVersion ||
-      row.capabilities !== canonical(packageMetadata(value).capabilities) ||
+        packageMetadata(value.document).contentSchemaVersion ||
+      row.capabilities !==
+        canonical(packageMetadata(value.document).capabilities) ||
       Number(row.manifestVersion) !== 1 ||
-      !equalBytes(row.verifiedManifest, utf8(canonical(value)))
+      !equalBytes(row.verifiedManifest, utf8(canonical(value.document)))
     )
       throw new Error("Pinned package identity changed");
   }
@@ -303,12 +308,15 @@ export function createTeachingApplication({
   let schemaInitialized = false;
   function ensureInitialized() {
     initialization ??= (async () => {
-      content = await parseRuntimePackage(content, hash);
+      content = await parseDevelopmentInstalledTeaching({
+        document: suppliedContent,
+        hash,
+      });
       await initializeDatabase(executor, hash, async (version) => {
         if (version !== 6 && version !== 7 && version !== 8) return undefined;
         await warmPackages();
         const prepared = [...verified.values()].sort((a, b) =>
-          a.packageHash.localeCompare(b.packageHash),
+          a.key.localeCompare(b.key),
         );
         return async () => {
           const readyPackages = await db
@@ -319,10 +327,7 @@ export function createTeachingApplication({
           if (
             readyPackages.length !== prepared.length ||
             readyPackages.some(
-              (row) =>
-                !prepared.some(
-                  (value) => value.packageHash === row.packageHash,
-                ),
+              (row) => !prepared.some((value) => value.key === row.packageHash),
             )
           )
             throw new Error("Prepared package set changed before migration");
@@ -412,22 +417,24 @@ export function createTeachingApplication({
         const packages = await db
           .select()
           .from(schema.installedPackage)
-          .where(eq(schema.installedPackage.packageHash, content.packageHash))
+          .where(eq(schema.installedPackage.packageHash, content.key))
           .all();
         if (!packages.length)
           await db
             .insert(schema.installedPackage)
             .values({
-              packageHash: content.packageHash,
+              packageHash: content.key,
               courseId: content.body.courseId,
               releaseId: content.body.releaseId,
-              contentSchemaVersion:
-                packageMetadata(content).contentSchemaVersion,
-              capabilities: canonical(packageMetadata(content).capabilities),
+              contentSchemaVersion: packageMetadata(content.document)
+                .contentSchemaVersion,
+              capabilities: canonical(
+                packageMetadata(content.document).capabilities,
+              ),
               manifestVersion: 1,
-              verifiedManifest: utf8(canonical(content)),
+              verifiedManifest: utf8(canonical(content.document)),
               state: "ready",
-              storageKey: content.packageHash,
+              storageKey: content.key,
             })
             .run();
         else await ensurePackage(content);
@@ -442,12 +449,12 @@ export function createTeachingApplication({
             .insert(schema.courseActivation)
             .values({
               courseId: content.body.courseId,
-              activePackageHash: content.packageHash,
+              activePackageHash: content.key,
               fallbackPackageHash: null,
               revision: parseCounter("0"),
             })
             .run();
-        else if (active.activePackageHash !== content.packageHash) {
+        else if (active.activePackageHash !== content.key) {
           const previous = pinned(active.activePackageHash);
           await ensurePackage(previous);
           const cumulative =
@@ -480,9 +487,15 @@ export function createTeachingApplication({
                 entry.task.id === previous.body.taskId,
             );
           if (
-            cumulativeExtension({ previous, candidate: content }) ||
+            cumulativeExtension({
+              previous: previous.document,
+              candidate: content.document,
+            }) ||
             cumulative ||
-            isCumulativeOralExtension({ previous, candidate: content }) ||
+            isCumulativeOralExtension({
+              previous: previous.document,
+              candidate: content.document,
+            }) ||
             legacyCumulative ||
             (previous.body.coverage === "partial-first-m" &&
               content.body.coverage === "lesson1-sounds-complete" &&
@@ -498,17 +511,14 @@ export function createTeachingApplication({
             await db
               .update(schema.courseActivation)
               .set({
-                activePackageHash: content.packageHash,
-                fallbackPackageHash: previous.packageHash,
+                activePackageHash: content.key,
+                fallbackPackageHash: previous.key,
                 revision: increment(active.revision),
               })
               .where(
                 and(
                   eq(schema.courseActivation.courseId, content.body.courseId),
-                  eq(
-                    schema.courseActivation.activePackageHash,
-                    previous.packageHash,
-                  ),
+                  eq(schema.courseActivation.activePackageHash, previous.key),
                   eq(schema.courseActivation.revision, active.revision),
                 ),
               )
@@ -561,7 +571,8 @@ export function createTeachingApplication({
     const value = pinned(run.packageHash);
     if (
       value.body.courseId !== run.courseId ||
-      lessonForTask({ content: value, taskId: run.taskId }) !== run.lessonId
+      lessonForTask({ content: value.document, taskId: run.taskId }) !==
+        run.lessonId
     )
       throw new Error("Saved package ownership is invalid");
     const state = parseTeachingState(JSON.parse(run.state));
@@ -1111,7 +1122,7 @@ export function createTeachingApplication({
       const nextSelection = increment(current.selectionCounter);
       await settleOwnedSessions(current.sessions);
       if (selection.kind === "new") {
-        if (value.packageHash !== current.activePackageHash)
+        if (value.key !== current.activePackageHash)
           throw new Error("New teaching requires the active package");
         if (selection.replaceSessionId) {
           const previous = current.sessions.find(
@@ -1140,9 +1151,9 @@ export function createTeachingApplication({
             profileId: owner.profileId,
             generation: owner.generation,
             courseId: value.body.courseId,
-            packageHash: value.packageHash,
+            packageHash: value.key,
             lessonId: lessonForTask({
-              content: value,
+              content: value.document,
               taskId: selection.taskId,
             }),
             taskId: selection.taskId,
@@ -1163,9 +1174,9 @@ export function createTeachingApplication({
             profileId: owner.profileId,
             generation: owner.generation,
             courseId: value.body.courseId,
-            packageHash: value.packageHash,
+            packageHash: value.key,
             lessonId: lessonForTask({
-              content: value,
+              content: value.document,
               taskId: selection.taskId,
             }),
             taskId: selection.taskId,
@@ -1184,9 +1195,9 @@ export function createTeachingApplication({
             runId: selection.runId,
             revision: parseCounter("0"),
             runRevision: parseCounter("0"),
-            packageHash: value.packageHash,
+            packageHash: value.key,
             lessonId: lessonForTask({
-              content: value,
+              content: value.document,
               taskId: selection.taskId,
             }),
             taskId: selection.taskId,
@@ -1311,7 +1322,7 @@ export function createTeachingApplication({
         .where(eq(schema.session.sessionId, saved.sessionId))
         .run();
       const affectedPackages = new Set<PackageHash>([
-        value.packageHash,
+        value.key,
         current.activePackageHash,
       ]);
       const terminalCredit = (
@@ -1498,7 +1509,7 @@ export function createTeachingApplication({
             sessionId: saved.sessionId,
             runId: saved.runId,
             terminalAdvanceId: advanceId,
-            packageHash: value.packageHash,
+            packageHash: value.key,
             outcome: plan.kind === "skip" ? "skipped" : "completed",
             status: "valid",
             receiptVersion: 1,
@@ -1541,7 +1552,7 @@ export function createTeachingApplication({
       }
       if (plan.kind === "completion" || plan.kind === "skip") {
         await lessonProgress.derive({ owner: current.owner, content: value });
-        if (current.activePackageHash !== value.packageHash)
+        if (current.activePackageHash !== value.key)
           await lessonProgress.derive({
             owner: current.owner,
             content: pinned(current.activePackageHash),
@@ -2007,7 +2018,10 @@ export function createTeachingApplication({
           activeAdvanceId: run.activeAdvanceId,
           nextAdvanceSeq: run.nextAdvanceSeq,
         };
-        const writing = writingTask({ content: value, taskId: summary.taskId }),
+        const writing = writingTask({
+            content: value.document,
+            taskId: summary.taskId,
+          }),
           documents: HistoricalWork["documents"][number][] = [];
         for (const token of await ink.tokens({ session })) {
           const snapshot = await ink.snapshot({ token }),
@@ -2021,8 +2035,8 @@ export function createTeachingApplication({
         const title =
           value.body.coverage === "partial-first-m"
             ? value.body.title
-            : resolvedTask({ content: value, taskId: summary.taskId })?.entry
-                .task.title;
+            : resolvedTask({ content: value.document, taskId: summary.taskId })
+                ?.entry.task.title;
         if (!title) throw new Error("Historical task unavailable");
         return {
           selection: directory.selection,

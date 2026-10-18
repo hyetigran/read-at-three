@@ -81,7 +81,7 @@ test("ten oral turns retain mandatory Again, joint supported cycles and separate
     const plan = fixture.act(fixture.decision());
     if (expected !== "in-independent") {
       assert.equal(plan.kind, "acceptance");
-      assert.equal(completionProof(fixture.content, fixture.state), null);
+      assert.equal(completionProof(fixture.installed, fixture.state), null);
     }
     fixture.roundTrip();
   }
@@ -92,12 +92,12 @@ test("ten oral turns retain mandatory Again, joint supported cycles and separate
     ["supported", "supported", "supported"],
   );
   assert.equal(
-    completionProof(fixture.content, fixture.state)?.requiredOccurrenceIds
+    completionProof(fixture.installed, fixture.state)?.requiredOccurrenceIds
       .length,
     13,
   );
   assert.deepEqual(
-    completionProof(fixture.content, fixture.state)?.sourceRefs,
+    completionProof(fixture.installed, fixture.state)?.sourceRefs,
     ["fixture.continuous.source"],
   );
 });
@@ -264,7 +264,7 @@ test("false independent outcomes, phase skips, inactive-route rewrites and forge
   const fixture = await at("am-independent");
   assert.throws(
     () =>
-      validatePosition(fixture.content, {
+      validatePosition(fixture.installed, {
         ...fixture.state,
         cycleOutcomes: fixture.state.cycleOutcomes.map((o) => ({
           ...o,
@@ -298,14 +298,14 @@ test("false independent outcomes, phase skips, inactive-route rewrites and forge
     ],
   };
   assert.throws(
-    () => validatePosition(fixture.content, forged),
+    () => validatePosition(fixture.installed, forged),
     /authored route/,
   );
   const modelBinding = context.instructionOccurrenceIds[0];
   assert.ok(modelBinding);
   assert.throws(
     () =>
-      validatePosition(fixture.content, {
+      validatePosition(fixture.installed, {
         ...state,
         checkpoints: [
           ...state.checkpoints.slice(0, -1),
@@ -325,7 +325,7 @@ test("false independent outcomes, phase skips, inactive-route rewrites and forge
   const reversed = [...context.retestOccurrenceIds].reverse();
   assert.throws(
     () =>
-      validatePosition(fixture.content, {
+      validatePosition(fixture.installed, {
         ...state,
         checkpoints: [
           ...state.checkpoints.slice(0, -1),

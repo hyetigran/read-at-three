@@ -1,6 +1,6 @@
 import { projectPrintedTurn } from "./content.ts";
 import { resolvedLessons } from "./course-content.ts";
-import type { RuntimePackage } from "./course-content.ts";
+import type { InstalledTeaching } from "./installed-teaching.ts";
 import { writingTask } from "./writing.ts";
 import {
   initialControlState,
@@ -38,7 +38,7 @@ import {
 } from "./content.ts";
 
 export function initialState(
-  content: RuntimePackage,
+  content: InstalledTeaching,
   taskId?: TaskId,
 ): TeachingState {
   if (content.body.coverage === "partial-first-m")
@@ -48,12 +48,15 @@ export function initialState(
       nodeId: content.body.startNodeId,
       acceptedNodeIds: [],
     };
-  const firstTask = resolvedLessons(content)[0]?.tasks[0];
+  const firstTask = resolvedLessons(content.document)[0]?.tasks[0];
   const id = taskId ?? firstTask?.task.id;
   if (!id) throw new Error("Task is unavailable");
-  if (taskDefinition({ content, taskId: id }).kind === "graphControls")
+  if (
+    taskDefinition({ content: content.document, taskId: id }).kind ===
+    "graphControls"
+  )
     return initialControlState({ content, taskId: id });
-  const graph = graphTask(content, id);
+  const graph = graphTask(content.document, id);
   const occurrences: Occurrence[] = graph.normalNodeIds.map(
     (nodeId, index) => ({
       id: parseId({ kind: "occurrence", value: `occurrence-${index + 1}` }),
@@ -81,7 +84,7 @@ export function initialState(
     nextCheckpointNumber: parseCounter("2"),
   });
 }
-function legacyNode(content: RuntimePackage, id: NodeId) {
+function legacyNode(content: InstalledTeaching, id: NodeId) {
   if (content.body.coverage !== "partial-first-m")
     throw new Error("Legacy state needs its exact legacy package");
   const node = content.body.nodes.find((node) => node.id === id);
@@ -89,7 +92,7 @@ function legacyNode(content: RuntimePackage, id: NodeId) {
   return node;
 }
 function legacyTransition(
-  content: RuntimePackage,
+  content: InstalledTeaching,
   state: Extract<LegacyTeachingState, { kind: "teaching" }>,
 ): LegacyTeachingState {
   const node = legacyNode(content, state.nodeId);
@@ -152,13 +155,13 @@ function normalOccurrence(
   return found;
 }
 export function validatePosition(
-  content: RuntimePackage,
+  content: InstalledTeaching,
   state: TeachingState,
   taskId?: TaskId,
 ): void {
   if (state.kind === "writingSkipped") {
     if (
-      !writingTask({ content, taskId: state.taskId }) ||
+      !writingTask({ content: content.document, taskId: state.taskId }) ||
       state.taskId !== state.last.taskId ||
       (state.viewCheckpoint !== null &&
         (!Number.isInteger(state.viewCheckpoint) ||
@@ -198,7 +201,7 @@ export function validatePosition(
   }
   if (taskId !== undefined && taskId !== state.taskId)
     throw new Error("Saved task identity is invalid");
-  const graph = graphTask(content, state.taskId);
+  const graph = graphTask(content.document, state.taskId);
   if (
     state.occurrences.length < graph.normalNodeIds.length ||
     state.occurrences.length >= 10000 ||
@@ -424,7 +427,7 @@ export function validatePosition(
   currentCheckpoint(state);
 }
 export function evaluate(
-  content: RuntimePackage,
+  content: InstalledTeaching,
   state: TeachingState,
   nodeId: NodeId,
 ): TeachingState {
@@ -447,7 +450,7 @@ export function evaluateGraph({
   status,
   action,
 }: {
-  content: RuntimePackage;
+  content: InstalledTeaching;
   state:
     | GraphTeachingState
     | ControlTeachingState
@@ -491,7 +494,7 @@ export function evaluateGraph({
   )
     throw new Error("Printed action unavailable");
   validatePosition(content, state);
-  const graph = graphTask(content, state.taskId);
+  const graph = graphTask(content.document, state.taskId);
   const checkpoint = currentCheckpoint(state);
   const current =
     checkpoint.occurrenceId === null
@@ -696,7 +699,7 @@ export function validateAcceptanceTransition({
   occurrenceId,
   action,
 }: {
-  content: RuntimePackage;
+  content: InstalledTeaching;
   taskId: TaskId;
   before: TeachingState;
   after: TeachingState;
@@ -754,7 +757,7 @@ export function validateAcceptanceTransition({
   }
 }
 export function project(
-  content: RuntimePackage,
+  content: InstalledTeaching,
   state: TeachingState,
 ): EngineProjection {
   validatePosition(content, state);
@@ -771,7 +774,9 @@ export function project(
     const checkpoint = currentCheckpoint(state);
     if (checkpoint.occurrenceId === null) return { kind: "completed" };
     const current = occurrence(state, checkpoint.occurrenceId);
-    const node = graphTask(content, state.taskId).nodes.get(current.nodeId);
+    const node = graphTask(content.document, state.taskId).nodes.get(
+      current.nodeId,
+    );
     if (!node) throw new Error("Current node is unavailable");
     return {
       kind: "teaching",
@@ -788,7 +793,7 @@ export function project(
 }
 
 export function completionProof(
-  content: RuntimePackage,
+  content: InstalledTeaching,
   state: TeachingState,
 ): CompletionProof | null {
   validatePosition(content, state);
@@ -798,16 +803,16 @@ export function completionProof(
   return graphCompletionProof(content, state);
 }
 function graphCompletionProof(
-  content: RuntimePackage,
+  content: InstalledTeaching,
   state: GraphTeachingState,
 ): CompletionProof | null {
-  const graph = graphTask(content, state.taskId);
+  const graph = graphTask(content.document, state.taskId);
   const required = graph.normalNodeIds.map((id) => normalOccurrence(state, id));
   if (required.some((entry) => !state.acceptedOccurrenceIds.includes(entry.id)))
     return null;
   return deepFreeze({
     taskId: state.taskId,
-    packageHash: content.packageHash,
+    packageHash: content.key,
     requiredOccurrenceIds: required.map((entry) => entry.id),
     sourceRefs: [
       ...new Set(
@@ -824,7 +829,7 @@ export function validateAcceptanceState({
   baseline,
   state,
 }: {
-  content: RuntimePackage;
+  content: InstalledTeaching;
   taskId: TaskId;
   baseline: TeachingState;
   state: TeachingState;

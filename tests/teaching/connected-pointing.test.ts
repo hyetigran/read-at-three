@@ -1,3 +1,4 @@
+import { installedFixture } from "../installed-fixture.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -19,14 +20,19 @@ import { syntheticConnectedCourse } from "../connected-pointing-fixture.ts";
 import { hash } from "../lesson-two-fixture.ts";
 
 async function fixture(number: 6 | 7) {
-  const { content, task6Id, task7Id } = await syntheticConnectedCourse();
+  const {
+    content: document,
+    task6Id,
+    task7Id,
+  } = await syntheticConnectedCourse();
+  const content = await installedFixture(document, hash);
   const taskId = number === 6 ? task6Id : task7Id;
   if (!taskId) throw new Error("Synthetic task missing");
   const initial = initialState(content, taskId);
   if (initial.kind !== "graphControls")
     throw new Error("Control state required");
   let state = initial;
-  const graph = taskDefinition({ content, taskId });
+  const graph = taskDefinition({ content: content.document, taskId });
   if (graph.kind !== "graphControls") throw new Error("Control task required");
   return {
     content,

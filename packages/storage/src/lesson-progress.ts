@@ -14,7 +14,7 @@ import type {
   LessonId,
   Owner,
   PackageHash,
-  RuntimePackage,
+  InstalledTeaching,
 } from "../../teaching/src/index.ts";
 import { sqlValues } from "./executor.ts";
 import type { SqlExecutor } from "./executor.ts";
@@ -72,12 +72,15 @@ export function createLessonProgress({
   executor: SqlExecutor;
   hash: HashFunction;
   ids: IdFactory;
-  pinned: (packageHash: PackageHash) => RuntimePackage;
+  pinned: (packageHash: PackageHash) => InstalledTeaching;
 }) {
   const db = drizzle((sql, parameters) =>
     executor.execute(sql, sqlValues(parameters)),
   );
-  const owned = (owner: Owner, courseId: RuntimePackage["body"]["courseId"]) =>
+  const owned = (
+    owner: Owner,
+    courseId: InstalledTeaching["body"]["courseId"],
+  ) =>
     and(
       eq(schema.lessonCredit.profileId, owner.profileId),
       eq(schema.lessonCredit.generation, owner.generation),
@@ -89,10 +92,13 @@ export function createLessonProgress({
     return parseHash({ kind: "payload", value: await hash(credit.receipt) });
   }
   async function definitionHash(
-    content: RuntimePackage,
+    content: InstalledTeaching,
     taskId: TaskCredit["taskId"],
   ) {
-    const identity = authoredTaskIdentity({ content, taskId });
+    const identity = authoredTaskIdentity({
+      content: content.document,
+      taskId,
+    });
     if (identity === null) return null;
     return parseHash({ kind: "payload", value: await hash(identity) });
   }
@@ -101,11 +107,11 @@ export function createLessonProgress({
     lessonId,
     credits,
   }: {
-    content: RuntimePackage;
+    content: InstalledTeaching;
     lessonId: LessonId;
     credits: readonly TaskCredit[];
   }) {
-    const lesson = resolvedLessons(content).find(
+    const lesson = resolvedLessons(content.document).find(
       (lesson) => lesson.lessonId === lessonId,
     );
     if (
@@ -144,7 +150,7 @@ export function createLessonProgress({
       version: 1,
       courseId: content.body.courseId,
       lessonId,
-      packageHash: content.packageHash,
+      packageHash: content.key,
       tasks,
     };
   }
@@ -160,7 +166,7 @@ export function createLessonProgress({
     courseId,
   }: {
     owner: Owner;
-    courseId: RuntimePackage["body"]["courseId"];
+    courseId: InstalledTeaching["body"]["courseId"];
   }) {
     const lessons = await db
       .select()
@@ -269,7 +275,7 @@ export function createLessonProgress({
     courseId,
   }: {
     owner: Owner;
-    courseId: RuntimePackage["body"]["courseId"];
+    courseId: InstalledTeaching["body"]["courseId"];
   }) {
     const credits = await db
       .select()
@@ -348,7 +354,7 @@ export function createLessonProgress({
     content,
   }: {
     owner: Owner;
-    content: RuntimePackage;
+    content: InstalledTeaching;
   }) {
     const courseId = content.body.courseId;
     const credits = await db
@@ -374,7 +380,7 @@ export function createLessonProgress({
         ),
       )
       .all();
-    for (const lesson of resolvedLessons(content)) {
+    for (const lesson of resolvedLessons(content.document)) {
       if (!lesson.completeDefinition || !lesson.lessonTasks.length) continue;
       const support: TaskCredit[] = [];
       for (const task of lesson.lessonTasks) {
@@ -427,7 +433,7 @@ export function createLessonProgress({
           ...owner,
           courseId,
           lessonId: lesson.lessonId,
-          packageHash: content.packageHash,
+          packageHash: content.key,
           status: "valid",
           receiptVersion: 1,
           receipt: canonical(receipt),
@@ -457,7 +463,7 @@ export function createLessonProgress({
     taskCreditId,
   }: {
     owner: Owner;
-    courseId: RuntimePackage["body"]["courseId"];
+    courseId: InstalledTeaching["body"]["courseId"];
     taskCreditId: CreditId;
   }) {
     const credits = await db
