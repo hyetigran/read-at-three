@@ -42,6 +42,12 @@ import {
 } from "./parent-setup.ts";
 import { boardPoint, drawStroke } from "./writing-helpers.ts";
 
+declare global {
+  interface Window {
+    profileLifecycleTraffic: () => WorkerTraffic;
+  }
+}
+
 type Ready = Extract<CurrentApplicationRead["application"], { kind: "ready" }>;
 type Child = ProfileDirectory["profiles"][number];
 type WorkerTraffic = Readonly<{
@@ -1298,8 +1304,14 @@ test("verified preparation previews read-only, while fresh missing and malformed
   const fixture = await constructedPreparation(page);
   await installObservation(page);
   await page.goto("/");
-  await page.waitForFunction(
-    "window.profileLifecycleTraffic().responses.some(response => response.kind === 'application' && response.value.application.kind === 'ready')",
+  await page.waitForFunction(() =>
+    window
+      .profileLifecycleTraffic()
+      .responses.some(
+        (response) =>
+          response.kind === "application" &&
+          response.value.application.kind === "ready",
+      ),
   );
   const preparation = await actualOpeningPreparation(page);
   if (preparation.kind !== "available")
@@ -1412,8 +1424,14 @@ test("verified preparation previews read-only, while fresh missing and malformed
         }),
       );
       await fresh.goto("/");
-      await fresh.waitForFunction(
-        "window.profileLifecycleTraffic().responses.some(response => response.kind === 'application' && response.value.application.kind === 'ready')",
+      await fresh.waitForFunction(() =>
+        window
+          .profileLifecycleTraffic()
+          .responses.some(
+            (response) =>
+              response.kind === "application" &&
+              response.value.application.kind === "ready",
+          ),
       );
       const actualPreparation = await actualOpeningPreparation(fresh);
       expect(actualPreparation).toEqual({

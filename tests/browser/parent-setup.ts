@@ -12,6 +12,12 @@ import type {
   WorkerResponse,
 } from "../../apps/web/src/platform/protocol.ts";
 
+declare global {
+  interface Window {
+    initialSetupObservation: () => SetupObservation;
+  }
+}
+
 type SetupTrafficBoundary = Readonly<{
   documentId: string;
   openingId: WorkerRequestId;
@@ -127,7 +133,17 @@ export async function completeInitialSetup({
   entry?: "map" | "consumer";
 }) {
   await page.waitForFunction(
-    "window.initialSetupObservation().responses.some(value => value.kind === 'inventory') && window.initialSetupObservation().responses.some(value => value.kind === 'application' && value.value.application.kind === 'ready')",
+    () =>
+      window
+        .initialSetupObservation()
+        .responses.some((value) => value.kind === "inventory") &&
+      window
+        .initialSetupObservation()
+        .responses.some(
+          (value) =>
+            value.kind === "application" &&
+            value.value.application.kind === "ready",
+        ),
   );
   const initial = await observation(page);
   const opening = initial.requests.find(

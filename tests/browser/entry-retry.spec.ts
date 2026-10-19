@@ -11,6 +11,12 @@ import {
   writingAction,
 } from "./writing-helpers.ts";
 
+declare global {
+  interface Window {
+    hasHeldTeachingWrite: () => boolean;
+  }
+}
+
 async function writingMenu(page: Page) {
   const fixture = await readFile(
     new URL("../fixtures/writing-development-package.json", import.meta.url),
@@ -230,7 +236,7 @@ test("history departure and return do not revive a held original task entry", as
   await writingMenu(page);
   await page.evaluate("window.armWritingFault('hold-teaching')");
   await page.getByRole("button", { name: "Start Task 2", exact: true }).click();
-  await page.waitForFunction("window.hasHeldTeachingWrite()");
+  await page.waitForFunction(() => window.hasHeldTeachingWrite());
   const retained = await task2Selection(page);
   await page
     .getByRole("link", { name: "Back to lesson map", exact: true })

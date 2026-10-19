@@ -14,6 +14,12 @@ import {
 import type { WorkerRequest } from "../../apps/web/src/platform/protocol.ts";
 import { useLegacyContent } from "./legacy-content.ts";
 
+declare global {
+  interface Window {
+    preparationReplies: readonly import("../../apps/web/src/platform/protocol.ts").WorkerResponse[];
+  }
+}
+
 const hash = async (text: string) =>
   createHash("sha256").update(text).digest("hex");
 const ids = () => randomUUID();
@@ -59,8 +65,8 @@ test("verified fixture preparation acknowledges and finishes the existing profil
     };
   `);
   await page.goto("/");
-  await page.waitForFunction(
-    "window.preparationReplies.some(value=>value.kind==='inventory')",
+  await page.waitForFunction(() =>
+    window.preparationReplies.some((value) => value.kind === "inventory"),
   );
   const opening: unknown = await page.evaluate(
     "window.preparationRequests.find(value=>value.kind==='openRecovery').preparation",
