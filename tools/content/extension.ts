@@ -461,3 +461,84 @@ export async function reviewedLessonFiveCompletionExtension(input: {
   }
   return candidate;
 }
+
+export async function reviewedLessonSixCourseExtension(input: {
+  previous: RuntimePackage;
+  candidate: unknown;
+  hash: HashFunction;
+}) {
+  const candidate = await parseRuntimePackage(input.candidate, input.hash);
+  const before = input.previous.body;
+  const capabilities = [
+    "guidance-runs-v2",
+    "writing-practice-plan-v2",
+    "printed-board-cues-v2",
+    "connected-pointing-v1",
+    "reviewed-board-layouts-l04-v1",
+    "child-pointed-single-sounds-l05-v1",
+    "rhyming-connected-writing-l05-v1",
+  ];
+  const sameCapabilities = (
+    actual: readonly string[],
+    expected: readonly string[],
+  ) => canonical([...actual].sort()) === canonical([...expected].sort());
+  if (
+    before.coverage !== "course-development-v4" ||
+    candidate.body.coverage !== "course-development-v4" ||
+    !sameCapabilities(before.requiredEngineCapabilities, capabilities) ||
+    !sameCapabilities(candidate.body.requiredEngineCapabilities, [
+      ...capabilities,
+      "complete-lessons-01-06-v1",
+    ]) ||
+    !cumulativeExtension({ previous: input.previous, candidate })
+  )
+    throw new Error(
+      "Lesson six extension must preserve exact predecessor curriculum and capabilities",
+    );
+  if (
+    before.lessons.length !== 6 ||
+    canonical(before.lessons.map((lesson) => lesson.tasks.length)) !==
+      canonical([6, 7, 8, 7, 9, 0])
+  )
+    throw new Error(
+      "Lesson six extension needs the complete reviewed predecessor",
+    );
+  if (
+    canonical(
+      before.lessons.map(({ tasks: _tasks, ...catalog }) => catalog),
+    ) !==
+    canonical(
+      candidate.body.lessons.map(({ tasks: _tasks, ...catalog }) => catalog),
+    )
+  )
+    throw new Error("Lesson six extension changed source catalog");
+  for (const [index, lesson] of candidate.body.lessons.entries()) {
+    const prior = before.lessons[index];
+    if (!prior) throw new Error("Lesson six extension changed lesson catalog");
+    if (index !== 5) {
+      if (canonical(lesson.tasks) !== canonical(prior.tasks))
+        throw new Error(
+          "Lesson six extension changed predecessor task definitions",
+        );
+    } else if (
+      prior.tasks.length !== 0 ||
+      canonical(lesson.tasks.map((entry) => entry.task.number)) !==
+        canonical([1, 2, 3, 4, 5, 6, 7, 8]) ||
+      canonical(lesson.tasks.map((entry) => entry.kind)) !==
+        canonical([
+          "printedGraphV2",
+          "graphControls",
+          "graphControls",
+          "graphControls",
+          "graphControls",
+          "graphControls",
+          "graphControls",
+          "writingPracticePlanV3",
+        ])
+    )
+      throw new Error(
+        "Lesson six extension requires exactly eight reviewed tasks",
+      );
+  }
+  return candidate;
+}

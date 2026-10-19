@@ -297,6 +297,14 @@ export type EngineProjection =
       status: "inProgress";
       unmetObligations: readonly NodeId[];
     }
+  | Readonly<{
+      kind: "readiness";
+      nodeId: NodeId;
+      policyId: PolicyId;
+      cycleId: CycleId;
+      occurrenceId: OccurrenceId;
+      guidance: readonly ParentSpan[];
+    }>
   | ControlSelectionProjection
   | { kind: "completed" }
   | { kind: "skipped" }

@@ -6,9 +6,11 @@ import type { PrintedGlyph } from "@readatthree/teaching";
 export function SoundGlyph({
   glyph,
   compact = false,
+  geometry = compactPrintedGeometry,
 }: {
   glyph: PrintedGlyph;
   compact?: boolean;
+  geometry?: typeof compactPrintedGeometry;
 }) {
   const asset = currentPrintedGlyphAssets[glyph];
   return (
@@ -17,19 +19,19 @@ export function SoundGlyph({
       style={
         compact
           ? {
-              height: compactPrintedGeometry.glyphHeight,
-              width: compactPrintedGeometry.glyphWidth,
+              height: geometry.glyphHeight,
+              width: geometry.glyphWidth,
               transform:
                 glyph === "ē"
                   ? undefined
-                  : `scale(${compactPrintedGeometry.existingGlyphScale})`,
+                  : `scale(${geometry.existingGlyphScale})`,
             }
           : undefined
       }
       viewBox={
         glyph === "ē"
-          ? compactPrintedGeometry.glyphViewBoxes["ē"]
-          : compactPrintedGeometry.glyphViewBoxes.historical
+          ? geometry.glyphViewBoxes["ē"]
+          : geometry.glyphViewBoxes.historical
       }
       role="img"
       aria-label={glyph}

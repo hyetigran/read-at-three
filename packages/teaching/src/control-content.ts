@@ -270,7 +270,8 @@ export function compileControlTask(task: ControlTask): CompiledControlTask {
           node?.kind !== "turn" ||
           node.presentation.kind !== "connectedPointing" ||
           node.presentation.role !== "togetherGuided" ||
-          node.presentation.board !== "ēm"
+          node.presentation.board !==
+            childVoicedSupportBoard(eligible.presentation.board)
         )
           throw new Error(
             "Child-voiced support preserves literal first pair and shared voices",
@@ -394,4 +395,19 @@ export function compileControlTask(task: ControlTask): CompiledControlTask {
   };
   cache.set(task, result);
   return result;
+}
+
+function childVoicedSupportBoard(
+  board: import("./types.ts").ConnectedPointingPresentation["board"],
+) {
+  switch (board) {
+    case "ēm":
+    case "ēs":
+      return "ēm";
+    case "mē":
+    case "sē":
+      return "mē";
+    default:
+      throw new Error("Child-voiced Help requires a reviewed support family");
+  }
 }

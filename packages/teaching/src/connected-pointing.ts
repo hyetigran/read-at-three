@@ -1,59 +1,32 @@
+import { lessonFiveCompletionAssetPayload } from "./lesson-five-completion-assets.ts";
 import { deepFreeze } from "./identity.ts";
 import { currentPrintedGlyphAssets } from "./printed-assets.ts";
 import type { ConnectedPointingPresentation } from "./types.ts";
 
 import { lessonFiveCompletionAssetHash } from "./generated-lesson-five-completion-asset-hash.ts";
-export const connectedPointingRoles = {
-  echo: {
-    parentRole: "listen",
-    voice: "child",
-    pointer: "none",
-    label: "Child voices · Parent listens",
-  },
-  childConnect: {
-    parentRole: "listen",
-    voice: "child",
-    pointer: "child",
-    label: "Child voices and points · Parent listens",
-  },
-  togetherGuided: {
-    parentRole: "together",
-    voice: "both",
-    pointer: "parentGuidesChild",
-    label: "Parent and child voice · Parent guides child’s finger",
-  },
-  model: {
-    parentRole: "model",
-    voice: "parent",
-    pointer: "parent",
-    label: "Parent voices and points · Child watches",
-  },
-  follow: {
-    parentRole: "listen",
-    voice: "parent",
-    pointer: "child",
-    label: "Parent voices · Child points",
-  },
-  guided: {
-    parentRole: "model",
-    voice: "parent",
-    pointer: "parentGuidesChild",
-    label: "Parent voices and guides child's finger",
-  },
-} as const;
-export const connectedPointingGeometry = {
-  viewBox: "0 0 680 300",
-  start: { x: 50, y: 240, radius: 16 },
-  first: { x: 250, y: 275, radius: 10 },
-  second: { x: 480, y: 275, radius: 10 },
-  shaft: "M50 240H610",
-  tip: "M606 226L644 240 606 254Z",
-  glyphs: [
-    { x: 95, y: 0, width: 310, height: 235 },
-    { x: 325, y: 0, width: 310, height: 235 },
-  ],
-} as const;
+import {
+  connectedPointingRoles,
+  connectedPointingGeometry,
+} from "./connected-pointing-assets.ts";
+export {
+  connectedPointingRoles,
+  connectedPointingGeometry,
+} from "./connected-pointing-assets.ts";
+import { lessonSixAssetPayload } from "./lesson-six-assets.ts";
+import { lessonSixAssetHash } from "./generated-lesson-six-asset-hash.ts";
 export const connectedPointingBoards = deepFreeze({
+  mē: {
+    reviewId: "complete-lessons-01-06-v1",
+    assetHash: lessonSixAssetHash,
+    glyphs: lessonSixAssetPayload.connected.boards.mē,
+    geometry: connectedPointingGeometry,
+  },
+  sē: {
+    reviewId: "complete-lessons-01-06-v1",
+    assetHash: lessonSixAssetHash,
+    glyphs: lessonSixAssetPayload.connected.boards.sē,
+    geometry: connectedPointingGeometry,
+  },
   ēm: {
     reviewId: "rhyming-connected-writing-l05-v1",
     assetHash: lessonFiveCompletionAssetHash,
@@ -107,13 +80,14 @@ export function connectedPointingSvg(
   board: ConnectedPointingPresentation["board"],
 ): string {
   const asset = connectedPointingBoards[board],
-    geometry = asset.geometry;
+    geometry = asset.geometry,
+    profile = connectedRenderingProfile(board);
   const glyphs = asset.glyphs
     .map((key, index) => {
       const glyph = currentPrintedGlyphAssets[key],
         placement = geometry.glyphs[index];
       if (!placement) throw new Error("Missing connected glyph placement");
-      return `<svg x="${placement.x}" y="${placement.y}" width="${placement.width}" height="${placement.height}" viewBox="0 0 310 250"><path d="${glyph.path}" fill-rule="${glyph.fillRule}"${glyph.transform ? ` transform="${glyph.transform}"` : ""}/></svg>`;
+      return `<svg x="${placement.x}" y="${placement.y}" width="${placement.width}" height="${placement.height}" viewBox="${profile.glyphViewBox}"><path d="${glyph.path}" fill-rule="${glyph.fillRule}"${glyph.transform ? ` transform="${glyph.transform}"` : ""}/></svg>`;
     })
     .join("");
   const circles = (["start", "first", "second"] as const)
@@ -123,4 +97,26 @@ export function connectedPointingSvg(
     })
     .join("");
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${geometry.viewBox}">${glyphs}<path d="${geometry.shaft}" fill="none" stroke="currentColor" stroke-width="3"/><path d="${geometry.tip}"/>${circles}</svg>`;
+}
+
+export function connectedRenderingProfile(
+  board: ConnectedPointingPresentation["board"],
+) {
+  const asset = connectedPointingBoards[board];
+  const geometry =
+    asset.reviewId === "complete-lessons-01-06-v1"
+      ? lessonSixAssetPayload.connected
+      : asset.reviewId === "rhyming-connected-writing-l05-v1"
+        ? lessonFiveCompletionAssetPayload.connected
+        : { width: 680, height: 300, contactSize: 44 };
+  return {
+    ...geometry,
+    glyphViewBox:
+      asset.reviewId === "complete-lessons-01-06-v1"
+        ? lessonSixAssetPayload.diagram.glyphViewBox
+        : "0 0 310 250",
+    childVoiced:
+      asset.reviewId === "complete-lessons-01-06-v1" ||
+      asset.reviewId === "rhyming-connected-writing-l05-v1",
+  };
 }

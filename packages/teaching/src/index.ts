@@ -92,3 +92,10 @@ export {
 export * from "./connected-pointing.ts";
 
 export * from "./lesson-five-completion-assets.ts";
+
+export {
+  lessonSixAssetPayload,
+  lessonSixAssetHash,
+} from "./lesson-six-assets.ts";
+export { lessonSixPrintedBoards, printedRenderingProfile } from "./printed.ts";
+export { connectedRenderingProfile } from "./connected-pointing.ts";

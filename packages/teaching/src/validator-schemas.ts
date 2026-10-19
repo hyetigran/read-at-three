@@ -1,5 +1,6 @@
 import {
   lessonFiveCompletionBoards,
+  lessonSixPrintedBoards,
   reviewedPrintedBoards,
   historicalReviewedPrintedBoards,
 } from "./printed.ts";
@@ -1006,6 +1007,123 @@ const completionCumulative = {
     },
   },
 };
+const lessonSixBoardPresentation = record({
+  ...completionBoardPresentation.properties,
+  board: {
+    oneOf: [
+      ...completionBoardPresentation.properties.board.oneOf,
+      ...Object.values(lessonSixPrintedBoards).map((board) =>
+        record({
+          assetId: { const: board.assetId },
+          reviewId: { const: board.reviewId },
+          assetHash: { const: board.assetHash },
+        }),
+      ),
+    ],
+  },
+});
+const lessonSixBoardNode = record({
+  ...currentBoardNode.properties,
+  presentation: lessonSixBoardPresentation,
+});
+const lessonSixBoardTask = {
+  ...currentBoardTask,
+  properties: {
+    ...currentBoardTask.properties,
+    nodes: list(lessonSixBoardNode, 1000, 1),
+  },
+};
+const lessonSixControlTurnNode = record({
+  ...completionControlTurnNode.properties,
+  presentation: {
+    oneOf: [
+      ...completionControlTurnNode.properties.presentation.oneOf.filter(
+        (entry) =>
+          !(
+            "properties" in entry &&
+            entry.properties.kind.const === "printedBoard"
+          ),
+      ),
+      lessonSixBoardPresentation,
+      record({
+        kind: { const: "connectedPointing" },
+        board: { enum: ["mē", "sē"] },
+        role: { enum: ["model", "echo", "childConnect", "togetherGuided"] },
+      }),
+    ],
+  },
+});
+const lessonSixControlTask = {
+  ...completionControlTask,
+  properties: {
+    ...completionControlTask.properties,
+    nodes: list(
+      {
+        oneOf: [
+          lessonSixControlTurnNode,
+          ...completionControlTask.properties.nodes.items.oneOf.slice(1),
+        ],
+      },
+      1000,
+      1,
+    ),
+  },
+};
+const completionBody = completionCumulative.properties.body;
+const completeCumulative = {
+  ...completionCumulative,
+  properties: {
+    ...completionCumulative.properties,
+    body: {
+      ...completionBody,
+      properties: {
+        ...completionBody.properties,
+        requiredEngineCapabilities: {
+          ...completionBody.properties.requiredEngineCapabilities,
+          items: {
+            type: "string",
+            enum: [
+              ...completionBody.properties.requiredEngineCapabilities.items
+                .enum,
+              "complete-lessons-01-06-v1",
+            ],
+          },
+          minItems: 8,
+          maxItems: 8,
+        },
+        lessons: {
+          ...completionBody.properties.lessons,
+          items: {
+            ...completionBody.properties.lessons.items,
+            properties: {
+              ...completionBody.properties.lessons.items.properties,
+              tasks: list(
+                {
+                  oneOf: [
+                    ...completionBody.properties.lessons.items.properties.tasks.items.oneOf.filter(
+                      (entry) =>
+                        entry.properties.kind.const !== "printedGraphV2" &&
+                        entry.properties.kind.const !== "graphControls",
+                    ),
+                    record({
+                      kind: { const: "printedGraphV2" },
+                      task: lessonSixBoardTask,
+                    }),
+                    record({
+                      kind: { const: "graphControls" },
+                      task: lessonSixControlTask,
+                    }),
+                  ],
+                },
+                100,
+              ),
+            },
+          },
+        },
+      },
+    },
+  },
+};
 const cumulativePackageSchema = {
   oneOf: [
     ...oldCumulativePackageSchema.oneOf,
@@ -1014,6 +1132,7 @@ const cumulativePackageSchema = {
     cumulativeReviewedBoards,
     childPointedCumulative,
     completionCumulative,
+    completeCumulative,
   ],
 };
 const normalContext = record({ kind: { const: "normal" } });
@@ -1129,7 +1248,7 @@ const action = {
       label: copy,
       intent: helpIntent,
       correctionPreview: {
-        oneOf: [graphNode, currentBoardNode, completionControlTurnNode],
+        oneOf: [graphNode, lessonSixBoardNode, lessonSixControlTurnNode],
       },
     }),
   ],
@@ -1243,7 +1362,7 @@ const graphTurn = record({
   checkpointId: id,
 });
 const boardTurn = record({
-  ...currentBoardNode.properties,
+  ...lessonSixBoardNode.properties,
   extraPractice: { type: "boolean" },
   routeKind: {
     enum: ["normal", "repeat", "correctionInstruction", "correctionRetest"],
@@ -1253,6 +1372,15 @@ const boardTurn = record({
 });
 const projectionSchema = {
   oneOf: [
+    record({
+      ...sessionProjection,
+      kind: { const: "readiness" },
+      nodeId: id,
+      policyId: id,
+      cycleId: id,
+      occurrenceId: id,
+      guidance: list(parentSpanV3Schema, 100, 1),
+    }),
     record({ ...commonProjection, kind: { const: "entry" } }),
     record({
       ...sessionProjection,
@@ -1263,7 +1391,7 @@ const projectionSchema = {
           graphTurn,
           boardTurn,
           record({
-            ...completionControlTurnNode.properties,
+            ...lessonSixControlTurnNode.properties,
             extraPractice: { type: "boolean" },
             routeKind: { enum: ["delivering", "correction"] },
             occurrenceId: id,
@@ -1291,7 +1419,7 @@ const projectionSchema = {
       kind: { const: "writing" },
       documents: list(documentTokenSchema, 2, 2),
       turn: record({
-        ...completionControlTurnNode.properties,
+        ...lessonSixControlTurnNode.properties,
         presentation: writingPresentationV3Schema,
         extraPractice: { type: "boolean" },
         routeKind: { enum: ["delivering", "correction"] },
@@ -1435,6 +1563,12 @@ const rootSchemas = {
 };
 
 const sharedDefinitions = {
+  lessonSixBoardPresentation,
+  lessonSixBoardNode,
+  lessonSixBoardTask,
+  lessonSixControlTurnNode,
+  lessonSixControlTask,
+  completeCumulative,
   parentSpanV3Schema,
   completionControlTurnNode,
   completionControlTask,

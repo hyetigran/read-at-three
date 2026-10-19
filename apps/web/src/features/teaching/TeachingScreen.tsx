@@ -748,6 +748,81 @@ type ReviewProjection = Extract<
   { kind: "reviewSelection" }
 >;
 
+function ReadinessActivity({
+  projection,
+  disabled,
+  onAction,
+}: {
+  projection: Extract<CommittedProjection, { kind: "readiness" }>;
+  disabled: boolean;
+  onAction: TeachingScreenProps["onAction"];
+}) {
+  const primary = mainAction(projection.actions);
+  return (
+    <>
+      <section className="teaching-parent-panel" aria-label="Parent guidance">
+        <div className="teaching-parent-heading">
+          <AddedText>
+            {projection.actions.some(
+              (action) => action.intent.kind === "parentReady",
+            )
+              ? "Parent decision"
+              : "Saved parent decision"}
+          </AddedText>
+          <AddedText>Parent only</AddedText>
+        </div>
+        <div
+          className="teaching-parent-content"
+          data-guidance="oral"
+          tabIndex={0}
+        >
+          <GuidanceSpans guidance={projection.guidance} />
+        </div>
+      </section>
+      <section
+        className="teaching-arena"
+        aria-label="Parent decision"
+        data-presentation="readiness"
+      >
+        <div className="teaching-target" aria-hidden="true" />
+        <div className="teaching-cue teaching-oral-cue" aria-hidden="true" />
+        <nav className="teaching-parent-controls" aria-label="Parent controls">
+          <div className="teaching-navigation-actions">
+            {projection.actions
+              .filter(
+                (action) => action.intent.kind === "back" || action === primary,
+              )
+              .map((action) => (
+                <ProjectedAction
+                  key={actionKey(action)}
+                  action={action}
+                  primary={action === primary}
+                  disabled={disabled}
+                  onAction={onAction}
+                />
+              ))}
+          </div>
+          <div className="teaching-support-actions">
+            {projection.actions
+              .filter(
+                (action) =>
+                  action.intent.kind === "continue" && action !== primary,
+              )
+              .map((action) => (
+                <ProjectedAction
+                  key={actionKey(action)}
+                  action={action}
+                  disabled={disabled}
+                  onAction={onAction}
+                />
+              ))}
+          </div>
+        </nav>
+      </section>
+    </>
+  );
+}
+
 function ReviewSelectionActivity({
   projection,
   disabled,
@@ -909,6 +984,7 @@ export function TeachingScreen({
   if (
     (projection.kind === "teaching" ||
       projection.kind === "reviewSelection" ||
+      projection.kind === "readiness" ||
       projection.kind === "writing" ||
       projection.kind === "writingResult") &&
     projection.sessionStatus !== "paused"
@@ -931,14 +1007,18 @@ export function TeachingScreen({
           displayedTurn?.id ??
           (projection.kind === "reviewSelection"
             ? projection.reviewId
-            : undefined)
+            : projection.kind === "readiness"
+              ? projection.nodeId
+              : undefined)
         }
         data-committed-turn-id={
           projection.kind === "teaching" || projection.kind === "writing"
             ? projection.turn.id
             : projection.kind === "reviewSelection"
               ? projection.reviewId
-              : undefined
+              : projection.kind === "readiness"
+                ? projection.nodeId
+                : undefined
         }
         data-context={correctionPreview ? "uncommitted" : "committed"}
         data-checkpoint-id={projection.checkpointId ?? undefined}
@@ -1013,6 +1093,12 @@ export function TeachingScreen({
             preview={correctionPreview !== null}
             actions={projection.actions}
             completed={projection.runStatus === "completed"}
+            disabled={disabled}
+            onAction={act}
+          />
+        ) : projection.kind === "readiness" ? (
+          <ReadinessActivity
+            projection={projection}
             disabled={disabled}
             onAction={act}
           />

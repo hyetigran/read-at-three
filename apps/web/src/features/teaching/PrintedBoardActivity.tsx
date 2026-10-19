@@ -3,15 +3,10 @@ import type { RefObject } from "react";
 import type { BoardPresentation } from "@readatthree/teaching";
 import {
   allReviewedPrintedBoards,
-  lessonFiveCompletionAssetPayload,
-  printedDiagramAsset,
-  compactPrintedGeometry,
+  printedRenderingProfile,
 } from "@readatthree/teaching";
 import { ChildPrintedContact } from "./ChildPrintedContact";
 import { SoundGlyph } from "./SoundGlyph";
-
-const diagramWidth = Number(printedDiagramAsset.viewBox.split(" ")[2]);
-const diagramHeight = Number(printedDiagramAsset.viewBox.split(" ")[3]);
 
 type Contact =
   { kind: "pointer"; id: number } | { kind: "key"; key: " " | "Enter" };
@@ -41,6 +36,12 @@ export function PrintedBoardActivity({
   disabled: boolean;
   retire: RefObject<() => void>;
 }) {
+  const profile = printedRenderingProfile(presentation.board);
+  const printedDiagramAsset = profile.diagram;
+  const compactPrintedGeometry = profile.compact;
+  const diagramWidth = Number(printedDiagramAsset.viewBox.split(" ")[2]);
+  const diagramHeight = Number(printedDiagramAsset.viewBox.split(" ")[3]);
+  const glyphHeight = Number(printedDiagramAsset.glyphViewBox.split(" ")[3]);
   const [run, setRun] = useState<Run>({ stage: "idle" });
   const current = useRef<Run>({ stage: "idle" });
   const generation = useRef(0);
@@ -161,7 +162,7 @@ export function PrintedBoardActivity({
     };
   }, []);
   const board = allReviewedPrintedBoards[presentation.board.assetId];
-  const rhyme = presentation.board.assetId === "single-m-rhyme-l05";
+  const rhyme = profile.rhyme;
   const stage = disabled ? "idle" : run.stage;
   const markerPosition =
     stage === "underHold" || stage === "movingUnder"
@@ -185,8 +186,8 @@ export function PrintedBoardActivity({
             }
           : rhyme
             ? {
-                width: lessonFiveCompletionAssetPayload.single.width,
-                height: lessonFiveCompletionAssetPayload.single.height,
+                width: profile.single.width,
+                height: profile.single.height,
                 padding: 0,
               }
             : undefined
@@ -218,11 +219,11 @@ export function PrintedBoardActivity({
                   }
                 : rhyme
                   ? {
-                      width: lessonFiveCompletionAssetPayload.single.width,
-                      height: lessonFiveCompletionAssetPayload.single.height,
+                      width: profile.single.width,
+                      height: profile.single.height,
                       maxHeight: "none",
                       padding: 0,
-                      gridTemplateRows: "250px 52px",
+                      gridTemplateRows: `${glyphHeight}px ${diagramHeight}px`,
                     }
                   : undefined
             }
@@ -232,6 +233,7 @@ export function PrintedBoardActivity({
             <SoundGlyph
               glyph={glyph}
               compact={board.layout === "verticalFour"}
+              geometry={profile.compact}
             />
             <div
               className="printed-board-diagram-slot"
@@ -243,7 +245,7 @@ export function PrintedBoardActivity({
                       top: compactPrintedGeometry.diagramTop,
                     }
                   : rhyme
-                    ? { width: 310, height: 52 }
+                    ? { width: diagramWidth, height: diagramHeight }
                     : { aspectRatio: `${diagramWidth} / ${diagramHeight}` }
               }
             >
@@ -353,6 +355,8 @@ export function PrintedBoardActivity({
               intent.kind === "childUnderSymbol" ? (
                 <ChildPrintedContact
                   cue={intent}
+                  diagram={profile.diagram}
+                  contactSize={profile.compact.contactSize}
                   disabled={disabled}
                   retire={retire}
                 />
