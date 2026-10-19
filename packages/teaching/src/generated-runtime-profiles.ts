@@ -42,4 +42,29 @@ export const runtimeCapabilityProfiles = [
       "child-pointed-single-sounds-l05-v1",
     ],
   },
+  {
+    contentSchemaVersion: 4,
+    capabilities: [
+      "writing-practice-plan-v2",
+      "guidance-runs-v2",
+      "printed-board-cues-v2",
+      "connected-pointing-v1",
+      "reviewed-board-layouts-l04-v1",
+      "child-pointed-single-sounds-l05-v1",
+      "rhyming-connected-writing-l05-v1",
+    ],
+  },
+  {
+    contentSchemaVersion: 4,
+    capabilities: [
+      "writing-practice-plan-v2",
+      "guidance-runs-v2",
+      "printed-board-cues-v2",
+      "connected-pointing-v1",
+      "reviewed-board-layouts-l04-v1",
+      "child-pointed-single-sounds-l05-v1",
+      "rhyming-connected-writing-l05-v1",
+      "complete-lessons-01-06-v1",
+    ],
+  },
 ];

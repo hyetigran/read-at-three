@@ -170,6 +170,7 @@ export async function prepareCommand({
     if (
       projection.kind !== "teaching" &&
       projection.kind !== "completed" &&
+      projection.kind !== "readiness" &&
       projection.kind !== "reviewSelection"
     )
       throw new Error("Teaching action is unavailable");

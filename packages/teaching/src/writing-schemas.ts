@@ -1037,3 +1037,134 @@ export const reviewedWritingPlanSchema = {
     },
   },
 };
+
+export const parentSpanV3Schema = {
+  oneOf: [
+    plainSpan,
+    {
+      type: "object",
+      properties: {
+        kind: plainSpan.properties.kind,
+        runs: {
+          type: "array",
+          minItems: 1,
+          maxItems: 100,
+          items: {
+            type: "object",
+            properties: {
+              copy,
+              emphasis: { type: "string", enum: ["plain", "strong", "italic"] },
+            },
+            required: ["copy", "emphasis"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["kind", "runs"],
+      additionalProperties: false,
+    },
+  ],
+};
+const scriptV3 = {
+  ...script,
+  properties: {
+    ...script.properties,
+    guidance: { ...script.properties.guidance, items: parentSpanV3Schema },
+  },
+};
+const absentScriptV3 = {
+  ...scriptV3,
+  properties: {
+    sourceRefs: { ...refs, minItems: 0, maxItems: 0 },
+    guidance: { ...scriptV3.properties.guidance, minItems: 0, maxItems: 0 },
+  },
+};
+const practicePhaseV3 = {
+  ...practicePhase,
+  properties: {
+    instruction: scriptV3,
+    practice: prescription,
+    praise: { oneOf: [scriptV3, absentScriptV3] },
+  },
+};
+const identificationInstruction = {
+  type: "object",
+  properties: { kind: { const: "parentInstruction" }, script: scriptV3 },
+  required: ["kind", "script"],
+  additionalProperties: false,
+};
+const identificationResponse = {
+  type: "object",
+  properties: {
+    kind: { const: "soundResponse" },
+    sound: {
+      ...targetPractice.properties.sound,
+      properties: {
+        prompt: scriptV3,
+        expected: scriptV3,
+        affirmation: { oneOf: [scriptV3, absentScriptV3] },
+      },
+    },
+  },
+  required: ["kind", "sound"],
+  additionalProperties: false,
+};
+const { sound: _historicalSound, ...practiceProperties } =
+  reviewedWritingPlanSchema.properties.targets.items.properties;
+function identifiedPractice(
+  identification:
+    typeof identificationInstruction | typeof identificationResponse,
+) {
+  return {
+    type: "object",
+    properties: {
+      ...practiceProperties,
+      demonstration: scriptV3,
+      tracing: practicePhaseV3,
+      independent: practicePhaseV3,
+      identification,
+    },
+    required: [
+      "target",
+      "demonstration",
+      "identification",
+      "tracing",
+      "independent",
+    ],
+    additionalProperties: false,
+  };
+}
+export const writingPlanV3Schema = {
+  ...writingPlanSchema,
+  properties: {
+    ...writingPlanSchema.properties,
+    introduction: scriptV3,
+    targets: {
+      type: "array",
+      prefixItems: [
+        identifiedPractice(identificationInstruction),
+        identifiedPractice(identificationResponse),
+      ],
+      items: false,
+      minItems: 2,
+      maxItems: 2,
+    },
+  },
+};
+export const writingPresentationV3Schema = {
+  ...writingPresentationSchema,
+  properties: {
+    ...writingPresentationSchema.properties,
+    obligation: {
+      oneOf: [
+        ...writingObligationSchema.oneOf,
+        {
+          type: "object",
+          properties: { kind: { const: "parentInstruction" } },
+          required: ["kind"],
+          additionalProperties: false,
+        },
+      ],
+    },
+  },
+};

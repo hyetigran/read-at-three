@@ -191,6 +191,182 @@ function initialCycles({
       };
     });
 }
+function separatePolicy(
+  content: InstalledTeaching,
+  graph: CompiledControlTask,
+) {
+  if (
+    content.body.coverage !== "course-development-v4" ||
+    content.body.contentSchemaVersion !== 4 ||
+    !content.body.requiredEngineCapabilities.includes(
+      "complete-lessons-01-06-v1",
+    ) ||
+    graph.task.id !== "l06.t05"
+  )
+    return;
+  return [...graph.policies.values()].find(
+    (policy) =>
+      policy.policyId === "l06.t05.whole-replay" &&
+      graph.normalNodeIds.includes(policy.id),
+  );
+}
+function readinessAt({
+  content,
+  graph,
+  state,
+  checkpoint,
+}: {
+  content: InstalledTeaching;
+  graph: CompiledControlTask;
+  state: ControlTeachingState;
+  checkpoint: ControlCheckpoint;
+}) {
+  const policy = separatePolicy(content, graph);
+  if (!policy || checkpoint.occurrenceId === null) return;
+  const current = occurrence({ state, id: checkpoint.occurrenceId });
+  if (current.target.kind !== "node" || current.target.nodeId !== policy.id)
+    return;
+  const context = checkpoint.context;
+  if (
+    context.kind !== "delivering" ||
+    context.resume.flow.kind !== "normal" ||
+    context.resume.delivery.kind !== "cycle"
+  )
+    throw new Error("Readiness decision context changed");
+  const binding = cycle({ state, id: context.resume.delivery.cycleId });
+  if (
+    binding.policyId !== policy.policyId ||
+    binding.gateOccurrenceId !== current.id ||
+    binding.turnOccurrenceIds.some(
+      (id) => !state.acceptedOccurrenceIds.includes(id),
+    ) ||
+    !state.cycleOutcomes.some((outcome) => outcome.cycleId === binding.id)
+  )
+    throw new Error("Readiness decision requires its complete cycle");
+  return { policy, cycle: binding };
+}
+function separatePracticeEdge({
+  content,
+  graph,
+  state,
+  previous,
+  next,
+}: {
+  content: InstalledTeaching;
+  graph: CompiledControlTask;
+  state: ControlTeachingState;
+  previous: ControlCheckpoint;
+  next: ControlCheckpoint;
+}) {
+  const gate = readinessAt({ content, graph, state, checkpoint: previous });
+  if (
+    !gate ||
+    next.context.kind !== "delivering" ||
+    next.context.resume.flow.kind !== "normal" ||
+    next.context.resume.delivery.kind !== "cycle"
+  )
+    return;
+  const binding = cycle({ state, id: next.context.resume.delivery.cycleId });
+  if (
+    binding.id === gate.cycle.id ||
+    binding.policyId !== gate.policy.policyId ||
+    binding.gateOccurrenceId !== gate.cycle.gateOccurrenceId ||
+    next.occurrenceId !== binding.turnOccurrenceIds[0]
+  )
+    return;
+  const route = required(graph.cycleRoutes.get(gate.policy.policyId));
+  if (
+    binding.turnOccurrenceIds.length !== route.length ||
+    binding.turnOccurrenceIds.some((id, i) => {
+      const o = occurrence({ state, id });
+      return (
+        o.obligation !== "practice" ||
+        o.target.kind !== "node" ||
+        o.target.nodeId !== route[i]
+      );
+    })
+  )
+    return;
+  return binding;
+}
+function separatePracticeIntroductions({
+  content,
+  graph,
+  state,
+}: {
+  content: InstalledTeaching;
+  graph: CompiledControlTask;
+  state: ControlTeachingState;
+}) {
+  const introductions = new Map<CycleId, number>();
+  if (!separatePolicy(content, graph)) return introductions;
+  for (let index = 1; index < state.checkpoints.length; index++) {
+    const previous = required(state.checkpoints[index - 1]),
+      next = required(state.checkpoints[index]);
+    const introduced = separatePracticeEdge({
+      content,
+      graph,
+      state,
+      previous,
+      next,
+    });
+    if (!introduced) continue;
+    if (introductions.has(introduced.id))
+      throw new Error("Practice cycle has duplicate introducing history");
+    introductions.set(introduced.id, index);
+  }
+  for (const binding of state.cycles) {
+    const obligations = binding.turnOccurrenceIds.map(
+      (id) => occurrence({ state, id }).obligation,
+    );
+    if (obligations.every((obligation) => obligation === "required")) continue;
+    if (
+      obligations.some((obligation) => obligation !== "practice") ||
+      !introductions.has(binding.id)
+    )
+      throw new Error("Practice cycle has no introducing history");
+  }
+  return introductions;
+}
+export function separateReadinessNavigationCycles({
+  content,
+  baseline,
+  state,
+}: {
+  content: InstalledTeaching;
+  baseline: ControlTeachingState;
+  state: ControlTeachingState;
+}): ReadonlySet<CycleId> {
+  const graph = controlTask({
+      content: content.document,
+      taskId: state.taskId,
+    }),
+    introductions = separatePracticeIntroductions({ content, graph, state });
+  const appended = state.cycles
+    .slice(baseline.cycles.length)
+    .filter((binding) => introductions.has(binding.id));
+  if (appended.length > 1)
+    throw new Error("Navigation introduced more than one independent cycle");
+  for (const binding of appended) {
+    const index = required(introductions.get(binding.id)),
+      next = required(state.checkpoints[index]);
+    const number = /^checkpoint-([1-9][0-9]*)$/.exec(next.id)?.[1];
+    if (
+      !number ||
+      BigInt(number) < BigInt(baseline.nextCheckpointNumber) ||
+      binding.turnOccurrenceIds.some(
+        (id) =>
+          baseline.occurrences.some((o) => o.id === id) ||
+          state.acceptedOccurrenceIds.includes(id),
+      )
+    )
+      throw new Error(
+        "Navigation practice cycle changed its acceptance baseline",
+      );
+  }
+  return new Set(appended.map((binding) => binding.id));
+}
+
 export function initialControlState({
   content,
   taskId,
@@ -463,6 +639,7 @@ export function validateControlPosition({
         throw new Error("Selection checkpoint invalid");
       continue;
     }
+    if (readinessAt({ content, graph, state, checkpoint })) continue;
     if (node.kind !== "turn") throw new Error("Control delivery is not a turn");
     const resume =
       context.kind === "correction" ? context.suspended : context.resume;
@@ -529,15 +706,22 @@ export function validateControlPosition({
     } else if (node.route !== "normal" || current.obligation === "support")
       throw new Error("Normal control turn invalid");
   }
-  validateCheckpointRoute({ graph, state });
+  validateCheckpointRoute({ content, graph, state });
 }
 function validateCheckpointRoute({
+  content,
   graph,
   state,
 }: {
+  content: InstalledTeaching;
   graph: CompiledControlTask;
   state: ControlTeachingState;
 }): void {
+  const introductions = separatePracticeIntroductions({
+    content,
+    graph,
+    state,
+  });
   const accepted = new Set(state.acceptedOccurrenceIds);
   const same = ({ a, b }: { a: unknown; b: unknown }) =>
     canonical(a) === canonical(b);
@@ -585,6 +769,38 @@ function validateCheckpointRoute({
     resume: ControlResume;
   }): boolean => {
     const node = nodeFor({ graph, currentOccurrence: owed });
+    const selectedPolicy = separatePolicy(content, graph);
+    if (node.kind === "untilFirm" && selectedPolicy?.id === node.id) {
+      if (
+        resume.flow.kind !== "normal" ||
+        resume.delivery.kind !== "cycle" ||
+        !accepted.has(owed.id)
+      )
+        return false;
+      const binding = cycle({ state, id: resume.delivery.cycleId });
+      if (
+        binding.gateOccurrenceId !== owed.id ||
+        binding.policyId !== node.policyId
+      )
+        return false;
+      if (node.next.kind === "end")
+        return next.occurrenceId === null && next.context.kind === "terminal";
+      const followingOccurrence = normalOccurrence({
+        state,
+        id: node.next.nodeId,
+      });
+      return same({
+        a: next,
+        b: {
+          id: next.id,
+          occurrenceId: followingOccurrence.id,
+          context: expectedContext({
+            currentOccurrence: followingOccurrence,
+            flow: normalFlow,
+          }),
+        } satisfies ControlCheckpoint,
+      });
+    }
     if (node.kind !== "turn" || !accepted.has(owed.id)) return false;
     const delivery = resume.delivery,
       flow = resume.flow;
@@ -601,6 +817,15 @@ function validateCheckpointRoute({
       const cycleBinding = cycle({ state, id: delivery.cycleId });
       if (!state.cycleOutcomes.some((o) => o.cycleId === cycleBinding.id))
         return false;
+      if (selectedPolicy?.id === policy.id)
+        return same({
+          a: next,
+          b: {
+            id: next.id,
+            occurrenceId: cycleBinding.gateOccurrenceId,
+            context: { kind: "delivering", resume },
+          } satisfies ControlCheckpoint,
+        });
       if (
         next.context.kind === "delivering" &&
         next.context.resume.delivery.kind === "cycle"
@@ -795,6 +1020,14 @@ function validateCheckpointRoute({
         throw new Error("Practice redirected its return");
       continue;
     }
+    const introduced = separatePracticeEdge({
+      content,
+      graph,
+      state,
+      previous,
+      next,
+    });
+    if (introduced && introductions.get(introduced.id) === i) continue;
     if (!accepted.has(current.id))
       throw new Error("Control checkpoint skipped an unaccepted turn");
     if (previousContext.kind === "selection") {
@@ -1146,6 +1379,17 @@ export function evaluateControls({
   }
   if (checkpoint.occurrenceId === null)
     throw new Error("Response action unavailable");
+  const readiness = readinessAt({ content, graph, state, checkpoint });
+  if (readiness && state.checkpointIndex < state.checkpoints.length - 1) {
+    if (action.kind !== "continue")
+      throw new Error("Saved readiness context only forwards with Continue");
+    return {
+      kind: "navigation",
+      after: { ...state, checkpointIndex: state.checkpointIndex + 1 },
+    };
+  }
+  if (readiness && action.kind !== "continue" && action.kind !== "parentReady")
+    throw new Error("Readiness decision unavailable");
   const current = occurrence({
       state,
       id: checkpoint.occurrenceId,
@@ -1360,6 +1604,15 @@ export function evaluateControls({
               ? "supported"
               : "independent",
         });
+      if (separatePolicy(content, graph)?.id === policy.id) {
+        if (action.kind !== "continue")
+          throw new Error("Accept the final response before readiness");
+        return {
+          id: nextCheckpointId,
+          occurrenceId: cycleBinding.gateOccurrenceId,
+          context: { kind: "delivering", resume },
+        };
+      }
       if (action.kind === "parentReady") {
         if (action.policyId !== policy.policyId)
           throw new Error("Wrong readiness policy");
@@ -1585,6 +1838,35 @@ export function evaluateControls({
         checkpoint.context.kind !== "correction"
       )
         throw new Error("Response unavailable");
+      if (readiness) {
+        if (action.kind === "parentReady") {
+          if (action.policyId !== readiness.policy.policyId)
+            throw new Error("Wrong readiness policy");
+          primary = current.id;
+          accept(current.id);
+          return terminalAfter({ id: readiness.policy.id, flow: normalFlow });
+        }
+        if (action.kind !== "continue")
+          throw new Error("Readiness decision unavailable");
+        const turns = required(
+          graph.cycleRoutes.get(readiness.policy.policyId),
+        ).map((id) => allocNode({ id, kind: "practice" }));
+        const first = required(turns[0]);
+        const nextCycle = {
+          id: parseId({ kind: "cycle", value: `cycle-${first.id}` }),
+          policyId: readiness.policy.policyId,
+          gateOccurrenceId: readiness.cycle.gateOccurrenceId,
+          turnOccurrenceIds: turns.map((o) => o.id),
+        };
+        cycles.push(nextCycle);
+        return enter({
+          currentOccurrence: first,
+          resume: {
+            flow: normalFlow,
+            delivery: { kind: "cycle", cycleId: nextCycle.id },
+          },
+        });
+      }
       primary = current.id;
       accept(current.id);
       if (checkpoint.context.kind === "delivering")
@@ -1753,6 +2035,16 @@ export function projectControls({
         )?.choice ?? null,
     };
   }
+  const readiness = readinessAt({ content, graph, state, checkpoint });
+  if (readiness)
+    return {
+      kind: "readiness",
+      nodeId: readiness.policy.id,
+      policyId: readiness.policy.policyId,
+      cycleId: readiness.cycle.id,
+      occurrenceId: currentOccurrence.id,
+      guidance: readiness.policy.guidance,
+    };
   if (
     node.kind !== "turn" ||
     (checkpoint.context.kind !== "delivering" &&
@@ -1769,7 +2061,10 @@ export function projectControls({
     kind: "teaching",
     turn: {
       ...node,
-      guidance: gate ? [...node.guidance, ...gate.guidance] : node.guidance,
+      guidance:
+        gate && separatePolicy(content, graph)?.id !== gate.id
+          ? [...node.guidance, ...gate.guidance]
+          : node.guidance,
       extraPractice: currentOccurrence.obligation !== "required",
       routeKind: checkpoint.context.kind,
       occurrenceId: currentOccurrence.id,
@@ -1804,6 +2099,21 @@ export function controlActions({
   if (checkpoint.occurrenceId === null) return actions;
   const currentOccurrence = occurrence({ state, id: checkpoint.occurrenceId }),
     node = nodeFor({ graph, currentOccurrence });
+  const readiness = readinessAt({ content, graph, state, checkpoint });
+  if (readiness) {
+    if (state.checkpointIndex < state.checkpoints.length - 1)
+      add({ text: "Continue", intent: { kind: "continue" } });
+    else if (status === "inProgress") {
+      add({ text: "Practice again", intent: { kind: "continue" } });
+      add({
+        text: "Ready",
+        intent: { kind: "parentReady", policyId: readiness.policy.policyId },
+      });
+    }
+    if (status === "inProgress")
+      add({ text: "Pause", intent: { kind: "pause" } });
+    return actions;
+  }
   if (
     state.acceptedOccurrenceIds.includes(currentOccurrence.id) &&
     state.checkpointIndex < state.checkpoints.length - 1
@@ -1839,7 +2149,7 @@ export function controlActions({
       (resolves && resume?.delivery.kind !== "repeat"
         ? policyAfter({ graph, node: source })
         : undefined);
-    if (policy) {
+    if (policy && separatePolicy(content, graph)?.id !== policy.id) {
       add({ text: "Practice again", intent: { kind: "continue" } });
       add({
         text: "Ready",

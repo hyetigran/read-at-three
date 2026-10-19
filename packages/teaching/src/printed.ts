@@ -1,6 +1,13 @@
+import {
+  lessonSixAssetPayload,
+  lessonSixAssetHash,
+} from "./lesson-six-assets.ts";
+import { lessonFiveCompletionAssetHash } from "./generated-lesson-five-completion-asset-hash.ts";
 import { deepFreeze } from "./identity.ts";
 import {
   printedBoardAssetHash,
+  printedDiagramAsset,
+  compactPrintedGeometry,
   lessonFivePrintedAssetHash,
   lessonFivePrintedBoardLayouts,
 } from "./printed-assets.ts";
@@ -62,6 +69,46 @@ export const reviewedPrintedBoards = deepFreeze({
   ...historicalReviewedPrintedBoards,
   ...lessonFivePrintedBoards,
 });
+export const lessonFiveCompletionBoards = deepFreeze({
+  "single-m-rhyme-l05": {
+    assetId: "single-m-rhyme-l05",
+    reviewId: "rhyming-connected-writing-l05-v1",
+    assetHash: lessonFiveCompletionAssetHash,
+    layout: "single",
+    targets: ["m"],
+  },
+} as const);
+export const lessonSixPrintedBoards = deepFreeze({
+  "vertical-esam-l06": {
+    assetId: "vertical-esam-l06",
+    reviewId: "complete-lessons-01-06-v1",
+    assetHash: lessonSixAssetHash,
+    ...lessonSixAssetPayload.layouts["vertical-esam-l06"],
+  },
+  "vertical-eams-l06": {
+    assetId: "vertical-eams-l06",
+    reviewId: "complete-lessons-01-06-v1",
+    assetHash: lessonSixAssetHash,
+    ...lessonSixAssetPayload.layouts["vertical-eams-l06"],
+  },
+  "single-m-rhyme-l06": {
+    assetId: "single-m-rhyme-l06",
+    reviewId: "complete-lessons-01-06-v1",
+    assetHash: lessonSixAssetHash,
+    ...lessonSixAssetPayload.layouts["single-m-rhyme-l06"],
+  },
+  "single-s-rhyme-l06": {
+    assetId: "single-s-rhyme-l06",
+    reviewId: "complete-lessons-01-06-v1",
+    assetHash: lessonSixAssetHash,
+    ...lessonSixAssetPayload.layouts["single-s-rhyme-l06"],
+  },
+} as const);
+export const allReviewedPrintedBoards = deepFreeze({
+  ...reviewedPrintedBoards,
+  ...lessonFiveCompletionBoards,
+  ...lessonSixPrintedBoards,
+});
 export function resolvePrintedPresentation(presentation: BoardPresentation) {
   validateBoardPresentation(presentation);
   return presentation;
@@ -71,13 +118,13 @@ export function validateBoardPresentation(
 ): void {
   if (
     presentation.board.reviewId !==
-      reviewedPrintedBoards[presentation.board.assetId].reviewId ||
+      allReviewedPrintedBoards[presentation.board.assetId].reviewId ||
     presentation.board.assetHash !==
-      reviewedPrintedBoards[presentation.board.assetId].assetHash
+      allReviewedPrintedBoards[presentation.board.assetId].assetHash
   )
     throw new Error("Printed asset review changed");
   const targets: readonly PrintedGlyph[] =
-    reviewedPrintedBoards[presentation.board.assetId].targets;
+    allReviewedPrintedBoards[presentation.board.assetId].targets;
   if (!targets.includes(presentation.focus))
     throw new Error("Printed focus is absent from reviewed board");
   if (
@@ -102,7 +149,16 @@ export function validateControlPrintedTurn(
   if (node.presentation.kind !== "printedBoard") return;
   validateBoardPresentation(node.presentation);
   const cue = node.presentation.cue;
-  if (cue.kind !== "childUnderSymbol" && node.parentRole === "together")
+  if (
+    cue.kind === "rhymeHoldThenSweep" &&
+    presentationIsNotRhyme(node.presentation)
+  )
+    throw new Error("Rhyme hold requires a reviewed initial");
+  if (
+    cue.kind !== "childUnderSymbol" &&
+    cue.kind !== "rhymeHoldThenSweep" &&
+    node.parentRole === "together"
+  )
     throw new Error("Parent pointing does not have together delivery");
   if (
     cue.kind === "childUnderSymbol" &&
@@ -112,4 +168,38 @@ export function validateControlPrintedTurn(
         : node.parentRole !== "together" || node.route !== "support"))
   )
     throw new Error("Child pointing participant does not match its delivery");
+}
+
+function presentationIsNotRhyme(presentation: BoardPresentation) {
+  return (
+    !(
+      (presentation.board.assetId === "single-m-rhyme-l05" ||
+        presentation.board.assetId === "single-m-rhyme-l06") &&
+      presentation.focus === "m"
+    ) &&
+    !(
+      presentation.board.assetId === "single-s-rhyme-l06" &&
+      presentation.focus === "s"
+    )
+  );
+}
+
+export function printedRenderingProfile(board: BoardPresentation["board"]) {
+  const payload =
+    board.reviewId === "complete-lessons-01-06-v1"
+      ? lessonSixAssetPayload
+      : null;
+  return {
+    diagram: payload?.diagram ?? printedDiagramAsset,
+    compact: payload?.compact ?? compactPrintedGeometry,
+    single: payload?.single ?? {
+      width: 310,
+      height: 302,
+      contactSize: compactPrintedGeometry.contactSize,
+    },
+    rhyme:
+      board.assetId === "single-m-rhyme-l05" ||
+      board.assetId === "single-m-rhyme-l06" ||
+      board.assetId === "single-s-rhyme-l06",
+  };
 }

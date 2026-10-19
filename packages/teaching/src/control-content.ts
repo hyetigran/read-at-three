@@ -110,7 +110,9 @@ export function compileControlTask(task: ControlTask): CompiledControlTask {
       n.presentation.kind === "connectedPointing" &&
       (n.parentRole !==
         connectedPointingRoles[n.presentation.role].parentRole ||
-        (n.presentation.role === "guided" && n.route !== "support") ||
+        ((n.presentation.role === "guided" ||
+          n.presentation.role === "togetherGuided") &&
+          n.route !== "support") ||
         n.itemId === null)
     )
       throw new Error("Connected pointing role does not match its delivery");
@@ -228,7 +230,54 @@ export function compileControlTask(task: ControlTask): CompiledControlTask {
         (n) =>
           n?.kind === "turn" && n.presentation.kind === "connectedPointing",
       );
-    if (pointingEligible.length > 0) {
+    const voicedEligible = pointingEligible.some(
+      (node) =>
+        node?.kind === "turn" &&
+        node.presentation.kind === "connectedPointing" &&
+        node.presentation.role === "childConnect",
+    );
+    if (voicedEligible) {
+      if (c.eligibleNodeIds.length !== 1)
+        throw new Error("Child-voiced Help needs one owed response");
+      const [eligibleId] = c.eligibleNodeIds;
+      if (!eligibleId)
+        throw new Error("Child-voiced Help needs an owed response");
+      const eligible = nodes.get(eligibleId);
+      const first = normalNodeIds.findIndex((id) => {
+        const node = nodes.get(id);
+        return (
+          node?.kind === "turn" &&
+          node.presentation.kind === "connectedPointing" &&
+          node.presentation.role === "childConnect"
+        );
+      });
+      if (
+        eligible?.kind !== "turn" ||
+        eligible.presentation.kind !== "connectedPointing" ||
+        eligible.presentation.role !== "childConnect" ||
+        canonical(c.retestNodeIds) !==
+          canonical(
+            normalNodeIds.slice(first, normalNodeIds.indexOf(eligible.id) + 1),
+          )
+      )
+        throw new Error(
+          "Child-voiced Help must retest from first coordinated response through owed response",
+        );
+      for (const id of c.instructionNodeIds) {
+        const node = nodes.get(id);
+        if (node?.kind === "untilFirm") continue;
+        if (
+          node?.kind !== "turn" ||
+          node.presentation.kind !== "connectedPointing" ||
+          node.presentation.role !== "togetherGuided" ||
+          node.presentation.board !==
+            childVoicedSupportBoard(eligible.presentation.board)
+        )
+          throw new Error(
+            "Child-voiced support preserves literal first pair and shared voices",
+          );
+      }
+    } else if (pointingEligible.length > 0) {
       for (const id of c.eligibleNodeIds) {
         const eligible = nodes.get(id);
         if (
@@ -346,4 +395,19 @@ export function compileControlTask(task: ControlTask): CompiledControlTask {
   };
   cache.set(task, result);
   return result;
+}
+
+function childVoicedSupportBoard(
+  board: import("./types.ts").ConnectedPointingPresentation["board"],
+) {
+  switch (board) {
+    case "ēm":
+    case "ēs":
+      return "ēm";
+    case "mē":
+    case "sē":
+      return "mē";
+    default:
+      throw new Error("Child-voiced Help requires a reviewed support family");
+  }
 }

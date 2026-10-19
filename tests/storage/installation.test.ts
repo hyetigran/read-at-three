@@ -1,3 +1,4 @@
+import { syntheticLessonSixCourse } from "../lesson-six-fixture.ts";
 import {
   prepareSelectedInk,
   executeInk,
@@ -7,6 +8,7 @@ import {
   prepareInkCommand,
   encodeInkPoints,
   layerForPhase,
+  increment,
 } from "../../packages/teaching/src/index.ts";
 import type {
   DocumentToken,
@@ -79,6 +81,7 @@ async function fixture(
   t: { after(fn: () => Promise<void>): void },
   profile:
     | "complete"
+    | "completeLessons"
     | "missingRole"
     | "unsupportedDocument"
     | "unsupportedCurriculum" = "complete",
@@ -90,7 +93,10 @@ async function fixture(
     for (const db of connections) if (db.isOpen) db.close();
     await rm(directory, { recursive: true, force: true });
   });
-  const { content } = await syntheticPrintedCourse();
+  const { content } =
+    profile === "completeLessons"
+      ? await syntheticLessonSixCourse()
+      : await syntheticPrintedCourse();
   const curriculum = publicationUtf8(
     JSON.stringify(
       profile === "unsupportedCurriculum"
@@ -2281,3 +2287,103 @@ test(
     assert.equal(publicationPersonalCensus(c.db), changed);
   },
 );
+
+test("complete six-lesson signed installation retains all capabilities and cold writing identity", async (t) => {
+  const f = await fixture(t, "completeLessons");
+  const c = f.connect();
+  await c.app.initialInstall(await f.command(c.app));
+  const activated = await f.until(c.app, "activated");
+  assert.equal(activated.fact.kind, "activated");
+  const lessons = resolvedLessons(f.content);
+  assert.deepEqual(
+    lessons.map((lesson) => lesson.tasks.length),
+    [6, 7, 8, 7, 9, 8],
+  );
+  const capabilities: readonly string[] = packageMetadata(
+    f.content,
+  ).capabilities;
+  assert.ok(capabilities.includes("rhyming-connected-writing-l05-v1"));
+  assert.ok(capabilities.includes("complete-lessons-01-06-v1"));
+  const installed = c.db
+    .prepare(
+      "SELECT content_schema_version,capabilities FROM installed_package",
+    )
+    .get();
+  assert.equal(installed?.content_schema_version, 4);
+  assert.deepEqual(JSON.parse(String(installed?.capabilities)), capabilities);
+  await confirmInitialProfile(c.app, f.ids, hash);
+  const projection = await selectedProjection(c.app);
+  if (projection.kind === "recovery") throw Error(projection.message);
+  assert.equal(projection.catalog.length, 45);
+  const taskId = lessons[5]?.tasks[7]?.task.id;
+  assert.ok(taskId);
+  const action = projection.actions.find(
+    (action) =>
+      action.intent.kind === "start" && action.intent.taskId === taskId,
+  );
+  assert.ok(action);
+  const operation = await prepareSelectedTeaching(c.app, () =>
+    prepareCommand({
+      projection,
+      request: { kind: "action", action },
+      ids: f.ids,
+      hash,
+    }),
+  );
+  const started = await executeTeaching(c.app, operation);
+  assert.equal(started.kind, "committed");
+  const writing = await selectedProjection(c.app);
+  if (writing.kind !== "writing") throw Error("Lesson six writing required");
+  assert.equal(writing.packageHash, f.target);
+  assert.equal(writing.taskId, taskId);
+  const token = writing.documents[0];
+  assert.ok(token);
+  assert.equal(token.phase, "parentDemonstration");
+  const snapshot = await selectedInk(c.app, { token });
+  assert.equal(snapshot.writable, true);
+  const documents = c.db
+    .prepare(
+      "SELECT target_id,package_hash,phase FROM ink_document ORDER BY target_id",
+    )
+    .all();
+  assert.equal(documents.length, 2);
+  assert.ok(documents.every((document) => document.package_hash === f.target));
+  const downloads = f.downloads;
+  const acquisitions = f.acquisitions;
+  c.db.close();
+  f.setOffline(true);
+  const cold = f.connect();
+  const opening = await cold.app.openRecovery({ kind: "cold" });
+  await cold.app.reconcileRecovery({
+    recoveryId: opening.recoveryId,
+    choice: { kind: "cold" },
+  });
+  const reopened = await selectedProjection(cold.app);
+  assert.deepEqual(reopened, {
+    ...writing,
+    documents: writing.documents.map((document) => ({
+      ...document,
+      revision: increment(document.revision),
+      inputEpoch: increment(document.inputEpoch),
+    })),
+  });
+  if (reopened.kind !== "writing")
+    throw Error("Cold Lesson six writing required");
+  const reopenedToken = reopened.documents[0];
+  assert.ok(reopenedToken);
+  const restored = await selectedInk(cold.app, { token: reopenedToken });
+  assert.deepEqual(restored.strokes, snapshot.strokes);
+  assert.deepEqual(restored.histories, snapshot.histories);
+  assert.equal(restored.writable, snapshot.writable);
+  assert.deepEqual(await executeTeaching(cold.app, operation), started);
+  assert.deepEqual(
+    cold.db
+      .prepare(
+        "SELECT target_id,package_hash,phase FROM ink_document ORDER BY target_id",
+      )
+      .all(),
+    documents,
+  );
+  assert.equal(f.downloads, downloads);
+  assert.equal(f.acquisitions, acquisitions);
+});

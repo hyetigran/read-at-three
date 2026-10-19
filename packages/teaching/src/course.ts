@@ -166,7 +166,8 @@ export function courseProjection({
       const artKey: ActivityArtKey =
         authoredArt ??
         (definition?.kind === "soundWritingV1" ||
-        definition?.kind === "writingPracticePlanV2"
+        definition?.kind === "writingPracticePlanV2" ||
+        definition?.kind === "writingPracticePlanV3"
           ? "writing"
           : definition?.kind === "printedGraphV1"
             ? "printedSound"

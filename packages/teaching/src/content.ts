@@ -399,7 +399,10 @@ export function taskDefinition({
   ) {
     const entry = resolvedTask({ content, taskId })?.entry;
     if (!entry) throw new Error("Task unavailable in exact package");
-    if (entry.kind === "writingPracticePlanV2")
+    if (
+      entry.kind === "writingPracticePlanV2" ||
+      entry.kind === "writingPracticePlanV3"
+    )
       return {
         kind: "graphControls",
         graph: compileWritingPlan(entry.task),

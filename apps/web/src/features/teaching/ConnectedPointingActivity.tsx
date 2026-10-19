@@ -2,7 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import {
   connectedPointingBoards,
-  printedGlyphAssets,
+  connectedRenderingProfile,
+  currentPrintedGlyphAssets,
 } from "@readatthree/teaching";
 import type {
   ConnectedPointingPresentation,
@@ -37,6 +38,7 @@ export function ConnectedPointingActivity({
   const [visible, setVisible] = useState<Contact>(contact.current);
   const asset = connectedPointingBoards[presentation.board];
   const geometry = asset.geometry;
+  const profile = connectedRenderingProfile(presentation.board);
   const region = disabled || visible.kind === "idle" ? null : visible.region;
   useLayoutEffect(() => {
     const element = svg.current;
@@ -98,6 +100,8 @@ export function ConnectedPointingActivity({
     return connectedContactRegion({
       x: point.x,
       y: point.y,
+      contactSize: profile.contactSize,
+      geometry,
       pixelsPerUnit: Math.min(
         Math.hypot(matrix.a, matrix.b),
         Math.hypot(matrix.c, matrix.d),
@@ -105,9 +109,20 @@ export function ConnectedPointingActivity({
     });
   }
   return (
-    <div className="teaching-connected-pointing">
+    <div
+      className={`teaching-connected-pointing${profile.childVoiced ? " teaching-connected-child-voiced" : ""}`}
+    >
       <svg
         ref={svg}
+        style={
+          profile.childVoiced
+            ? {
+                width: profile.width,
+                height: profile.height,
+                maxHeight: "none",
+              }
+            : undefined
+        }
         className="teaching-connected-board"
         viewBox={geometry.viewBox}
         role="group"
@@ -120,6 +135,7 @@ export function ConnectedPointingActivity({
         onPointerDown={(event) => {
           if (
             disabled ||
+            presentation.role === "echo" ||
             !event.isPrimary ||
             event.button !== 0 ||
             contact.current.kind !== "idle" ||
@@ -139,6 +155,7 @@ export function ConnectedPointingActivity({
           const current = contact.current;
           if (
             disabled ||
+            presentation.role === "echo" ||
             !event.isPrimary ||
             current.kind !== "pointer" ||
             current.pointerId !== event.pointerId
@@ -169,7 +186,7 @@ export function ConnectedPointingActivity({
         }}
         onBlur={clear}
         onKeyDown={(event) => {
-          if (disabled) return;
+          if (disabled || presentation.role === "echo") return;
           if (event.key === "Escape") clear();
           if (event.key === " " || event.key === "Enter") {
             event.preventDefault();
@@ -203,7 +220,11 @@ export function ConnectedPointingActivity({
             clear();
         }}
       >
-        {connectedContactRegions({ pixelsPerUnit }).map((circle) => (
+        {connectedContactRegions({
+          pixelsPerUnit,
+          geometry,
+          contactSize: profile.contactSize,
+        }).map((circle) => (
           <circle
             key={circle.kind}
             data-contact-region={circle.kind}
@@ -215,13 +236,13 @@ export function ConnectedPointingActivity({
           />
         ))}
         {asset.glyphs.map((key, index) => {
-          const glyph = printedGlyphAssets[key],
+          const glyph = currentPrintedGlyphAssets[key],
             placement = geometry.glyphs[index];
           return placement ? (
             <svg
               key={index}
               {...placement}
-              viewBox="0 0 310 250"
+              viewBox={profile.glyphViewBox}
               aria-hidden="true"
             >
               <path

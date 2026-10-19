@@ -1,10 +1,15 @@
 import {
+  lessonFiveCompletionBoards,
+  lessonSixPrintedBoards,
   reviewedPrintedBoards,
   historicalReviewedPrintedBoards,
 } from "./printed.ts";
 import { printedBoardAssetHash } from "./printed-assets.ts";
 import { activityArtKeys } from "./course-art.ts";
 import {
+  parentSpanV3Schema,
+  writingPlanV3Schema,
+  writingPresentationV3Schema,
   writingTaskSchema,
   writingPlanSchema,
   reviewedWritingPlanSchema,
@@ -882,6 +887,243 @@ const childPointedCumulative = {
     },
   },
 };
+const completionBoardPresentation = record({
+  ...currentBoardPresentation.properties,
+  board: {
+    oneOf: [
+      ...currentBoardPresentation.properties.board.oneOf,
+      ...Object.values(lessonFiveCompletionBoards).map((board) =>
+        record({
+          assetId: { const: board.assetId },
+          reviewId: { const: board.reviewId },
+          assetHash: { const: board.assetHash },
+        }),
+      ),
+    ],
+  },
+  cue: {
+    oneOf: [
+      ...currentBoardPresentation.properties.cue.oneOf,
+      record({
+        kind: { const: "rhymeHoldThenSweep" },
+        hold: { const: "parentControlled" },
+      }),
+    ],
+  },
+});
+const completionControlTurnNode = record({
+  ...currentControlTurnNode.properties,
+  guidance: list(parentSpanV3Schema, 100, 1),
+  presentation: {
+    oneOf: [
+      oralPresentation,
+      writingPresentationSchema,
+      completionBoardPresentation,
+      record({
+        kind: { const: "connectedPointing" },
+        board: { enum: ["am", "sa", "ma"] },
+        role: { enum: ["model", "follow", "guided"] },
+      }),
+      record({
+        kind: { const: "connectedPointing" },
+        board: { enum: ["ēm", "ēs"] },
+        role: { enum: ["model", "echo", "childConnect", "togetherGuided"] },
+      }),
+    ],
+  },
+});
+const completionControlTask = {
+  ...currentControlTask,
+  properties: {
+    ...currentControlTask.properties,
+    nodes: list(
+      {
+        oneOf: [
+          completionControlTurnNode,
+          ...controlNode.oneOf.slice(1).map((node) => ({
+            ...node,
+            properties: {
+              ...node.properties,
+              guidance: list(parentSpanV3Schema, 100, 1),
+            },
+          })),
+        ],
+      },
+      1000,
+      1,
+    ),
+  },
+};
+const pointedBody = childPointedCumulative.properties.body;
+const completionCumulative = {
+  ...childPointedCumulative,
+  properties: {
+    ...childPointedCumulative.properties,
+    body: {
+      ...pointedBody,
+      properties: {
+        ...pointedBody.properties,
+        requiredEngineCapabilities: {
+          ...pointedBody.properties.requiredEngineCapabilities,
+          items: {
+            type: "string",
+            enum: [
+              ...pointedBody.properties.requiredEngineCapabilities.items.enum,
+              "rhyming-connected-writing-l05-v1",
+            ],
+          },
+          minItems: 7,
+          maxItems: 7,
+        },
+        lessons: {
+          ...pointedBody.properties.lessons,
+          items: {
+            ...pointedBody.properties.lessons.items,
+            properties: {
+              ...pointedBody.properties.lessons.items.properties,
+              tasks: list(
+                {
+                  oneOf: [
+                    ...pointedBody.properties.lessons.items.properties.tasks.items.oneOf.filter(
+                      (entry) =>
+                        entry.properties.kind.const !== "graphControls",
+                    ),
+                    record({
+                      kind: { const: "graphControls" },
+                      task: completionControlTask,
+                    }),
+                    record({
+                      kind: { const: "writingPracticePlanV3" },
+                      task: writingPlanV3Schema,
+                    }),
+                  ],
+                },
+                100,
+              ),
+            },
+          },
+        },
+      },
+    },
+  },
+};
+const lessonSixBoardPresentation = record({
+  ...completionBoardPresentation.properties,
+  board: {
+    oneOf: [
+      ...completionBoardPresentation.properties.board.oneOf,
+      ...Object.values(lessonSixPrintedBoards).map((board) =>
+        record({
+          assetId: { const: board.assetId },
+          reviewId: { const: board.reviewId },
+          assetHash: { const: board.assetHash },
+        }),
+      ),
+    ],
+  },
+});
+const lessonSixBoardNode = record({
+  ...currentBoardNode.properties,
+  presentation: lessonSixBoardPresentation,
+});
+const lessonSixBoardTask = {
+  ...currentBoardTask,
+  properties: {
+    ...currentBoardTask.properties,
+    nodes: list(lessonSixBoardNode, 1000, 1),
+  },
+};
+const lessonSixControlTurnNode = record({
+  ...completionControlTurnNode.properties,
+  presentation: {
+    oneOf: [
+      ...completionControlTurnNode.properties.presentation.oneOf.filter(
+        (entry) =>
+          !(
+            "properties" in entry &&
+            entry.properties.kind.const === "printedBoard"
+          ),
+      ),
+      lessonSixBoardPresentation,
+      record({
+        kind: { const: "connectedPointing" },
+        board: { enum: ["mē", "sē"] },
+        role: { enum: ["model", "echo", "childConnect", "togetherGuided"] },
+      }),
+    ],
+  },
+});
+const lessonSixControlTask = {
+  ...completionControlTask,
+  properties: {
+    ...completionControlTask.properties,
+    nodes: list(
+      {
+        oneOf: [
+          lessonSixControlTurnNode,
+          ...completionControlTask.properties.nodes.items.oneOf.slice(1),
+        ],
+      },
+      1000,
+      1,
+    ),
+  },
+};
+const completionBody = completionCumulative.properties.body;
+const completeCumulative = {
+  ...completionCumulative,
+  properties: {
+    ...completionCumulative.properties,
+    body: {
+      ...completionBody,
+      properties: {
+        ...completionBody.properties,
+        requiredEngineCapabilities: {
+          ...completionBody.properties.requiredEngineCapabilities,
+          items: {
+            type: "string",
+            enum: [
+              ...completionBody.properties.requiredEngineCapabilities.items
+                .enum,
+              "complete-lessons-01-06-v1",
+            ],
+          },
+          minItems: 8,
+          maxItems: 8,
+        },
+        lessons: {
+          ...completionBody.properties.lessons,
+          items: {
+            ...completionBody.properties.lessons.items,
+            properties: {
+              ...completionBody.properties.lessons.items.properties,
+              tasks: list(
+                {
+                  oneOf: [
+                    ...completionBody.properties.lessons.items.properties.tasks.items.oneOf.filter(
+                      (entry) =>
+                        entry.properties.kind.const !== "printedGraphV2" &&
+                        entry.properties.kind.const !== "graphControls",
+                    ),
+                    record({
+                      kind: { const: "printedGraphV2" },
+                      task: lessonSixBoardTask,
+                    }),
+                    record({
+                      kind: { const: "graphControls" },
+                      task: lessonSixControlTask,
+                    }),
+                  ],
+                },
+                100,
+              ),
+            },
+          },
+        },
+      },
+    },
+  },
+};
 const cumulativePackageSchema = {
   oneOf: [
     ...oldCumulativePackageSchema.oneOf,
@@ -889,6 +1131,8 @@ const cumulativePackageSchema = {
     cumulativeV4,
     cumulativeReviewedBoards,
     childPointedCumulative,
+    completionCumulative,
+    completeCumulative,
   ],
 };
 const normalContext = record({ kind: { const: "normal" } });
@@ -1004,7 +1248,7 @@ const action = {
       label: copy,
       intent: helpIntent,
       correctionPreview: {
-        oneOf: [graphNode, currentBoardNode, currentControlTurnNode],
+        oneOf: [graphNode, lessonSixBoardNode, lessonSixControlTurnNode],
       },
     }),
   ],
@@ -1118,7 +1362,7 @@ const graphTurn = record({
   checkpointId: id,
 });
 const boardTurn = record({
-  ...currentBoardNode.properties,
+  ...lessonSixBoardNode.properties,
   extraPractice: { type: "boolean" },
   routeKind: {
     enum: ["normal", "repeat", "correctionInstruction", "correctionRetest"],
@@ -1128,6 +1372,15 @@ const boardTurn = record({
 });
 const projectionSchema = {
   oneOf: [
+    record({
+      ...sessionProjection,
+      kind: { const: "readiness" },
+      nodeId: id,
+      policyId: id,
+      cycleId: id,
+      occurrenceId: id,
+      guidance: list(parentSpanV3Schema, 100, 1),
+    }),
     record({ ...commonProjection, kind: { const: "entry" } }),
     record({
       ...sessionProjection,
@@ -1138,7 +1391,7 @@ const projectionSchema = {
           graphTurn,
           boardTurn,
           record({
-            ...currentControlTurnNode.properties,
+            ...lessonSixControlTurnNode.properties,
             extraPractice: { type: "boolean" },
             routeKind: { enum: ["delivering", "correction"] },
             occurrenceId: id,
@@ -1166,7 +1419,8 @@ const projectionSchema = {
       kind: { const: "writing" },
       documents: list(documentTokenSchema, 2, 2),
       turn: record({
-        ...reviewedConnectedControlTurnNode.properties,
+        ...lessonSixControlTurnNode.properties,
+        presentation: writingPresentationV3Schema,
         extraPractice: { type: "boolean" },
         routeKind: { enum: ["delivering", "correction"] },
         occurrenceId: id,
@@ -1309,6 +1563,19 @@ const rootSchemas = {
 };
 
 const sharedDefinitions = {
+  lessonSixBoardPresentation,
+  lessonSixBoardNode,
+  lessonSixBoardTask,
+  lessonSixControlTurnNode,
+  lessonSixControlTask,
+  completeCumulative,
+  parentSpanV3Schema,
+  completionControlTurnNode,
+  completionControlTask,
+  completionBoardPresentation,
+  completionCumulative,
+  writingPlanV3Schema,
+  writingPresentationV3Schema,
   currentBoardPresentation,
   currentBoardNode,
   currentControlTurnNode,
@@ -1417,6 +1684,8 @@ export const runtimeCapabilityProfiles = [
     cumulativeV4.properties.body,
     cumulativeReviewedBoards.properties.body,
     childPointedCumulative.properties.body,
+    completionCumulative.properties.body,
+    completeCumulative.properties.body,
   ].map((body) => {
     const props = body.properties;
     if (

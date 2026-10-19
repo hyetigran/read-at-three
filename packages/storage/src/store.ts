@@ -3157,23 +3157,8 @@ export function createTeachingApplication(
             }),
         );
       } catch (error) {
-        let failure: ParentMaterialFailure;
-        if (error instanceof InstalledResourceUnavailableError)
-          failure = error.failure.reason;
-        else if (error instanceof PublicationResourceError)
-          failure = { kind: "content", failure: error.failure };
-        else if (error instanceof ShellError)
-          failure = { kind: "shell", failure: error.failure };
-        else if (error instanceof InstalledContentUnavailableError)
-          failure = { kind: "representationUnavailable" };
-        else if (error instanceof UnsupportedInstallProfileError)
-          failure = { kind: "unsupportedProfile" };
-        else if (
-          error instanceof InstalledTeachingError &&
-          error.reason === "unavailable"
-        )
-          failure = { kind: "verificationUnavailable" };
-        else throw error;
+        const failure = resourceReason(error);
+        if (!failure) throw error;
         return {
           kind: "unavailable",
           packageHash: request.packageHash,

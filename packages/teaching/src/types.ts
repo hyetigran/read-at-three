@@ -95,7 +95,10 @@ export type ParentSpan =
   | PlainParentSpan
   | Readonly<{
       kind: PlainParentSpan["kind"];
-      runs: readonly Readonly<{ copy: Copy; emphasis: "plain" | "strong" }>[];
+      runs: readonly Readonly<{
+        copy: Copy;
+        emphasis: "plain" | "strong" | "italic";
+      }>[];
     }>;
 export type GraphNode = Readonly<{
   id: NodeId;
@@ -116,17 +119,18 @@ export type PrintedCue = Readonly<
       participant: "child" | "parentGuidesChild";
     }
   | { kind: "underSymbolHold"; hold: "parentControlled" }
+  | { kind: "rhymeHoldThenSweep"; hold: "parentControlled" }
   | {
       kind: "endpointSweep";
       preparation: "touchStart" | "parentControlledStartHold";
     }
 >;
 export type PrintedBoard = {
-  [K in keyof typeof import("./printed.ts").reviewedPrintedBoards]: Pick<
-    (typeof import("./printed.ts").reviewedPrintedBoards)[K],
+  [K in keyof typeof import("./printed.ts").allReviewedPrintedBoards]: Pick<
+    (typeof import("./printed.ts").allReviewedPrintedBoards)[K],
     "assetId" | "reviewId" | "assetHash"
   >;
-}[keyof typeof import("./printed.ts").reviewedPrintedBoards];
+}[keyof typeof import("./printed.ts").allReviewedPrintedBoards];
 export type BoardPresentation = Readonly<{
   kind: "printedBoard";
   board: PrintedBoard;
@@ -294,6 +298,14 @@ export type EngineProjection =
       status: "inProgress";
       unmetObligations: readonly NodeId[];
     }
+  | Readonly<{
+      kind: "readiness";
+      nodeId: NodeId;
+      policyId: PolicyId;
+      cycleId: CycleId;
+      occurrenceId: OccurrenceId;
+      guidance: readonly ParentSpan[];
+    }>
   | ControlSelectionProjection
   | { kind: "completed" }
   | { kind: "skipped" }
@@ -609,7 +621,8 @@ export type ControlSource = Readonly<{
 export type ConnectedPointingPresentation = Readonly<{
   kind: "connectedPointing";
   board: keyof typeof import("./connected-pointing.ts").connectedPointingBoards;
-  role: "model" | "follow" | "guided";
+  role:
+    "model" | "follow" | "guided" | "echo" | "childConnect" | "togetherGuided";
 }>;
 export type ControlTurnNode = ControlSource &
   Readonly<{
@@ -674,6 +687,7 @@ export type MixedTask = Readonly<
   | { kind: "graphControls"; task: ControlTask }
   | { kind: "soundWritingV1"; task: WritingTask }
   | { kind: "writingPracticePlanV2"; task: WritingPracticePlan }
+  | { kind: "writingPracticePlanV3"; task: WritingPracticePlanV3 }
 >;
 export type PrintedPreviewTask = Extract<
   MixedTask,
@@ -687,7 +701,13 @@ export type ControlDevelopmentBody = Omit<
     coverage: "lesson1-sounds-oral-complete";
     tasks: readonly Exclude<
       MixedTask,
-      { kind: "soundWritingV1" | "writingPracticePlanV2" | "printedGraphV2" }
+      {
+        kind:
+          | "soundWritingV1"
+          | "writingPracticePlanV2"
+          | "writingPracticePlanV3"
+          | "printedGraphV2";
+      }
     >[];
   }>;
 export type ReviewChoice = Readonly<
@@ -823,6 +843,7 @@ export type WritingObligation = Readonly<
   | { kind: "soundResponse" }
   | { kind: "modelAndSound" }
   | { kind: "parentModel" }
+  | { kind: "parentInstruction" }
   | {
       kind: "phaseConfirmation";
       phase: "childTracing" | "childIndependentWriting";
@@ -907,6 +928,26 @@ export type WritingPracticePlan = Readonly<{
   introduction: WritingScript;
   targets: readonly [WritingTargetPractice, WritingTargetPractice];
 }>;
+export type WritingTargetPracticeV3 = Omit<WritingTargetPractice, "sound"> &
+  Readonly<{
+    identification:
+      | { kind: "parentInstruction"; script: WritingScript }
+      | { kind: "soundResponse"; sound: WritingTargetPractice["sound"] };
+  }>;
+export type WritingPracticePlanV3 = Omit<WritingPracticePlan, "targets"> &
+  Readonly<{
+    targets: readonly [
+      WritingTargetPracticeV3 & {
+        identification: { kind: "parentInstruction"; script: WritingScript };
+      },
+      WritingTargetPracticeV3 & {
+        identification: {
+          kind: "soundResponse";
+          sound: WritingTargetPractice["sound"];
+        };
+      },
+    ];
+  }>;
 export type WritingAction = Readonly<
   | {
       kind: "confirmTracing";

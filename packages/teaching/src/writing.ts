@@ -12,18 +12,25 @@ import type {
   WritingPhase,
   WritingTask,
   WritingPracticePlan,
+  WritingPracticePlanV3,
   WritingScript,
   WritingNode,
 } from "./types.ts";
 
-const planCache = new WeakMap<WritingPracticePlan, WritingTask>();
+const planCache = new WeakMap<
+  WritingPracticePlan | WritingPracticePlanV3,
+  WritingTask
+>();
 function joinScripts(scripts: readonly WritingScript[]): WritingScript {
   return {
     sourceRefs: [...new Set(scripts.flatMap((script) => script.sourceRefs))],
     guidance: scripts.flatMap((script) => script.guidance),
   };
 }
-function lowerPlan(plan: WritingPracticePlan): WritingTask {
+function lowerPlan(
+  plan: WritingPracticePlan | WritingPracticePlanV3,
+): WritingTask {
+  const version = "identification" in plan.targets[0] ? 3 : 2;
   const cached = planCache.get(plan);
   if (cached) return cached;
   if (plan.targets.length !== 2)
@@ -50,6 +57,10 @@ function lowerPlan(plan: WritingPracticePlan): WritingTask {
       )
         throw new Error("Practice instruction source missing");
     }
+    const identification =
+      "identification" in practice
+        ? practice.identification
+        : ({ kind: "soundResponse", sound: practice.sound } as const);
     const base = { targetId: practice.target.id };
     return [
       {
@@ -66,16 +77,25 @@ function lowerPlan(plan: WritingPracticePlan): WritingTask {
       {
         ...base,
         slot: "respond",
-        parentRole: "listen",
-        script: joinScripts([practice.sound.prompt, practice.sound.expected]),
-        obligation: { kind: "soundResponse" },
+        parentRole:
+          identification.kind === "parentInstruction" ? "model" : "listen",
+        script:
+          identification.kind === "parentInstruction"
+            ? identification.script
+            : joinScripts([
+                identification.sound.prompt,
+                identification.sound.expected,
+              ]),
+        obligation: { kind: identification.kind },
       },
       {
         ...base,
         slot: "trace",
         parentRole: "listen",
         script: joinScripts([
-          practice.sound.affirmation,
+          ...(identification.kind === "soundResponse"
+            ? [identification.sound.affirmation]
+            : []),
           practice.tracing.instruction,
           practice.tracing.praise,
         ]),
@@ -139,19 +159,29 @@ function lowerPlan(plan: WritingPracticePlan): WritingTask {
           : { kind: "node", nodeId: nodeId(index + 1) },
     })),
   };
-  compileTaskVersion(result, 2);
+  compileTaskVersion(result, version);
   planCache.set(plan, result);
   return result;
 }
-export function compileWritingPlan(plan: WritingPracticePlan) {
-  return compileTaskVersion(lowerPlan(plan), 2);
+export function compileWritingPlan(
+  plan: WritingPracticePlan | WritingPracticePlanV3,
+) {
+  return compileTaskVersion(
+    lowerPlan(plan),
+    "identification" in plan.targets[0] ? 3 : 2,
+  );
 }
 
-const cache = new WeakMap<WritingTask, ReturnType<typeof compileControlTask>>();
+const caches = {
+  1: new WeakMap<WritingTask, ReturnType<typeof compileControlTask>>(),
+  2: new WeakMap<WritingTask, ReturnType<typeof compileControlTask>>(),
+  3: new WeakMap<WritingTask, ReturnType<typeof compileControlTask>>(),
+};
 export function compileWritingTask(task: WritingTask) {
   return compileTaskVersion(task, 1);
 }
-function compileTaskVersion(task: WritingTask, version: 1 | 2) {
+function compileTaskVersion(task: WritingTask, version: 1 | 2 | 3) {
+  const cache = caches[version];
   if (version === 1)
     for (const node of task.nodes)
       for (const span of node.guidance) requirePlainGuidance(span);
@@ -166,10 +196,16 @@ function compileTaskVersion(task: WritingTask, version: 1 | 2) {
   const [first, second] = task.targets;
   if (!first || !second) throw new Error("Writing targets missing");
   const expected =
-    version === 2
-      ? task.targets.flatMap((target) => [
+    version !== 1
+      ? task.targets.flatMap((target, index) => [
           [target.id, "parentModel", null],
-          [target.id, "soundResponse", null],
+          [
+            target.id,
+            version === 3 && index === 0
+              ? "parentInstruction"
+              : "soundResponse",
+            null,
+          ],
           [target.id, "phaseConfirmation", "childTracing"],
           [target.id, "phaseConfirmation", "childIndependentWriting"],
         ])
@@ -216,7 +252,8 @@ function compileTaskVersion(task: WritingTask, version: 1 | 2) {
       node.route !== "normal" ||
       node.parentRole !==
         (obligation.kind === "modelAndSound" ||
-        obligation.kind === "parentModel"
+        obligation.kind === "parentModel" ||
+        obligation.kind === "parentInstruction"
           ? "model"
           : "listen") ||
       node.presentation.kind !== "writing" ||
@@ -258,7 +295,8 @@ export function writingTask({
   const entry = resolvedTask({ content, taskId })?.entry;
   return entry?.kind === "soundWritingV1"
     ? entry.task
-    : entry?.kind === "writingPracticePlanV2"
+    : entry?.kind === "writingPracticePlanV2" ||
+        entry?.kind === "writingPracticePlanV3"
       ? lowerPlan(entry.task)
       : null;
 }
@@ -330,7 +368,8 @@ export function writingPermission({
       shownNodeId === frontier?.id &&
       state.kind !== "writingSkipped" &&
       frontier?.presentation.targetId === targetId &&
-      frontier.presentation.obligation.kind !== "soundResponse",
+      frontier.presentation.obligation.kind !== "soundResponse" &&
+      frontier.presentation.obligation.kind !== "parentInstruction",
   };
 }
 export function layerForPhase(phase: WritingPhase): InkLayer {

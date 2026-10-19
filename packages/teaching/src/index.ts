@@ -75,6 +75,8 @@ export { guidanceCopies, requirePlainGuidance } from "./guidance.ts";
 export {
   printedBoardAssets,
   reviewedPrintedBoards,
+  allReviewedPrintedBoards,
+  lessonFiveCompletionBoards,
   resolvePrintedPresentation,
 } from "./printed.ts";
 
@@ -221,3 +223,11 @@ export type {
   PublicationCheck,
   InstalledResourceFailure,
 } from "./installation.ts";
+export * from "./lesson-five-completion-assets.ts";
+
+export {
+  lessonSixAssetPayload,
+  lessonSixAssetHash,
+} from "./lesson-six-assets.ts";
+export { lessonSixPrintedBoards, printedRenderingProfile } from "./printed.ts";
+export { connectedRenderingProfile } from "./connected-pointing.ts";
