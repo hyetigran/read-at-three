@@ -1795,9 +1795,9 @@ test(
     const next = await seedControlledFutureRelease(c.db, f);
     c.db
       .prepare(
-        "UPDATE course_activation SET active_package_hash=?,fallback_package_hash=?,revision=revision+1",
+        "UPDATE course_activation SET active_package_hash=?,fallback_package_hash=NULL,revision=revision+1",
       )
-      .run(next.target, f.target);
+      .run(next.target);
     c.db.exec(
       "UPDATE course_cursor SET resume_session_id=NULL,revision=revision+1",
     );

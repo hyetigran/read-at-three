@@ -55,6 +55,37 @@ export function executorFor(db: DatabaseSync, hook?: SqlHook): SqlExecutor {
     },
   };
 }
+export function isReadOnlySqlAttempt(sql: string) {
+  return /^\s*(?:select\b|PRAGMA\s+(?:foreign_keys(?:=ON)?|foreign_key_check|foreign_key_list\("[a-z_]+"\)|user_version|journal_mode|synchronous)\s*$)/i.test(
+    sql,
+  );
+}
+export async function databaseSnapshot(db: DatabaseSync) {
+  const file = db.prepare("PRAGMA database_list").get()?.file;
+  if (typeof file !== "string") throw new Error("Missing database file");
+  const names = db
+    .prepare(
+      "SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+    )
+    .all();
+  return {
+    schema: db
+      .prepare(
+        "SELECT type,name,tbl_name,rootpage,sql FROM sqlite_schema ORDER BY type,name",
+      )
+      .all(),
+    version: db.prepare("PRAGMA user_version").get(),
+    tables: names.map(({ name }) => {
+      if (typeof name !== "string") throw new Error("Missing table name");
+      const query = db.prepare(
+        `SELECT * FROM "${name.replaceAll('"', '""')}" ORDER BY rowid`,
+      );
+      query.setReadBigInts(true);
+      return { name, rows: query.all() };
+    }),
+    bytes: await readFile(file),
+  };
+}
 export async function storageFixture(
   t: { after(fn: () => Promise<void>): void },
   supplied?: RuntimePackage,
