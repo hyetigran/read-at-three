@@ -175,7 +175,7 @@ export function LessonFiles({
   const rejected =
     data?.commands.filter((item) => item.receipt.kind === "rejected") ?? [];
   return (
-    <section className="course-settings" aria-busy={busy}>
+    <section className="course-settings parent-lesson-files" aria-busy={busy}>
       <h2>
         <AddedText>Lesson files</AddedText>
       </h2>

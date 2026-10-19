@@ -819,7 +819,10 @@ test("signed editorial suffix preserves accepted lesson support and cannot fall 
   const personal = () =>
     tables.map((name) => ({
       name,
-      rows: first.db.prepare(`SELECT * FROM ${name} ORDER BY rowid`).all(),
+      rows: first.db
+        .prepare(`SELECT * FROM ${name} ORDER BY rowid`)
+        .all()
+        .map((row) => ({ ...row })),
     }));
   const conserved = personal();
   const updated = f.connect(undefined, {
@@ -828,8 +831,34 @@ test("signed editorial suffix preserves accepted lesson support and cannot fall 
   });
   await downloadAndUse(updated.app, "editorial-b");
   assert.deepEqual(personal(), conserved);
+  const waiting = await selectedCourse(updated.app, { kind: "cursor" });
+  assert.equal(waiting.kind, "recovery");
+  if (waiting.kind !== "recovery") return;
+  assert.equal(waiting.code, "ink-reconciliation-required");
+  const recovery = await updated.app.openRecovery({ kind: "cold" });
+  await updated.app.reconcileRecovery({
+    recoveryId: recovery.recoveryId,
+    choice: { kind: "cold" },
+  });
+  const fenced = conserved.map((table) =>
+    table.name !== "ink_document"
+      ? table
+      : {
+          name: table.name,
+          rows: table.rows.map((row) => {
+            assert.equal(typeof row.revision, "number");
+            assert.equal(typeof row.input_epoch, "number");
+            return {
+              ...row,
+              revision: Number(row.revision) + 1,
+              input_epoch: Number(row.input_epoch) + 1,
+            };
+          }),
+        },
+  );
+  assert.deepEqual(personal(), fenced);
   const view = await selectedCourse(updated.app, { kind: "cursor" });
-  assert.equal(view.kind, "ready");
+  assert.equal(view.kind, "ready", canonical(view));
   if (view.kind !== "ready") return;
   assert.equal(view.course.lessons[0]?.progress, "satisfied");
   const added = view.course.lessons[0]?.tasks.find((task) => task.id === id);
@@ -857,7 +886,7 @@ test("signed editorial suffix preserves accepted lesson support and cannot fall 
   if (catalog.activation.kind !== "present") return;
   assert.equal(catalog.activation.activePackageHash, b.target);
   assert.equal(catalog.activation.fallbackPackageHash, f.target);
-  assert.deepEqual(personal(), conserved);
+  assert.deepEqual(personal(), fenced);
 });
 
 for (const variant of ["removed", "reordered", "identity"] as const)
