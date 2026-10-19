@@ -9,7 +9,10 @@ import {
   resolvedLessons,
 } from "@readatthree/teaching";
 import { migrations } from "../../packages/storage/src/generated-migration.ts";
-import { initializeDatabase } from "../../packages/storage/src/migration.ts";
+import {
+  DATABASE_VERSION,
+  initializeDatabase,
+} from "../../packages/storage/src/migration.ts";
 import { hash, storageFixture, executorFor } from "./support.ts";
 import {
   executeTeaching,
@@ -163,7 +166,10 @@ test("V10 widens installed content without losing existing foreign-key linked pa
   );
   db.exec("ROLLBACK");
   await initializeDatabase(executor, hash);
-  assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 13);
+  assert.equal(
+    db.prepare("PRAGMA user_version").get()?.user_version,
+    DATABASE_VERSION,
+  );
   const committedBytes = await readFile(file);
   await initializeDatabase(executor, hash);
   assert.deepEqual(await readFile(file), committedBytes);
@@ -176,7 +182,10 @@ test("V10 widens installed content without losing existing foreign-key linked pa
     beforeActivation,
   );
   assert.deepEqual(db.prepare("PRAGMA foreign_key_check").all(), []);
-  assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 13);
+  assert.equal(
+    db.prepare("PRAGMA user_version").get()?.user_version,
+    DATABASE_VERSION,
+  );
 });
 
 test("V2 writing uses one durable executor with eight turns, explicit phase confirmation, restart and terminal Undo", async (t) => {

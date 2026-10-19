@@ -1,3 +1,4 @@
+import { DATABASE_VERSION } from "../../packages/storage/src/migration.ts";
 import {
   executeTeaching,
   prepareSelectedTeaching,
@@ -732,8 +733,11 @@ test("migration 6 data-hook failure rolls back new tables, ledger and version be
     0,
   );
   await initializeDatabase(executor, hash);
-  assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 13);
-  assert.equal(count(db, "schema_migration"), 13);
+  assert.equal(
+    db.prepare("PRAGMA user_version").get()?.user_version,
+    DATABASE_VERSION,
+  );
+  assert.equal(count(db, "schema_migration"), DATABASE_VERSION);
   assert.equal(count(db, "lesson_credit"), 0);
 });
 
