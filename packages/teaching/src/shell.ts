@@ -10,6 +10,12 @@ import {
 import { validateShellDescriptor } from "./generated-shell-validators.js";
 import type { ShellDescriptor, ShellResource } from "./shell-schemas.ts";
 export type ShellHash = string & { readonly __brand: "ShellHash" };
+export function parseShellHash(value: unknown): ShellHash {
+  if (typeof value !== "string" || !/^[a-f0-9]{64}$/.test(value))
+    throw new Error("Invalid shell hash");
+  return value as ShellHash;
+}
+
 export type ShellPolicy = Readonly<{
   mode: "fixture" | "publication";
   applicationVersion: string;
@@ -121,6 +127,8 @@ function metadata(descriptor: ShellDescriptor, policy: ShellPolicy): void {
       entry.path === shellDescriptorPath ||
       entry.path.startsWith("_reading/content/") ||
       entry.path.startsWith("_reading/download/") ||
+      entry.path === "_reading/repair-shell" ||
+      entry.path.startsWith("_reading/repair-shell/") ||
       entry.path.startsWith("curriculum/") ||
       entry.path.startsWith("preparation/") ||
       !/^[a-f0-9]{64}$/.test(entry.sha256) ||
@@ -185,7 +193,7 @@ export async function verifyShellDescriptor(
     throw new ShellError({ kind: "corrupt", reason: "descriptor" });
   return deepFreeze({
     kind: "verified-shell",
-    hash: descriptor.buildHash as ShellHash,
+    hash: parseShellHash(descriptor.buildHash),
     descriptor,
   });
 }

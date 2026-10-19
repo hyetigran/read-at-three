@@ -1,3 +1,4 @@
+import { parsePrintedPreviewTask } from "./content.ts";
 import {
   canonical,
   deepFreeze,
@@ -6,12 +7,20 @@ import {
   parseId,
 } from "./identity.ts";
 import {
+  validatePublicationSelection,
+  validatePublicationCheck,
+  validateInstalledResourceFailure,
   validateInitialInstallCommand,
   validateInstallationFact,
   validateParentMaterialRequest,
+  validateParentMaterialWire,
+  validateActivationWitness,
+  validateInstallationRead,
+  validateInstallationCatalog,
 } from "./generated-installation-validators.js";
 import { installationFactSchema } from "./installation-schemas.ts";
 import type {
+  RawInstalledResourceFailure,
   RawInitialInstallCommand,
   RawParentMaterialRequest,
 } from "./installation-schemas.ts";
@@ -74,29 +83,30 @@ export type InstallationFact = FactIdentity &
         reason: (typeof installationFactSchema.mapping.rejected.properties.reason.enum)[number];
       }>
   );
+export function parseActivationWitness(input: unknown): ActivationWitness {
+  if (!validateActivationWitness(input))
+    throw new Error("Activation witness is unsupported");
+  return input.kind === "absent"
+    ? { kind: "absent" }
+    : {
+        kind: "present",
+        revision: parseCounter(input.revision),
+        activePackageHash: parseHash({
+          kind: "package",
+          value: input.activePackageHash,
+        }),
+        fallbackPackageHash:
+          input.fallbackPackageHash === null
+            ? null
+            : parseHash({ kind: "package", value: input.fallbackPackageHash }),
+      };
+}
 export function parseInitialInstallCommand(
   input: unknown,
 ): InitialInstallCommand {
   if (!validateInitialInstallCommand(input) || input.version !== 1)
     throw new Error("Initial installation command is unsupported");
-  const expected: ActivationWitness =
-    input.expected.kind === "absent"
-      ? { kind: "absent" }
-      : {
-          kind: "present",
-          revision: parseCounter(input.expected.revision),
-          activePackageHash: parseHash({
-            kind: "package",
-            value: input.expected.activePackageHash,
-          }),
-          fallbackPackageHash:
-            input.expected.fallbackPackageHash === null
-              ? null
-              : parseHash({
-                  kind: "package",
-                  value: input.expected.fallbackPackageHash,
-                }),
-        };
+  const expected = parseActivationWitness(input.expected);
   return deepFreeze({
     ...input,
     version: 1,
@@ -207,7 +217,69 @@ export type InstallationCatalog = Readonly<{
   }>[];
   commands: readonly InstallationRead[];
 }>;
+export function parseInstallationRead(input: unknown): InstallationRead {
+  if (!validateInstallationRead(input))
+    throw new Error("Installation read is unsupported");
+  const command = parseInitialInstallCommand(input.command),
+    fact = parseInstallationFact(input.fact);
+  if (
+    command.installationId !== fact.installationId ||
+    command.commandId !== fact.commandId
+  )
+    throw new Error("Installation command and fact identity differ");
+  const key =
+    fact.kind === "accepted"
+      ? fact.targetPackageHash
+      : fact.registeredPackageHash;
+  const targetKey = parseHash({
+    kind: "package",
+    value: command.target.publicationHash,
+  });
+  if (key !== null && key !== targetKey)
+    throw new Error("Installation command and fact target differ");
+  const availability: InstallationObservation =
+    input.availability.kind === "checking"
+      ? {
+          kind: "checking",
+          inspectionId: parseId({
+            kind: "review",
+            value: input.availability.inspectionId,
+          }),
+        }
+      : input.availability;
+  return deepFreeze({ command, fact, availability });
+}
+export function parseInstallationCatalog(input: unknown): InstallationCatalog {
+  if (!validateInstallationCatalog(input))
+    throw new Error("Installation catalog is unsupported");
+  const installationId = parseId({
+    kind: "installation",
+    value: input.installationId,
+  });
+  const courses = input.courses.map((course) => ({
+    courseId: parseId({ kind: "course", value: course.courseId }),
+    activation: parseActivationWitness(course.activation),
+  }));
+  if (new Set(courses.map((course) => course.courseId)).size !== courses.length)
+    throw new Error("Duplicate installation course");
+  const commands = input.commands.map(parseInstallationRead);
+  if (
+    new Set(commands.map((read) => read.command.commandId)).size !==
+      commands.length ||
+    commands.some(
+      (read) =>
+        read.command.installationId !== installationId ||
+        !courses.some(
+          (course) => course.courseId === read.command.target.courseId,
+        ),
+    )
+  )
+    throw new Error("Installation catalog command ownership differs");
+  return deepFreeze({ installationId, courses, commands });
+}
 export interface PortableInstallationApplication {
+  checkPublication(target: PublicationSelection): Promise<PublicationCheck>;
+  repairPublication(target: PublicationSelection): Promise<PublicationCheck>;
   parentMaterial(request: ParentMaterialRequest): Promise<ParentMaterialRead>;
   initialInstall(command: InitialInstallCommand): Promise<InstallationRead>;
   installations(): Promise<InstallationCatalog>;
@@ -225,6 +297,27 @@ export function parseParentMaterialRequest(
     kind: input.kind,
     packageHash: parseHash({ kind: "package", value: input.packageHash }),
   });
+}
+export function parseParentMaterialWire(input: unknown) {
+  if (!validateParentMaterialWire(input))
+    throw new Error("Parent material response is unsupported");
+  const packageHash = parseHash({ kind: "package", value: input.packageHash });
+  switch (input.kind) {
+    case "unavailable":
+      return deepFreeze({ ...input, packageHash });
+    case "preparation":
+      return deepFreeze({ ...input, packageHash });
+    case "firstTaskPreview":
+      return deepFreeze({
+        ...input,
+        packageHash,
+        task: parsePrintedPreviewTask(input.task),
+      });
+    default: {
+      const exhaustive: never = input;
+      throw new Error(String(exhaustive));
+    }
+  }
 }
 export type ParentMaterialFailure =
   | Readonly<{
@@ -270,5 +363,61 @@ export class InstalledContentUnavailableError extends Error {
   constructor(readonly packageHash: PackageHash) {
     super("Exact signed package is unavailable");
     this.name = "InstalledContentUnavailableError";
+  }
+}
+
+export type PublicationSelection = Readonly<{
+  installationId: InstallationId;
+  packageHash: PackageHash;
+}>;
+export function parsePublicationSelection(
+  input: unknown,
+): PublicationSelection {
+  if (!validatePublicationSelection(input))
+    throw new Error("Publication selection is unsupported");
+  return deepFreeze({
+    installationId: parseId({
+      kind: "installation",
+      value: input.installationId,
+    }),
+    packageHash: parseHash({ kind: "package", value: input.packageHash }),
+  });
+}
+export type PublicationCheck =
+  | Readonly<{ kind: "verified"; target: PublicationSelection }>
+  | Readonly<{ kind: "notAuthorized"; target: PublicationSelection }>
+  | Readonly<{ kind: "staleTarget"; target: PublicationSelection }>
+  | Readonly<{
+      kind: "unavailable";
+      target: PublicationSelection;
+      reason: RawInstalledResourceFailure["reason"];
+    }>;
+export function parsePublicationCheck(input: unknown): PublicationCheck {
+  if (!validatePublicationCheck(input))
+    throw new Error("Publication observation is unsupported");
+  const target = parsePublicationSelection(input.target);
+  return input.kind === "unavailable"
+    ? deepFreeze({ ...input, target })
+    : deepFreeze({ kind: input.kind, target });
+}
+export type InstalledResourceFailure = Readonly<
+  Omit<RawInstalledResourceFailure, "packageHash"> & {
+    packageHash: PackageHash;
+  }
+>;
+export function parseInstalledResourceFailure(
+  input: unknown,
+): InstalledResourceFailure {
+  if (!validateInstalledResourceFailure(input))
+    throw new Error("Installed resource failure is unsupported");
+  return deepFreeze({
+    ...input,
+    packageHash: parseHash({ kind: "package", value: input.packageHash }),
+  });
+}
+export class InstalledResourceUnavailableError extends Error {
+  constructor(readonly failure: InstalledResourceFailure) {
+    super("Exact installed resources are unavailable");
+    this.name = "InstalledResourceUnavailableError";
   }
 }

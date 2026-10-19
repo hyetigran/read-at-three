@@ -5,7 +5,14 @@ import {
   sign,
   verify,
 } from "node:crypto";
-import { readFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import {
+  readFile,
+  mkdir,
+  mkdtemp,
+  rm,
+  writeFile,
+  lstat,
+} from "node:fs/promises";
 import { resolve, join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
@@ -17,6 +24,9 @@ import {
 } from "ajv/dist/jtd.js";
 import {
   canonical,
+  parseId,
+  parsePublicationHash,
+  requireEd25519Spki,
   publicationUtf8,
   shellDescriptorPath,
   shellServiceWorkerPath,
@@ -25,6 +35,38 @@ import {
   type ShellPolicy,
 } from "@readatthree/teaching";
 import { inventoryShell, closeEmittedViteResolvers } from "./inventory.ts";
+import type { BrowserConfiguration } from "../../apps/web/src/platform/browser-configuration.ts";
+import {
+  shellResponsePolicy,
+  shellHostingPolicyPath,
+} from "../../apps/web/src/platform/shell-response-policy.ts";
+async function inspectCompilerFiles(
+  compilation: Awaited<ReturnType<typeof build>>,
+  directory: string,
+): Promise<void> {
+  for (const result of Array.isArray(compilation)
+    ? compilation
+    : [compilation]) {
+    if (!("output" in result))
+      throw new Error("Signed shell requires a completed compiler output");
+    for (const emitted of result.output) {
+      const paths =
+        emitted.type === "chunk"
+          ? [emitted.fileName, ...emitted.imports, ...emitted.dynamicImports]
+          : [emitted.fileName];
+      for (const path of paths) {
+        if (
+          path.startsWith("/") ||
+          path.split("/").some((part) => part === "..")
+        )
+          throw new Error("External compiler dependency");
+        const file = await lstat(join(directory, path));
+        if (!file.isFile() || file.isSymbolicLink())
+          throw new Error(`Missing compiler output ${path}`);
+      }
+    }
+  }
+}
 const text = { type: "string" } satisfies SomeJTDSchemaType;
 const modes: ("fixture" | "publication")[] = ["fixture", "publication"];
 const schema = {
@@ -34,6 +76,19 @@ const schema = {
     signingKeyId: text,
     privateKeyPath: text,
     keys: { elements: { properties: { id: text, spkiHex: text } } },
+    installation: {
+      properties: {
+        courseId: text,
+        publicationKeys: {
+          elements: { properties: { id: text, spkiHex: text } },
+        },
+      },
+      optionalProperties: {
+        initialTarget: {
+          properties: { publicationHash: text, releaseId: text },
+        },
+      },
+    },
     publicationApprovals: {
       elements: { properties: { path: text, sha256: text } },
     },
@@ -41,6 +96,50 @@ const schema = {
 } satisfies SomeJTDSchemaType;
 type Config = JTDDataType<typeof schema>;
 const validate = new AjvJTD().compile<Config>(schema);
+export function parseShellBuildConfiguration(raw: unknown) {
+  if (!validate(raw))
+    throw new Error("Invalid explicit shell build configuration");
+  const keys = (entries: Config["keys"]) => {
+    if (
+      !entries.length ||
+      new Set(entries.map((key) => key.id)).size !== entries.length
+    )
+      throw new Error("Explicit unique trusted Ed25519 keys required");
+    return entries.map((key) => {
+      parseId({ kind: "review", value: key.id });
+      if (!/^[a-f0-9]{88}$/.test(key.spkiHex))
+        throw new Error("Explicit trusted Ed25519 keys required");
+      const spki = Uint8Array.from(Buffer.from(key.spkiHex, "hex"));
+      requireEd25519Spki(spki);
+      return { id: key.id, spki };
+    });
+  };
+  const browser: Extract<BrowserConfiguration, { kind: "installed" }> = {
+    kind: "installed",
+    courseId: parseId({ kind: "course", value: raw.installation.courseId }),
+    shell: {
+      mode: raw.mode,
+      applicationVersion: raw.applicationVersion,
+      keys: keys(raw.keys),
+    },
+    publication: {
+      mode: raw.mode,
+      keys: keys(raw.installation.publicationKeys),
+    },
+    initialTarget: raw.installation.initialTarget
+      ? {
+          publicationHash: parsePublicationHash(
+            raw.installation.initialTarget.publicationHash,
+          ),
+          releaseId: parseId({
+            kind: "release",
+            value: raw.installation.initialTarget.releaseId,
+          }),
+        }
+      : null,
+  };
+  return { config: raw, browser };
+}
 const root = resolve(import.meta.dirname, "../..");
 const crypto: PublicationCrypto = {
   sha256: async (bytes) => createHash("sha256").update(bytes).digest(),
@@ -64,10 +163,9 @@ export async function buildSignedShell(
     viteConfig?: string | false;
   }>,
 ): Promise<Readonly<{ buildHash: string; files: number }>> {
-  const raw: unknown = JSON.parse(await readFile(input.configPath, "utf8"));
-  if (!validate(raw))
-    throw new Error("Invalid explicit shell build configuration");
-  const config = raw;
+  const { config, browser } = parseShellBuildConfiguration(
+    JSON.parse(await readFile(input.configPath, "utf8")),
+  );
   if (
     config.keys.length === 0 ||
     config.keys.some((key) => !/^[a-f0-9]{88}$/.test(key.spkiHex))
@@ -127,13 +225,27 @@ export async function buildSignedShell(
         spki: Array.from(key.spki),
       })),
     };
+    const browserLiteral = JSON.stringify({
+      ...browser,
+      shell: trustedPolicy,
+      publication: {
+        ...browser.publication,
+        keys: browser.publication.keys.map((key) => ({
+          ...key,
+          spki: Array.from(key.spki),
+        })),
+      },
+    }).replace(/"spki":\[([^\]]*)\]/g, '"spki":Uint8Array.from([$1])');
     const literal = JSON.stringify(trustedPolicy).replace(
       /"spki":\[([^\]]*)\]/g,
       '"spki":Uint8Array.from([$1])',
     );
-    await build({
+    const workerCompilation = await build({
       configFile: false,
-      define: { __READING_SHELL_POLICY__: literal },
+      define: {
+        __READING_SHELL_POLICY__: literal,
+        __READING_BROWSER_CONFIGURATION__: browserLiteral,
+      },
       build: {
         outDir: workerDirectory,
         emptyOutDir: true,
@@ -145,23 +257,32 @@ export async function buildSignedShell(
         rollupOptions: { output: { inlineDynamicImports: true } },
       },
     });
-    await build({
+    await inspectCompilerFiles(workerCompilation, workerDirectory);
+    const applicationCompilation = await build({
       mode: "signed-shell",
       configFile: input.viteConfig ?? join(root, "apps/web/vite.config.ts"),
       ...(input.applicationRoot ? { root: input.applicationRoot } : {}),
-      define: { __READING_SHELL_POLICY__: literal },
+      define: {
+        __READING_SHELL_POLICY__: literal,
+        __READING_BROWSER_CONFIGURATION__: browserLiteral,
+      },
       build: {
         outDir: resolve(input.outDir),
         emptyOutDir: true,
         assetsInlineLimit: 0,
       },
     });
+    await inspectCompilerFiles(applicationCompilation, resolve(input.outDir));
     await mkdir(dirname(join(input.outDir, serviceWorkerPath)), {
       recursive: true,
     });
     await writeFile(
       join(input.outDir, serviceWorkerPath),
       await readFile(join(workerDirectory, "service-worker.js")),
+    );
+    await writeFile(
+      join(input.outDir, shellHostingPolicyPath),
+      JSON.stringify({ headers: shellResponsePolicy }),
     );
     await closeEmittedViteResolvers(input.outDir);
     const body = await inventoryShell({ directory: input.outDir, policy });

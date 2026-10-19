@@ -23,6 +23,7 @@ if (arguments_.some((argument) => argument !== "--check")) {
 const check = arguments_.includes("--check");
 const directory = resolve(import.meta.dirname, "../../packages/teaching/src");
 const domains = {
+  validatePrintedPreviewTask: "PrintedPreviewTask",
   validatePracticeControlsBinding: "PracticeControlsBinding",
   validatePracticeControlsSummary: "PracticeControlsSummary",
   validateDocumentToken: "DocumentToken",
@@ -119,6 +120,8 @@ const profileDeclarations =
     )
     .join("\n");
 const selectionDomains = {
+  validateShellBridgeRequest: "RawShellBridgeRequest",
+  validateShellBridgeResponse: "RawShellBridgeResponse",
   validateSelectedOwnerWitness: "RawSelectedOwnerWitness",
   validateSelectedOperation: "RawSelectedOperation",
   validateSelectedReadTarget: "RawSelectedReadTarget",
@@ -228,8 +231,27 @@ if (/\b(?:require|eval|Function)\b/u.test(installationJavascript))
   throw new Error(
     "Generated installation validators contain a runtime dependency",
   );
+const installationDomains = {
+  validatePublicationSelection: "RawPublicationSelection",
+  validatePublicationCheck: "RawPublicationCheck",
+  validateInstalledResourceFailure: "RawInstalledResourceFailure",
+  validateParentMaterialWire: "RawParentMaterialWire",
+  validateInitialInstallCommand: "RawInitialInstallCommand",
+  validateInstallationFact: "RawInstallationFact",
+  validateParentMaterialRequest: "RawParentMaterialRequest",
+  validateActivationWitness: "RawActivationWitness",
+  validateInstallationRead: "RawInstallationRead",
+  validateInstallationCatalog: "RawInstallationCatalog",
+} satisfies Record<keyof typeof installationValidationSchemas, string>;
 const installationDeclarations =
-  'import type { ValidateFunction } from "ajv";\nimport type { RawInitialInstallCommand,RawInstallationFact,RawParentMaterialRequest } from "./installation-schemas.ts";\nexport declare const validateInitialInstallCommand: ValidateFunction<RawInitialInstallCommand>;\nexport declare const validateInstallationFact: ValidateFunction<RawInstallationFact>;\nexport declare const validateParentMaterialRequest: ValidateFunction<RawParentMaterialRequest>;\n';
+  'import type { ValidateFunction } from "ajv";\n' +
+  `import type { ${Object.values(installationDomains).join(", ")} } from "./installation-schemas.ts";\n` +
+  Object.entries(installationDomains)
+    .map(
+      ([name, domain]) =>
+        `export declare const ${name}: ValidateFunction<${domain}>;`,
+    )
+    .join("\n");
 for (const { filename, source, parser } of [
   {
     filename: "generated-runtime-profiles.ts",

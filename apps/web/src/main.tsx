@@ -1,3 +1,5 @@
+import { browserConfiguration } from "./platform/browser-configuration.ts";
+import { InstallationScreen } from "./features/installation/InstallationScreen.tsx";
 import {
   StrictMode,
   useEffect,
@@ -20,7 +22,11 @@ import {
   createCommittedTeaching,
   useCommittedTeaching,
 } from "@readatthree/react-integration";
-import { canonical, resolveAvatar } from "@readatthree/teaching";
+import {
+  canonical,
+  resolveAvatar,
+  InstalledResourceUnavailableError,
+} from "@readatthree/teaching";
 import type {
   CourseAction,
   ProfileAdministrationIntent,
@@ -112,6 +118,13 @@ function retainsCourseEntry(entry: PendingCourseEntry, operation: Operation) {
 function ApplicationShell() {
   const committed = useCommittedTeaching(controller.committed);
   const state = useSyncExternalStore(controller.subscribe, controller.getState);
+  const installationCommand = useRef<
+    import("@readatthree/teaching").InitialInstallCommand | null
+  >(null);
+  const connectionObservation = useSyncExternalStore(
+    client.subscribeConnection,
+    client.connectionState,
+  );
   const supported = useSyncExternalStore(
     subscribeViewport,
     isTeachingViewport,
@@ -181,6 +194,7 @@ function ApplicationShell() {
   useLayoutEffect(() => {
     controller.setSurface(
       location.pathname === "/teaching" ? "teaching" : "other",
+      location.key + ":" + location.pathname + location.search,
     );
   }, [location.key, location.pathname]);
   useLayoutEffect(() => {
@@ -675,6 +689,21 @@ function ApplicationShell() {
     await controller.retry();
     if (pending && retained) finishEntry(pending);
   }
+  async function reconnectAndRecover() {
+    const entry = pendingEntry.current;
+    const administration = pendingAdministration.current;
+    const outcome = await controller.reconnect();
+    if (outcome.kind !== "restored") return;
+    if (entry && retainsCourseEntry(entry, outcome.retained))
+      finishEntry(entry);
+    if (
+      administration &&
+      pendingAdministration.current === administration &&
+      (outcome.retained.kind === "adminFailed" ||
+        outcome.retained.kind === "adoptionFailed")
+    )
+      finishAdministration();
+  }
   function returnToMenu() {
     if (
       !read ||
@@ -700,13 +729,227 @@ function ApplicationShell() {
           : null,
     });
   }
+  type ResourceAttempt = Readonly<{
+    serial: number;
+    block: NonNullable<typeof state.resourceBlock>;
+    connection: number;
+    origin: string;
+    selection: string;
+    target: import("@readatthree/teaching").PublicationSelection;
+  }>;
+  type ResourceAction =
+    | Readonly<{ kind: "idle" }>
+    | Readonly<{
+        kind: "pending";
+        mode: "check" | "repair";
+        attempt: ResourceAttempt;
+      }>
+    | Readonly<{
+        kind: "observed";
+        attempt: ResourceAttempt;
+        result: import("@readatthree/teaching").PublicationCheck;
+      }>
+    | Readonly<{ kind: "unknown"; attempt: ResourceAttempt | null }>;
+  const resourceSerial = useRef(0);
+  const resourceBusy = useRef(false);
+  const resourceFlight = useRef<ResourceAttempt | null>(null);
+  const resourceTarget = useRef<
+    import("@readatthree/teaching").PublicationSelection | null
+  >(null);
+  const [resourceAction, setResourceAction] = useState<ResourceAction>({
+    kind: "idle",
+  });
+  function currentResourceAttempt(attempt: ResourceAttempt): boolean {
+    return (
+      attempt.serial === resourceSerial.current &&
+      resourceFlight.current === attempt &&
+      controller.getState().resourceBlock === attempt.block &&
+      client.connectionTicket() === attempt.connection &&
+      currentLocation.current.key === attempt.origin &&
+      canonical(
+        controller.committed.getSnapshot().visible.data?.directory.selection ??
+          null,
+      ) === attempt.selection
+    );
+  }
+  async function inspectResource(mode: "check" | "repair") {
+    if (resourceBusy.current) return;
+    const block = controller.getState().resourceBlock;
+    if (!block || (mode === "repair" && block.reason.kind !== "content"))
+      return;
+    resourceBusy.current = true;
+    const serial = ++resourceSerial.current,
+      connection = client.connectionTicket(),
+      origin = currentLocation.current.key;
+    const selected = canonical(
+      controller.committed.getSnapshot().visible.data?.directory.selection ??
+        null,
+    );
+    setResourceAction({ kind: "unknown", attempt: null });
+    try {
+      let target = resourceTarget.current;
+      if (!target || target.packageHash !== block.packageHash) {
+        const catalog = await client.installations();
+        if (
+          serial !== resourceSerial.current ||
+          client.connectionTicket() !== connection ||
+          currentLocation.current.key !== origin ||
+          controller.getState().resourceBlock !== block ||
+          canonical(
+            controller.committed.getSnapshot().visible.data?.directory
+              .selection ?? null,
+          ) !== selected
+        )
+          return;
+        target = {
+          installationId: catalog.installationId,
+          packageHash: block.packageHash,
+        };
+        resourceTarget.current = target;
+      }
+      const attempt: ResourceAttempt = {
+        serial,
+        block,
+        connection,
+        origin,
+        selection: selected,
+        target,
+      };
+      resourceFlight.current = attempt;
+      setResourceAction({ kind: "pending", mode, attempt });
+      const result =
+        mode === "check"
+          ? await client.checkPublication(target)
+          : await client.repairPublication(target);
+      if (!currentResourceAttempt(attempt)) return;
+      if (result.kind === "unavailable")
+        controller.blockResources({
+          packageHash: result.target.packageHash,
+          reason: result.reason,
+        });
+      setResourceAction({ kind: "observed", attempt, result });
+    } catch {
+      const attempt = resourceFlight.current;
+      if (
+        serial === resourceSerial.current &&
+        (!attempt || currentResourceAttempt(attempt))
+      )
+        setResourceAction({ kind: "unknown", attempt });
+    } finally {
+      if (serial === resourceSerial.current) {
+        resourceBusy.current = false;
+        setResourceAction((current) =>
+          current.kind === "pending" && !currentResourceAttempt(current.attempt)
+            ? { kind: "unknown", attempt: current.attempt }
+            : current,
+        );
+      }
+    }
+  }
+  async function resumeResources() {
+    if (
+      resourceAction.kind !== "observed" ||
+      resourceAction.result.kind !== "verified" ||
+      !currentResourceAttempt(resourceAction.attempt)
+    )
+      return;
+    const block = resourceAction.attempt.block;
+    if (!controller.clearResourceBlock(block)) return;
+    resourceFlight.current = null;
+    resourceTarget.current = null;
+    setResourceAction({ kind: "idle" });
+    if (parentPath) await retryParent();
+    else await retryEntry();
+  }
+
   let screen;
   const recovery =
     committed.recovery ??
     (operation.kind === "openingFailed"
       ? { code: "storage-initialization-failed", message: operation.message }
       : null);
-  if (committedSwitch)
+  if (!supported) screen = <WindowRecovery busy={busy} />;
+  else if (state.resourceBlock)
+    screen = (
+      <main
+        className="course-screen"
+        data-package-hash={state.resourceBlock.packageHash}
+      >
+        <h1>
+          <AddedText>Lesson files are unavailable</AddedText>
+        </h1>
+        <p>
+          <AddedText>
+            {state.resourceBlock.reason.kind === "content"
+              ? "Check the saved lesson files locally, or connect to the internet and explicitly repair these lessons."
+              : "These lesson files cannot be repaired by downloading. Check again or use the available recovery options."}
+          </AddedText>
+        </p>
+        <p role="status">
+          <AddedText>
+            {resourceAction.kind === "pending"
+              ? resourceAction.mode === "check"
+                ? "Checking saved lesson files locally."
+                : "Repairing the exact saved lesson files."
+              : resourceAction.kind === "unknown"
+                ? "The check or repair could not be confirmed. Check again before resuming."
+                : resourceAction.kind === "observed"
+                  ? resourceAction.result.kind === "verified"
+                    ? "Lesson files verified. Choose Resume to recover your saved place."
+                    : resourceAction.result.kind === "staleTarget"
+                      ? "The saved reading place changed. Check again before resuming."
+                      : resourceAction.result.kind === "notAuthorized"
+                        ? "These lesson files are not authorized by the saved reading place."
+                        : "Lesson files remain unavailable. No reading action was accepted by this check or repair."
+                  : "No lesson download starts until you choose Repair these lessons."}
+          </AddedText>
+        </p>
+        {operation.kind !== "idle" && (
+          <p>
+            <AddedText>
+              A reading or writing action still needs recovery. Resume will
+              recover that same action.
+            </AddedText>
+          </p>
+        )}
+        <Button
+          disabled={resourceAction.kind === "pending"}
+          onClick={() => void inspectResource("check")}
+        >
+          <AddedText>Check saved lessons</AddedText>
+        </Button>
+        <Button onClick={() => void reconnectAndRecover()}>
+          <AddedText>Reconnect and recover</AddedText>
+        </Button>
+        {state.resourceBlock.reason.kind === "content" && (
+          <Button
+            disabled={resourceAction.kind === "pending"}
+            onClick={() => void inspectResource("repair")}
+          >
+            <AddedText>Repair these lessons</AddedText>
+          </Button>
+        )}
+        {resourceAction.kind === "observed" &&
+          resourceAction.result.kind === "verified" &&
+          currentResourceAttempt(resourceAction.attempt) && (
+            <Button onClick={() => void resumeResources()}>
+              <AddedText>Resume</AddedText>
+            </Button>
+          )}
+      </main>
+    );
+  else if (browserConfiguration.kind === "installed" && !read)
+    screen = (
+      <InstallationScreen
+        client={client}
+        retained={installationCommand}
+        configuration={browserConfiguration}
+        opening={operation.kind === "opening"}
+        onOpen={() => void controller.reopen()}
+        onReconnect={() => void reconnectAndRecover()}
+      />
+    );
+  else if (committedSwitch)
     screen = (
       <main className="course-screen course-parent">
         <section className="course-message">
@@ -746,7 +989,6 @@ function ApplicationShell() {
         onRetry={() => void controller.reopen()}
       />
     );
-  else if (!supported) screen = <WindowRecovery busy={busy} />;
   else if (
     parentPath &&
     validVisit &&
@@ -757,6 +999,28 @@ function ApplicationShell() {
         visit={validVisit}
         directory={directory}
         preparation={client.readPreparation().availability}
+        readParentMaterial={async (input) => {
+          const visit = validVisit;
+          if (!visit) throw new Error("Parent visit was retired");
+          const ticket: TaskPreviewTicket = {
+            lifetime: visit.lifetime,
+            routeAttempt: visit.routeAttempt,
+            packageHash: input.packageHash,
+          };
+          const origin = location.key;
+          try {
+            return await client.parentMaterial(input);
+          } catch (error) {
+            if (
+              currentLocation.current.key === origin &&
+              previewCurrent(ticket) &&
+              error instanceof InstalledResourceUnavailableError &&
+              error.failure.packageHash === ticket.packageHash
+            )
+              controller.blockResources(error.failure);
+            throw error;
+          }
+        }}
         packageHash={read.witness.activePackageHash}
         busy={busy || saveError !== null}
         readDiagnostics={client.readDiagnostics}
@@ -876,12 +1140,43 @@ function ApplicationShell() {
         selection={selection}
         profile={selectedProfile}
         onParents={openParents}
+        onResourceFailure={(failure) => {
+          if (
+            currentLocation.current.key === location.key &&
+            client.connectionTicket() === connection &&
+            canonical(
+              controller.committed.getSnapshot().visible.data?.directory
+                .selection ?? null,
+            ) === canonical(selection)
+          )
+            controller.blockResources(failure);
+        }}
       />
     );
   else screen = <Unavailable title="Page unavailable" />;
   return (
     <>
       {screen}
+      {connectionObservation.slow > 0 ? (
+        <aside
+          className="course-navigation-status"
+          role="status"
+          aria-live="polite"
+        >
+          <p>
+            <AddedText>
+              This is taking longer than usual. Saved actions are still waiting
+              for confirmation.
+            </AddedText>
+          </p>
+          <Button
+            className="course-primary"
+            onClick={() => void reconnectAndRecover()}
+          >
+            <AddedText>Reconnect and recover</AddedText>
+          </Button>
+        </aside>
+      ) : null}
       <Outlet />
       {departure ? (
         <aside

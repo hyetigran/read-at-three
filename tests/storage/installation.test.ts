@@ -220,6 +220,8 @@ async function fixture(
   ]);
   const cache = new Map<string, { bytes: Uint8Array; mediaType: string }>();
   const namespaces = new Map<string, typeof cache>([[target, cache]]);
+  const acquisitionTargets: PublicationHash[] = [];
+  const downloadTargets: { hash: PublicationHash; path: string }[] = [];
   const heldContent = new AsyncLocalStorage<boolean>();
   let resourceTail = Promise.resolve();
   let resourceGate = Promise.resolve();
@@ -288,7 +290,8 @@ async function fixture(
         release();
       }
     },
-    download: async ({ path }) => {
+    download: async ({ path, hash: scopeHash }) => {
+      downloadTargets.push({ hash: scopeHash, path });
       downloads++;
       if (offline) throw new Error("Offline download refused");
       const bytes = files.get(path);
@@ -323,6 +326,7 @@ async function fixture(
         resources,
         envelope: async (requested) => {
           acquisitions++;
+          acquisitionTargets.push(requested);
           if (offline) throw new Error("Offline envelope refused");
           await gate;
           const bytes = envelopes.get(requested);
@@ -416,7 +420,61 @@ async function fixture(
     envelopes.set(selected, raw);
     return selected;
   }
+  async function anotherRelease() {
+    const releaseId = parseId({
+      kind: "release",
+      value: "fixture.release.next",
+    });
+    const nextCurriculumBody = { ...content.body, releaseId };
+    const nextContent = await parseRuntimePackage(
+      {
+        ...content,
+        body: nextCurriculumBody,
+        packageHash: await hash(canonical(nextCurriculumBody)),
+      },
+      hash,
+    );
+    const nextCurriculum = publicationUtf8(
+      JSON.stringify(nextContent, null, 2),
+    );
+    const nextBody = {
+      ...body,
+      releaseId,
+      curriculum: {
+        ...body.curriculum,
+        sha256: digest(nextCurriculum).toString("hex"),
+        byteLength: nextCurriculum.length,
+      },
+    };
+    const unsigned = {
+      formatVersion: 1,
+      body: nextBody,
+      packageHash: await hash(canonical(nextBody)),
+      signingKeyId: key.id,
+    };
+    const raw = publicationUtf8(
+      canonical({
+        ...unsigned,
+        signature: sign(
+          null,
+          publicationUtf8(canonical(unsigned)),
+          pair.privateKey,
+        ).toString("base64url"),
+      }),
+    );
+    const nextTarget = parsePublicationHash(unsigned.packageHash);
+    envelopes.set(nextTarget, raw);
+    return {
+      target: nextTarget,
+      envelope: raw,
+      curriculum: nextCurriculum,
+      releaseId,
+    };
+  }
   return {
+    anotherRelease,
+    acquisitionTargets,
+    downloadTargets,
     connect,
     command,
     until,
@@ -429,6 +487,17 @@ async function fixture(
     },
     setResourceGate(value: Promise<void>) {
       resourceGate = value;
+    },
+    replaceEnvelope(bytes: Uint8Array) {
+      envelopes.set(target, Uint8Array.from(bytes));
+    },
+    envelopeFor(requested: PublicationHash) {
+      const bytes = envelopes.get(requested);
+      if (!bytes) throw Error("Missing test envelope");
+      return Uint8Array.from(bytes);
+    },
+    namespacePresent(requested: PublicationHash) {
+      return namespaces.has(requested);
     },
     envelope,
     curriculum,
@@ -1739,3 +1808,476 @@ for (const failure of ["missing", "corrupt", "extra"]) {
     );
   });
 }
+
+for (const entry of [
+  "readDirectory",
+  "installations",
+  "initialInstall",
+] as const) {
+  test(`installed initialization refuses retired ${entry} before any SQL`, async (t) => {
+    const f = await fixture(t);
+    const sql: string[] = [];
+    const c = f.connect(async (statement, work) => {
+      sql.push(statement);
+      return work();
+    });
+    c.retire();
+    const request =
+      entry === "initialInstall"
+        ? c.app.initialInstall(
+            parseInitialInstallCommand({
+              version: 1,
+              kind: "initialInstall",
+              installationId: "fixture.not.opened",
+              commandId: "fixture.retired.opening",
+              source: { mode: "fixture" },
+              target: {
+                publicationHash: f.target,
+                courseId: f.content.body.courseId,
+                releaseId: f.content.body.releaseId,
+              },
+              expected: { kind: "absent" },
+            }),
+          )
+        : c.app[entry]();
+    const outcome = await request.then(
+      () => "resolved",
+      (error: unknown) =>
+        error instanceof Error
+          ? `${error.message} ${error.cause instanceof Error ? error.cause.message : ""}`
+          : String(error),
+    );
+    t.diagnostic(JSON.stringify({ outcome, sqlCount: sql.length }));
+    assert.match(outcome, /[Rr]etired/);
+    assert.equal(sql.length, 0);
+    assert.deepEqual(c.db.prepare("SELECT * FROM sqlite_master").all(), []);
+    assert.equal(f.acquisitions, 0);
+    assert.equal(f.downloads, 0);
+  });
+}
+
+for (const retirementPoint of ["profile", "installation_profile_state"]) {
+  test(`installed initialization rolls back ${retirementPoint} retirement before later writes or COMMIT`, async (t) => {
+    const f = await fixture(t);
+    let retired = false;
+    const afterRetirement: string[] = [];
+    const c = f.connect(async (sql, work) => {
+      if (retired) afterRetirement.push(sql);
+      const result = await work();
+      if (sql.startsWith(`insert into "${retirementPoint}"`)) {
+        retired = true;
+        c.retire();
+      }
+      return result;
+    });
+    const outcome = await c.app.readDirectory().then(
+      () => "resolved",
+      (error: unknown) =>
+        error instanceof Error
+          ? `${error.message} ${error.cause instanceof Error ? error.cause.message : ""}`
+          : String(error),
+    );
+    t.diagnostic(JSON.stringify({ outcome, retired, afterRetirement }));
+    assert.equal(retired, true);
+    assert.match(outcome, /[Rr]etired/);
+    assert.deepEqual(afterRetirement, ["ROLLBACK"]);
+    for (const table of [
+      "installation",
+      "profile",
+      "installation_profile_state",
+    ])
+      assert.deepEqual(c.db.prepare(`SELECT * FROM ${table}`).all(), []);
+    c.db.close();
+    const fresh = f.connect();
+    const directory = await fresh.app.readDirectory();
+    assert.equal(directory.profiles.length, 1);
+    assert.equal((await fresh.app.installations()).commands.length, 0);
+  });
+}
+
+function publicationPersonalCensus(db: DatabaseSync): string {
+  const master = db
+    .prepare(
+      "SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name",
+    )
+    .all();
+  const names = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+    .all();
+  const tables: Record<string, unknown[]> = {};
+  const encode = (value: unknown): string =>
+    JSON.stringify(value, (_key, item: unknown) =>
+      typeof item === "bigint"
+        ? { sqliteInteger: item.toString() }
+        : item instanceof Uint8Array
+          ? { sqliteBlob: Buffer.from(item).toString("hex") }
+          : item,
+    );
+  for (const row of names) {
+    if (typeof row.name !== "string") throw Error("Invalid SQLite table name");
+    const statement = db.prepare(
+      'SELECT * FROM "' + row.name.replaceAll('"', '""') + '"',
+    );
+    statement.setReadBigInts(true);
+    tables[row.name] = statement
+      .all()
+      .sort((a, b) => encode(a).localeCompare(encode(b)));
+  }
+  return encode({
+    master,
+    tables,
+    userVersion: db.prepare("PRAGMA user_version").get(),
+  });
+}
+
+for (const path of [
+  "_publication-envelope.json",
+  "curriculum.json",
+  "preparation.json",
+])
+  for (const fault of ["missing", "corrupt"] as const)
+    test(
+      "publication recovery: exact cache-only Check and Repair preserve all SQL for " +
+        fault +
+        " " +
+        path,
+      async (t) => {
+        const f = await fixture(t),
+          c = f.connect();
+        await c.app.initialInstall(await f.command(c.app));
+        await f.until(c.app, "activated");
+        const catalog = await c.app.installations();
+        const target = {
+          installationId: catalog.installationId,
+          packageHash: parseHash({ kind: "package", value: f.target }),
+        };
+        const retained = f.cache.get(path);
+        assert.ok(retained);
+        if (fault === "missing") f.cache.delete(path);
+        else f.cache.set(path, { ...retained, bytes: Uint8Array.from([123]) });
+        const before = publicationPersonalCensus(c.db),
+          acquisitions = f.acquisitions,
+          downloads = f.downloads;
+        f.setOffline(true);
+        const checked = await c.app.checkPublication(target);
+        assert.equal(checked.kind, "unavailable");
+        if (checked.kind !== "unavailable")
+          throw Error("Missing typed local failure");
+        assert.equal(checked.reason.kind, "content");
+        assert.equal(f.acquisitions, acquisitions);
+        assert.equal(f.downloads, downloads);
+        assert.equal(publicationPersonalCensus(c.db), before);
+        const unavailable = await c.app.repairPublication(target);
+        assert.equal(unavailable.kind, "unavailable");
+        assert.equal(publicationPersonalCensus(c.db), before);
+        f.setOffline(false);
+        const repaired = await c.app.repairPublication(target);
+        assert.deepEqual(repaired, { kind: "verified", target });
+        assert.equal(publicationPersonalCensus(c.db), before);
+        assert.ok(f.acquisitions > acquisitions);
+        assert.ok(f.downloads > downloads);
+        const acquired = f.acquisitions,
+          downloaded = f.downloads;
+        assert.deepEqual(await c.app.checkPublication(target), {
+          kind: "verified",
+          target,
+        });
+        assert.equal(f.acquisitions, acquired);
+        assert.equal(f.downloads, downloaded);
+        assert.equal(publicationPersonalCensus(c.db), before);
+        assert.notEqual(target.packageHash, f.content.packageHash);
+        assert.notEqual(
+          target.packageHash,
+          createHash("sha256").update(f.curriculum).digest("hex"),
+        );
+        assert.notEqual(
+          f.content.packageHash,
+          createHash("sha256").update(f.curriculum).digest("hex"),
+        );
+      },
+    );
+
+test("publication recovery: wrong installation and unowned targets never acquire", async (t) => {
+  const f = await fixture(t),
+    c = f.connect();
+  await c.app.initialInstall(await f.command(c.app));
+  await f.until(c.app, "activated");
+  const catalog = await c.app.installations(),
+    before = publicationPersonalCensus(c.db),
+    acquisitions = f.acquisitions,
+    downloads = f.downloads;
+  const wrong = {
+    installationId: parseId({
+      kind: "installation",
+      value: "wrong.installation",
+    }),
+    packageHash: parseHash({ kind: "package", value: f.target }),
+  };
+  assert.deepEqual(await c.app.repairPublication(wrong), {
+    kind: "notAuthorized",
+    target: wrong,
+  });
+  const absent = {
+    installationId: catalog.installationId,
+    packageHash: parseHash({ kind: "package", value: "e".repeat(64) }),
+  };
+  const result = await c.app.repairPublication(absent);
+  assert.equal(result.kind, "unavailable");
+  if (result.kind !== "unavailable")
+    throw Error("Expected representation refusal");
+  assert.equal(result.reason.kind, "representationUnavailable");
+  assert.equal(f.acquisitions, acquisitions);
+  assert.equal(f.downloads, downloads);
+  assert.equal(publicationPersonalCensus(c.db), before);
+});
+
+test("publication recovery: unexpected namespace inventory is refused without deletion or personal writes", async (t) => {
+  const f = await fixture(t),
+    c = f.connect();
+  await c.app.initialInstall(await f.command(c.app));
+  await f.until(c.app, "activated");
+  const catalog = await c.app.installations(),
+    target = {
+      installationId: catalog.installationId,
+      packageHash: parseHash({ kind: "package", value: f.target }),
+    },
+    before = publicationPersonalCensus(c.db);
+  const extra = {
+    bytes: Uint8Array.from([1, 2, 3]),
+    mediaType: "application/json",
+  };
+  f.cache.set("unexpected.json", extra);
+  const result = await c.app.repairPublication(target);
+  assert.equal(result.kind, "unavailable");
+  assert.deepEqual(f.cache.get("unexpected.json"), extra);
+  assert.equal(publicationPersonalCensus(c.db), before);
+});
+
+for (const hostile of ["signature", "different-target"] as const)
+  test(
+    "publication recovery: hostile envelope " +
+      hostile +
+      " is a closed refusal with no personal writes",
+    async (t) => {
+      const f = await fixture(t),
+        c = f.connect();
+      await c.app.initialInstall(await f.command(c.app));
+      await f.until(c.app, "activated");
+      const catalog = await c.app.installations(),
+        target = {
+          installationId: catalog.installationId,
+          packageHash: parseHash({ kind: "package", value: f.target }),
+        };
+      let other: PublicationHash | undefined;
+      if (hostile === "signature") {
+        const raw = JSON.parse(new TextDecoder().decode(f.envelope));
+        raw.signature =
+          (raw.signature.startsWith("A") ? "B" : "A") + raw.signature.slice(1);
+        f.replaceEnvelope(publicationUtf8(canonical(raw)));
+      } else {
+        other = await f.otherTarget();
+        f.replaceEnvelope(f.envelopeFor(other));
+      }
+      f.cache.clear();
+      const before = publicationPersonalCensus(c.db);
+      const result = await c.app.repairPublication(target);
+      assert.equal(result.kind, "unavailable");
+      if (result.kind !== "unavailable" || result.reason.kind !== "content")
+        throw Error("Expected closed content refusal");
+      assert.equal(result.reason.failure.kind, "corrupt");
+      assert.equal(publicationPersonalCensus(c.db), before);
+      assert.equal(f.cache.size, 0);
+      if (other) assert.equal(f.namespacePresent(other), false);
+    },
+  );
+
+async function seedControlledFutureRelease(
+  db: DatabaseSync,
+  f: Awaited<ReturnType<typeof fixture>>,
+) {
+  const next = await f.anotherRelease();
+  db.prepare(
+    "INSERT INTO installed_package SELECT ?,course_id,?,content_schema_version,capabilities,manifest_version,?,state,? FROM installed_package WHERE package_hash=?",
+  ).run(next.target, next.releaseId, next.envelope, next.target, f.target);
+  db.prepare(
+    "INSERT INTO installed_representation(package_hash,kind,mode,curriculum_utf8,preparation_utf8) VALUES(?,'signed-v1','fixture',?,?)",
+  ).run(next.target, next.curriculum, f.preparation);
+  return next;
+}
+async function startRealPinnedTask(
+  f: Awaited<ReturnType<typeof fixture>>,
+  app: ReturnType<typeof createTeachingApplication>,
+) {
+  await confirmInitialProfile(app, f.ids, hash);
+  const entry = await selectedProjection(app);
+  if (entry.kind === "recovery") throw Error(entry.message);
+  const start = entry.actions.find((action) => action.intent.kind === "start");
+  assert.ok(start);
+  await executeTeaching(
+    app,
+    await prepareSelectedTeaching(app, () =>
+      prepareCommand({
+        projection: entry,
+        request: { kind: "action", action: start },
+        ids: f.ids,
+        hash,
+      }),
+    ),
+  );
+}
+
+test("publication recovery: unchanged old session pin remains authorized after prior activation changes", async (t) => {
+  const f = await fixture(t),
+    c = f.connect();
+  await c.app.initialInstall(await f.command(c.app));
+  await f.until(c.app, "activated");
+  await startRealPinnedTask(f, c.app);
+  // Controlled future-update fixture setup; no production update API exists yet.
+  const next = await seedControlledFutureRelease(c.db, f);
+  c.db
+    .prepare(
+      "UPDATE course_activation SET active_package_hash=?,fallback_package_hash=?,revision=revision+1",
+    )
+    .run(next.target, f.target);
+  assert.equal(
+    c.db.prepare("SELECT package_hash FROM task_run").get()?.package_hash,
+    f.target,
+  );
+  const catalog = await c.app.installations(),
+    target = {
+      installationId: catalog.installationId,
+      packageHash: parseHash({ kind: "package", value: f.target }),
+    };
+  f.cache.clear();
+  const before = publicationPersonalCensus(c.db),
+    a = f.acquisitionTargets.length,
+    d = f.downloadTargets.length;
+  assert.deepEqual(await c.app.repairPublication(target), {
+    kind: "verified",
+    target,
+  });
+  assert.equal(publicationPersonalCensus(c.db), before);
+  assert.deepEqual(f.acquisitionTargets.slice(a), [f.target]);
+  assert.deepEqual(f.downloadTargets.slice(d), [
+    { hash: f.target, path: "curriculum.json" },
+    { hash: f.target, path: "preparation.json" },
+  ]);
+  assert.notEqual(target.packageHash, next.target);
+  assert.notEqual(target.packageHash, f.content.packageHash);
+  assert.notEqual(
+    target.packageHash,
+    createHash("sha256").update(f.curriculum).digest("hex"),
+  );
+});
+
+test("publication recovery: ready and fallback-only metadata grant no authority", async (t) => {
+  const f = await fixture(t),
+    c = f.connect();
+  await c.app.initialInstall(await f.command(c.app));
+  await f.until(c.app, "activated");
+  const next = await seedControlledFutureRelease(c.db, f);
+  c.db
+    .prepare(
+      "UPDATE course_activation SET fallback_package_hash=?,revision=revision+1",
+    )
+    .run(next.target);
+  const catalog = await c.app.installations(),
+    target = {
+      installationId: catalog.installationId,
+      packageHash: parseHash({ kind: "package", value: next.target }),
+    },
+    before = publicationPersonalCensus(c.db),
+    a = f.acquisitions,
+    d = f.downloads;
+  assert.deepEqual(await c.app.repairPublication(target), {
+    kind: "notAuthorized",
+    target,
+  });
+  assert.equal(f.acquisitions, a);
+  assert.equal(f.downloads, d);
+  assert.equal(publicationPersonalCensus(c.db), before);
+});
+
+test(
+  "publication recovery: activation change while acquisition is held returns stale and leaves SQL alone",
+  { timeout: 15000 },
+  async (t) => {
+    const f = await fixture(t),
+      c = f.connect();
+    await c.app.initialInstall(await f.command(c.app));
+    await f.until(c.app, "activated");
+    const next = await seedControlledFutureRelease(c.db, f);
+    const catalog = await c.app.installations(),
+      target = {
+        installationId: catalog.installationId,
+        packageHash: parseHash({ kind: "package", value: f.target }),
+      };
+    f.cache.clear();
+    let release = () => {};
+    f.setGate(
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+    );
+    const a = f.acquisitions;
+    const pending = c.app.repairPublication(target);
+    for (let i = 0; i < 300 && f.acquisitions === a; i++) await setImmediate();
+    assert.equal(f.acquisitions, a + 1);
+    // This queued read must complete while acquisition is blocked: no SQL queue is held.
+    assert.equal(
+      (await c.app.installations()).installationId,
+      target.installationId,
+    );
+    c.db
+      .prepare(
+        "UPDATE course_activation SET active_package_hash=?,fallback_package_hash=?,revision=revision+1",
+      )
+      .run(next.target, f.target);
+    const changed = publicationPersonalCensus(c.db);
+    release();
+    assert.deepEqual(await pending, { kind: "staleTarget", target });
+    assert.equal(publicationPersonalCensus(c.db), changed);
+  },
+);
+
+test(
+  "publication recovery: the exact historical anchor revision is rechecked outside the current cursor scope",
+  { timeout: 15000 },
+  async (t) => {
+    const f = await fixture(t),
+      c = f.connect();
+    await c.app.initialInstall(await f.command(c.app));
+    await f.until(c.app, "activated");
+    await startRealPinnedTask(f, c.app);
+    const next = await seedControlledFutureRelease(c.db, f);
+    c.db
+      .prepare(
+        "UPDATE course_activation SET active_package_hash=?,fallback_package_hash=?,revision=revision+1",
+      )
+      .run(next.target, f.target);
+    c.db.exec(
+      "UPDATE course_cursor SET resume_session_id=NULL,revision=revision+1",
+    );
+    const catalog = await c.app.installations(),
+      target = {
+        installationId: catalog.installationId,
+        packageHash: parseHash({ kind: "package", value: f.target }),
+      };
+    f.cache.clear();
+    let release = () => {};
+    f.setGate(
+      new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+    );
+    const a = f.acquisitions;
+    const pending = c.app.repairPublication(target);
+    for (let i = 0; i < 300 && f.acquisitions === a; i++) await setImmediate();
+    assert.equal(f.acquisitions, a + 1);
+    c.db.exec("UPDATE session SET revision=revision+1");
+    const changed = publicationPersonalCensus(c.db);
+    release();
+    assert.deepEqual(await pending, { kind: "staleTarget", target });
+    assert.equal(publicationPersonalCensus(c.db), changed);
+  },
+);

@@ -1380,6 +1380,12 @@ function withDefinitions(root: object) {
   return { ...transformed, $defs: Object.fromEntries(retained) };
 }
 export const validatorSchemas = {
+  validatePrintedPreviewTask: withDefinitions({
+    oneOf: [
+      record({ kind: { const: "printedGraphV1" }, task: graphTask }),
+      record({ kind: { const: "printedGraphV2" }, task: currentBoardTask }),
+    ],
+  }),
   validatePracticeControlsBinding: practiceControlsBindingSchema,
   validatePracticeControlsSummary: practiceControlsSummarySchema,
   validateDocumentToken: withDefinitions(documentTokenSchema),

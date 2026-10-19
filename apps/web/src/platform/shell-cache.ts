@@ -1,3 +1,5 @@
+import type { PublicationPolicy } from "./browser-configuration.ts";
+import { shellResourceHeaders } from "./shell-response-policy.ts";
 import {
   ShellError,
   shellDescriptorPath,
@@ -14,6 +16,7 @@ import {
   type PublicationResponse,
   type PublicationNamespace,
   type ShellPolicy,
+  type ShellHash,
   type VerifiedShell,
   type ShellResource,
 } from "@readatthree/teaching";
@@ -107,7 +110,7 @@ function response(bytes: Uint8Array, mediaType: string): Response {
   return new Response(bytes.slice().buffer, {
     status: 200,
     headers: {
-      "Content-Type": mediaType,
+      ...shellResourceHeaders(mediaType),
       "Content-Length": String(bytes.length),
       "X-Content-Type-Options": "nosniff",
       "Cache-Control": "no-store",
@@ -191,6 +194,31 @@ export function createShellCache(policy: ShellPolicy, origin: string) {
       await readEntry(shell, entry, retained, signal);
     }
   }
+  async function retainedCurrent(
+    name: string,
+    signal: AbortSignal,
+  ): Promise<VerifiedShell> {
+    if (!(await caches.has(name)))
+      throw new ShellError({ kind: "missing", path: shellDescriptorPath });
+    const cache = await caches.open(name);
+    const retained = await cache.match(location(shellDescriptorPath));
+    if (!retained)
+      throw new ShellError({ kind: "missing", path: shellDescriptorPath });
+    const raw = await boundedShellResponse(
+      retained,
+      publicationLimits.envelopeBytes,
+      signal,
+    );
+    const shell = await verifyShellDescriptor({
+      raw,
+      policy,
+      crypto: webPublicationCrypto,
+    });
+    if (shellCacheName(shell) !== name)
+      throw new ShellError({ kind: "corrupt", reason: "inventory" });
+    await inspect(shell, signal);
+    return shell;
+  }
   return {
     async install(signal: AbortSignal): Promise<VerifiedShell> {
       const rawResponse = await fetch(location(shellDescriptorPath), {
@@ -236,6 +264,18 @@ export function createShellCache(policy: ShellPolicy, origin: string) {
             location(shellDescriptorPath),
             response(raw, "application/json"),
           );
+          const expected = new Set(
+            [
+              shellDescriptorPath,
+              ...shellEntries(shell).map((entry) => entry.path),
+            ].map(location),
+          );
+          for (const request of await cache.keys()) {
+            signal.throwIfAborted();
+            if (!expected.has(request.url) && !(await cache.delete(request)))
+              throw new ShellError({ kind: "unavailable", reason: "cache" });
+            signal.throwIfAborted();
+          }
           await inspect(shell, signal);
           return shell;
         },
@@ -252,31 +292,27 @@ export function createShellCache(policy: ShellPolicy, origin: string) {
       const name = names[0];
       if (!name)
         throw new ShellError({ kind: "missing", path: shellDescriptorPath });
+      return navigator.locks.request(name, { mode: "exclusive", signal }, () =>
+        retainedCurrent(name, signal),
+      );
+    },
+    async withVerified<T>(
+      input: Readonly<{
+        hash: ShellHash;
+        signal: AbortSignal;
+        run: (shell: VerifiedShell) => Promise<T>;
+      }>,
+    ): Promise<T> {
+      const name = prefix + input.hash;
       return navigator.locks.request(
         name,
-        { mode: "exclusive", signal },
+        { mode: "exclusive", signal: input.signal },
         async () => {
-          const cache = await caches.open(name);
-          const retained = await cache.match(location(shellDescriptorPath));
-          if (!retained)
-            throw new ShellError({
-              kind: "missing",
-              path: shellDescriptorPath,
-            });
-          const raw = await boundedShellResponse(
-            retained,
-            publicationLimits.envelopeBytes,
-            signal,
-          );
-          const shell = await verifyShellDescriptor({
-            raw,
-            policy,
-            crypto: webPublicationCrypto,
-          });
-          if (shellCacheName(shell) !== name)
-            throw new ShellError({ kind: "corrupt", reason: "inventory" });
-          await inspect(shell, signal);
-          return shell;
+          const shell = await retainedCurrent(name, input.signal);
+          if (shell.hash !== input.hash)
+            throw new ShellError({ kind: "corrupt", reason: "controller" });
+          input.signal.throwIfAborted();
+          return input.run(shell);
         },
       );
     },
@@ -324,7 +360,7 @@ export function createShellCache(policy: ShellPolicy, origin: string) {
 
 export async function serveInstalledPublication(
   input: Readonly<{
-    policy: ShellPolicy;
+    publicationPolicy: PublicationPolicy;
     request: Request;
     signal: AbortSignal;
   }>,
@@ -339,11 +375,12 @@ export async function serveInstalledPublication(
     path = match?.[3];
   if (
     !match ||
-    mode !== input.policy.mode ||
+    mode !== input.publicationPolicy.mode ||
     !hash ||
     !path ||
     url.search ||
-    input.request.method !== "GET"
+    input.request.method !== "GET" ||
+    !["", "image", "audio", "video"].includes(input.request.destination)
   )
     return new Response(null, { status: 404 });
   const name = `reading-content-v1-${mode}-${hash}`;
@@ -388,7 +425,7 @@ export async function serveInstalledPublication(
       const result = await revalidatePublicationClosure({
         mode,
         raw,
-        keys: input.policy.keys,
+        keys: input.publicationPolicy.keys,
         crypto: webPublicationCrypto,
         cancellation: { throwIfCancelled: () => input.signal.throwIfAborted() },
         ports: {
@@ -413,7 +450,18 @@ export async function serveInstalledPublication(
         result.publication.envelope.body.curriculum,
         ...result.publication.envelope.body.assets,
       ].find((entry) => entry.path === path);
-      if (!entry) return new Response(null, { status: 404 });
+      if (
+        !entry ||
+        ![
+          "application/json",
+          "image/svg+xml",
+          "image/png",
+          "image/webp",
+          "audio/mpeg",
+          "audio/ogg",
+        ].includes(entry.mediaType)
+      )
+        return new Response(null, { status: 404 });
       const served = await cache.match(prefix + path);
       if (!served)
         return new Response(null, {

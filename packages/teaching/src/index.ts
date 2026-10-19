@@ -194,3 +194,30 @@ export {
   UnsupportedInstallProfileError,
 } from "./installation-material.ts";
 export type { SignedInstallMaterial } from "./installation-material.ts";
+
+export { parsePrintedPreviewTask } from "./content.ts";
+export {
+  parseActivationWitness,
+  parseInstallationRead,
+  parseInstallationCatalog,
+} from "./installation.ts";
+
+export { parseParentMaterialWire } from "./installation.ts";
+
+export { parseShellHash } from "./shell.ts";
+export {
+  parseShellBridgeRequest,
+  parseShellBridgeResponse,
+} from "./selection.ts";
+
+export {
+  parsePublicationSelection,
+  parsePublicationCheck,
+  parseInstalledResourceFailure,
+  InstalledResourceUnavailableError,
+} from "./installation.ts";
+export type {
+  PublicationSelection,
+  PublicationCheck,
+  InstalledResourceFailure,
+} from "./installation.ts";

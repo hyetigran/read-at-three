@@ -217,6 +217,7 @@ function InitialSetup({ children }: { children?: ReactNode }) {
     "div",
     null,
     createElement(ParentScreens, {
+      readParentMaterial: client.parentMaterial,
       visit,
       directory,
       preparation: client.readPreparation().availability,

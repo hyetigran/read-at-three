@@ -7,11 +7,13 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, Check, Settings } from "lucide-react";
 import {
+  InstalledResourceUnavailableError,
   canonical,
   decodeInkPoints,
   visibleInkStrokes,
 } from "@readatthree/teaching";
 import type {
+  InstalledResourceFailure,
   ApplicationRead,
   CourseAction,
   CourseTask,
@@ -684,7 +686,9 @@ export function SavedWorkScreen({
   selection,
   profile,
   onParents,
+  onResourceFailure,
 }: {
+  onResourceFailure?: (failure: InstalledResourceFailure) => void;
   read: Ready;
   client: BrowserTeachingClient;
   selection: SelectedOwnerWitness;
@@ -710,16 +714,28 @@ export function SavedWorkScreen({
       runId,
     }),
     queryFn: async () => {
-      if (!work) throw new Error("Saved work is unavailable.");
-      checkPublication();
-      const saved = await client.readWork({ selection, runId: work.runId });
-      checkPublication();
-      if (
-        connection !== client.connectionTicket() ||
-        canonical(saved.selection) !== canonical(selection)
-      )
-        throw new Error("Saved-work reading lifetime changed.");
-      return saved.value;
+      try {
+        if (!work) throw new Error("Saved work is unavailable.");
+        checkPublication();
+        const saved = await client.readWork({ selection, runId: work.runId });
+        checkPublication();
+        if (
+          connection !== client.connectionTicket() ||
+          canonical(saved.selection) !== canonical(selection)
+        )
+          throw new Error("Saved-work reading lifetime changed.");
+        return saved.value;
+      } catch (error) {
+        checkPublication();
+        if (
+          connection === client.connectionTicket() &&
+          work &&
+          error instanceof InstalledResourceUnavailableError &&
+          error.failure.packageHash === work.packageHash
+        )
+          onResourceFailure?.(error.failure);
+        throw error;
+      }
     },
     enabled: !!work,
     networkMode: "always",

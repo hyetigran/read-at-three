@@ -196,14 +196,61 @@ export function createInstallationMaterials(
       if (!(error instanceof PublicationResourceError)) throw error;
     }
     cancellation.throwIfCancelled();
-    const raw = await options.envelope(target, cancellation);
-    const publication = await verifyPublication({
-      raw,
-      keys: options.keys,
-      crypto: options.crypto,
-    });
+    let raw: Uint8Array;
+    try {
+      raw = await options.envelope(target, cancellation);
+    } catch (error) {
+      cancellation.throwIfCancelled();
+      if (error instanceof PublicationResourceError) throw error;
+      throw new PublicationResourceError({
+        kind: "unavailable",
+        reason: "download",
+      });
+    }
+    const crypto: PublicationCrypto = {
+      async sha256(bytes) {
+        try {
+          return await options.crypto.sha256(bytes);
+        } catch {
+          cancellation.throwIfCancelled();
+          throw new PublicationResourceError({
+            kind: "unavailable",
+            reason: "crypto",
+          });
+        }
+      },
+      async verifyEd25519(input) {
+        try {
+          return await options.crypto.verifyEd25519(input);
+        } catch {
+          cancellation.throwIfCancelled();
+          throw new PublicationResourceError({
+            kind: "unavailable",
+            reason: "crypto",
+          });
+        }
+      },
+    };
+    let publication: Awaited<ReturnType<typeof verifyPublication>>;
+    try {
+      publication = await verifyPublication({
+        raw,
+        keys: options.keys,
+        crypto,
+      });
+    } catch (error) {
+      cancellation.throwIfCancelled();
+      if (error instanceof PublicationResourceError) throw error;
+      throw new PublicationResourceError({
+        kind: "corrupt",
+        reason: "envelope-integrity",
+      });
+    }
     if (publication.hash !== target)
-      throw new Error("Installation target changed");
+      throw new PublicationResourceError({
+        kind: "corrupt",
+        reason: "envelope-integrity",
+      });
     await publishPublicationClosure({
       raw,
       mode: options.mode,

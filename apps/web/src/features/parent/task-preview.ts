@@ -1,3 +1,6 @@
+import { browserConfiguration } from "../../platform/browser-configuration.ts";
+import { loadDevelopmentContent } from "../../platform/development-opening.ts";
+import type { BrowserTeachingClient } from "../../platform/teaching-client.ts";
 import { parseRuntimePackage, resolvedLessons } from "@readatthree/teaching";
 import type { GraphTask, BoardTask, PackageHash } from "@readatthree/teaching";
 import { hashText } from "@/platform/hash.ts";
@@ -23,8 +26,10 @@ export async function readFirstTaskPreview({
   ticket,
   connectionTicket,
   isCurrent,
+  readParentMaterial,
 }: {
   ticket: TaskPreviewTicket;
+  readParentMaterial: BrowserTeachingClient["parentMaterial"];
   connectionTicket: () => number;
   isCurrent: (ticket: TaskPreviewTicket) => boolean;
 }): Promise<FirstTaskPreview> {
@@ -36,12 +41,20 @@ export async function readFirstTaskPreview({
   ): FirstTaskPreview => ({ kind: "unavailable", ticket, reason });
   if (!current()) return unavailable("retired");
   try {
-    const response = await fetch("/curriculum/development.json", {
-      cache: "no-store",
-    });
-    if (!current()) return unavailable("retired");
-    if (!response.ok) return unavailable("missing");
-    const input: unknown = await response.json();
+    if (browserConfiguration.kind === "installed") {
+      const material = await readParentMaterial({
+        kind: "firstTaskPreview",
+        packageHash: ticket.packageHash,
+      });
+      if (!current()) return unavailable("retired");
+      if (
+        material.kind !== "firstTaskPreview" ||
+        material.packageHash !== ticket.packageHash
+      )
+        return unavailable("missing");
+      return { kind: "available", ticket, task: material.task.task };
+    }
+    const input = await loadDevelopmentContent();
     const content = await parseRuntimePackage(input, hashText);
     if (!current()) return unavailable("retired");
     if (content.packageHash !== ticket.packageHash)

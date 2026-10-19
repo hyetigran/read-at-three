@@ -1,3 +1,4 @@
+import type { BrowserTeachingClient } from "../../platform/teaching-client.ts";
 import {
   useCallback,
   useEffect,
@@ -194,7 +195,9 @@ export function PreparationReader({
   onReturn,
   connectionTicket,
   isCurrent,
+  readParentMaterial,
 }: {
+  readParentMaterial: BrowserTeachingClient["parentMaterial"];
   availability: PreparationAvailability;
   visit: ParentVisit;
   packageHash: PackageHash;
@@ -262,7 +265,12 @@ export function PreparationReader({
       packageHash,
     ],
     queryFn: () =>
-      readFirstTaskPreview({ ticket, connectionTicket, isCurrent }),
+      readFirstTaskPreview({
+        ticket,
+        connectionTicket,
+        isCurrent,
+        readParentMaterial,
+      }),
     enabled: preview,
     networkMode: "always",
     retry: false,

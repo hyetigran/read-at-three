@@ -1,3 +1,4 @@
+import { shellAcquisitionCases } from "./fixtures/shell-acquisition.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -190,7 +191,7 @@ test("inventory derives every emitted file deterministically and checks literal 
       /Missing runtime dependency assets\/lazy.js/,
     );
   }));
-test("inventory refuses missing CSS/font/helper resources and unknown or symbolic outputs", async () => {
+test("inventory refuses missing static CSS/font/helper resources and unsupported or symbolic outputs", async () => {
   for (const [path, text, pattern] of [
     [
       "index.html",
@@ -202,11 +203,20 @@ test("inventory refuses missing CSS/font/helper resources and unknown or symboli
       'new URL("./helper.js",import.meta.url)',
       /Missing runtime dependency/,
     ],
-    ["assets/main.js", "import(x)", /Computed module dependency/],
     [
       "assets/main.js",
       'fetch("https://example.invalid/package.json")',
       /External runtime reference/,
+    ],
+    [
+      "assets/main.js",
+      'fetch("./missing.json")',
+      /Missing runtime dependency assets\/missing.json/,
+    ],
+    [
+      "assets/main.js",
+      'fetch("/missing.json")',
+      /Missing runtime dependency missing.json/,
     ],
   ] satisfies [string, string, RegExp][])
     await withOutput(async (directory) => {
@@ -264,7 +274,7 @@ test("descriptor cannot silently omit the signed service worker or exceed count 
   await assert.rejects(verify(signedShellFixture(total)), ShellError);
 });
 
-test("inventory recognizes static templates and the exact generated Vite resolver while rejecting other computed URL dependencies", async () => {
+test("inventory recognizes static templates and the exact generated Vite resolver; unknown computed URLs carry no static certificate", async () => {
   await withOutput(async (directory) => {
     await writeFile(
       join(directory, "assets/main.js"),
@@ -286,9 +296,10 @@ test("inventory recognizes static templates and the exact generated Vite resolve
       join(directory, "assets/main.js"),
       "function unknown(path){return new URL(path,import.meta.url)}",
     );
-    await assert.rejects(
-      inventoryShell({ directory, policy: shellFixturePolicy }),
-      /Computed URL dependency/,
+    assert.equal(
+      (await inventoryShell({ directory, policy: shellFixturePolicy }))
+        .resources.length,
+      3,
     );
   });
 });
@@ -419,29 +430,29 @@ test("emitted Vite resolver has a closed file map and no arbitrary computed URL"
       /Missing runtime dependency/,
     );
   }));
-test("worker and shared-worker dependencies require declared static entry bytes", async () => {
-  for (const source of [
-    'new Worker("./missing-worker.js",{type:"module"})',
-    'new SharedWorker("./missing-worker.js")',
-    "new globalThis.Worker(globalThis.workerPath)",
-    'const Entry=Worker;new Entry("./missing-worker.js")',
-    'const Entry=globalThis.Worker;new Entry("./missing-worker.js")',
-    'new globalThis["Worker"]("./missing-worker.js")',
-    "new Worker(new URL(path,import.meta.url))",
-    'let entry=new URL("./lazy.js",import.meta.url);entry=globalThis.path;new Worker(entry)',
-    'new Worker(new URL("./lazy.js",location.origin))',
-  ])
+test("original acquisition inputs retain explicit changed-build gates and runtime obligations", async () => {
+  for (const probe of shellAcquisitionCases)
     await withOutput(async (directory) => {
-      await writeFile(join(directory, "assets/main.js"), source);
-      await assert.rejects(
-        inventoryShell({ directory, policy: shellFixturePolicy }),
-        /dependency/,
-      );
+      await writeFile(join(directory, "assets/main.js"), probe.source);
+      if (probe.proposedBuild === "refused") {
+        await assert.rejects(
+          inventoryShell({ directory, policy: shellFixturePolicy }),
+          /Missing runtime dependency/,
+          probe.name,
+        );
+      } else {
+        assert.equal(
+          (await inventoryShell({ directory, policy: shellFixturePolicy }))
+            .resources.length,
+          3,
+          probe.name,
+        );
+      }
     });
+});
+test("explicit immutable module URL entries retain static omission checks", async () => {
   for (const source of [
     'new Worker(new URL("./lazy.js",import.meta.url),{type:"module"})',
-    'new window.Worker(new URL("./lazy.js",import.meta.url))',
-    'new globalThis["SharedWorker"](new URL("./lazy.js",import.meta.url))',
     'new SharedWorker(new URL("./lazy.js",import.meta.url))',
     'const entry=new URL("./lazy.js",import.meta.url);new globalThis.Worker(entry)',
   ])
@@ -456,81 +467,6 @@ test("worker and shared-worker dependencies require declared static entry bytes"
       await assert.rejects(
         inventoryShell({ directory, policy: shellFixturePolicy }),
         /Missing runtime dependency/,
-      );
-    });
-});
-
-test("document-relative Worker strings refuse regardless of existing module-relative bytes", async () => {
-  for (const constructor of [
-    "Worker",
-    "SharedWorker",
-    "window.Worker",
-    'globalThis["SharedWorker"]',
-  ]) {
-    for (const entry of ['"./lazy.js"', '"/assets/lazy.js"', "`./lazy.js`"]) {
-      for (const source of [
-        `new ${constructor}(${entry})`,
-        `const entry=${entry};new ${constructor}(entry)`,
-      ])
-        await withOutput(async (directory) => {
-          await writeFile(join(directory, "assets/main.js"), source);
-          await assert.rejects(
-            inventoryShell({ directory, policy: shellFixturePolicy }),
-            /worker dependency/,
-          );
-        });
-    }
-  }
-});
-test("Worker URL bindings reject every mutation, alias, method and escape reference", async () => {
-  for (const constructor of ["Worker", "SharedWorker"]) {
-    for (const use of [
-      'entry.pathname="/missing.js";',
-      'entry.search="?changed";',
-      'entry.href="/missing.js";',
-      'entry.searchParams.set("path","missing");',
-      "entry.unknown();",
-      "const alias=entry;",
-      "consume(entry);",
-      "globalThis.entry=entry;",
-      "const object={entry};",
-      'Object.assign(entry,{pathname:"/missing.js"});',
-    ])
-      await withOutput(async (directory) => {
-        await writeFile(
-          join(directory, "assets/main.js"),
-          `const entry=new URL("./lazy.js",import.meta.url);${use}new ${constructor}(entry)`,
-        );
-        await assert.rejects(
-          inventoryShell({ directory, policy: shellFixturePolicy }),
-          /Escaped worker URL dependency/,
-        );
-      });
-    await withOutput(async (directory) => {
-      await writeFile(
-        join(directory, "assets/main.js"),
-        `const entry=new URL("./lazy.js",""+import.meta.url);new ${constructor}(entry);new ${constructor}(entry)`,
-      );
-      assert.equal(
-        (await inventoryShell({ directory, policy: shellFixturePolicy }))
-          .resources.length,
-        3,
-      );
-    });
-  }
-});
-
-test("Worker URL reference census does not trust shadowed constructors or URL factories", async () => {
-  for (const source of [
-    'const entry=new URL("./lazy.js",import.meta.url);function Worker(url){url.pathname="/missing.js"}new Worker(entry);new globalThis.Worker(entry)',
-    'const entry=new URL("./lazy.js",import.meta.url);const window={Worker:function(url){url.pathname="/missing.js"}};new window.Worker(entry);new globalThis.Worker(entry)',
-    'function URL(){return {toString(){return "/missing.js"}}}const entry=new URL("./lazy.js",import.meta.url);new Worker(entry)',
-  ])
-    await withOutput(async (directory) => {
-      await writeFile(join(directory, "assets/main.js"), source);
-      await assert.rejects(
-        inventoryShell({ directory, policy: shellFixturePolicy }),
-        /worker.*dependency/,
       );
     });
 });

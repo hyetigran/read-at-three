@@ -1,4 +1,7 @@
 import {
+  parsePublicationSelection,
+  InstalledResourceUnavailableError,
+  requireInstallationLease,
   parseParentMaterialRequest,
   PublicationResourceError,
   ShellError,
@@ -45,6 +48,8 @@ import {
   RetiredSelectionError,
 } from "../../teaching/src/index.ts";
 import type {
+  PublicationSelection,
+  PublicationCheck,
   ParentMaterialFailure,
   SignedInstallMaterial,
   InstallationLease,
@@ -187,6 +192,7 @@ export function createTeachingApplication(
   const db = drizzle(async (sql, parameters, method) => {
     if (method === "get")
       throw new Error("Repository must use array-row reads");
+    if (!schemaInitialized) checkInitializationLifetime();
     return executor.execute(sql, sqlValues(parameters));
   });
   let activePreparation: PreparationPolicy = preparation;
@@ -363,248 +369,278 @@ export function createTeachingApplication(
   }
   let initialization: Promise<ReturnType<typeof createCoordinator>> | undefined;
   let schemaInitialized = false;
+  function checkInitializationLifetime() {
+    if (installed && !installed.lifetime.isCurrent())
+      throw new Error("Installed initialization connection was retired");
+  }
+  const initializationGuard = installed
+    ? checkInitializationLifetime
+    : undefined;
   function ensureInitialized() {
+    checkInitializationLifetime();
     initialization ??= (async () => {
       if (suppliedContent)
         content = await parseDevelopmentInstalledTeaching({
           document: suppliedContent,
           hash,
         });
-      await initializeDatabase(executor, hash, async (version) => {
-        if (version !== 6 && version !== 7 && version !== 8) return undefined;
-        await warmPackages();
-        const prepared = [...verified.values()].sort((a, b) =>
-          a.key.localeCompare(b.key),
-        );
-        return async () => {
-          const readyPackages = await db
-            .select()
-            .from(schema.installedPackage)
-            .where(eq(schema.installedPackage.state, "ready"))
-            .all();
-          if (
-            readyPackages.length !== prepared.length ||
-            readyPackages.some(
-              (row) => !prepared.some((value) => value.key === row.packageHash),
+      await initializeDatabase(
+        executor,
+        hash,
+        async (version) => {
+          if (version !== 6 && version !== 7 && version !== 8) return undefined;
+          await warmPackages();
+          const prepared = [...verified.values()].sort((a, b) =>
+            a.key.localeCompare(b.key),
+          );
+          return async () => {
+            const readyPackages = await db
+              .select()
+              .from(schema.installedPackage)
+              .where(eq(schema.installedPackage.state, "ready"))
+              .all();
+            if (
+              readyPackages.length !== prepared.length ||
+              readyPackages.some(
+                (row) =>
+                  !prepared.some((value) => value.key === row.packageHash),
+              )
             )
-          )
-            throw new Error("Prepared package set changed before migration");
-          for (const value of prepared) await ensurePackage(value);
-          if (version === 8) {
-            await validateOwners();
-            await ink.inventory();
-            await profileDirectory.migrate();
-            return;
-          }
-          if (version === 7) {
+              throw new Error("Prepared package set changed before migration");
+            for (const value of prepared) await ensurePackage(value);
+            if (version === 8) {
+              await validateOwners();
+              await ink.inventory();
+              await profileDirectory.migrate();
+              return;
+            }
+            if (version === 7) {
+              acceptanceMode = "v6";
+              try {
+                await validateOwners();
+                await ink.inventory();
+              } finally {
+                acceptanceMode = "v7";
+              }
+              await validateOwners();
+              await ink.inventory();
+              return;
+            }
             acceptanceMode = "v6";
+            legacyCursorRead = true;
             try {
               await validateOwners();
               await ink.inventory();
             } finally {
+              legacyCursorRead = false;
+            }
+            await repairTerminalCursors();
+            const profiles = await db.select().from(schema.profile).all();
+            for (const profile of profiles)
+              for (const value of prepared)
+                await lessonProgress.derive({
+                  owner: {
+                    profileId: profile.id,
+                    generation: profile.generation,
+                  },
+                  content: value,
+                });
+            try {
+              await validateOwners();
+            } finally {
               acceptanceMode = "v7";
             }
-            await validateOwners();
-            await ink.inventory();
-            return;
-          }
-          acceptanceMode = "v6";
-          legacyCursorRead = true;
-          try {
-            await validateOwners();
-            await ink.inventory();
-          } finally {
-            legacyCursorRead = false;
-          }
-          await repairTerminalCursors();
-          const profiles = await db.select().from(schema.profile).all();
-          for (const profile of profiles)
-            for (const value of prepared)
-              await lessonProgress.derive({
-                owner: {
-                  profileId: profile.id,
-                  generation: profile.generation,
-                },
-                content: value,
-              });
-          try {
-            await validateOwners();
-          } finally {
-            acceptanceMode = "v7";
-          }
-        };
-      });
-      await warmPackages();
-      await transaction(executor, async () => {
-        const installations = await db.select().from(schema.installation).all();
-        if (!installations.length) {
-          const installationId = parseId({
-            kind: "installation",
-            value: ids(),
-          });
-          const owner = {
-            profileId: parseId({ kind: "profile", value: ids() }),
-            generation: parseCounter("0"),
           };
-          await db
-            .insert(schema.installation)
-            .values({
-              id: installationId,
-              revision: parseCounter("0"),
-              databaseVersion: DATABASE_VERSION,
-              singleton: 1,
-            })
-            .run();
-          await db
-            .insert(schema.profile)
-            .values({
-              id: owner.profileId,
-              generation: owner.generation,
-              revision: parseCounter("0"),
-              undoRunId: null,
-              preferencesVersion: 1,
-              preferences: canonical({ version: 1 }),
-            })
-            .run();
-          await profileDirectory.bootstrap({ owner, installationId });
-        } else if (
-          installations.length !== 1 ||
-          Number(installations[0]?.databaseVersion) !== DATABASE_VERSION
-        )
-          throw new Error("Installation metadata is incompatible");
-        if (suppliedContent) {
-          const packages = await db
+        },
+        initializationGuard,
+      );
+      await warmPackages();
+      await transaction(
+        executor,
+        async () => {
+          const installations = await db
             .select()
-            .from(schema.installedPackage)
-            .where(eq(schema.installedPackage.packageHash, content.key))
+            .from(schema.installation)
             .all();
-          if (!packages.length)
+          if (!installations.length) {
+            const installationId = parseId({
+              kind: "installation",
+              value: ids(),
+            });
+            const owner = {
+              profileId: parseId({ kind: "profile", value: ids() }),
+              generation: parseCounter("0"),
+            };
             await db
-              .insert(schema.installedPackage)
+              .insert(schema.installation)
               .values({
-                packageHash: content.key,
-                courseId: content.body.courseId,
-                releaseId: content.body.releaseId,
-                contentSchemaVersion: packageMetadata(content.document)
-                  .contentSchemaVersion,
-                capabilities: canonical(
-                  packageMetadata(content.document).capabilities,
-                ),
-                manifestVersion: 1,
-                verifiedManifest: utf8(canonical(content.document)),
-                state: "ready",
-                storageKey: content.key,
-              })
-              .run();
-          else await ensurePackage(content);
-          if (!packages.length)
-            await db
-              .insert(schema.installedRepresentation)
-              .values({
-                packageHash: content.key,
-                kind: "development-v1",
-                mode: null,
-                curriculumUtf8: null,
-                preparationUtf8: null,
-              })
-              .run();
-          const activations = await db
-            .select()
-            .from(schema.courseActivation)
-            .where(eq(schema.courseActivation.courseId, content.body.courseId))
-            .all();
-          const active = activations[0];
-          if (!active)
-            await db
-              .insert(schema.courseActivation)
-              .values({
-                courseId: content.body.courseId,
-                activePackageHash: content.key,
-                fallbackPackageHash: null,
+                id: installationId,
                 revision: parseCounter("0"),
+                databaseVersion: DATABASE_VERSION,
+                singleton: 1,
               })
               .run();
-          else if (active.activePackageHash !== content.key) {
-            const previous = pinned(active.activePackageHash);
-            if (previous.kind !== "development-v1")
-              throw new Error(
-                "Development construction cannot replace signed content",
-              );
-            await ensurePackage(previous);
-            const cumulative =
-              previous.body.coverage === "lesson1-sounds-complete" &&
-              (content.body.coverage === "lesson1-sounds-oral-complete" ||
-                content.body.coverage === "lesson1-complete") &&
-              previous.body.courseId === content.body.courseId &&
-              previous.body.lessonId === content.body.lessonId &&
-              previous.body.tasks.every(
-                (old) =>
-                  (content.body.coverage === "lesson1-sounds-oral-complete" ||
-                    content.body.coverage === "lesson1-complete") &&
-                  content.body.tasks.some(
-                    (entry) =>
-                      entry.kind === "printedGraphV1" &&
-                      canonical(entry.task) === canonical(old),
+            await db
+              .insert(schema.profile)
+              .values({
+                id: owner.profileId,
+                generation: owner.generation,
+                revision: parseCounter("0"),
+                undoRunId: null,
+                preferencesVersion: 1,
+                preferences: canonical({ version: 1 }),
+              })
+              .run();
+            await profileDirectory.bootstrap({ owner, installationId });
+          } else if (
+            installations.length !== 1 ||
+            Number(installations[0]?.databaseVersion) !== DATABASE_VERSION
+          )
+            throw new Error("Installation metadata is incompatible");
+          if (suppliedContent) {
+            const packages = await db
+              .select()
+              .from(schema.installedPackage)
+              .where(eq(schema.installedPackage.packageHash, content.key))
+              .all();
+            if (!packages.length)
+              await db
+                .insert(schema.installedPackage)
+                .values({
+                  packageHash: content.key,
+                  courseId: content.body.courseId,
+                  releaseId: content.body.releaseId,
+                  contentSchemaVersion: packageMetadata(content.document)
+                    .contentSchemaVersion,
+                  capabilities: canonical(
+                    packageMetadata(content.document).capabilities,
                   ),
-              ) &&
-              canonical(previous.body.lessonTasks) ===
-                canonical(content.body.lessonTasks);
-            const legacyCumulative =
-              previous.body.coverage === "partial-first-m" &&
-              (content.body.coverage === "lesson1-sounds-oral-complete" ||
-                content.body.coverage === "lesson1-complete") &&
-              previous.body.lessonId === content.body.lessonId &&
-              content.body.tasks.some(
-                (entry) =>
-                  entry.kind === "printedGraphV1" &&
-                  previous.body.coverage === "partial-first-m" &&
-                  entry.task.id === previous.body.taskId,
-              );
-            if (
-              cumulativeExtension({
-                previous: previous.document,
-                candidate: content.document,
-              }) ||
-              cumulative ||
-              isCumulativeOralExtension({
-                previous: previous.document,
-                candidate: content.document,
-              }) ||
-              legacyCumulative ||
-              (previous.body.coverage === "partial-first-m" &&
-                content.body.coverage === "lesson1-sounds-complete" &&
+                  manifestVersion: 1,
+                  verifiedManifest: utf8(canonical(content.document)),
+                  state: "ready",
+                  storageKey: content.key,
+                })
+                .run();
+            else await ensurePackage(content);
+            if (!packages.length)
+              await db
+                .insert(schema.installedRepresentation)
+                .values({
+                  packageHash: content.key,
+                  kind: "development-v1",
+                  mode: null,
+                  curriculumUtf8: null,
+                  preparationUtf8: null,
+                })
+                .run();
+            const activations = await db
+              .select()
+              .from(schema.courseActivation)
+              .where(
+                eq(schema.courseActivation.courseId, content.body.courseId),
+              )
+              .all();
+            const active = activations[0];
+            if (!active)
+              await db
+                .insert(schema.courseActivation)
+                .values({
+                  courseId: content.body.courseId,
+                  activePackageHash: content.key,
+                  fallbackPackageHash: null,
+                  revision: parseCounter("0"),
+                })
+                .run();
+            else if (active.activePackageHash !== content.key) {
+              const previous = pinned(active.activePackageHash);
+              if (previous.kind !== "development-v1")
+                throw new Error(
+                  "Development construction cannot replace signed content",
+                );
+              await ensurePackage(previous);
+              const cumulative =
+                previous.body.coverage === "lesson1-sounds-complete" &&
+                (content.body.coverage === "lesson1-sounds-oral-complete" ||
+                  content.body.coverage === "lesson1-complete") &&
+                previous.body.courseId === content.body.courseId &&
+                previous.body.lessonId === content.body.lessonId &&
+                previous.body.tasks.every(
+                  (old) =>
+                    (content.body.coverage === "lesson1-sounds-oral-complete" ||
+                      content.body.coverage === "lesson1-complete") &&
+                    content.body.tasks.some(
+                      (entry) =>
+                        entry.kind === "printedGraphV1" &&
+                        canonical(entry.task) === canonical(old),
+                    ),
+                ) &&
+                canonical(previous.body.lessonTasks) ===
+                  canonical(content.body.lessonTasks);
+              const legacyCumulative =
+                previous.body.coverage === "partial-first-m" &&
+                (content.body.coverage === "lesson1-sounds-oral-complete" ||
+                  content.body.coverage === "lesson1-complete") &&
                 previous.body.lessonId === content.body.lessonId &&
                 content.body.tasks.some(
-                  (task) =>
-                    task.id ===
-                    (previous.body.coverage === "partial-first-m"
-                      ? previous.body.taskId
-                      : null),
-                ))
-            )
-              await db
-                .update(schema.courseActivation)
-                .set({
-                  activePackageHash: content.key,
-                  fallbackPackageHash: previous.key,
-                  revision: increment(active.revision),
-                })
-                .where(
-                  and(
-                    eq(schema.courseActivation.courseId, content.body.courseId),
-                    eq(schema.courseActivation.activePackageHash, previous.key),
-                    eq(schema.courseActivation.revision, active.revision),
-                  ),
-                )
-                .run();
+                  (entry) =>
+                    entry.kind === "printedGraphV1" &&
+                    previous.body.coverage === "partial-first-m" &&
+                    entry.task.id === previous.body.taskId,
+                );
+              if (
+                cumulativeExtension({
+                  previous: previous.document,
+                  candidate: content.document,
+                }) ||
+                cumulative ||
+                isCumulativeOralExtension({
+                  previous: previous.document,
+                  candidate: content.document,
+                }) ||
+                legacyCumulative ||
+                (previous.body.coverage === "partial-first-m" &&
+                  content.body.coverage === "lesson1-sounds-complete" &&
+                  previous.body.lessonId === content.body.lessonId &&
+                  content.body.tasks.some(
+                    (task) =>
+                      task.id ===
+                      (previous.body.coverage === "partial-first-m"
+                        ? previous.body.taskId
+                        : null),
+                  ))
+              )
+                await db
+                  .update(schema.courseActivation)
+                  .set({
+                    activePackageHash: content.key,
+                    fallbackPackageHash: previous.key,
+                    revision: increment(active.revision),
+                  })
+                  .where(
+                    and(
+                      eq(
+                        schema.courseActivation.courseId,
+                        content.body.courseId,
+                      ),
+                      eq(
+                        schema.courseActivation.activePackageHash,
+                        previous.key,
+                      ),
+                      eq(schema.courseActivation.revision, active.revision),
+                    ),
+                  )
+                  .run();
+            }
           }
-        }
-      });
+        },
+        initializationGuard,
+      );
       await warmPackages();
       await profileDirectory.read();
       schemaInitialized = true;
       await validateOwners();
       await ink.inventory();
+      checkInitializationLifetime();
       return createCoordinator({ store, ids, hash });
     })();
     return initialization;
@@ -2106,23 +2142,33 @@ export function createTeachingApplication(
       if (!value) throw new InstalledContentUnavailableError(key);
       return { key, material: value, witness: await scopeWitness(key) };
     });
-    return availability.withVerified(
-      retained.material.envelope,
-      async (material, lease) => {
-        if (material.teaching.key !== retained.key)
-          throw new Error("Exact installed package changed");
-        const proof = Object.freeze({ isCurrent: () => lease.isCurrent() });
-        resourceScopes.set(proof, {
-          key: retained.key,
-          witness: retained.witness,
+    try {
+      return await availability.withVerified(
+        retained.material.envelope,
+        async (material, lease) => {
+          if (material.teaching.key !== retained.key)
+            throw new Error("Exact installed package changed");
+          const proof = Object.freeze({ isCurrent: () => lease.isCurrent() });
+          resourceScopes.set(proof, {
+            key: retained.key,
+            witness: retained.witness,
+          });
+          try {
+            return await run(material, proof);
+          } finally {
+            resourceScopes.delete(proof);
+          }
+        },
+      );
+    } catch (error) {
+      const reason = resourceReason(error);
+      if (reason)
+        throw new InstalledResourceUnavailableError({
+          packageHash: retained.key,
+          reason,
         });
-        try {
-          return await run(material, proof);
-        } finally {
-          resourceScopes.delete(proof);
-        }
-      },
-    );
+      throw error;
+    }
   }
   function queuedexecute(
     input: Parameters<SelectedApplication["execute"]>[0],
@@ -2762,6 +2808,314 @@ export function createTeachingApplication(
       return result;
     });
   }
+  type RepairAnchor =
+    | Readonly<{
+        kind: "active";
+        row: typeof schema.courseActivation.$inferSelect;
+      }>
+    | Readonly<{ kind: "session"; row: typeof schema.session.$inferSelect }>
+    | Readonly<{ kind: "run"; row: typeof schema.taskRun.$inferSelect }>
+    | Readonly<{ kind: "ink"; row: typeof schema.inkDocument.$inferSelect }>;
+  function repairCanonical(value: unknown): string {
+    return canonical(
+      JSON.parse(
+        JSON.stringify(value, (_key, value: unknown) =>
+          typeof value === "bigint"
+            ? { sqliteInteger: value.toString() }
+            : value,
+        ),
+      ),
+    );
+  }
+  function resourceReason(error: unknown): ParentMaterialFailure | undefined {
+    if (error instanceof InstalledResourceUnavailableError)
+      return error.failure.reason;
+    if (error instanceof PublicationResourceError)
+      return { kind: "content", failure: error.failure };
+    if (error instanceof ShellError)
+      return { kind: "shell", failure: error.failure };
+    if (error instanceof InstalledContentUnavailableError)
+      return { kind: "representationUnavailable" };
+    if (error instanceof UnsupportedInstallProfileError)
+      return { kind: "unsupportedProfile" };
+    if (
+      error instanceof InstalledTeachingError &&
+      error.reason === "unavailable"
+    )
+      return { kind: "verificationUnavailable" };
+  }
+  async function repairAnchor(
+    key: PackageHash,
+  ): Promise<RepairAnchor | undefined> {
+    const directory = await profileDirectory.read();
+    const profiles = await db.select().from(schema.profile).all();
+    const ownerExists = (row: {
+      profileId: typeof schema.profile.$inferSelect.id;
+      generation: typeof schema.profile.$inferSelect.generation;
+      courseId: typeof schema.courseActivation.$inferSelect.courseId;
+    }) =>
+      row.courseId === productCourseId &&
+      profiles.some(
+        (profile) =>
+          profile.id === row.profileId && profile.generation === row.generation,
+      );
+    const sessions = (await db.select().from(schema.session).all())
+      .filter(ownerExists)
+      .sort((a, b) => a.sessionId.localeCompare(b.sessionId));
+    const runs = (await db.select().from(schema.taskRun).all())
+      .filter(ownerExists)
+      .filter(
+        (run) =>
+          run.packageHash === key &&
+          sessions.some(
+            (session) =>
+              session.sessionId === run.sessionId &&
+              session.profileId === run.profileId &&
+              session.generation === run.generation &&
+              session.courseId === run.courseId,
+          ),
+      )
+      .sort((a, b) => a.runId.localeCompare(b.runId));
+    const inks = (await db.select().from(schema.inkDocument).all())
+      .filter(ownerExists)
+      .filter(
+        (ink) =>
+          ink.packageHash === key &&
+          runs.some(
+            (run) =>
+              run.runId === ink.runId &&
+              run.profileId === ink.profileId &&
+              run.generation === ink.generation &&
+              run.courseId === ink.courseId &&
+              run.packageHash === ink.packageHash &&
+              run.lessonId === ink.lessonId &&
+              run.taskId === ink.taskId,
+          ),
+      )
+      .sort((a, b) => a.documentId.localeCompare(b.documentId));
+    const cursor = (
+      await db
+        .select()
+        .from(schema.courseCursor)
+        .where(
+          and(
+            eq(
+              schema.courseCursor.profileId,
+              directory.selection.owner.profileId,
+            ),
+            eq(
+              schema.courseCursor.generation,
+              directory.selection.owner.generation,
+            ),
+            eq(schema.courseCursor.courseId, productCourseId),
+          ),
+        )
+        .all()
+    )[0];
+    const current = sessions.find(
+      (session) =>
+        session.sessionId === cursor?.resumeSessionId &&
+        session.profileId === directory.selection.owner.profileId &&
+        session.generation === directory.selection.owner.generation,
+    );
+    if (current?.packageHash === key) return { kind: "session", row: current };
+    const currentRun = runs.find((run) => run.runId === current?.currentRunId);
+    if (currentRun) return { kind: "run", row: currentRun };
+    const currentInk = inks.find((ink) => ink.runId === current?.currentRunId);
+    if (currentInk) return { kind: "ink", row: currentInk };
+    const active = (
+      await db
+        .select()
+        .from(schema.courseActivation)
+        .where(eq(schema.courseActivation.courseId, productCourseId))
+        .all()
+    )[0];
+    if (active?.activePackageHash === key)
+      return { kind: "active", row: active };
+    const retainedSession = sessions.find(
+      (session) => session.packageHash === key,
+    );
+    if (retainedSession) return { kind: "session", row: retainedSession };
+    if (runs[0]) return { kind: "run", row: runs[0] };
+    if (inks[0]) return { kind: "ink", row: inks[0] };
+  }
+  async function sameRepairAnchor(
+    anchor: RepairAnchor,
+    key: PackageHash,
+  ): Promise<boolean> {
+    if (anchor.kind === "active") {
+      const row = (
+        await db
+          .select()
+          .from(schema.courseActivation)
+          .where(eq(schema.courseActivation.courseId, productCourseId))
+          .all()
+      )[0];
+      return (
+        !!row &&
+        row.activePackageHash === key &&
+        repairCanonical(row) === repairCanonical(anchor.row)
+      );
+    }
+    const profiles = await db.select().from(schema.profile).all();
+    if (
+      !profiles.some(
+        (profile) =>
+          profile.id === anchor.row.profileId &&
+          profile.generation === anchor.row.generation,
+      )
+    )
+      return false;
+    const row =
+      anchor.kind === "session"
+        ? (
+            await db
+              .select()
+              .from(schema.session)
+              .where(eq(schema.session.sessionId, anchor.row.sessionId))
+              .all()
+          )[0]
+        : anchor.kind === "run"
+          ? (
+              await db
+                .select()
+                .from(schema.taskRun)
+                .where(eq(schema.taskRun.runId, anchor.row.runId))
+                .all()
+            )[0]
+          : (
+              await db
+                .select()
+                .from(schema.inkDocument)
+                .where(eq(schema.inkDocument.documentId, anchor.row.documentId))
+                .all()
+            )[0];
+    if (
+      !row ||
+      row.packageHash !== key ||
+      row.courseId !== productCourseId ||
+      repairCanonical(row) !== repairCanonical(anchor.row)
+    )
+      return false;
+    if (anchor.kind === "session") return true;
+    const run =
+      anchor.kind === "run"
+        ? anchor.row
+        : (
+            await db
+              .select()
+              .from(schema.taskRun)
+              .where(eq(schema.taskRun.runId, anchor.row.runId))
+              .all()
+          )[0];
+    if (
+      !run ||
+      run.packageHash !== key ||
+      run.profileId !== anchor.row.profileId ||
+      run.generation !== anchor.row.generation ||
+      run.courseId !== productCourseId
+    )
+      return false;
+    const session = (
+      await db
+        .select()
+        .from(schema.session)
+        .where(eq(schema.session.sessionId, run.sessionId))
+        .all()
+    )[0];
+    return (
+      !!session &&
+      session.profileId === run.profileId &&
+      session.generation === run.generation &&
+      session.courseId === run.courseId &&
+      (anchor.kind !== "ink" ||
+        (run.lessonId === anchor.row.lessonId &&
+          run.taskId === anchor.row.taskId))
+    );
+  }
+  async function publicationOperation(
+    input: PublicationSelection,
+    acquire: boolean,
+  ): Promise<PublicationCheck> {
+    const target = parsePublicationSelection(input);
+    if (!installed || !availability) return { kind: "notAuthorized", target };
+    try {
+      const captured = await exclusive(async () => {
+        checkLease();
+        await ensureInitialized();
+        checkLease();
+        const installation = (
+          await db.select().from(schema.installation).all()
+        )[0];
+        if (installation?.id !== target.installationId) return;
+        await warmPackages();
+        const material = signedMaterials.get(target.packageHash);
+        if (!material)
+          throw new InstalledContentUnavailableError(target.packageHash);
+        if (material.teaching.body.courseId !== productCourseId) return;
+        const anchor = await repairAnchor(target.packageHash);
+        if (!anchor) return;
+        return {
+          anchor,
+          witness: await scopeWitness(target.packageHash),
+          envelope: Uint8Array.from(material.envelope),
+          curriculum: Uint8Array.from(material.curriculum),
+          preparation: Uint8Array.from(material.preparationBytes),
+          teaching: material.teaching,
+        };
+      });
+      if (!captured) return { kind: "notAuthorized", target };
+      checkLease();
+      const raw = acquire
+        ? await availability.acquire(captured.teaching.identity.hash)
+        : captured.envelope;
+      return await availability.withVerified(raw, async (material, lease) => {
+        requireInstallationLease(lease);
+        if (
+          material.teaching.key !== target.packageHash ||
+          material.teaching.identity.hash !== captured.teaching.identity.hash ||
+          !equalBytes(material.envelope, captured.envelope) ||
+          !equalBytes(material.curriculum, captured.curriculum) ||
+          !equalBytes(material.preparationBytes, captured.preparation)
+        )
+          return { kind: "staleTarget", target };
+        resourceScopes.set(lease, {
+          key: target.packageHash,
+          witness: captured.witness,
+        });
+        try {
+          return await exclusive(async () => {
+            checkLease(lease);
+            const installation = (
+              await db.select().from(schema.installation).all()
+            )[0];
+            if (installation?.id !== target.installationId)
+              return { kind: "staleTarget", target };
+            await warmPackages();
+            const retained = signedMaterials.get(target.packageHash);
+            if (
+              !retained ||
+              !equalBytes(retained.envelope, captured.envelope) ||
+              !equalBytes(retained.curriculum, captured.curriculum) ||
+              !equalBytes(retained.preparationBytes, captured.preparation) ||
+              (await scopeWitness(target.packageHash)) !== captured.witness ||
+              !(await sameRepairAnchor(captured.anchor, target.packageHash))
+            )
+              return { kind: "staleTarget", target };
+            await validateScope(lease);
+            checkLease(lease);
+            return { kind: "verified", target };
+          });
+        } finally {
+          resourceScopes.delete(lease);
+        }
+      });
+    } catch (error) {
+      const reason = resourceReason(error);
+      if (reason) return { kind: "unavailable", target, reason };
+      throw error;
+    }
+  }
   const installation = installed
     ? createInitialInstallation({
         db,
@@ -2775,6 +3129,8 @@ export function createTeachingApplication(
       })
     : undefined;
   return {
+    checkPublication: (target) => publicationOperation(target, false),
+    repairPublication: (target) => publicationOperation(target, true),
     parentMaterial: async (input) => {
       const request = parseParentMaterialRequest(input);
       try {
@@ -2802,7 +3158,9 @@ export function createTeachingApplication(
         );
       } catch (error) {
         let failure: ParentMaterialFailure;
-        if (error instanceof PublicationResourceError)
+        if (error instanceof InstalledResourceUnavailableError)
+          failure = error.failure.reason;
+        else if (error instanceof PublicationResourceError)
           failure = { kind: "content", failure: error.failure };
         else if (error instanceof ShellError)
           failure = { kind: "shell", failure: error.failure };
@@ -2866,6 +3224,7 @@ export function createTeachingApplication(
         const previous = await diagnostics();
         const ring = appendDiagnostic(previous.ring, event);
         try {
+          await ensureInitialized();
           await transaction(executor, async () => {
             await db
               .insert(schema.localDiagnostics)

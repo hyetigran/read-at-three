@@ -1,5 +1,6 @@
 import type { ValidateFunction } from "ajv";
 import type {
+  PrintedPreviewTask,
   PracticeControlsBinding,
   PracticeControlsSummary,
   DocumentToken,
@@ -22,6 +23,7 @@ import type {
   CommittedProjection,
   CommandResult,
 } from "./index.ts";
+export declare const validatePrintedPreviewTask: ValidateFunction<PrintedPreviewTask>;
 export declare const validatePracticeControlsBinding: ValidateFunction<PracticeControlsBinding>;
 export declare const validatePracticeControlsSummary: ValidateFunction<PracticeControlsSummary>;
 export declare const validateDocumentToken: ValidateFunction<DocumentToken>;

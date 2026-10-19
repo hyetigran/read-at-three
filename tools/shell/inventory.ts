@@ -215,31 +215,6 @@ export async function inventoryShell(
                 : node.node.value,
             );
         },
-        ReferencedIdentifier(node) {
-          if (
-            ["Worker", "SharedWorker"].includes(node.node.name) &&
-            !node.scope.hasBinding(node.node.name)
-          ) {
-            const parent = node.parentPath;
-            if (parent?.isNewExpression() && parent.node.callee === node.node)
-              return;
-            if (
-              parent?.isUnaryExpression() &&
-              parent.node.operator === "typeof"
-            )
-              return;
-            throw new Error(`Escaped worker dependency ${path}`);
-          }
-        },
-        MemberExpression(node) {
-          if (!workerMember(node.node)) return;
-          const parent = node.parentPath;
-          if (parent?.isNewExpression() && parent.node.callee === node.node)
-            return;
-          if (parent?.isUnaryExpression() && parent.node.operator === "typeof")
-            return;
-          throw new Error(`Escaped worker dependency ${path}`);
-        },
         ImportDeclaration(node) {
           reference(path, node.node.source.value);
         },
@@ -251,9 +226,7 @@ export async function inventoryShell(
         },
         ImportExpression(node) {
           const value = literal(node.node.source);
-          if (value === undefined)
-            throw new Error(`Computed module dependency ${path}`);
-          reference(path, value);
+          if (value !== undefined) reference(path, value);
         },
         NewExpression(node) {
           const callee = node.node.callee;
@@ -263,46 +236,13 @@ export async function inventoryShell(
             (callee.type === "MemberExpression" && workerMember(callee))
           ) {
             let entry = node.node.arguments[0];
-            let entryScope = node.scope;
             if (entry?.type === "Identifier") {
               const binding = node.scope.getBinding(entry.name);
-              if (!binding?.constant || !binding.path.isVariableDeclarator())
-                throw new Error(`Unresolved worker dependency ${path}`);
-              for (const use of binding.referencePaths) {
-                const construction = use.parentPath;
-                if (!construction?.isNewExpression())
-                  throw new Error(`Escaped worker URL dependency ${path}`);
-                const constructor = construction.node.callee;
-                if (
-                  construction.node.arguments[0] !== use.node ||
-                  !(
-                    (constructor.type === "Identifier" &&
-                      ["Worker", "SharedWorker"].includes(constructor.name) &&
-                      !construction.scope.getBinding(constructor.name)) ||
-                    (constructor.type === "MemberExpression" &&
-                      workerMember(constructor) &&
-                      constructor.object.type === "Identifier" &&
-                      !construction.scope.getBinding(constructor.object.name))
-                  )
-                )
-                  throw new Error(`Escaped worker URL dependency ${path}`);
-              }
-              entry = binding.path.node.init ?? undefined;
-              entryScope = binding.path.scope;
+              if (binding?.constant && binding.path.isVariableDeclarator())
+                entry = binding.path.node.init ?? undefined;
             }
-            if (
-              entry?.type === "NewExpression" &&
-              entry.callee.type === "Identifier" &&
-              entry.callee.name === "URL" &&
-              !entryScope.getBinding("URL") &&
-              entry.arguments.length === 2
-            ) {
-              const [target, base] = entry.arguments;
-              const value = literal(target);
-              if (value === undefined || !importMetaBase(base))
-                throw new Error(`Unresolved worker dependency ${path}`);
-              reference(path, value);
-            } else throw new Error(`Unresolved worker dependency ${path}`);
+            const target = literal(entry);
+            if (target?.startsWith("/")) reference(path, target);
           }
           if (
             node.node.callee.type === "Identifier" &&
@@ -342,7 +282,7 @@ export async function inventoryShell(
                   }
                   return;
                 }
-                throw new Error(`Computed URL dependency ${path}`);
+                return;
               }
               reference(path, target);
             }

@@ -675,6 +675,10 @@ export type MixedTask = Readonly<
   | { kind: "soundWritingV1"; task: WritingTask }
   | { kind: "writingPracticePlanV2"; task: WritingPracticePlan }
 >;
+export type PrintedPreviewTask = Extract<
+  MixedTask,
+  { kind: "printedGraphV1" | "printedGraphV2" }
+>;
 export type ControlDevelopmentBody = Omit<
   GraphDevelopmentBody,
   "coverage" | "tasks"

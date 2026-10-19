@@ -1,5 +1,7 @@
 import type { ValidateFunction } from "ajv";
 import type {
+  RawShellBridgeRequest,
+  RawShellBridgeResponse,
   RawSelectedOwnerWitness,
   RawSelectedOperation,
   RawSelectedReadTarget,
@@ -18,6 +20,8 @@ import type {
   RawSelectedWorkerRequest,
   RawSelectedWorkerResponse,
 } from "./selection-schemas.ts";
+export declare const validateShellBridgeRequest: ValidateFunction<RawShellBridgeRequest>;
+export declare const validateShellBridgeResponse: ValidateFunction<RawShellBridgeResponse>;
 export declare const validateSelectedOwnerWitness: ValidateFunction<RawSelectedOwnerWitness>;
 export declare const validateSelectedOperation: ValidateFunction<RawSelectedOperation>;
 export declare const validateSelectedReadTarget: ValidateFunction<RawSelectedReadTarget>;
