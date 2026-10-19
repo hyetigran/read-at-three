@@ -130,12 +130,8 @@ for (const ordering of ["early-success", "late-success"]) {
           if (message.text().startsWith("OPFS acquisition: "))
             events.push(message.text().slice(18));
         });
-        await failed.addInitScript(`
-          const NativeWorker = window.Worker;
-          window.Worker = class extends NativeWorker {
-            constructor(url, options) {
-              const absolute = new URL(String(url), location.href).href;
-              const prelude = ${JSON.stringify(`
+        const wrapperPath = `/__test__/opfs-acquisition-${ordering}-worker.mjs`;
+        const prelude = `
                 const candidate=${JSON.stringify(candidate)}, held=${JSON.stringify(held)}, ordering=${JSON.stringify(ordering)};
                 let ready=false;const queued=[];
                 self.addEventListener('message',event=>{if(!ready){queued.push(event.data);event.stopImmediatePropagation();}});
@@ -156,12 +152,49 @@ for (const ordering of ["early-success", "late-success"]) {
                   }
                   return handle;
                 };
-              `)};
-              const body=prelude+'\\nawait import('+JSON.stringify(absolute)+');ready=true;for(const data of queued)self.dispatchEvent(new MessageEvent("message",{data}));';
-              super(URL.createObjectURL(new Blob([body],{type:'text/javascript'})),{...options,type:'module'});
-            }
-          };
-        `);
+        `;
+        await context.route(
+          (url) =>
+            url.origin === new URL(browserBaseURL).origin &&
+            url.pathname === wrapperPath,
+          async (route) => {
+            const requested = new URL(route.request().url());
+            const actual = requested.searchParams.get("actual");
+            if (!actual || actual.length > 4096)
+              throw new Error("A bounded application worker URL is required.");
+            const applicationWorker = new URL(actual, browserBaseURL);
+            if (applicationWorker.origin !== new URL(browserBaseURL).origin)
+              throw new Error(
+                "The application worker must remain same-origin.",
+              );
+            await route.fulfill({
+              contentType: "text/javascript",
+              body:
+                prelude +
+                "\nawait import(" +
+                JSON.stringify(applicationWorker.href) +
+                ');ready=true;for(const data of queued)self.dispatchEvent(new MessageEvent("message",{data}));',
+            });
+          },
+        );
+        await failed.addInitScript(
+          ({ wrapperPath }) => {
+            const NativeWorker = window.Worker;
+            window.Worker = class extends NativeWorker {
+              constructor(url: string | URL, options?: WorkerOptions) {
+                const absolute = new URL(String(url), location.href);
+                if (absolute.origin !== location.origin)
+                  throw new Error(
+                    "The application worker must remain same-origin.",
+                  );
+                const wrapper = new URL(wrapperPath, location.href);
+                wrapper.searchParams.set("actual", absolute.href);
+                super(wrapper, options);
+              }
+            };
+          },
+          { wrapperPath },
+        );
         await failed.goto(browserBaseURL);
         await expect(
           failed.getByRole("heading", { name: "Saved storage is unavailable" }),

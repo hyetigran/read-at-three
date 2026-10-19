@@ -52,7 +52,7 @@ export default defineConfig(({ mode }) => ({
     strictPort: true,
     headers: shellResponsePolicy,
   },
-  build: { outDir: "../../dist/web", emptyOutDir: true },
+  build: { outDir: "../../dist/web", emptyOutDir: true, assetsInlineLimit: 0 },
   worker: {
     format: "es",
     plugins: () => [installedDevelopmentBoundary(mode), preserveSqliteFiles()],
