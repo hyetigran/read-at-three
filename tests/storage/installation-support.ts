@@ -451,12 +451,15 @@ export async function installationFixture(
     distribution.set(selected, files);
     return selected;
   }
-  async function anotherRelease(name = "fixture.release.next") {
+  async function anotherRelease(
+    name = "fixture.release.next",
+    source = content,
+  ) {
     const releaseId = parseId({
       kind: "release",
       value: name,
     });
-    const nextCurriculumBody = { ...content.body, releaseId };
+    const nextCurriculumBody = { ...source.body, releaseId };
     const nextContent = await parseRuntimePackage(
       {
         ...content,

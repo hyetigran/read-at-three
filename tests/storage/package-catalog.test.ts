@@ -6,12 +6,16 @@ import { hash } from "./support.ts";
 import {
   confirmInitialProfile,
   selectedProjection,
+  selectedCourse,
   prepareSelectedTeaching,
   executeTeaching,
 } from "./selected-support.ts";
 import {
   parseLessonFilesCommand,
   prepareCommand,
+  prepareWritingCommand,
+  parseRuntimePackage,
+  parseId,
 } from "../../packages/teaching/src/index.ts";
 import type {
   LessonFilesApplication,
@@ -671,3 +675,274 @@ test("canonical edited ready source refuses before migration, reconciliation, di
   first.db.close();
   assert.deepEqual(await readFile(filename), file);
 });
+
+test("signed editorial suffix preserves accepted lesson support and cannot fall back below its activated task floor", async (t) => {
+  const f = await installationFixture(t, "completeLessons"),
+    first = f.connect();
+  await first.app.initialInstall(await f.command(first.app));
+  await f.until(first.app, "activated");
+  await confirmInitialProfile(first.app, f.ids, hash);
+  async function perform(kind: string, taskId?: string) {
+    const projection = await selectedProjection(first.app);
+    if (projection.kind === "recovery") throw new Error(projection.message);
+    const action = projection.actions.find(
+      (a) =>
+        a.intent.kind === kind &&
+        (!taskId || ("taskId" in a.intent && a.intent.taskId === taskId)),
+    );
+    assert.ok(action, `Missing ${kind} at ${projection.kind}`);
+    const result = await executeTeaching(
+      first.app,
+      await prepareSelectedTeaching(first.app, () =>
+        projection.kind === "writing" || projection.kind === "writingResult"
+          ? prepareWritingCommand({
+              projection,
+              action,
+              barrier: { kind: "writing", documents: projection.documents },
+              ids: f.ids,
+              hash,
+            })
+          : prepareCommand({
+              projection,
+              request: { kind: "action", action },
+              ids: f.ids,
+              hash,
+            }),
+      ),
+    );
+    assert.equal(result.kind, "committed");
+  }
+  if (f.content.body.coverage !== "course-development-v4")
+    throw new Error("Full synthetic course required");
+  const lesson = f.content.body.lessons[0];
+  assert.ok(lesson);
+  const exemplar = lesson.tasks[0];
+  assert.ok(exemplar);
+  const id = parseId({ kind: "task", value: "fixture.editorial.required" }),
+    number = lesson.lessonTasks.length + 1;
+  const extra = {
+    ...exemplar,
+    task: {
+      ...exemplar.task,
+      id,
+      number,
+      title: { kind: "added", text: "Synthetic additional practice" },
+    },
+  };
+  const body = {
+    ...f.content.body,
+    lessons: f.content.body.lessons.map((l, i) =>
+      i === 0
+        ? {
+            ...l,
+            lessonTasks: [
+              ...l.lessonTasks,
+              {
+                ...l.lessonTasks[0],
+                id,
+                number,
+                title: extra.task.title,
+                optional: false,
+              },
+            ],
+            tasks: [...l.tasks, extra],
+          }
+        : l,
+    ),
+  };
+  const editorial = await parseRuntimePackage(
+    { formatVersion: 1, body, packageHash: await hash(canonical(body)) },
+    hash,
+  );
+  const b = await f.anotherRelease("fixture.editorial.b", editorial);
+  const initial = await selectedCourse(first.app, { kind: "cursor" });
+  assert.equal(initial.kind, "ready");
+  if (initial.kind !== "ready") return;
+  for (const task of initial.course.lessons[0]?.tasks ?? []) {
+    await perform("start", task.id);
+    for (let i = 0; i < 250; i++) {
+      const projection = await selectedProjection(first.app);
+      if (projection.kind === "recovery") throw new Error(projection.message);
+      if ("runStatus" in projection && projection.runStatus !== "inProgress")
+        break;
+      if (i === 249) throw new Error("Synthetic task failed to finish");
+      if (
+        projection.kind === "reviewSelection" &&
+        projection.committedChoice === null
+      ) {
+        const result = await executeTeaching(
+          first.app,
+          await prepareSelectedTeaching(first.app, () =>
+            prepareCommand({
+              projection,
+              request: {
+                kind: "review",
+                action: projection.selectionAction,
+                choice: { kind: "none" },
+              },
+              ids: f.ids,
+              hash,
+            }),
+          ),
+        );
+        assert.equal(result.kind, "committed");
+        continue;
+      }
+      const action =
+        projection.actions.find((a) => a.intent.kind === "skipWriting") ??
+        projection.actions.find((a) => a.intent.kind === "parentReady") ??
+        projection.actions.find((a) => a.intent.kind === "continue");
+      assert.ok(action);
+      await perform(action.intent.kind);
+    }
+  }
+  const old = await selectedCourse(first.app, { kind: "cursor" });
+  assert.equal(old.kind, "ready");
+  if (old.kind !== "ready") return;
+  assert.equal(old.course.lessons[0]?.progress, "satisfied");
+  const tables = [
+    "session",
+    "task_run",
+    "task_advance",
+    "advance_withdrawal",
+    "task_credit",
+    "task_result",
+    "lesson_credit",
+    "lesson_credit_support",
+    "lesson_result",
+    "ink_document",
+    "ink_history",
+    "ink_operation",
+    "ink_stroke",
+    "ink_point_chunk",
+  ];
+  const personal = () =>
+    tables.map((name) => ({
+      name,
+      rows: first.db.prepare(`SELECT * FROM ${name} ORDER BY rowid`).all(),
+    }));
+  const conserved = personal();
+  const updated = f.connect(undefined, {
+    publicationHash: b.target,
+    releaseId: b.releaseId,
+  });
+  await downloadAndUse(updated.app, "editorial-b");
+  assert.deepEqual(personal(), conserved);
+  const view = await selectedCourse(updated.app, { kind: "cursor" });
+  assert.equal(view.kind, "ready");
+  if (view.kind !== "ready") return;
+  assert.equal(view.course.lessons[0]?.progress, "satisfied");
+  const added = view.course.lessons[0]?.tasks.find((task) => task.id === id);
+  assert.ok(added);
+  assert.equal(added.outcome, "unseen");
+  assert.equal(added.availability, "ready");
+  assert.ok(added.actions.some((a) => a.intent.kind === "start"));
+  assert.deepEqual(
+    view.course.lessons[1]?.tasks.map((task) => ({
+      id: task.id,
+      availability: task.availability,
+      actions: task.actions.map((a) => a.intent.kind),
+    })),
+    old.course.lessons[1]?.tasks.map((task) => ({
+      id: task.id,
+      availability: task.availability,
+      actions: task.actions.map((a) => a.intent.kind),
+    })),
+  );
+  f.namespace(b.target)?.clear();
+  f.setOffline(true);
+  const cold = f.connect(),
+    catalog = await cold.app.readLessonFiles();
+  assert.equal(catalog.activation.kind, "present");
+  if (catalog.activation.kind !== "present") return;
+  assert.equal(catalog.activation.activePackageHash, b.target);
+  assert.equal(catalog.activation.fallbackPackageHash, f.target);
+  assert.deepEqual(personal(), conserved);
+});
+
+for (const variant of ["removed", "reordered", "identity"] as const)
+  test(`signed update refuses ${variant} existing task identities`, async (t) => {
+    const f = await installationFixture(t, "completeLessons"),
+      first = f.connect();
+    await first.app.initialInstall(await f.command(first.app));
+    await f.until(first.app, "activated");
+    if (f.content.body.coverage !== "course-development-v4")
+      throw new Error("Full synthetic course required");
+    const lesson = f.content.body.lessons[0];
+    assert.ok(lesson);
+    let lessonTasks = [...lesson.lessonTasks];
+    let tasks: unknown[] = [...lesson.tasks];
+    if (variant === "removed") {
+      lessonTasks.pop();
+      tasks.pop();
+    }
+    if (variant === "reordered") {
+      lessonTasks = lesson.lessonTasks.map((_task, i) => {
+        const task = lesson.lessonTasks[i === 0 ? 1 : i === 1 ? 0 : i];
+        assert.ok(task);
+        return { ...task, number: i + 1 };
+      });
+      tasks = lesson.tasks.map((_entry, i) => {
+        const entry = lesson.tasks[i === 0 ? 1 : i === 1 ? 0 : i];
+        assert.ok(entry);
+        return { ...entry, task: { ...entry.task, number: i + 1 } };
+      });
+    }
+    if (variant === "identity") {
+      const id = parseId({
+        kind: "task",
+        value: "fixture.editorial.changed-existing",
+      });
+      lessonTasks = lessonTasks.map((task, i) =>
+        i === 0 ? { ...task, id } : task,
+      );
+      tasks = lesson.tasks.map((entry, i) =>
+        i === 0 ? { ...entry, task: { ...entry.task, id } } : entry,
+      );
+    }
+    const body = {
+      ...f.content.body,
+      lessons: f.content.body.lessons.map((l, i) =>
+        i === 0 ? { ...l, lessonTasks, tasks } : l,
+      ),
+    };
+    const content = await parseRuntimePackage(
+      { formatVersion: 1, body, packageHash: await hash(canonical(body)) },
+      hash,
+    );
+    const next = await f.anotherRelease(
+      `fixture.editorial.${variant}`,
+      content,
+    );
+    const c = f.connect(undefined, {
+        publicationHash: next.target,
+        releaseId: next.releaseId,
+      }),
+      view = await c.app.readLessonFiles();
+    assert.equal(view.offer.kind, "available");
+    if (view.offer.kind !== "available") return;
+    const installationId = (await c.app.readDirectory()).administration
+      .installationId;
+    const command = parseLessonFilesCommand({
+      version: 1,
+      family: "lesson-files",
+      installationId,
+      commandId: `editorial-${variant}`,
+      expected: view.activation,
+      action: { kind: "download", target: view.offer.target },
+    });
+    await c.app.changeLessonFiles(command);
+    const result = await until(c.app, command.commandId, "rejected");
+    assert.equal(result.kind, "rejected");
+    if (result.kind !== "rejected") return;
+    assert.equal(result.reason, "incompatible");
+    assert.equal(
+      c.db.prepare("SELECT active_package_hash FROM course_activation").get()
+        ?.active_package_hash,
+      f.target,
+    );
+    assert.equal(
+      c.db.prepare("SELECT count(*) AS n FROM installed_package").get()?.n,
+      1,
+    );
+  });

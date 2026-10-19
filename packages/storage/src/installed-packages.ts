@@ -76,6 +76,7 @@ export function updateCompatibility({
       const updated = newLessons[index];
       return (
         !updated ||
+        lesson.lessonTasks.length > updated.lessonTasks.length ||
         canonical(
           lesson.lessonTasks.map((task) => ({
             id: task.id,
@@ -84,11 +85,13 @@ export function updateCompatibility({
           })),
         ) !==
           canonical(
-            updated.lessonTasks.map((task) => ({
-              id: task.id,
-              number: task.number,
-              optional: task.optional,
-            })),
+            updated.lessonTasks
+              .slice(0, lesson.lessonTasks.length)
+              .map((task) => ({
+                id: task.id,
+                number: task.number,
+                optional: task.optional,
+              })),
           )
       );
     })
