@@ -5,7 +5,7 @@ import {
 import {
   connectedPointingGeometry,
   connectedPointingRoles,
-} from "./connected-pointing.ts";
+} from "./connected-pointing-assets.ts";
 export const lessonFiveCompletionAssetPayload = {
   glyphs: currentPrintedGlyphAssets,
   roles: connectedPointingRoles,

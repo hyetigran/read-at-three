@@ -8,6 +8,7 @@ import {
   evaluateControls,
   projectControls,
   controlCompletionProof,
+  separateReadinessNavigationCycles,
 } from "./control-engine.ts";
 import type {
   TeachingState,
@@ -854,15 +855,22 @@ export function validateAcceptanceState({
         )
           throw new Error("Navigation rewrote a saved control checkpoint");
       }
+      const separateCycles = separateReadinessNavigationCycles({
+        content,
+        baseline,
+        state,
+      });
       if (
         state.cycles
           .slice(baseline.cycles.length)
-          .some((c) =>
-            c.turnOccurrenceIds.some(
-              (id) =>
-                state.occurrences.find((o) => o.id === id)?.obligation !==
-                "support",
-            ),
+          .some(
+            (c) =>
+              !separateCycles.has(c.id) &&
+              c.turnOccurrenceIds.some(
+                (id) =>
+                  state.occurrences.find((o) => o.id === id)?.obligation !==
+                  "support",
+              ),
           )
       )
         throw new Error("Navigation invented an independent cycle");

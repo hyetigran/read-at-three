@@ -729,19 +729,22 @@
   cursor: default;
 }
 
-.teaching-arena[data-presentation="oral"] .teaching-parent-controls {
+.teaching-arena:is([data-presentation="oral"], [data-presentation="readiness"])
+  .teaching-parent-controls {
   position: static;
   width: auto;
 }
 
-.teaching-arena[data-presentation="oral"] .teaching-navigation-actions {
+.teaching-arena:is([data-presentation="oral"], [data-presentation="readiness"])
+  .teaching-navigation-actions {
   position: absolute;
   top: 16px;
   right: 24px;
   width: 106px;
 }
 
-.teaching-arena[data-presentation="oral"] .teaching-support-actions {
+.teaching-arena:is([data-presentation="oral"], [data-presentation="readiness"])
+  .teaching-support-actions {
   position: absolute;
   right: 150px;
   bottom: 8px;
@@ -752,7 +755,7 @@
   margin: 0;
 }
 
-.teaching-arena[data-presentation="oral"]
+.teaching-arena:is([data-presentation="oral"], [data-presentation="readiness"])
   .teaching-support-actions
   .teaching-button {
   width: auto;
@@ -761,7 +764,11 @@
 }
 
 @media (max-height: 680px) {
-  .teaching-arena[data-presentation="oral"] .teaching-navigation-actions {
+  .teaching-arena:is(
+      [data-presentation="oral"],
+      [data-presentation="readiness"]
+    )
+    .teaching-navigation-actions {
     top: 2px;
   }
 }

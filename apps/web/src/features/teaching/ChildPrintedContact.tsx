@@ -13,10 +13,14 @@ export function ChildPrintedContact({
   cue,
   disabled,
   retire,
+  diagram = printedDiagramAsset,
+  contactSize = compactPrintedGeometry.contactSize,
 }: {
   cue: Extract<PrintedCue, { kind: "childUnderSymbol" }>;
   disabled: boolean;
   retire: RefObject<() => void>;
+  diagram?: typeof printedDiagramAsset;
+  contactSize?: number;
 }) {
   const [contact, setContact] = useState<ChildContact>({
     kind: "idle",
@@ -63,9 +67,8 @@ export function ChildPrintedContact({
       ? { x: p.x, y: p.y }
       : null;
   }
-  const start =
-    cue.pace === "slow" ? printedDiagramAsset.start : printedDiagramAsset.under;
-  const marker = cue.pace === "fast" ? printedDiagramAsset.under : contact;
+  const start = cue.pace === "slow" ? diagram.start : diagram.under;
+  const marker = cue.pace === "fast" ? diagram.under : contact;
   return (
     <div
       ref={surface}
@@ -76,7 +79,7 @@ export function ChildPrintedContact({
       {contact.kind !== "idle" && !disabled ? (
         <svg
           className="child-contact-marker"
-          viewBox={printedDiagramAsset.viewBox}
+          viewBox={diagram.viewBox}
           preserveAspectRatio="none"
           aria-hidden="true"
         >
@@ -95,10 +98,10 @@ export function ChildPrintedContact({
         aria-label="Child pointing feedback"
         disabled={disabled}
         style={{
-          width: compactPrintedGeometry.contactSize,
-          height: compactPrintedGeometry.contactSize,
-          left: `${(start.x / Number(printedDiagramAsset.viewBox.split(" ")[2])) * 100}%`,
-          top: `${(start.y / Number(printedDiagramAsset.viewBox.split(" ")[3])) * 100}%`,
+          width: contactSize,
+          height: contactSize,
+          left: `${(start.x / Number(diagram.viewBox.split(" ")[2])) * 100}%`,
+          top: `${(start.y / Number(diagram.viewBox.split(" ")[3])) * 100}%`,
         }}
         onPointerDown={(event) => {
           if (
@@ -186,9 +189,7 @@ export function ChildPrintedContact({
             publish({
               kind: "keyboardMove",
               generation: current.current.generation,
-              ...(event.key === "ArrowLeft"
-                ? start
-                : printedDiagramAsset.under),
+              ...(event.key === "ArrowLeft" ? start : diagram.under),
             });
           }
         }}

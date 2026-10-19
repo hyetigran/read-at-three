@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import {
   connectedPointingBoards,
-  lessonFiveCompletionAssetPayload,
+  connectedRenderingProfile,
   currentPrintedGlyphAssets,
 } from "@readatthree/teaching";
 import type {
@@ -38,6 +38,7 @@ export function ConnectedPointingActivity({
   const [visible, setVisible] = useState<Contact>(contact.current);
   const asset = connectedPointingBoards[presentation.board];
   const geometry = asset.geometry;
+  const profile = connectedRenderingProfile(presentation.board);
   const region = disabled || visible.kind === "idle" ? null : visible.region;
   useLayoutEffect(() => {
     const element = svg.current;
@@ -99,10 +100,8 @@ export function ConnectedPointingActivity({
     return connectedContactRegion({
       x: point.x,
       y: point.y,
-      contactSize:
-        asset.reviewId === "rhyming-connected-writing-l05-v1"
-          ? lessonFiveCompletionAssetPayload.connected.contactSize
-          : 44,
+      contactSize: profile.contactSize,
+      geometry,
       pixelsPerUnit: Math.min(
         Math.hypot(matrix.a, matrix.b),
         Math.hypot(matrix.c, matrix.d),
@@ -111,15 +110,15 @@ export function ConnectedPointingActivity({
   }
   return (
     <div
-      className={`teaching-connected-pointing${asset.reviewId === "rhyming-connected-writing-l05-v1" ? " teaching-connected-child-voiced" : ""}`}
+      className={`teaching-connected-pointing${profile.childVoiced ? " teaching-connected-child-voiced" : ""}`}
     >
       <svg
         ref={svg}
         style={
-          asset.reviewId === "rhyming-connected-writing-l05-v1"
+          profile.childVoiced
             ? {
-                width: lessonFiveCompletionAssetPayload.connected.width,
-                height: lessonFiveCompletionAssetPayload.connected.height,
+                width: profile.width,
+                height: profile.height,
                 maxHeight: "none",
               }
             : undefined
@@ -223,10 +222,8 @@ export function ConnectedPointingActivity({
       >
         {connectedContactRegions({
           pixelsPerUnit,
-          contactSize:
-            asset.reviewId === "rhyming-connected-writing-l05-v1"
-              ? lessonFiveCompletionAssetPayload.connected.contactSize
-              : 44,
+          geometry,
+          contactSize: profile.contactSize,
         }).map((circle) => (
           <circle
             key={circle.kind}
@@ -245,7 +242,7 @@ export function ConnectedPointingActivity({
             <svg
               key={index}
               {...placement}
-              viewBox="0 0 310 250"
+              viewBox={profile.glyphViewBox}
               aria-hidden="true"
             >
               <path

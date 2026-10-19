@@ -49,6 +49,7 @@ export type CumulativeDevelopmentBody = CumulativeBodyFields &
           | "reviewed-board-layouts-l04-v1"
           | "child-pointed-single-sounds-l05-v1"
           | "rhyming-connected-writing-l05-v1"
+          | "complete-lessons-01-06-v1"
         )[];
       }
     | {
