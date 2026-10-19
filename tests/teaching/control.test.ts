@@ -39,7 +39,7 @@ function accept({
   const { before, plan } = f.act(action);
   assert.ok(plan.kind === "acceptance" || plan.kind === "completion");
   validateAcceptanceTransition({
-    content: f.content,
+    content: f.installed,
     taskId: f.taskId,
     before,
     after: plan.after,
@@ -58,7 +58,7 @@ test("oral tasks preserve every response, explicit first readiness and required 
   assert.match(current(f), /response-01$/);
   assert.equal(f.state.cycleOutcomes.length, 1);
   assert.equal(f.state.cycleOutcomes[0]?.kind, "independent");
-  assert.equal(completionProof(f.content, f.state), null);
+  assert.equal(completionProof(f.installed, f.state), null);
   const ready = accept({
     fixture: f,
     action: { kind: "parentReady", policyId: policy(f) },
@@ -68,7 +68,7 @@ test("oral tasks preserve every response, explicit first readiness and required 
   for (let i = 0; i < 5; i++)
     accept({ fixture: f, action: { kind: "continue" } });
   assert.equal(f.view().kind, "reviewSelection");
-  assert.equal(completionProof(f.content, f.state), null);
+  assert.equal(completionProof(f.installed, f.state), null);
   const review = f.graph.reviews[0];
   assert.ok(review);
   assert.throws(() => f.act({ kind: "continue" }), /unavailable/);
@@ -83,7 +83,7 @@ test("oral tasks preserve every response, explicit first readiness and required 
   assert.equal(terminal.kind, "completion");
   assert.equal(f.view().kind, "completed");
   assert.equal(f.state.queues[0]?.choice.kind, "none");
-  assert.ok(completionProof(f.content, f.state));
+  assert.ok(completionProof(f.installed, f.state));
   const t5 = await controlFixture(5);
   for (let i = 0; i < 4; i++) {
     assert.match(current(t5), new RegExp(`response-0${i + 1}$`));
@@ -158,7 +158,7 @@ test("correction preserves one suspension, supports prefix readiness and resolve
   f.act({ kind: "help", correctionId: correction.id });
   assert.equal(f.state.checkpoints.at(-1)?.context.kind, "correction");
   validateAcceptanceState({
-    content: f.content,
+    content: f.installed,
     taskId: f.taskId,
     baseline,
     state: f.state,
@@ -235,7 +235,7 @@ test("tampered queue, outcome, binding and acceptance action fail closed", async
     ...malformed,
     queues: [{ ...q, exitNodeId: r.id }],
   };
-  assert.throws(() => validatePosition(f.content, tampered), /queue/);
+  assert.throws(() => validatePosition(f.installed, tampered), /queue/);
   const { before, plan: ready } = f.act({
     kind: "parentReady",
     policyId: policy(f),
@@ -244,7 +244,7 @@ test("tampered queue, outcome, binding and acceptance action fail closed", async
   assert.throws(
     () =>
       validateAcceptanceTransition({
-        content: f.content,
+        content: f.installed,
         taskId: f.taskId,
         before,
         after: ready.after,
@@ -304,7 +304,7 @@ test("saved checkpoints reject future normal jumps and a correction that changes
       },
     ],
   };
-  assert.throws(() => validatePosition(f.content, jumped), /authored route/);
+  assert.throws(() => validatePosition(f.installed, jumped), /authored route/);
   const c = f.task.corrections.find((c) => c.scope === "any");
   assert.ok(c);
   f.act({ kind: "help", correctionId: c.id });
@@ -321,7 +321,7 @@ test("saved checkpoints reject future normal jumps and a correction that changes
     ],
   };
   assert.throws(
-    () => validatePosition(f.content, tampered),
+    () => validatePosition(f.installed, tampered),
     /Cycle checkpoint|suspended/,
   );
 });

@@ -1,3 +1,4 @@
+import { installedFixture } from "../installed-fixture.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -14,7 +15,7 @@ import {
 import { writingFixture, writingHash } from "./writing-fixture.ts";
 
 test("seven explicit normal writing turns require four distinct parent phase confirmations", async () => {
-  const content = await writingFixture();
+  const content = await installedFixture(await writingFixture(), writingHash);
   let state = initialState(content);
   const observed: string[] = [],
     actions: string[] = [];
@@ -103,24 +104,29 @@ test("seven explicit normal writing turns require four distinct parent phase con
   );
 });
 test("permissions follow accepted frontier while Back is read only and generic tasks cannot Skip", async () => {
-  const content = await writingFixture();
+  const content = await installedFixture(await writingFixture(), writingHash);
   let state = initialState(content);
   const entry =
     content.body.coverage === "lesson1-complete"
       ? content.body.tasks[0]
       : undefined;
   if (!entry) throw Error();
-  const task = writingTask({ content, taskId: entry.task.id });
+  const task = writingTask({
+    content: content.document,
+    taskId: entry.task.id,
+  });
   if (!task || state.kind !== "graphControls") throw Error();
   const first = task.targets[0],
     second = task.targets[1];
   if (!first || !second) throw Error();
   assert.equal(
-    writingPermission({ content, state, targetId: first.id }).writable,
+    writingPermission({ content: content.document, state, targetId: first.id })
+      .writable,
     false,
   );
   assert.equal(
-    writingPermission({ content, state, targetId: second.id }).writable,
+    writingPermission({ content: content.document, state, targetId: second.id })
+      .writable,
     false,
   );
   state = evaluateGraph({
@@ -131,7 +137,8 @@ test("permissions follow accepted frontier while Back is read only and generic t
   }).after;
   if (state.kind !== "graphControls") throw Error();
   assert.equal(
-    writingPermission({ content, state, targetId: first.id }).writable,
+    writingPermission({ content: content.document, state, targetId: first.id })
+      .writable,
     true,
   );
   const back = evaluateGraph({
@@ -141,7 +148,11 @@ test("permissions follow accepted frontier while Back is read only and generic t
     action: { kind: "back" },
   }).after;
   assert.equal(
-    writingPermission({ content, state: back, targetId: first.id }).writable,
+    writingPermission({
+      content: content.document,
+      state: back,
+      targetId: first.id,
+    }).writable,
     false,
   );
   const skipped = evaluateGraph({
@@ -153,7 +164,7 @@ test("permissions follow accepted frontier while Back is read only and generic t
   assert.equal(skipped.kind, "skip");
   assert.equal(project(content, skipped.after).kind, "skipped");
   assert.equal(completionProof(content, skipped.after), null);
-  const raw = JSON.parse(canonical(content));
+  const raw = JSON.parse(canonical(content.document));
   raw.body.tasks[0].kind = "graphControls";
   await assert.rejects(
     parseDevelopmentPackage(
@@ -164,7 +175,7 @@ test("permissions follow accepted frontier while Back is read only and generic t
 });
 
 test("Back to an accepted Repeat checkpoint with the frontier source node stays read only", async () => {
-  const content = await writingFixture();
+  const content = await installedFixture(await writingFixture(), writingHash);
   let state = initialState(content);
   if (state.kind !== "graphControls") throw Error();
   state = evaluateGraph({
@@ -196,7 +207,7 @@ test("Back to an accepted Repeat checkpoint with the frontier source node stays 
   }).after;
   assert.equal(
     writingPermission({
-      content,
+      content: content.document,
       state,
       targetId: parseId({ kind: "target", value: "first" }),
     }).writable,

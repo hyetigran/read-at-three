@@ -7,7 +7,7 @@ import {
   resolvedTask,
   authoredTaskIdentity,
 } from "./course-content.ts";
-import type { RuntimePackage } from "./course-content.ts";
+import type { InstalledTeaching } from "./installed-teaching.ts";
 import { writingTask, writingPermission, layerForPhase } from "./writing.ts";
 import { controlActions } from "./control-engine.ts";
 import { canonicalReviewChoice } from "./control-content.ts";
@@ -229,14 +229,14 @@ function sameAuthoredTask({
   candidate,
   taskId,
 }: {
-  previous: RuntimePackage;
-  candidate: RuntimePackage;
+  previous: InstalledTeaching;
+  candidate: InstalledTeaching;
   taskId: TaskId;
 }) {
-  const before = authoredTaskIdentity({ content: previous, taskId });
+  const before = authoredTaskIdentity({ content: previous.document, taskId });
   return (
     before !== null &&
-    before === authoredTaskIdentity({ content: candidate, taskId })
+    before === authoredTaskIdentity({ content: candidate.document, taskId })
   );
 }
 function catalogFor({
@@ -244,19 +244,19 @@ function catalogFor({
   context,
   retained,
 }: {
-  active: RuntimePackage;
+  active: InstalledTeaching;
   context: StoredContext;
-  retained: ReadonlyMap<import("./types.ts").PackageHash, RuntimePackage>;
+  retained: ReadonlyMap<import("./types.ts").PackageHash, InstalledTeaching>;
 }): readonly CatalogTask[] {
   if (active.body.coverage === "partial-first-m") return [];
-  return resolvedLessons(active)
+  return resolvedLessons(active.document)
     .flatMap((lesson) => lesson.lessonTasks)
     .map((task): CatalogTask => {
       const saved = context.sessions
         .filter(
           (session) =>
             session.taskId === task.id &&
-            (session.packageHash === active.packageHash ||
+            (session.packageHash === active.key ||
               (() => {
                 const previous = retained.get(session.packageHash);
                 return (
@@ -288,8 +288,9 @@ function catalogFor({
         title: task.title,
         optional: task.optional,
         completed: result?.outcome === "completed",
-        available: resolvedTask({ content: active, taskId: task.id }) !== null,
-        packageHash: active.packageHash,
+        available:
+          resolvedTask({ content: active.document, taskId: task.id }) !== null,
+        packageHash: active.key,
         savedSessionId: saved?.sessionId ?? null,
       };
       return result?.outcome === "skipped" && task.optional
@@ -303,8 +304,8 @@ function selectionActions({
   context,
   catalog,
 }: {
-  active: RuntimePackage;
-  content: RuntimePackage;
+  active: InstalledTeaching;
+  content: InstalledTeaching;
   context: StoredContext;
   catalog: readonly CatalogTask[];
 }): AvailableAction[] {
@@ -312,7 +313,7 @@ function selectionActions({
   const current = context.session;
   const sameCompleteTask =
     current !== null &&
-    (current.packageHash === active.packageHash ||
+    (current.packageHash === active.key ||
       sameAuthoredTask({
         previous: content,
         candidate: active,
@@ -356,7 +357,7 @@ function selectionActions({
         choice(`Start full Task ${task.number}`, {
           kind: "restart",
           taskId: task.id,
-          packageHash: active.packageHash,
+          packageHash: active.key,
           sessionId: incompatibleSaved.sessionId,
         }),
       );
@@ -368,7 +369,7 @@ function selectionActions({
           choice("Replay task", {
             kind: "replay",
             taskId: task.id,
-            packageHash: active.packageHash,
+            packageHash: active.key,
             sessionId: current.sessionId,
           }),
         );
@@ -377,7 +378,7 @@ function selectionActions({
           choice("Start full task", {
             kind: "restart",
             taskId: task.id,
-            packageHash: active.packageHash,
+            packageHash: active.key,
             sessionId: current.sessionId,
           }),
         );
@@ -386,7 +387,7 @@ function selectionActions({
         choice(`${task.completed ? "Replay" : "Start"} Task ${task.number}`, {
           kind: task.completed ? "replay" : "start",
           taskId: task.id,
-          packageHash: active.packageHash,
+          packageHash: active.key,
           sessionId: null,
         }),
       );
@@ -401,7 +402,7 @@ function selectionActions({
       choice("Restart task", {
         kind: "restart",
         taskId: current.taskId,
-        packageHash: active.packageHash,
+        packageHash: active.key,
         sessionId: current.sessionId,
       }),
     );
@@ -427,8 +428,8 @@ export function createCoordinator({
       const active = await store.resolvePackage(context.activePackageHash);
       const retained = new Map<
         import("./types.ts").PackageHash,
-        RuntimePackage
-      >([[active.packageHash, active]]);
+        InstalledTeaching
+      >([[active.key, active]]);
       for (const session of context.sessions)
         if (!retained.has(session.packageHash))
           retained.set(
@@ -472,7 +473,7 @@ export function createCoordinator({
           witness: {
             owner: context.owner,
             profileRevision: context.profileRevision,
-            activePackageHash: active.packageHash,
+            activePackageHash: active.key,
             activationRevision: context.activationRevision ?? parseCounter("0"),
             cursorRevision: context.cursorRevision ?? parseCounter("0"),
             selectedSessionRevision: context.session?.revision ?? null,
@@ -488,14 +489,14 @@ export function createCoordinator({
             choice("Start", {
               kind: "start",
               taskId: active.body.taskId,
-              packageHash: active.packageHash,
+              packageHash: active.key,
               sessionId: null,
             }),
           );
         return envelope({
           kind: "entry",
           owner: context.owner,
-          packageHash: active.packageHash,
+          packageHash: active.key,
           title: active.body.title,
           profileRevision: context.profileRevision,
           catalog,
@@ -505,7 +506,10 @@ export function createCoordinator({
       const session = context.session;
       validatePosition(content, session.state, session.taskId);
       const engine = project(content, session.state);
-      const writing = writingTask({ content, taskId: session.taskId });
+      const writing = writingTask({
+        content: content.document,
+        taskId: session.taskId,
+      });
       const documents = writing
         ? await store.documents?.({ session })
         : undefined;
@@ -521,13 +525,17 @@ export function createCoordinator({
       const title =
         content.body.coverage === "partial-first-m"
           ? content.body.title
-          : taskDefinition({ content, taskId: session.taskId }).graph.task
-              .title;
+          : taskDefinition({
+              content: content.document,
+              taskId: session.taskId,
+            }).graph.task.title;
       const taskNumber =
         content.body.coverage === "partial-first-m"
           ? 1
-          : taskDefinition({ content, taskId: session.taskId }).graph.task
-              .number;
+          : taskDefinition({
+              content: content.document,
+              taskId: session.taskId,
+            }).graph.task.number;
       const actions: AvailableAction[] = [];
       if (session.status === "active" && session.runStatus === "inProgress") {
         if (session.state.kind === "graphControls")
@@ -546,7 +554,7 @@ export function createCoordinator({
           if (engine.kind === "teaching") {
             actions.push(choice("Repeat", { kind: "repeat" }));
             const current = engine.turn;
-            const graph = graphTask(content, session.taskId);
+            const graph = graphTask(content.document, session.taskId);
             for (const spec of graph.task.corrections) {
               if (spec.eligibleNodeIds.includes(current.id)) {
                 const correctionPreview = graph.nodes.get(
@@ -635,7 +643,7 @@ export function createCoordinator({
       return envelope({
         ...publishedEngine,
         owner: context.owner,
-        packageHash: content.packageHash,
+        packageHash: content.key,
         title,
         profileRevision: context.profileRevision,
         sessionId: session.sessionId,
@@ -705,7 +713,7 @@ export async function dispatchTeachingInTransaction({
     )) !== command.payloadHash
   )
     return reject("payload-hash", "Command payload hash does not match.");
-  let content: RuntimePackage | undefined;
+  let content: InstalledTeaching | undefined;
   try {
     content = await store.resolvePackage(command.payload.packageHash);
   } catch {}
@@ -734,7 +742,7 @@ export async function dispatchTeachingInTransaction({
           "command-identity",
           "Command identity was reused with a changed payload.",
         );
-  if (!content || content.packageHash !== command.payload.packageHash)
+  if (!content || content.key !== command.payload.packageHash)
     return reject(
       "missing-package",
       "Exact command content package is unavailable.",
@@ -747,7 +755,8 @@ export async function dispatchTeachingInTransaction({
     if (
       context.session &&
       writingTask({
-        content: await store.resolvePackage(context.session.packageHash),
+        content: (await store.resolvePackage(context.session.packageHash))
+          .document,
         taskId: context.session.taskId,
       }) &&
       context.session.status === "active" &&
@@ -781,14 +790,14 @@ export async function dispatchTeachingInTransaction({
       if (
         !target ||
         target.taskId !== command.payload.taskId ||
-        target.packageHash !== content.packageHash ||
+        target.packageHash !== content.key ||
         target.runStatus !== "inProgress" ||
         target.status === "closed"
       )
         return reject("wrong-target", "Saved run is unavailable for Resume.");
       selection = { kind: "resume", session: target };
     } else {
-      if (content.packageHash !== context.activePackageHash)
+      if (content.key !== context.activePackageHash)
         return reject(
           "inactive-package",
           "New runs use the active content package.",
@@ -804,7 +813,7 @@ export async function dispatchTeachingInTransaction({
         if (content.body.coverage === "partial-first-m")
           return reject("legacy-start", "Legacy preview can only be resumed.");
         try {
-          taskDefinition({ content, taskId });
+          taskDefinition({ content: content.document, taskId });
         } catch {
           return reject(
             "task-unavailable",
@@ -884,7 +893,7 @@ export async function dispatchTeachingInTransaction({
       runId:
         selection.kind === "new" ? selection.runId : selection.session.runId,
       revision: increment(context.profileRevision),
-      packageHash: content.packageHash,
+      packageHash: content.key,
     };
     await tx.select({ command, context, content, selection, receipt });
     return receipt;
@@ -915,7 +924,9 @@ export async function dispatchTeachingInTransaction({
       context.selectionCounter !== binding.selectionCounter
     )
       return reject("stale-undo", "The saved Undo advance window changed.");
-    const writing = writingTask({ content, taskId: session.taskId }) !== null;
+    const writing =
+      writingTask({ content: content.document, taskId: session.taskId }) !==
+      null;
     if (
       writing
         ? command.kind !== "writingUndoAdvance" ||
@@ -938,7 +949,7 @@ export async function dispatchTeachingInTransaction({
       sessionId: session.sessionId,
       runId: session.runId,
       revision: increment(session.revision),
-      packageHash: content.packageHash,
+      packageHash: content.key,
     };
     await tx.undoAdvance({
       command,
@@ -953,7 +964,8 @@ export async function dispatchTeachingInTransaction({
     (session.status === "closed" && context.undoRunId !== session.runId)
   )
     return reject("not-active", "Resume the saved run before teaching.");
-  const isWriting = writingTask({ content, taskId: session.taskId }) !== null;
+  const isWriting =
+    writingTask({ content: content.document, taskId: session.taskId }) !== null;
   if (isWriting) {
     if (
       (command.kind !== "writingNavigate" &&
@@ -985,7 +997,7 @@ export async function dispatchTeachingInTransaction({
         session.state.kind !== "graphControls") ||
       currentCheckpoint(session.state).id !== command.payload.checkpointId ||
       !writingPermission({
-        content,
+        content: content.document,
         state: session.state,
         targetId: document.targetId,
       }).writable ||
@@ -1003,7 +1015,7 @@ export async function dispatchTeachingInTransaction({
       sessionId: session.sessionId,
       runId: session.runId,
       revision: increment(session.revision),
-      packageHash: content.packageHash,
+      packageHash: content.key,
     };
     if (
       !(await tx.applyWritingControl({
@@ -1063,7 +1075,7 @@ export async function dispatchTeachingInTransaction({
     sessionId: session.sessionId,
     runId: session.runId,
     revision: increment(session.revision),
-    packageHash: content.packageHash,
+    packageHash: content.key,
   };
   const application = {
     command,

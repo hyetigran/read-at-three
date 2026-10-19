@@ -1,3 +1,4 @@
+import { installedFixture } from "../installed-fixture.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -19,14 +20,15 @@ import { syntheticLessonFiveCompletion } from "../lesson-five-completion-fixture
 import { hash } from "../lesson-two-fixture.ts";
 
 async function fixture(index: number) {
-  const { content, taskIds } = await syntheticLessonFiveCompletion();
+  const { content: document, taskIds } = await syntheticLessonFiveCompletion();
+  const content = await installedFixture(document, hash);
   const taskId = taskIds[index];
   if (!taskId) throw Error("Synthetic task required");
   const initial = initialState(content, taskId);
   if (initial.kind !== "graphControls")
     throw Error("Synthetic control state required");
   let state = initial;
-  const definition = taskDefinition({ content, taskId });
+  const definition = taskDefinition({ content: content.document, taskId });
   if (definition.kind !== "graphControls")
     throw Error("Synthetic control graph required");
   return {
@@ -117,7 +119,7 @@ for (const index of [0, 1])
       });
 test("V3 statement stays on the readonly model phase and never invents a child response", async () => {
   const f = await fixture(2);
-  const task = writingTask({ content: f.content, taskId: f.taskId });
+  const task = writingTask({ content: f.content.document, taskId: f.taskId });
   assert.ok(task);
   assert.deepEqual(
     task.nodes.map((node) => node.presentation.obligation.kind),
@@ -136,7 +138,7 @@ test("V3 statement stays on the readonly model phase and never invents a child r
   assert.ok(first);
   assert.deepEqual(
     writingPermission({
-      content: f.content,
+      content: f.content.document,
       state: f.state,
       targetId: first.id,
     }),
@@ -145,7 +147,7 @@ test("V3 statement stays on the readonly model phase and never invents a child r
   f.act({ kind: "continue" });
   assert.deepEqual(
     writingPermission({
-      content: f.content,
+      content: f.content.document,
       state: f.state,
       targetId: first.id,
     }),
@@ -154,7 +156,7 @@ test("V3 statement stays on the readonly model phase and never invents a child r
   f.act({ kind: "back" });
   assert.equal(
     writingPermission({
-      content: f.content,
+      content: f.content.document,
       state: f.state,
       targetId: first.id,
     }).writable,
@@ -164,7 +166,7 @@ test("V3 statement stays on the readonly model phase and never invents a child r
   f.act({ kind: "continue" });
   assert.deepEqual(
     writingPermission({
-      content: f.content,
+      content: f.content.document,
       state: f.state,
       targetId: first.id,
     }),

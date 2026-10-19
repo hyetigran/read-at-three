@@ -89,8 +89,140 @@ export {
   printedBoardAssetHash,
 } from "./printed-assets.ts";
 
+export {
+  publicationLimits,
+  publicationUtf8,
+  parseCanonicalPublicationJson,
+  decodePublicationSignature,
+  requireEd25519Spki,
+  verifyPublication,
+  verifyPublicationResource,
+} from "./publication.ts";
+export type {
+  PublicationHash,
+  PublicationCrypto,
+  PublicationTrustKey,
+  VerifiedPublication,
+} from "./publication.ts";
+export type {
+  ManifestBody,
+  PublicationEnvelope,
+  PublicationResource,
+} from "./publication-schemas.ts";
+
+export {
+  publicationEnvelopePath,
+  readPublicationResponse,
+  publishPublicationClosure,
+  PublicationResourceError,
+  revalidatePublicationClosure,
+} from "./publication-resources.ts";
+export type {
+  PublicationMode,
+  PublicationCancellation,
+  PublicationResponse,
+  PublicationNamespace,
+  PublicationResourcePorts,
+  PublicationIntegrityReason,
+  PublicationUnavailableReason,
+  VerifiedPublicationClosure,
+  PublicationClosureResult,
+} from "./publication-resources.ts";
+export {
+  ShellError,
+  shellLimits,
+  shellDescriptorPath,
+  shellServiceWorkerPath,
+  shellEntries,
+  shellResourceMedia,
+  verifyShellDescriptor,
+  verifyShellResource,
+} from "./shell.ts";
+export type {
+  ShellHash,
+  ShellPolicy,
+  VerifiedShell,
+  ShellObservation,
+} from "./shell.ts";
+export type {
+  ShellDescriptor,
+  ShellBody,
+  ShellResource,
+} from "./shell-schemas.ts";
+
 export * from "./connected-pointing.ts";
 
+export {
+  parseDevelopmentInstalledTeaching,
+  parseSignedInstalledTeaching,
+  InstalledTeachingError,
+} from "./installed-teaching.ts";
+export type { InstalledTeaching } from "./installed-teaching.ts";
+
+export {
+  parseInitialInstallCommand,
+  makeInitialInstallCommand,
+  parseInstallationFact,
+} from "./installation.ts";
+export type {
+  InitialInstallCommand,
+  InstallationFact,
+  InstallationRead,
+  InstallationCatalog,
+  InstallationObservation,
+  ActivationWitness,
+  ParentMaterialRequest,
+  ParentMaterialRead,
+  PortableInstallationApplication,
+} from "./installation.ts";
+export type {
+  InstalledApplicationOptions,
+  InstallationLease,
+} from "./installation-material.ts";
+export { parsePublicationHash } from "./publication.ts";
+
+export { InstalledContentUnavailableError } from "./installation.ts";
+
+export type { ParentMaterialFailure } from "./installation.ts";
+
+export { parseParentMaterialRequest } from "./installation.ts";
+
+export { initialInstallIdentity } from "./installation.ts";
+export {
+  createInstallationMaterials,
+  parseInstallMaterial,
+  requireInstallMaterial,
+  requireInstallationLease,
+  UnsupportedInstallProfileError,
+} from "./installation-material.ts";
+export type { SignedInstallMaterial } from "./installation-material.ts";
+
+export { parsePrintedPreviewTask } from "./content.ts";
+export {
+  parseActivationWitness,
+  parseInstallationRead,
+  parseInstallationCatalog,
+} from "./installation.ts";
+
+export { parseParentMaterialWire } from "./installation.ts";
+
+export { parseShellHash } from "./shell.ts";
+export {
+  parseShellBridgeRequest,
+  parseShellBridgeResponse,
+} from "./selection.ts";
+
+export {
+  parsePublicationSelection,
+  parsePublicationCheck,
+  parseInstalledResourceFailure,
+  InstalledResourceUnavailableError,
+} from "./installation.ts";
+export type {
+  PublicationSelection,
+  PublicationCheck,
+  InstalledResourceFailure,
+} from "./installation.ts";
 export * from "./lesson-five-completion-assets.ts";
 
 export {

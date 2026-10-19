@@ -39,6 +39,7 @@ import type {
   CommitReceipt,
   Counter,
   GraphTask,
+  PrintedPreviewTask,
   BoardTask,
   PrintedNode,
   CorrectionSpec,
@@ -47,12 +48,19 @@ import type {
 } from "./types.ts";
 import {
   validatePackage,
+  validatePrintedPreviewTask,
   validateState,
   validateCommand,
   validateReceipt,
   validateProjection,
   validateResult,
 } from "./generated-validators.js";
+export function parsePrintedPreviewTask(input: unknown): PrintedPreviewTask {
+  if (!validatePrintedPreviewTask(input))
+    throw new Error("Printed preview task is unsupported");
+  compileTask(input.task);
+  return deepFreeze(input);
+}
 export function canonicalContentBody(
   body:
     | DevelopmentBodyInput

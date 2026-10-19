@@ -1,4 +1,5 @@
 import {
+  InstalledResourceUnavailableError,
   canonical,
   prepareWritingControl,
   parseSelectedOperation,
@@ -23,6 +24,7 @@ import {
   visibleInkStrokes,
 } from "@readatthree/teaching";
 import type {
+  InstalledResourceFailure,
   AvailableAction,
   ControlTurnNode,
   DocumentToken,
@@ -94,6 +96,17 @@ export type Operation =
       message: string;
     }
   | { kind: "rejected"; message: string };
+type RecoveryObligation = Extract<
+  Operation,
+  {
+    kind:
+      | "failed"
+      | "inkFailed"
+      | "adminFailed"
+      | "adoptionFailed"
+      | "openingFailed";
+  }
+>;
 export type AdministrationOutcome =
   | Readonly<{
       kind: "visible" | "resolved";
@@ -102,6 +115,7 @@ export type AdministrationOutcome =
   | Readonly<{ kind: "held" }>
   | CommandRejection;
 export type ControllerState = Readonly<{
+  resourceBlock: InstalledResourceFailure | null;
   operation: Operation;
   correctionPreview: PrintedNode | ControlTurnNode | null;
   practiceControlsReady: boolean;
@@ -171,6 +185,7 @@ export function createWritingController({
   createTeaching: (stageRestore: RestoreTeaching) => CommittedTeachingExecution;
 }>) {
   let state: ControllerState = {
+    resourceBlock: null,
     operation: { kind: "opening" },
     correctionPreview: null,
     practiceControlsReady: false,
@@ -190,6 +205,9 @@ export function createWritingController({
   let fenceSerial = 0;
   let inputEligibleAt = performance.now();
   let operationSerial = 0;
+  let transportGeneration = 0;
+  let resourceSurfaceRevision = 0;
+  let resourceSurfaceKey: string | null = null;
   let closed = false;
   let semanticReservation = 0;
   let connected = false;
@@ -199,6 +217,7 @@ export function createWritingController({
   let opening: Promise<void> | null = null;
   let started = false;
   let draining: Promise<void> | null = null;
+  let recoveryObligation: RecoveryObligation | null = null;
   let queue = createInkCommandQueue();
   const teaching = createTeaching(stageRestore);
   function refreshExpectation(): ReadExpectation {
@@ -218,6 +237,28 @@ export function createWritingController({
         : (() => {
             throw new Error("Selected directory has not been discovered.");
           })();
+  }
+  function resourceContext() {
+    return {
+      operation: operationSerial,
+      transport: transportGeneration,
+      surface: resourceSurfaceRevision,
+    };
+  }
+  function observeResourceFailure(
+    error: unknown,
+    context: ReturnType<typeof resourceContext>,
+  ) {
+    if (
+      !closed &&
+      context.operation === operationSerial &&
+      context.transport === transportGeneration &&
+      context.surface === resourceSurfaceRevision &&
+      error instanceof InstalledResourceUnavailableError
+    ) {
+      fence();
+      publish({ resourceBlock: error.failure });
+    }
   }
   function publish(next: Partial<ControllerState>) {
     state = { ...state, ...next };
@@ -268,6 +309,7 @@ export function createWritingController({
   }
   function inputIsSuspended(): boolean {
     return (
+      state.resourceBlock !== null ||
       routeSuspended ||
       !focused ||
       pageHidden ||
@@ -285,6 +327,7 @@ export function createWritingController({
     paint();
   }
   client.onLoss(() => {
+    transportGeneration++;
     const wasConnected = connected;
     connected = false;
     fence();
@@ -442,7 +485,12 @@ export function createWritingController({
     if (closed || operationSerial !== ticket)
       throw new Error("A newer writing operation replaced this attempt.");
   }
+  function checkTransport(ticket: number) {
+    if (closed || transportGeneration !== ticket)
+      throw new Error("The retained writing transport was retired.");
+  }
   async function prepare(capture: Capture) {
+    const ticket = transportGeneration;
     if (capture.pending) return capture.pending;
     const view = documents.get(capture.documentId);
     if (!view) throw new Error("Retained writing binding is unavailable.");
@@ -482,6 +530,7 @@ export function createWritingController({
       ids,
       hash: hashText,
       reserve(bytes) {
+        checkTransport(ticket);
         const reservation = { bytes, through: points.length };
         if (
           writeReservation({ kind: "prepared", capture, reservation }) >
@@ -492,6 +541,7 @@ export function createWritingController({
         capture.segmentStart = points.length;
       },
     });
+    checkTransport(ticket);
     const operation = parseSelectedOperation({
       kind: "ink",
       selection: capture.contact.selection,
@@ -539,7 +589,9 @@ export function createWritingController({
     paint();
   }
   async function send(capture: Capture, recoveryId?: string) {
+    const ticket = transportGeneration;
     const pending = await prepare(capture);
+    checkTransport(ticket);
     let result: import("@readatthree/teaching").InkResult;
     if (recoveryId === undefined) {
       const connection = client.connectionTicket();
@@ -560,6 +612,7 @@ export function createWritingController({
         await client.recoverInk({ recoveryId, operation: pending.operation })
       ).result;
     }
+    checkTransport(ticket);
     if (result.kind !== "inkCommitted")
       throw new Error(
         "The writing binding changed. Retained writing needs recovery.",
@@ -567,14 +620,17 @@ export function createWritingController({
     acknowledge(capture, pending, result);
   }
   async function drain() {
+    const ticket = transportGeneration;
     if (draining) {
       await draining;
+      checkTransport(ticket);
       if (spool.some((capture) => capture.status !== "capturing"))
         return drain();
       return;
     }
-    draining = (async () => {
+    const attempt = (async () => {
       while (spool.length) {
+        checkTransport(ticket);
         const capture = spool[0];
         if (!capture) break;
         if (
@@ -587,16 +643,18 @@ export function createWritingController({
         if (capture.status === "capturing") break;
       }
     })();
+    draining = attempt;
     try {
-      await draining;
+      await attempt;
     } finally {
-      draining = null;
+      if (draining === attempt) draining = null;
     }
   }
   async function reconcile(
     prepared: PreparedAction | null = null,
     administration: ProfileAdministrationCommand | null = null,
   ) {
+    const ticket = operationSerial;
     fence();
     const retained = [...spool];
     const retainedStrokeIds = retained.map((capture) => capture.strokeId);
@@ -608,7 +666,8 @@ export function createWritingController({
       discovered?.selection;
     if ((retained.length || prepared || administration) && !selection)
       throw new Error("Retained selected lifetime is unavailable.");
-    const inventory = await client.connect(
+    const resource = resourceContext();
+    const connecting = client.connect(
       selection && (retained.length || prepared || administration)
         ? {
             kind: "warm",
@@ -619,55 +678,71 @@ export function createWritingController({
           }
         : { kind: "cold" },
     );
-    for (const capture of retained) {
-      capture.status = "interrupted";
-      while (spool.includes(capture)) await send(capture, inventory.recoveryId);
+    resource.transport = transportGeneration;
+    try {
+      const inventory = await connecting;
+      checkOperation(ticket);
+      for (const capture of retained) {
+        capture.status = "interrupted";
+        while (spool.includes(capture))
+          await send(capture, inventory.recoveryId);
+      }
+      const attempt = prepared
+        ? await teaching.execute({
+            kind: "closedRecovery",
+            recoveryId: inventory.recoveryId,
+            prepared,
+          })
+        : null;
+      checkOperation(ticket);
+      if (attempt && attempt.kind !== "resolved")
+        throw new Error("Closed recovery cannot publish teaching.");
+      const administrative = administration
+        ? await client.recoverAdministration({
+            recoveryId: inventory.recoveryId,
+            command: administration,
+          })
+        : null;
+      checkOperation(ticket);
+      const directory = await client.reconcileRecovery({
+        recoveryId: inventory.recoveryId,
+        choice:
+          retained.length || prepared || administration
+            ? { kind: "warm", settledStrokeIds: retainedStrokeIds }
+            : { kind: "cold" },
+      });
+      checkOperation(ticket);
+      discovered = directory;
+      connected = true;
+      return {
+        result: attempt?.result ?? null,
+        administrative: administrative?.result ?? null,
+        directory,
+        transport: resource.transport,
+      };
+    } catch (error) {
+      observeResourceFailure(error, resource);
+      throw error;
     }
-    const attempt = prepared
-      ? await teaching.execute({
-          kind: "closedRecovery",
-          recoveryId: inventory.recoveryId,
-          prepared,
-        })
-      : null;
-    if (attempt && attempt.kind !== "resolved")
-      throw new Error("Closed recovery cannot publish teaching.");
-    const administrative = administration
-      ? await client.recoverAdministration({
-          recoveryId: inventory.recoveryId,
-          command: administration,
-        })
-      : null;
-    const directory = await client.reconcileRecovery({
-      recoveryId: inventory.recoveryId,
-      choice:
-        retained.length || prepared || administration
-          ? { kind: "warm", settledStrokeIds: retainedStrokeIds }
-          : { kind: "cold" },
-    });
-    discovered = directory;
-    connected = true;
-    return {
-      result: attempt?.result ?? null,
-      administrative: administrative?.result ?? null,
-      directory,
-    };
   }
   async function open(): Promise<void> {
     if (opening) return opening;
     if (started) return;
     started = true;
     const ticket = ++operationSerial;
+    let resource = resourceContext();
     publish({ operation: { kind: "opening" } });
     opening = (async () => {
       try {
-        await reconcile();
+        const recovery = await reconcile();
         checkOperation(ticket);
+        resource = { ...resource, transport: recovery.transport };
         await teaching.read({ expectation: refreshExpectation() });
         checkOperation(ticket);
         publish({ operation: { kind: "idle" }, correctionPreview: null });
         reopenInput();
       } catch (error) {
+        observeResourceFailure(error, resource);
         if (closed || operationSerial !== ticket) return;
         fence();
         publish({
@@ -680,12 +755,13 @@ export function createWritingController({
           },
         });
       } finally {
-        opening = null;
+        if (operationSerial === ticket) opening = null;
       }
     })();
     return opening;
   }
   async function commit(prepared: PreparedAction, ticket = operationSerial) {
+    const resource = resourceContext();
     checkOperation(ticket);
     publish({ operation: { kind: "pending", prepared } });
     try {
@@ -712,7 +788,8 @@ export function createWritingController({
       }
       publish({ operation: { kind: "idle" }, correctionPreview: null });
       reopenInput();
-    } catch {
+    } catch (error) {
+      observeResourceFailure(error, resource);
       if (operationSerial !== ticket) return;
       fence();
       publish({
@@ -725,10 +802,12 @@ export function createWritingController({
     origin: Projection,
     ticket = operationSerial,
   ) {
+    const resource = resourceContext();
     try {
       await drain();
       checkOperation(ticket);
-    } catch {
+    } catch (error) {
+      observeResourceFailure(error, resource);
       if (operationSerial !== ticket) return;
       fence();
       publish({
@@ -820,7 +899,8 @@ export function createWritingController({
       if (operation.kind !== "teaching")
         throw new Error("Prepared teaching operation required.");
       prepared = { operation, origin };
-    } catch {
+    } catch (error) {
+      observeResourceFailure(error, resource);
       if (closed || operationSerial !== ticket) return;
       semanticReservation = 0;
       publish({
@@ -835,6 +915,7 @@ export function createWritingController({
     await commit(prepared, ticket);
   }
   async function enter(request: ActionRequest) {
+    if (state.resourceBlock) return false;
     if (
       !focused ||
       pageHidden ||
@@ -897,13 +978,17 @@ export function createWritingController({
     });
   }
   async function settleVisit() {
-    await waitForOperation();
-    if (state.operation.kind !== "idle") return false;
     const ticket = operationSerial;
+    const resource = resourceContext();
+    await waitForOperation();
+    if (closed || operationSerial !== ticket || state.operation.kind !== "idle")
+      return false;
     try {
       await drain();
       checkOperation(ticket);
-    } catch {
+    } catch (error) {
+      observeResourceFailure(error, resource);
+      if (closed || operationSerial !== ticket) return false;
       fence();
       publish({
         operation: {
@@ -936,9 +1021,12 @@ export function createWritingController({
     return state.operation.kind === "idle";
   }
   function settleSuspension() {
-    visiting ??= settleVisit().finally(() => {
-      visiting = null;
-    });
+    if (!visiting) {
+      const attempt = settleVisit().finally(() => {
+        if (visiting === attempt) visiting = null;
+      });
+      visiting = attempt;
+    }
     return visiting;
   }
   function visit() {
@@ -947,7 +1035,14 @@ export function createWritingController({
     reopenInput();
     return settleSuspension();
   }
-  function setSurface(surface: "teaching" | "other") {
+  function setSurface(
+    surface: "teaching" | "other",
+    routeKey: string = surface,
+  ) {
+    if (resourceSurfaceKey !== routeKey) {
+      resourceSurfaceKey = routeKey;
+      resourceSurfaceRevision++;
+    }
     routeSuspended = surface !== "teaching";
     if (routeSuspended) fence();
     reopenInput();
@@ -972,6 +1067,7 @@ export function createWritingController({
     receipt: ProfileAdministrationReceipt,
     ticket: number,
   ): Promise<AdministrationOutcome> {
+    const resource = resourceContext();
     publish({ operation: { kind: "adopting", receipt } });
     try {
       if (
@@ -1020,7 +1116,8 @@ export function createWritingController({
       publish({ operation: { kind: "idle" }, correctionPreview: null });
       reopenInput();
       return { kind: "visible", receipt };
-    } catch {
+    } catch (error) {
+      observeResourceFailure(error, resource);
       if (operationSerial === ticket && !closed) {
         fence();
         publish({
@@ -1051,6 +1148,7 @@ export function createWritingController({
     command: ProfileRemovalCommand,
     ticket: number,
   ) {
+    const resource = resourceContext();
     const directory = await readDirectory(ticket);
     if (
       directory.profiles.some(
@@ -1074,7 +1172,8 @@ export function createWritingController({
       checkOperation(ticket);
       publish({ operation: { kind: "idle" } });
       reopenInput();
-    } catch {
+    } catch (error) {
+      observeResourceFailure(error, resource);
       if (operationSerial === ticket && !closed)
         publish({ operation: { kind: "openingFailed", message: saveMessage } });
     }
@@ -1083,6 +1182,7 @@ export function createWritingController({
     command: ProfileAdministrationCommand,
     ticket: number,
   ): Promise<AdministrationOutcome> {
+    const resource = resourceContext();
     publish({ operation: { kind: "adminSaving", command } });
     try {
       const connection = client.connectionTicket();
@@ -1102,7 +1202,8 @@ export function createWritingController({
         publish({ operation: { kind: "adopting", receipt } });
       }
       return adopt(receipt, ticket);
-    } catch {
+    } catch (error) {
+      observeResourceFailure(error, resource);
       if (operationSerial === ticket && !closed) {
         fence();
         publish({
@@ -1116,7 +1217,8 @@ export function createWritingController({
     intent: ProfileAdministrationIntent | ProfileRemovalIntent,
   ): Promise<AdministrationOutcome> {
     await waitForOperation();
-    if (state.operation.kind !== "idle") return { kind: "held" };
+    if (state.resourceBlock || state.operation.kind !== "idle")
+      return { kind: "held" };
     const selection =
       teaching.current()?.directory.selection ?? discovered?.selection;
     if (!selection) return { kind: "held" };
@@ -1138,6 +1240,7 @@ export function createWritingController({
       teaching.retire();
     }
     const ticket = ++operationSerial;
+    const resource = resourceContext();
     directorySerial++;
     publish({ operation: { kind: "adminPreparing", intent } });
     try {
@@ -1163,7 +1266,8 @@ export function createWritingController({
             : await prepareProfileAdministration({ ...common, intent });
       checkOperation(ticket);
       return saveAdministration(command, ticket);
-    } catch {
+    } catch (error) {
+      observeResourceFailure(error, resource);
       if (operationSerial === ticket && !closed) {
         fence();
         publish({
@@ -1181,13 +1285,18 @@ export function createWritingController({
     operation: Extract<Operation, { kind: "adminFailed" | "adoptionFailed" }>,
   ) {
     const ticket = ++operationSerial;
+    let resource = resourceContext();
     fence();
     if (operation.kind === "adoptionFailed") {
       try {
-        if (!connected) await reconcile();
+        if (!connected) {
+          const recovery = await reconcile();
+          resource = { ...resource, transport: recovery.transport };
+        }
         checkOperation(ticket);
         await adopt(operation.receipt, ticket);
-      } catch {
+      } catch (error) {
+        observeResourceFailure(error, resource);
         if (operationSerial === ticket && !closed)
           publish({ operation: { ...operation, message: saveMessage } });
       }
@@ -1200,6 +1309,7 @@ export function createWritingController({
     try {
       const recovery = await reconcile(null, operation.command);
       checkOperation(ticket);
+      resource = { ...resource, transport: recovery.transport };
       if (
         !recovery.administrative ||
         recovery.administrative.kind === "rejected"
@@ -1221,19 +1331,90 @@ export function createWritingController({
         });
       }
       await adopt(recovery.administrative, ticket);
-    } catch {
+    } catch (error) {
+      observeResourceFailure(error, resource);
       if (operationSerial === ticket && !closed)
         publish({ operation: { ...operation, message: saveMessage } });
     }
   }
 
-  async function retry() {
+  function clearResolvedObligation(ticket: number) {
+    if (
+      !closed &&
+      operationSerial === ticket &&
+      (state.operation.kind === "idle" || state.operation.kind === "rejected")
+    )
+      recoveryObligation = null;
+  }
+  async function reconnect(): Promise<
+    { kind: "held" } | { kind: "restored"; retained: RecoveryObligation }
+  > {
+    if (closed) return { kind: "held" };
     const operation = state.operation;
+    const retained: RecoveryObligation =
+      operation.kind === "pending"
+        ? { kind: "failed", prepared: operation.prepared, message: saveMessage }
+        : operation.kind === "adminSaving"
+          ? {
+              kind: "adminFailed",
+              command: operation.command,
+              message: saveMessage,
+            }
+          : operation.kind === "adopting"
+            ? {
+                kind: "adoptionFailed",
+                receipt: operation.receipt,
+                message: saveMessage,
+              }
+            : operation.kind === "failed" ||
+                operation.kind === "adminFailed" ||
+                operation.kind === "adoptionFailed" ||
+                operation.kind === "inkFailed"
+              ? operation
+              : (recoveryObligation ?? {
+                  kind: "openingFailed",
+                  message: saveMessage,
+                });
+    recoveryObligation = retained;
+    ++operationSerial;
+    ++transportGeneration;
+    fence();
+    // Old operations are fenced before close rejects their outstanding requests.
+    client.close();
+    connected = false;
+    opening = null;
+    draining = null;
+    visiting = null;
+    publish({ operation: retained });
+    const attempt = retry(true);
+    const ticket = operationSerial;
+    await attempt;
+    clearResolvedObligation(ticket);
+    return !closed &&
+      operationSerial === ticket &&
+      state.operation.kind === "idle"
+      ? { kind: "restored", retained }
+      : { kind: "held" };
+  }
+
+  async function retry(reconnecting = false) {
+    const operation = state.operation;
+    if (
+      operation.kind === "failed" ||
+      operation.kind === "inkFailed" ||
+      operation.kind === "adminFailed" ||
+      operation.kind === "adoptionFailed" ||
+      operation.kind === "openingFailed"
+    )
+      recoveryObligation = operation;
     if (
       operation.kind === "adminFailed" ||
       operation.kind === "adoptionFailed"
     ) {
-      await retryAdministration(operation);
+      const attempt = retryAdministration(operation);
+      const ticket = operationSerial;
+      await attempt;
+      clearResolvedObligation(ticket);
       return;
     }
     if (
@@ -1243,11 +1424,12 @@ export function createWritingController({
       operation.kind === "adminPreparing" ||
       operation.kind === "adminSaving" ||
       operation.kind === "adopting" ||
-      !isTeachingViewport() ||
-      document.visibilityState !== "visible"
+      (!reconnecting &&
+        (!isTeachingViewport() || document.visibilityState !== "visible"))
     )
       return;
     const ticket = ++operationSerial;
+    let resource = resourceContext();
     fence();
     publish({ operation: { kind: "opening" } });
     try {
@@ -1266,6 +1448,7 @@ export function createWritingController({
             operation.kind === "failed" ? operation.prepared : null,
           );
       checkOperation(ticket);
+      if (recovery) resource = { ...resource, transport: recovery.transport };
       if (operation.kind === "failed") {
         const result = recovery?.result;
         if (
@@ -1339,6 +1522,7 @@ export function createWritingController({
         }
       }
     } catch (error) {
+      observeResourceFailure(error, resource);
       if (operationSerial !== ticket) return;
       fence();
       publish({
@@ -1361,17 +1545,21 @@ export function createWritingController({
                     retry: { kind: "inkOnly" },
                   },
       });
+    } finally {
+      clearResolvedObligation(ticket);
     }
   }
   async function interrupt() {
     const ticket = operationSerial;
+    const resource = resourceContext();
     fence();
     if (!connected || state.operation.kind !== "idle") return;
     try {
       await drain();
       checkOperation(ticket);
       reopenInput();
-    } catch {
+    } catch (error) {
+      observeResourceFailure(error, resource);
       if (
         closed ||
         operationSerial !== ticket ||
@@ -1447,6 +1635,27 @@ export function createWritingController({
       return false;
     }
   }
+  function backgroundDrain() {
+    const ticket = transportGeneration;
+    const resource = resourceContext();
+    void drain().catch((error) => {
+      observeResourceFailure(error, resource);
+      if (
+        closed ||
+        transportGeneration !== ticket ||
+        state.operation.kind !== "idle"
+      )
+        return;
+      fence();
+      publish({
+        operation: {
+          kind: "inkFailed",
+          message: saveMessage,
+          retry: { kind: "inkOnly" },
+        },
+      });
+    });
+  }
   function begin(
     documentId: DocumentToken["documentId"],
     sample: InkSample,
@@ -1500,17 +1709,7 @@ export function createWritingController({
     capture.buffer.appendConfirmed({ samples: [sample] });
     active = capture;
     paint();
-    void drain().catch(() => {
-      if (closed || state.operation.kind !== "idle") return;
-      fence();
-      publish({
-        operation: {
-          kind: "inkFailed",
-          message: saveMessage,
-          retry: { kind: "inkOnly" },
-        },
-      });
-    });
+    backgroundDrain();
     return contact;
   }
   function append(contact: InkContact, samples: readonly InkSample[]) {
@@ -1557,31 +1756,11 @@ export function createWritingController({
     active.status = status;
     active = null;
     paint();
-    void drain().catch(() => {
-      if (closed || state.operation.kind !== "idle") return;
-      fence();
-      publish({
-        operation: {
-          kind: "inkFailed",
-          message: saveMessage,
-          retry: { kind: "inkOnly" },
-        },
-      });
-    });
+    backgroundDrain();
   }
   const checkpoint = window.setInterval(() => {
     if (!connected || !active || state.operation.kind !== "idle") return;
-    void drain().catch(() => {
-      if (closed || state.operation.kind !== "idle") return;
-      fence();
-      publish({
-        operation: {
-          kind: "inkFailed",
-          message: saveMessage,
-          retry: { kind: "inkOnly" },
-        },
-      });
-    });
+    backgroundDrain();
   }, 750);
   const lifecycle = (event: Event) => {
     if (event.type === "blur") focused = false;
@@ -1611,6 +1790,15 @@ export function createWritingController({
   document.addEventListener("visibilitychange", lifecycle);
   window.visualViewport?.addEventListener("resize", lifecycle);
   return {
+    blockResources(failure: InstalledResourceFailure) {
+      fence();
+      publish({ resourceBlock: failure });
+    },
+    clearResourceBlock(expected: InstalledResourceFailure): boolean {
+      if (state.resourceBlock !== expected) return false;
+      publish({ resourceBlock: null });
+      return true;
+    },
     committed: teaching.view,
     open,
     act,
@@ -1624,6 +1812,7 @@ export function createWritingController({
     },
     practiceControls: teaching.practiceControls,
     retry,
+    reconnect,
     async reopen() {
       await retry();
     },

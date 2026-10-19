@@ -18,7 +18,7 @@ import type {
   GraphAction,
   HashFunction,
   Owner,
-  RuntimePackage,
+  InstalledTeaching,
   TeachingState,
 } from "../../teaching/src/index.ts";
 import type * as schema from "./schema.ts";
@@ -50,14 +50,14 @@ function durableReceipt({
   };
 }
 function skipProof(
-  content: RuntimePackage,
+  content: InstalledTeaching,
   state: Extract<TeachingState, { kind: "writingSkipped" }>,
 ): import("../../teaching/src/index.ts").SkipProof {
-  const task = writingTask({ content, taskId: state.taskId });
+  const task = writingTask({ content: content.document, taskId: state.taskId });
   if (!task) throw new Error("Skip proof requires optional writing");
   return {
     taskId: state.taskId,
-    packageHash: content.packageHash,
+    packageHash: content.key,
     outcome: "skipped",
     sourceRefs: [...new Set(task.nodes.flatMap((n) => n.sourceRefs))],
   };
@@ -91,7 +91,7 @@ export async function validateAcceptanceHistory({
   run: RunRow;
   session: typeof schema.session.$inferSelect;
   owner: Owner;
-  content: RuntimePackage;
+  content: InstalledTeaching;
   hash: HashFunction;
   advances: readonly AdvanceRow[];
   withdrawals: readonly WithdrawalRow[];
@@ -191,7 +191,10 @@ export async function validateAcceptanceHistory({
         )) !== command.payloadHash
       )
         throw new Error("Saved withdrawal command changed");
-      const writing = writingTask({ content, taskId: run.taskId });
+      const writing = writingTask({
+        content: content.document,
+        taskId: run.taskId,
+      });
       if (writing) {
         if (
           command.kind !== "writingUndoAdvance" ||
@@ -226,7 +229,7 @@ export async function validateAcceptanceHistory({
             Number(document.codecVersion) !== 1 ||
             token.phase !==
               writingPermission({
-                content,
+                content: content.document,
                 state: baseline,
                 targetId: target.id,
               }).phase ||
@@ -297,7 +300,10 @@ export async function validateAcceptanceHistory({
         command.payload.runId !== run.runId
       )
         throw new Error("Accepting command ownership changed");
-      const writing = writingTask({ content: content, taskId: run.taskId });
+      const writing = writingTask({
+        content: content.document,
+        taskId: run.taskId,
+      });
       if (writing) {
         if (command.kind !== "writingNavigate")
           throw new Error("Writing acceptance requires its document barrier");
@@ -330,7 +336,7 @@ export async function validateAcceptanceHistory({
             Number(document.codecVersion) !== 1 ||
             token.phase !==
               writingPermission({
-                content: content,
+                content: content.document,
                 state: before,
                 targetId: target.id,
               }).phase ||

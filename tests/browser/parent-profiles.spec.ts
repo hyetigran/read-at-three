@@ -13,6 +13,14 @@ import {
 } from "../../apps/web/src/platform/protocol.ts";
 import type { WorkerRequest } from "../../apps/web/src/platform/protocol.ts";
 
+declare global {
+  interface Window {
+    parentUiReplies: readonly import("../../apps/web/src/platform/protocol.ts").WorkerResponse[];
+    hasHeldParentAdministration: () => boolean;
+    hasHeldParentAdministrationReply: () => boolean;
+  }
+}
+
 async function request(page: Page, value: WorkerRequest) {
   const result: unknown = await page.evaluate((value) => {
     if (
@@ -145,7 +153,13 @@ test("fresh parent setup confirms the existing anonymous child only after exact 
   await observeParentUi(page);
   await page.goto("/");
   await page.waitForFunction(
-    "window.parentUiReplies.some(value => value.kind === 'inventory') && window.parentUiReplies.some(value => value.kind === 'application' && value.value.application.kind === 'ready')",
+    () =>
+      window.parentUiReplies.some((value) => value.kind === "inventory") &&
+      window.parentUiReplies.some(
+        (value) =>
+          value.kind === "application" &&
+          value.value.application.kind === "ready",
+      ),
   );
   const before = await directory(page);
   const traffic: unknown = await page.evaluate(
@@ -281,7 +295,7 @@ test("rejected preparation Retry reloads the guide without success navigation or
   await page
     .getByRole("button", { name: "I have read this preparation", exact: true })
     .click();
-  await page.waitForFunction("window.hasHeldParentAdministration()");
+  await page.waitForFunction(() => window.hasHeldParentAdministration());
   const actual = await request(page, {
     id: parseWorkerRequestId(randomUUID()),
     kind: "administer",
@@ -1049,7 +1063,7 @@ test("a committed child creation retries after route departure without reviving 
   await chooseAnimal(page, "Owl");
   await page.evaluate("window.armParentAdministrationReplyHold()");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
-  await page.waitForFunction("window.hasHeldParentAdministrationReply()");
+  await page.waitForFunction(() => window.hasHeldParentAdministrationReply());
   const committed = await directory(page);
   expect(committed.profiles).toHaveLength(2);
   expect(committed.selection.revision).toBe("1");
@@ -1251,7 +1265,7 @@ test("parent support displays bounded local metadata and whole-origin estimates 
   expect(JSON.parse(text)).toMatchObject({
     version: 1,
     persistence: "durable",
-    metadata: { versions: { database: 12, inkCodec: 1 } },
+    metadata: { versions: { database: 13, inkCodec: 1 } },
     browserWholeOriginEstimate: { scope: "origin" },
   });
   expect(await directory(page)).toEqual(before);

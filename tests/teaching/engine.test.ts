@@ -1,3 +1,4 @@
+import { installedFixture } from "../installed-fixture.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createHash } from "node:crypto";
@@ -59,7 +60,7 @@ export async function fixture() {
   );
 }
 test("parent acceptance follows exact nodes and partial frontier never completes", async () => {
-  const content = await fixture();
+  const content = await installedFixture(await fixture(), hash);
   const first = initialState(content);
   const modelId = parseId({ kind: "node", value: "model" });
   const childId = parseId({ kind: "node", value: "child" });
@@ -76,11 +77,11 @@ test("parent acceptance follows exact nodes and partial frontier never completes
   assert.throws(() => evaluate(content, frontier, childId), /frontier/);
 });
 test("content rejects tamper, cycles, unknown properties and missing frontier", async () => {
-  const content = await fixture();
+  const content = await installedFixture(await fixture(), hash);
   await assert.rejects(
     () =>
       parseDevelopmentPackage(
-        { ...content, body: { ...content.body, extra: true } },
+        { ...content.document, body: { ...content.body, extra: true } },
         hash,
       ),
     /schema/,
@@ -88,7 +89,7 @@ test("content rejects tamper, cycles, unknown properties and missing frontier", 
   await assert.rejects(
     () =>
       parseDevelopmentPackage(
-        { ...content, packageHash: "0".repeat(64) },
+        { ...content.document, packageHash: "0".repeat(64) },
         hash,
       ),
     /hash/,
@@ -111,13 +112,13 @@ test("content rejects tamper, cycles, unknown properties and missing frontier", 
   );
 });
 test("command preparation captures immutable profile scope exactly once", async () => {
-  const content = await fixture();
+  const content = await installedFixture(await fixture(), hash);
   const command = await prepareCommand({
     projection: parseProjection({
       kind: "entry",
       owner: { profileId: "p", generation: "0" },
       profileRevision: "9007199254740993",
-      packageHash: content.packageHash,
+      packageHash: content.key,
       title: content.body.title,
       catalog: [],
       actions: [
@@ -126,7 +127,7 @@ test("command preparation captures immutable profile scope exactly once", async 
           intent: {
             kind: "start",
             taskId: "synthetic-task",
-            packageHash: content.packageHash,
+            packageHash: content.key,
             sessionId: null,
           },
         },

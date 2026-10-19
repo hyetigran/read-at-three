@@ -1647,6 +1647,12 @@ function withDefinitions(root: object) {
   return { ...transformed, $defs: Object.fromEntries(retained) };
 }
 export const validatorSchemas = {
+  validatePrintedPreviewTask: withDefinitions({
+    oneOf: [
+      record({ kind: { const: "printedGraphV1" }, task: graphTask }),
+      record({ kind: { const: "printedGraphV2" }, task: currentBoardTask }),
+    ],
+  }),
   validatePracticeControlsBinding: practiceControlsBindingSchema,
   validatePracticeControlsSummary: practiceControlsSummarySchema,
   validateDocumentToken: withDefinitions(documentTokenSchema),
@@ -1669,3 +1675,27 @@ export const validatorSchemas = {
   validateProjection: withDefinitions(rootSchemas.validateProjection),
   validateResult: withDefinitions(rootSchemas.validateResult),
 };
+
+export const runtimeCapabilityProfiles = [
+  { contentSchemaVersion: 1, capabilities: ["course-development"] },
+  ...[
+    v2Body,
+    cumulativeV3.properties.body,
+    cumulativeV4.properties.body,
+    cumulativeReviewedBoards.properties.body,
+    childPointedCumulative.properties.body,
+    completionCumulative.properties.body,
+    completeCumulative.properties.body,
+  ].map((body) => {
+    const props = body.properties;
+    if (
+      !("contentSchemaVersion" in props) ||
+      !("requiredEngineCapabilities" in props)
+    )
+      throw new Error("Missing runtime capability profile");
+    return {
+      contentSchemaVersion: props.contentSchemaVersion.const,
+      capabilities: props.requiredEngineCapabilities.items.enum,
+    };
+  }),
+];

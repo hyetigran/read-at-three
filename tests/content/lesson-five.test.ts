@@ -15,6 +15,7 @@ import {
   guidanceCopies,
 } from "@readatthree/teaching";
 import { syntheticLessonFiveCourse } from "../lesson-five-fixture.ts";
+import { installedFixture } from "../installed-fixture.ts";
 import { hash } from "../lesson-two-fixture.ts";
 import { reviewedLessonFiveCourseExtension } from "../../tools/content/extension.ts";
 
@@ -171,10 +172,11 @@ test("all predecessor edits and blank speech or quote markers are rejected at th
 for (const repeated of [false, true])
   for (let trigger = 0; trigger < 8; trigger++)
     test(`child support prefix ${trigger} restores ${repeated ? "Repeat" : "normal"} at the exact owed response`, async () => {
-      const { content, taskIds } = await syntheticLessonFiveCourse();
+      const { content: document, taskIds } = await syntheticLessonFiveCourse();
+      const content = await installedFixture(document, hash);
       const taskId = taskIds[5];
       if (!taskId) throw Error("Synthetic task required");
-      const task = taskDefinition({ content, taskId });
+      const task = taskDefinition({ content: document, taskId });
       if (task.kind !== "graphControls")
         throw Error("Synthetic controls required");
       let state = initialControlState({ content, taskId });

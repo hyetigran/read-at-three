@@ -28,6 +28,7 @@ async function controllerFixture(
   t: Parameters<typeof practiceFixture>[0],
   options: {
     deferOpen?: boolean;
+    connectDisposes?: boolean;
     content?: import("@readatthree/teaching").RuntimePackage;
     start?: boolean;
   } = {},
@@ -58,6 +59,10 @@ async function controllerFixture(
   let replace = false;
   let onLoss = () => {};
   const events: string[] = [];
+  const recoveryOpenings: import("@readatthree/teaching").SelectedRecoveryOpening[] =
+    [];
+  const recoveredTeaching: import("@readatthree/teaching").SelectedTeachingOperation[] =
+    [];
   const administrativeDeliveries: import("@readatthree/teaching").ProfileAdministrationCommand[] =
     [];
   let beforeAdmin = async (
@@ -75,6 +80,10 @@ async function controllerFixture(
     value: Awaited<ReturnType<typeof app.readDirectory>>,
   ) => value;
   let beforeConnect = async () => {};
+  let afterExecution = async (
+    _operation: Parameters<typeof app.execute>[0],
+    _result: Awaited<ReturnType<typeof app.execute>>,
+  ) => {};
   const read = async (input: Parameters<typeof app.readApplication>[0]) => {
     await beforeRead(input);
     return readEnvelope(app, input, f.content.body.courseId);
@@ -93,10 +102,21 @@ async function controllerFixture(
       onLoss(listener) {
         onLoss = listener;
       },
-      close() {},
+      close() {
+        connectionRevision++;
+        replace = true;
+        onLoss();
+      },
       connectionTicket: () => connectionRevision,
       connect: async (opening) => {
+        if (options.connectDisposes) {
+          connectionRevision++;
+          onLoss();
+        }
+        const ticket = connectionRevision;
         await beforeConnect();
+        if (ticket !== connectionRevision)
+          throw new Error("Retired fixture connection");
         connectionRevision++;
         if (replace) {
           if (db.isOpen) db.close();
@@ -107,6 +127,7 @@ async function controllerFixture(
           replace = false;
         }
         events.push(`open:${opening.kind}`);
+        recoveryOpenings.push(opening);
         return app.openRecovery(opening);
       },
       read: async (input) => {
@@ -138,9 +159,11 @@ async function controllerFixture(
         await beforeInkRead(input);
         return app.readInk(input);
       },
-      execute: (operation) => {
+      execute: async (operation) => {
         if (operation.kind === "ink") deliveries++;
-        return app.execute(operation);
+        const result = await app.execute(operation);
+        await afterExecution(operation, result);
+        return result;
       },
       recoverInk: (input) => {
         events.push("recover:ink");
@@ -148,6 +171,7 @@ async function controllerFixture(
       },
       recoverTeaching: (input) => {
         events.push("recover:teaching");
+        recoveredTeaching.push(input.operation);
         return app.recoverTeaching(input);
       },
       reconcileRecovery: (input) => {
@@ -161,13 +185,16 @@ async function controllerFixture(
         stageRestore,
         repository: {
           read,
-          execute: (operation) => {
+          execute: async (operation) => {
             if (operation.kind === "teaching")
               teachingDeliveries.push(operation);
-            return app.execute(operation);
+            const result = await app.execute(operation);
+            await afterExecution(operation, result);
+            return result;
           },
           recoverTeaching: (input) => {
             events.push("recover:teaching");
+            recoveredTeaching.push(input.operation);
             return app.recoverTeaching(input);
           },
           readPracticeControls: (input) => app.readPracticeControls(input),
@@ -203,6 +230,8 @@ async function controllerFixture(
       return value;
     },
     teachingDeliveries,
+    recoveryOpenings,
+    recoveredTeaching,
     administrativeDeliveries,
     events,
     deliveries: () => deliveries,
@@ -223,6 +252,9 @@ async function controllerFixture(
     },
     afterDirectory(value: typeof afterDirectory) {
       afterDirectory = value;
+    },
+    afterExecution(value: typeof afterExecution) {
+      afterExecution = value;
     },
     beforeConnect(value: typeof beforeConnect) {
       beforeConnect = value;
@@ -950,7 +982,8 @@ test("ordinary cold opening retains actual stored recovery through one held Retr
 test("failed cold opening exposes recovery without teaching or input and retries through the real replacement connection", async (t) => {
   const f = await controllerFixture(t, { deferOpen: true });
   const before = f.db.prepare("SELECT * FROM task_run ORDER BY run_id").all();
-  f.db.exec("PRAGMA user_version=13");
+  assert.equal(f.db.prepare("PRAGMA user_version").get()?.user_version, 13);
+  f.db.exec("PRAGMA user_version=14");
   f.lose();
   await f.controller.open();
   const state = f.controller.getState();
@@ -964,8 +997,8 @@ test("failed cold opening exposes recovery without teaching or input and retries
     f.db.prepare("SELECT * FROM task_run ORDER BY run_id").all(),
     before,
   );
-  assert.equal(f.db.prepare("PRAGMA user_version").get()?.user_version, 13);
-  f.db.exec("PRAGMA user_version=12");
+  assert.equal(f.db.prepare("PRAGMA user_version").get()?.user_version, 14);
+  f.db.exec("PRAGMA user_version=13");
   f.lose();
   await f.controller.retry();
   assert.equal(f.controller.getState().operation.kind, "idle");
@@ -1399,3 +1432,452 @@ test(
     );
   },
 );
+
+test(
+  "Reconnect supersedes an undelivered opening without awaiting it, and its late completion cannot clear a newer opening",
+  { timeout: 30000 },
+  async (t) => {
+    const f = await controllerFixture(t, { deferOpen: true });
+    const firstEntered = deferred(),
+      firstRelease = deferred();
+    const secondEntered = deferred(),
+      secondRelease = deferred();
+    let calls = 0;
+    f.beforeConnect(async () => {
+      const call = ++calls;
+      if (call === 1) {
+        firstEntered.release();
+        await firstRelease.promise;
+      }
+      if (call === 2) {
+        secondEntered.release();
+        await secondRelease.promise;
+      }
+    });
+    const original = f.controller.open();
+    await firstEntered.promise;
+    const reconnecting = f.controller.reconnect();
+    await secondEntered.promise;
+    firstRelease.release();
+    await original;
+    assert.equal(f.controller.getState().operation.kind, "opening");
+    const replacement = f.controller.reconnect();
+    await replacement;
+    assert.equal(f.controller.getState().operation.kind, "idle");
+    const restored = f.controller.committed.getSnapshot().visible.data;
+    assert.ok(restored);
+    secondRelease.release();
+    await reconnecting;
+    assert.equal(f.controller.getState().operation.kind, "idle");
+    assert.deepEqual(
+      f.controller.committed.getSnapshot().visible.data,
+      restored,
+    );
+    assert.equal(
+      f.db.prepare("SELECT count(*) AS count FROM profile").get()?.count,
+      1,
+    );
+  },
+);
+
+test(
+  "Reconnect recovers the exact submitted administration while its committed reply remains undelivered",
+  { timeout: 30000 },
+  async (t) => {
+    const f = await controllerFixture(t);
+    const entered = deferred(),
+      release = deferred();
+    f.afterAdmin(async () => {
+      entered.release();
+      await release.promise;
+    });
+    const directory = controllerDirectory(f.controller);
+    const original = f.controller.administer({
+      kind: "createAndSelect",
+      directory: directory.administration,
+      preferences: { displayName: "Second", avatarId: "owl" },
+    });
+    await entered.promise;
+    assert.equal(f.controller.getState().operation.kind, "adminSaving");
+    const command = f.administrativeDeliveries[0];
+    assert.ok(command);
+    await f.controller.reconnect();
+    assert.equal(f.controller.getState().operation.kind, "idle");
+    assert.deepEqual(f.events.slice(-3), [
+      "open:warm",
+      "recover:administration",
+      "reconcile",
+    ]);
+    assert.equal(f.administrativeDeliveries.length, 1);
+    const restored = controllerDirectory(f.controller);
+    assert.equal(restored.profiles.length, 2);
+    assert.equal(
+      f.db
+        .prepare(
+          "SELECT count(*) AS count FROM profile_administration_receipt WHERE command_id=?",
+        )
+        .get(command.commandId)?.count,
+      1,
+    );
+    release.release();
+    await original;
+    assert.equal(f.controller.getState().operation.kind, "idle");
+    assert.deepEqual(controllerDirectory(f.controller), restored);
+  },
+);
+
+test(
+  "Reconnect drains exact committed ink without waiting for its undelivered acknowledgement and ignores its late failure",
+  { timeout: 30000 },
+  async (t) => {
+    const f = await controllerFixture(t);
+    const entered = deferred(),
+      release = deferred();
+    let armed = true;
+    let original: import("@readatthree/teaching").SelectedInkOperation | null =
+      null;
+    f.afterExecution(async (operation) => {
+      if (operation.kind !== "ink" || !armed) return;
+      armed = false;
+      original = operation;
+      entered.release();
+      await release.promise;
+      throw new Error("Original committed ink reply remains lost");
+    });
+    const contact = f.controller.begin(
+      f.board.snapshot.token.documentId,
+      { x: 100, y: 100, elapsedMs: 0 },
+      performance.now(),
+    );
+    assert.ok(contact);
+    f.controller.append(contact, [{ x: 150, y: 110, elapsedMs: 20 }]);
+    await entered.promise;
+    await f.controller.reconnect();
+    assert.equal(f.controller.getState().operation.kind, "idle");
+    assert.ok(f.events.includes("recover:ink"));
+    const saved = await f.current(f.app);
+    const stroke = saved.snapshot.strokes.find(
+      (stroke) => stroke.strokeId === contact.strokeId,
+    );
+    assert.ok(stroke);
+    assert.equal(stroke.pointCount, 2);
+    assert.equal(stroke.status, "interrupted");
+    assert.ok(original);
+    const before = f.controller.getBoard();
+    release.release();
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(f.controller.getState().operation.kind, "idle");
+    assert.deepEqual(f.controller.getBoard(), before);
+    assert.equal(f.controller.canWrite(), true);
+  },
+);
+
+test(
+  "Reconnect resolves exact submitted teaching while its committed reply is held, without repeating Undo",
+  { timeout: 30000 },
+  async (t) => {
+    const f = await controllerFixture(t);
+    const entered = deferred(),
+      release = deferred();
+    let armed = true;
+    f.afterExecution(async (operation) => {
+      if (operation.kind !== "teaching" || !armed) return;
+      armed = false;
+      entered.release();
+      await release.promise;
+      throw new Error("Original teaching reply remains lost");
+    });
+    const projection =
+      f.controller.committed.getSnapshot().visible.data?.projection;
+    assert.ok(projection && projection.kind === "writing");
+    const next = projection.actions.find(
+      (action) => action.intent.kind === "undoAdvance",
+    );
+    assert.ok(next);
+    const original = f.controller.enter(next);
+    await entered.promise;
+    assert.equal(f.controller.getState().operation.kind, "pending");
+    const command = f.teachingDeliveries[0];
+    assert.ok(command);
+    await f.controller.reconnect();
+    assert.equal(f.controller.getState().operation.kind, "idle");
+    assert.equal(f.teachingDeliveries.length, 1);
+    assert.ok(f.events.includes("recover:teaching"));
+    const restored = f.controller.committed.getSnapshot().visible.data;
+    assert.ok(restored);
+    assert.notEqual(
+      restored.projection.kind === "writing"
+        ? restored.projection.turn.id
+        : null,
+      projection.turn.id,
+    );
+    release.release();
+    assert.equal(await original, false);
+    assert.equal(f.controller.getState().operation.kind, "idle");
+    assert.deepEqual(
+      f.controller.committed.getSnapshot().visible.data,
+      restored,
+    );
+  },
+);
+
+for (const failure of ["teaching", "inkAction"] as const) {
+  test(
+    `ordinary ${failure} Retry keeps its true obligation when Reconnect supersedes its held recovery opening`,
+    { timeout: 30000 },
+    async (t) => {
+      const f = await controllerFixture(t);
+      const before =
+        f.controller.committed.getSnapshot().visible.data?.projection;
+      assert.ok(before && before.kind === "writing");
+      const undo = before.actions.find(
+        (action) => action.intent.kind === "undoAdvance",
+      );
+      assert.ok(undo);
+      let armed = true;
+      f.sqlHook(async (sql, work) => {
+        if (sql === "COMMIT" && armed) {
+          armed = false;
+          throw new Error(
+            "Genuine original mutation refused immediately before COMMIT",
+          );
+        }
+        return work();
+      });
+      if (failure === "inkAction") {
+        const contact = f.controller.begin(
+          f.board.snapshot.token.documentId,
+          { x: 100, y: 100, elapsedMs: 0 },
+          performance.now(),
+        );
+        assert.ok(contact);
+        f.controller.append(contact, [{ x: 160, y: 120, elapsedMs: 20 }]);
+      }
+      assert.equal(await f.controller.enter(undo), false);
+      const failed = f.controller.getState().operation;
+      assert.equal(
+        failed.kind,
+        failure === "teaching" ? "failed" : "inkFailed",
+      );
+      if (failure === "teaching") assert.equal(f.teachingDeliveries.length, 1);
+      if (failed.kind === "inkFailed") {
+        assert.equal(failed.retry.kind, "action");
+        if (failed.retry.kind === "action")
+          assert.deepEqual(failed.retry.request, undo);
+      }
+      const original = f.teachingDeliveries[0];
+      f.lose();
+      const entered = deferred(),
+        release = deferred();
+      let opening = 0;
+      f.beforeConnect(async () => {
+        if (++opening !== 1) return;
+        entered.release();
+        await release.promise;
+      });
+      const oldRetry = f.controller.retry();
+      await entered.promise;
+      assert.equal(f.controller.getState().operation.kind, "opening");
+      try {
+        await f.controller.reconnect();
+        assert.equal(f.controller.getState().operation.kind, "idle");
+        if (failure === "teaching") {
+          assert.ok(original);
+          assert.deepEqual(f.recoveredTeaching, [original]);
+          const latest = f.recoveryOpenings.at(-1);
+          assert.ok(latest && latest.kind === "warm");
+          assert.deepEqual(latest.teaching, original);
+          assert.equal(f.teachingDeliveries.length, 1);
+        } else {
+          assert.ok(f.events.includes("recover:ink"));
+          assert.equal(f.teachingDeliveries.length, 1);
+          assert.equal(
+            f.teachingDeliveries[0]?.command.kind,
+            "writingUndoAdvance",
+          );
+        }
+        const restored = f.controller.committed.getSnapshot().visible.data;
+        assert.ok(restored && restored.projection.kind === "writing");
+        assert.equal(restored.projection.turn.id, "fixture.writing.turn.2");
+        assert.notEqual(restored.projection.turn.id, before.turn.id);
+        const board = f.controller.getBoard();
+        release.release();
+        await oldRetry;
+        assert.equal(f.controller.getState().operation.kind, "idle");
+        assert.deepEqual(
+          f.controller.committed.getSnapshot().visible.data,
+          restored,
+        );
+        assert.deepEqual(f.controller.getBoard(), board);
+      } finally {
+        release.release();
+        await oldRetry;
+      }
+    },
+  );
+}
+
+test(
+  "a resolved stale-child rejection retires its obligation before a later unrelated Reconnect",
+  { timeout: 30000 },
+  async (t) => {
+    const f = await controllerFixture(t);
+    const before =
+      f.controller.committed.getSnapshot().visible.data?.projection;
+    assert.ok(before && before.kind === "writing");
+    const undo = before.actions.find(
+      (action) => action.intent.kind === "undoAdvance",
+    );
+    assert.ok(undo);
+    let armed = true;
+    f.sqlHook(async (sql, work) => {
+      if (sql === "COMMIT" && armed) {
+        armed = false;
+        throw new Error("Original teaching did not commit");
+      }
+      return work();
+    });
+    assert.equal(await f.controller.enter(undo), false);
+    assert.equal(f.controller.getState().operation.kind, "failed");
+    const original = f.teachingDeliveries[0];
+    assert.ok(original);
+    await changeProfile(f.app, f.ids, hash, (directory) => ({
+      kind: "createAndSelect",
+      directory: directory.administration,
+      preferences: { avatarId: "owl" },
+    }));
+    const selected = (await f.app.readDirectory()).selection;
+    assert.notDeepEqual(selected, original.selection);
+    f.lose();
+    await f.controller.reconnect();
+    assert.equal(f.controller.getState().operation.kind, "rejected");
+    assert.deepEqual(f.recoveredTeaching, [original]);
+    await f.controller.reconnect();
+    assert.equal(f.controller.getState().operation.kind, "idle");
+    assert.equal(f.recoveryOpenings.at(-1)?.kind, "cold");
+    assert.deepEqual(f.recoveredTeaching, [original]);
+    assert.deepEqual(controllerDirectory(f.controller).selection, selected);
+    assert.equal(f.teachingDeliveries.length, 1);
+  },
+);
+
+async function exactResourceFailure(
+  packageHash: import("@readatthree/teaching").PackageHash,
+) {
+  const { parseInstalledResourceFailure, InstalledResourceUnavailableError } =
+    await import("@readatthree/teaching");
+  return new InstalledResourceUnavailableError(
+    parseInstalledResourceFailure({
+      packageHash,
+      reason: {
+        kind: "content",
+        failure: { kind: "missing", path: "curriculum.json" },
+      },
+    }),
+  );
+}
+for (const route of ["same", "changed"] as const)
+  test(
+    "publication recovery controller admits only its current route context: " +
+      route,
+    async (t) => {
+      const f = await controllerFixture(t, { deferOpen: true }),
+        entered = deferred(),
+        release = deferred(),
+        failure = await exactResourceFailure(f.content.packageHash);
+      f.controller.setSurface("other", "route-a");
+      f.beforeRead(async () => {
+        entered.release();
+        await release.promise;
+        throw failure;
+      });
+      const opening = f.controller.open();
+      await entered.promise;
+      f.controller.setSurface(
+        "other",
+        route === "same" ? "route-a" : "route-b",
+      );
+      release.release();
+      await opening;
+      assert.equal(f.controller.getState().operation.kind, "openingFailed");
+      assert.strictEqual(
+        f.controller.getState().resourceBlock,
+        route === "same" ? failure.failure : null,
+      );
+    },
+  );
+
+test("publication recovery controller keeps exact uncertain teaching while Check readiness is separate from Resume", async (t) => {
+  const f = await controllerFixture(t),
+    failure = await exactResourceFailure(f.content.packageHash);
+  const projection =
+    f.controller.committed.getSnapshot().visible.data?.projection;
+  assert.ok(projection);
+  if (projection.kind === "recovery") throw Error(projection.message);
+  const action = projection.actions.find(
+    (action) => action.intent.kind === "confirmTracing",
+  );
+  assert.ok(action);
+  let fail = true;
+  f.afterExecution(async (operation) => {
+    if (operation.kind === "teaching" && fail) {
+      fail = false;
+      throw failure;
+    }
+  });
+  await f.controller.enter(action);
+  const failed = f.controller.getState().operation;
+  assert.equal(failed.kind, "failed");
+  if (failed.kind !== "failed") throw Error("Exact prepared command required");
+  const original = structuredClone(failed.prepared);
+  assert.strictEqual(f.controller.getState().resourceBlock, failure.failure);
+  assert.equal(f.controller.canWrite(), false);
+  assert.equal(f.controller.clearResourceBlock({ ...failure.failure }), false);
+  assert.strictEqual(f.controller.getState().operation, failed);
+  assert.equal(f.controller.clearResourceBlock(failure.failure), true);
+  assert.strictEqual(f.controller.getState().operation, failed);
+  assert.equal(f.teachingDeliveries.length, 1);
+  await f.controller.retry();
+  assert.equal(f.controller.getState().operation.kind, "idle");
+  assert.equal(f.controller.getState().resourceBlock, null);
+  assert.equal(f.teachingDeliveries.length, 2);
+  assert.deepEqual(f.teachingDeliveries[1], f.teachingDeliveries[0]);
+  assert.deepEqual(f.teachingDeliveries[1], original.operation);
+});
+
+for (const retirement of [
+  "none",
+  "during-connect",
+  "after-reconcile",
+  "route",
+] as const)
+  test(
+    "publication recovery owned connect resource lifetime: " + retirement,
+    async (t) => {
+      const f = await controllerFixture(t, {
+        deferOpen: true,
+        connectDisposes: true,
+      });
+      const failure = await exactResourceFailure(f.content.packageHash);
+      f.controller.setSurface("teaching", "owned-route");
+      if (retirement === "during-connect")
+        f.beforeConnect(async () => {
+          await Promise.resolve();
+          f.lose();
+          throw failure;
+        });
+      f.beforeRead(async () => {
+        if (retirement === "after-reconcile") f.lose();
+        if (retirement === "route")
+          f.controller.setSurface("other", "new-route");
+        throw failure;
+      });
+      await f.controller.open();
+      assert.equal(f.controller.getState().operation.kind, "openingFailed");
+      assert.strictEqual(
+        f.controller.getState().resourceBlock,
+        retirement === "none" ? failure.failure : null,
+      );
+    },
+  );

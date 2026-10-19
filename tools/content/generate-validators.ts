@@ -1,3 +1,5 @@
+import { runtimeCapabilityProfiles } from "../../packages/teaching/src/validator-schemas.ts";
+import { installationValidationSchemas } from "../../packages/teaching/src/installation-schemas.ts";
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Ajv2020 } from "ajv/dist/2020.js";
@@ -10,6 +12,10 @@ import { selectionValidationSchemas } from "../../packages/teaching/src/selectio
 
 import { preparationValidationSchemas } from "../../packages/teaching/src/preparation-schemas.ts";
 
+import { publicationEnvelopeSchema } from "../../packages/teaching/src/publication-schemas.ts";
+
+import { shellDescriptorSchema } from "../../packages/teaching/src/shell-schemas.ts";
+
 const arguments_ = process.argv.slice(2);
 if (arguments_.some((argument) => argument !== "--check")) {
   throw new Error("Usage: generate-validators.ts [--check]");
@@ -17,6 +23,7 @@ if (arguments_.some((argument) => argument !== "--check")) {
 const check = arguments_.includes("--check");
 const directory = resolve(import.meta.dirname, "../../packages/teaching/src");
 const domains = {
+  validatePrintedPreviewTask: "PrintedPreviewTask",
   validatePracticeControlsBinding: "PracticeControlsBinding",
   validatePracticeControlsSummary: "PracticeControlsSummary",
   validateDocumentToken: "DocumentToken",
@@ -113,6 +120,8 @@ const profileDeclarations =
     )
     .join("\n");
 const selectionDomains = {
+  validateShellBridgeRequest: "RawShellBridgeRequest",
+  validateShellBridgeResponse: "RawShellBridgeResponse",
   validateSelectedOwnerWitness: "RawSelectedOwnerWitness",
   validateSelectedOperation: "RawSelectedOperation",
   validateSelectedReadTarget: "RawSelectedReadTarget",
@@ -185,7 +194,100 @@ const preparationDeclarations =
         `export declare const ${name}: ValidateFunction<${domain}>;`,
     )
     .join("\n");
+const publicationAjv = new AjvJTD({ code: { source: true, esm: true } });
+publicationAjv.addSchema(
+  publicationEnvelopeSchema,
+  "validatePublicationEnvelope",
+);
+const publicationJavascript = standaloneCode(publicationAjv, {
+  validatePublicationEnvelope: "validatePublicationEnvelope",
+});
+if (/\b(?:require|eval|Function)\b/u.test(publicationJavascript))
+  throw new Error("Unreviewed publication validator dependency");
+const publicationDeclarations =
+  'import type { ValidateFunction } from "ajv";\nimport type { PublicationEnvelope } from "./publication-schemas.ts";\nexport declare const validatePublicationEnvelope: ValidateFunction<PublicationEnvelope>;\n';
+const shellAjv = new AjvJTD({ code: { source: true, esm: true } });
+shellAjv.addSchema(shellDescriptorSchema, "validateShellDescriptor");
+const shellJavascript = standaloneCode(shellAjv, {
+  validateShellDescriptor: "validateShellDescriptor",
+});
+if (/\b(?:require|eval|Function)\b/u.test(shellJavascript))
+  throw new Error("Unreviewed shell validator dependency");
+const shellDeclarations =
+  'import type { ValidateFunction } from "ajv";\nimport type { ShellDescriptor } from "./shell-schemas.ts";\nexport declare const validateShellDescriptor: ValidateFunction<ShellDescriptor>;\n';
+const installationAjv = new AjvJTD({
+  allErrors: true,
+  code: { source: true, esm: true },
+});
+for (const [name, schema] of Object.entries(installationValidationSchemas))
+  installationAjv.addSchema(schema, name);
+const installationJavascript = standaloneCode(
+  installationAjv,
+  Object.fromEntries(
+    Object.keys(installationValidationSchemas).map((name) => [name, name]),
+  ),
+);
+if (/\b(?:require|eval|Function)\b/u.test(installationJavascript))
+  throw new Error(
+    "Generated installation validators contain a runtime dependency",
+  );
+const installationDomains = {
+  validatePublicationSelection: "RawPublicationSelection",
+  validatePublicationCheck: "RawPublicationCheck",
+  validateInstalledResourceFailure: "RawInstalledResourceFailure",
+  validateParentMaterialWire: "RawParentMaterialWire",
+  validateInitialInstallCommand: "RawInitialInstallCommand",
+  validateInstallationFact: "RawInstallationFact",
+  validateParentMaterialRequest: "RawParentMaterialRequest",
+  validateActivationWitness: "RawActivationWitness",
+  validateInstallationRead: "RawInstallationRead",
+  validateInstallationCatalog: "RawInstallationCatalog",
+} satisfies Record<keyof typeof installationValidationSchemas, string>;
+const installationDeclarations =
+  'import type { ValidateFunction } from "ajv";\n' +
+  `import type { ${Object.values(installationDomains).join(", ")} } from "./installation-schemas.ts";\n` +
+  Object.entries(installationDomains)
+    .map(
+      ([name, domain]) =>
+        `export declare const ${name}: ValidateFunction<${domain}>;`,
+    )
+    .join("\n");
 for (const { filename, source, parser } of [
+  {
+    filename: "generated-runtime-profiles.ts",
+    source: `export const runtimeCapabilityProfiles=${JSON.stringify(runtimeCapabilityProfiles)};\n`,
+    parser: "typescript",
+  },
+  {
+    filename: "generated-installation-validators.js",
+    source: installationJavascript,
+    parser: "babel",
+  },
+  {
+    filename: "generated-installation-validators.d.ts",
+    source: installationDeclarations,
+    parser: "typescript",
+  },
+  {
+    filename: "generated-shell-validators.js",
+    source: shellJavascript,
+    parser: "babel",
+  },
+  {
+    filename: "generated-shell-validators.d.ts",
+    source: shellDeclarations,
+    parser: "typescript",
+  },
+  {
+    filename: "generated-publication-validators.js",
+    source: publicationJavascript,
+    parser: "babel",
+  },
+  {
+    filename: "generated-publication-validators.d.ts",
+    source: publicationDeclarations,
+    parser: "typescript",
+  },
   {
     filename: "generated-preparation-validators.js",
     source: preparationJavascript,

@@ -4,5 +4,8 @@
     "lib": ["ES2023", "WebWorker"],
     "types": ["vite/client"]
   },
-  "include": ["src/platform/teaching.worker.ts"]
+  "include": [
+    "src/platform/teaching.worker.ts",
+    "src/platform/shell-service.worker.ts"
+  ]
 }

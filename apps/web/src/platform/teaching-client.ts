@@ -1,3 +1,23 @@
+import { browserConfiguration } from "./browser-configuration.ts";
+import { loadDevelopmentOpening } from "./development-opening.ts";
+import { registerOfflineShell } from "./controlled-shell.ts";
+import { createPageShellBridge } from "./shell-page-bridge.ts";
+import {
+  parsePublicationSelection,
+  InstalledResourceUnavailableError,
+  canonical,
+  initialInstallIdentity,
+  parseInitialInstallCommand,
+  parseParentMaterialRequest,
+  parsePreparationPackage,
+} from "@readatthree/teaching";
+import type {
+  PublicationSelection,
+  PublicationCheck,
+  InitialInstallCommand,
+  ParentMaterialRequest,
+} from "@readatthree/teaching";
+import { hashText } from "./hash.ts";
 import { TeachingRecoveryError } from "@readatthree/react-integration";
 import type {
   SelectedApplication,
@@ -5,7 +25,7 @@ import type {
   SelectedRecoveryOpening,
   PreparationAvailability,
 } from "@readatthree/teaching";
-import { loadBrowserPreparation, preparationInput } from "./preparation.ts";
+import { preparationInput } from "./preparation.ts";
 type Input<Method extends keyof SelectedApplication> = Parameters<
   SelectedApplication[Method]
 >[0];
@@ -19,27 +39,69 @@ import type {
 export function createBrowserTeachingClient() {
   let worker: Worker | undefined;
   let connectionRevision = 0;
+  let connectionLifetime = new AbortController();
+  let shellBridge: ReturnType<typeof createPageShellBridge> | undefined;
   let preparation: PreparationAvailability = {
     kind: "unavailable",
     reason: "missing",
   };
   let lossListener = () => {};
+  const connectionListeners = new Set<() => void>();
+  const observations = new Map<
+    string,
+    { slow: boolean; timer: ReturnType<typeof setTimeout> }
+  >();
+  let connectionState = { revision: connectionRevision, pending: 0, slow: 0 };
+  function publishConnection() {
+    connectionState = {
+      revision: connectionRevision,
+      pending: observations.size,
+      slow: [...observations.values()].filter((entry) => entry.slow).length,
+    };
+    for (const listener of connectionListeners) listener();
+  }
+  function observe(key: string) {
+    const revision = connectionRevision;
+    const entry = {
+      slow: false,
+      timer: setTimeout(() => {
+        if (revision !== connectionRevision || observations.get(key) !== entry)
+          return;
+        entry.slow = true;
+        publishConnection();
+      }, 15000),
+    };
+    observations.set(key, entry);
+    publishConnection();
+    return () => {
+      clearTimeout(entry.timer);
+      if (observations.get(key) !== entry) return;
+      observations.delete(key);
+      publishConnection();
+    };
+  }
   const pending = new Map<
     WorkerRequestId,
     {
       resolve: (response: WorkerResponse) => void;
       reject: (error: Error) => void;
-      timeout: ReturnType<typeof setTimeout>;
+      finishObservation: () => void;
     }
   >();
   function dispose() {
     connectionRevision++;
+    connectionLifetime.abort();
+    shellBridge?.close();
+    shellBridge = undefined;
     preparation = { kind: "unavailable", reason: "missing" };
     worker?.terminate();
     worker = undefined;
+    for (const entry of observations.values()) clearTimeout(entry.timer);
+    observations.clear();
+    publishConnection();
     lossListener();
     for (const request of pending.values()) {
-      clearTimeout(request.timeout);
+      request.finishObservation();
       request.reject(
         new Error(
           "The local store connection closed. Retry to recover the same saved work.",
@@ -48,86 +110,222 @@ export function createBrowserTeachingClient() {
     }
     pending.clear();
   }
-  function request(value: WorkerRequest): Promise<WorkerResponse> {
+  function request(
+    value: WorkerRequest,
+    transfer: Transferable[] = [],
+  ): Promise<WorkerResponse> {
     const active = worker;
     if (!active)
       return Promise.reject(new Error("The local store is unavailable."));
     return new Promise((resolve, reject) => {
-      const timeout = setTimeout(dispose, 15000);
-      pending.set(value.id, { resolve, reject, timeout });
-      active.postMessage(value);
+      const finishObservation = observe(value.id);
+      pending.set(value.id, { resolve, reject, finishObservation });
+      try {
+        active.postMessage(value, transfer);
+      } catch (error) {
+        pending.delete(value.id);
+        finishObservation();
+        reject(error);
+      }
     });
   }
   const id = () => parseWorkerRequestId(crypto.randomUUID());
+  async function publicationOperation(
+    operation: "check" | "repair",
+    input: PublicationSelection,
+  ): Promise<PublicationCheck> {
+    const target = parsePublicationSelection(input),
+      ticket = connectionRevision;
+    const response = await request({
+      id: id(),
+      kind: operation === "check" ? "checkPublication" : "repairPublication",
+      input: target,
+    });
+    if (
+      response.kind !== "publicationCheck" ||
+      response.operation !== operation ||
+      ticket !== connectionRevision ||
+      canonical(response.value.target) !== canonical(target)
+    )
+      throw new Error("Publication observation changed target or connection");
+    return response.value;
+  }
   return {
+    checkPublication: (target: PublicationSelection) =>
+      publicationOperation("check", target),
+    repairPublication: (target: PublicationSelection) =>
+      publicationOperation("repair", target),
+    connectionState: () => connectionState,
+    subscribeConnection(listener: () => void) {
+      connectionListeners.add(listener);
+      return () => {
+        connectionListeners.delete(listener);
+      };
+    },
+    async installations() {
+      const ticket = connectionRevision;
+      const response = await request({ id: id(), kind: "installations" });
+      if (
+        response.kind !== "installationCatalog" ||
+        ticket !== connectionRevision
+      )
+        throw new Error("Installation catalog connection changed");
+      for (const read of response.value.commands) {
+        const identity = await initialInstallIdentity(read.command, hashText);
+        if (
+          identity.payloadHash !== read.fact.payloadHash ||
+          ticket !== connectionRevision
+        )
+          throw new Error("Installation catalog evidence changed");
+      }
+      return response.value;
+    },
+    async initialInstall(input: InitialInstallCommand) {
+      const command = parseInitialInstallCommand(input),
+        ticket = connectionRevision;
+      const response = await request({
+        id: id(),
+        kind: "initialInstall",
+        command,
+      });
+      if (
+        response.kind !== "installationRead" ||
+        ticket !== connectionRevision ||
+        canonical(response.value.command) !== canonical(command)
+      )
+        throw new Error("Installation reply does not match its exact command");
+      const identity = await initialInstallIdentity(command, hashText);
+      if (
+        identity.payloadHash !== response.value.fact.payloadHash ||
+        ticket !== connectionRevision
+      )
+        throw new Error("Installation evidence changed");
+      return response.value;
+    },
+    async parentMaterial(input: ParentMaterialRequest) {
+      const material = parseParentMaterialRequest(input),
+        ticket = connectionRevision;
+      const response = await request({
+        id: id(),
+        kind: "parentMaterial",
+        input: material,
+      });
+      if (
+        response.kind !== "parentMaterial" ||
+        ticket !== connectionRevision ||
+        response.value.packageHash !== material.packageHash ||
+        (response.value.kind !== "unavailable" &&
+          response.value.kind !== material.kind)
+      )
+        throw new Error("Parent material reply changed request or connection");
+      if (response.value.kind !== "preparation") return response.value;
+      const document = await parsePreparationPackage(
+        response.value.document,
+        hashText,
+      );
+      if (ticket !== connectionRevision)
+        throw new Error(
+          "Parent material connection was retired during verification",
+        );
+      return { ...response.value, document };
+    },
     onLoss(listener: () => void) {
       lossListener = listener;
     },
     async connect(opening: SelectedRecoveryOpening) {
       dispose();
       const ticket = connectionRevision;
-      if (
-        !window.isSecureContext ||
-        !navigator.storage?.getDirectory ||
-        !navigator.locks ||
-        typeof Worker === "undefined"
-      )
-        throw new Error(
-          "This browser cannot save reading progress safely. Use a supported browser with local storage available, then retry.",
+      const finishOpening = observe(`opening:${ticket}`);
+      try {
+        if (
+          !window.isSecureContext ||
+          !navigator.storage?.getDirectory ||
+          !navigator.locks ||
+          typeof Worker === "undefined"
+        )
+          throw new Error(
+            "This browser cannot save reading progress safely. Use a supported browser with local storage available, then retry.",
+          );
+        connectionLifetime = new AbortController();
+        const development =
+          browserConfiguration.kind === "development"
+            ? await loadDevelopmentOpening()
+            : undefined;
+        if (browserConfiguration.kind === "installed")
+          await registerOfflineShell(browserConfiguration.shell);
+        if (ticket !== connectionRevision)
+          throw new Error("This local store connection was retired.");
+        const connection = new Worker(
+          new URL("./teaching.worker.ts", import.meta.url),
+          {
+            type: "module",
+          },
         );
-      const contentResponse = await fetch("/curriculum/development.json", {
-        cache: "no-store",
-      });
-      if (!contentResponse.ok)
-        throw new Error(
-          "The required lesson content is unavailable. Keep saved work and retry.",
+        worker = connection;
+        connection.addEventListener(
+          "message",
+          (event: MessageEvent<unknown>) => {
+            if (worker !== connection) return;
+            try {
+              const result = parseResponse(event.data);
+              const waiting = pending.get(result.id);
+              if (!waiting) return;
+              pending.delete(result.id);
+              waiting.finishObservation();
+              if (result.kind === "contentUnavailable") {
+                waiting.reject(
+                  new InstalledResourceUnavailableError(result.value),
+                );
+              } else if (result.kind === "failed")
+                waiting.reject(new Error(result.message));
+              else waiting.resolve(result);
+            } catch {
+              dispose();
+            }
+          },
         );
-      const content: unknown = await contentResponse.json();
-      const availablePreparation = await loadBrowserPreparation();
-      if (ticket !== connectionRevision)
-        throw new Error("This local store connection was retired.");
-      const connection = new Worker(
-        new URL("./teaching.worker.ts", import.meta.url),
-        {
-          type: "module",
-        },
-      );
-      worker = connection;
-      connection.addEventListener("message", (event: MessageEvent<unknown>) => {
-        if (worker !== connection) return;
-        try {
-          const result = parseResponse(event.data);
-          const waiting = pending.get(result.id);
-          if (!waiting) return;
-          pending.delete(result.id);
-          clearTimeout(waiting.timeout);
-          if (result.kind === "failed")
-            waiting.reject(new Error(result.message));
-          else waiting.resolve(result);
-        } catch {
-          dispose();
+        const lost = () => {
+          if (worker === connection) dispose();
+        };
+        connection.addEventListener("error", lost);
+        connection.addEventListener("messageerror", lost);
+        let response: WorkerResponse;
+        if (browserConfiguration.kind === "installed") {
+          const channel = new MessageChannel();
+          shellBridge = createPageShellBridge({
+            port: channel.port1,
+            policy: browserConfiguration.shell,
+            signal: connectionLifetime.signal,
+          });
+          response = await request(
+            { id: id(), kind: "openInstalledRecovery", opening },
+            [channel.port2],
+          );
+        } else {
+          if (!development)
+            throw new Error("Development opening is unavailable");
+          response = await request({
+            id: id(),
+            kind: "openRecovery",
+            content: development.content,
+            preparation: preparationInput(development.preparation),
+            opening,
+          });
         }
-      });
-      const lost = () => {
-        if (worker === connection) dispose();
-      };
-      connection.addEventListener("error", lost);
-      connection.addEventListener("messageerror", lost);
-      const response = await request({
-        id: id(),
-        kind: "openRecovery",
-        content,
-        preparation: preparationInput(availablePreparation),
-        opening,
-      });
-      if (response.kind !== "inventory")
-        throw new Error(
-          "The local store returned an invalid recovery inventory.",
-        );
-      if (ticket !== connectionRevision || worker !== connection)
-        throw new Error("This local store connection was retired.");
-      preparation = availablePreparation;
-      return response.value;
+        if (response.kind !== "inventory")
+          throw new Error(
+            "The local store returned an invalid recovery inventory.",
+          );
+        if (ticket !== connectionRevision || worker !== connection)
+          throw new Error("This local store connection was retired.");
+        preparation = development?.preparation ?? {
+          kind: "unavailable",
+          reason: "missing",
+        };
+        return response.value;
+      } finally {
+        finishOpening();
+      }
     },
     readPreparation() {
       return {
@@ -270,6 +468,13 @@ export type InkLifecycleClient = Omit<
   | "readWork"
   | "readPracticeControls"
   | "readPreparation"
+  | "installations"
+  | "initialInstall"
+  | "parentMaterial"
+  | "checkPublication"
+  | "repairPublication"
   | "readDiagnostics"
   | "recordDiagnostic"
+  | "connectionState"
+  | "subscribeConnection"
 >;

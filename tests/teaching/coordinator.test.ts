@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   createCoordinator,
   initialState,
+  lessonForTask,
   parseCounter,
   parseId,
   prepareCommand,
@@ -15,7 +16,6 @@ import {
 import type {
   AvailableAction,
   CommittedProjection,
-  DevelopmentPackage,
   GraphTeachingState,
   StoredContext,
   StoredSession,
@@ -28,13 +28,16 @@ import type {
 import { graphFixture, task1, task4, hash } from "./graph-fixture.ts";
 const id = parseId;
 const count = parseCounter;
-function state(content: DevelopmentPackage, task = task1): GraphTeachingState {
+function state(
+  content: Awaited<ReturnType<typeof graphFixture>>,
+  task = task1,
+): GraphTeachingState {
   const result = initialState(content, task);
   if (result.kind !== "graph") throw new Error("Expected graph");
   return result;
 }
 function session(
-  content: DevelopmentPackage,
+  content: Awaited<ReturnType<typeof graphFixture>>,
   task = task1,
   suffix = "a",
 ): StoredSession {
@@ -43,8 +46,8 @@ function session(
     runId: id({ kind: "run", value: `run-${suffix}` }),
     revision: count("0"),
     runRevision: count("0"),
-    packageHash: content.packageHash,
-    lessonId: content.body.lessonId,
+    packageHash: content.key,
+    lessonId: lessonForTask({ content: content.document, taskId: task }),
     taskId: task,
     status: "active",
     runStatus: "inProgress",
@@ -54,7 +57,7 @@ function session(
   };
 }
 function harness(
-  content: DevelopmentPackage,
+  content: Awaited<ReturnType<typeof graphFixture>>,
   selected: StoredSession | null = null,
 ) {
   let context: StoredContext = {
@@ -65,7 +68,7 @@ function harness(
     profileRevision: count("0"),
     undoRunId: selected?.runId ?? null,
     taskResults: [],
-    activePackageHash: content.packageHash,
+    activePackageHash: content.key,
     selectionCounter: count("0"),
     session: selected,
     sessions: selected ? [selected] : [],
@@ -89,7 +92,7 @@ function harness(
       return receipts.get(command.commandId) ?? null;
     },
     async ensurePackage(exact) {
-      assert.equal(exact.packageHash, content.packageHash);
+      assert.equal(exact.key, content.key);
     },
     async select(input) {
       selections.push(input);
@@ -103,7 +106,7 @@ function harness(
       return context;
     },
     async resolvePackage(packageHash) {
-      if (unavailable || packageHash !== content.packageHash)
+      if (unavailable || packageHash !== content.key)
         throw new Error("Unavailable");
       return content;
     },
@@ -279,7 +282,7 @@ test("retained matching receipt wins over stale revision and unavailable package
     sessionId: selected.sessionId,
     runId: selected.runId,
     revision: count("1"),
-    packageHash: content.packageHash,
+    packageHash: content.key,
   };
   h.receipts.set(command.commandId, {
     payloadHash: command.payloadHash,
@@ -360,7 +363,7 @@ test("retained ownership permits receipt retries but does not make an abandoned 
       payloadHash: pending.payloadHash,
       kind: "select",
       payload: {
-        packageHash: content.packageHash,
+        packageHash: content.key,
         intent: "resume",
         taskId: task1,
         sessionId: abandoned.sessionId,

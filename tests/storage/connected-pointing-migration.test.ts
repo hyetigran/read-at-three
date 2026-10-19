@@ -113,10 +113,10 @@ for (const point of [
       11,
     );
     await initializeDatabase(executorFor(f.db), hash);
-    assert.equal(f.db.prepare("PRAGMA user_version").get()?.user_version, 12);
+    assert.equal(f.db.prepare("PRAGMA user_version").get()?.user_version, 13);
     assert.equal(
       f.db.prepare("SELECT count(*) AS n FROM schema_migration").get()?.n,
-      12,
+      13,
     );
     assert.deepEqual(f.db.prepare("PRAGMA foreign_key_check").all(), []);
     assert.equal(
@@ -127,7 +127,7 @@ for (const point of [
   });
 }
 
-test("genuinely committed DB12 reply loss reopens and retries without another migration or package change", async (t) => {
+test("genuinely committed DB12 reply loss upgrades additively and subsequent Retry preserves exact bytes", async (t) => {
   const f = await baseline(t);
   const originalPackages = f.db
     .prepare("SELECT * FROM installed_package")
@@ -148,9 +148,27 @@ test("genuinely committed DB12 reply loss reopens and retries without another mi
     /committed reply loss/,
   );
   assert.ok(hit);
-  const committed = await readFile(f.file);
+  assert.equal(f.db.prepare("PRAGMA user_version").get()?.user_version, 12);
+  const committedLedger = f.db
+    .prepare("SELECT * FROM schema_migration ORDER BY version")
+    .all();
+  assert.equal(committedLedger.length, 12);
   f.reopen();
   await initializeDatabase(executorFor(f.db), hash);
+  assert.equal(f.db.prepare("PRAGMA user_version").get()?.user_version, 13);
+  assert.deepEqual(
+    f.db
+      .prepare(
+        "SELECT * FROM schema_migration WHERE version<=12 ORDER BY version",
+      )
+      .all(),
+    committedLedger,
+  );
+  assert.equal(
+    f.db.prepare("SELECT count(*) n FROM installed_representation").get()?.n,
+    originalPackages.length,
+  );
+  const committed = await readFile(f.file);
   await initializeDatabase(executorFor(f.db), hash);
   assert.deepEqual(await readFile(f.file), committed);
   assert.deepEqual(

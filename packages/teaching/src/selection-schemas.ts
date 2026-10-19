@@ -1,3 +1,11 @@
+import {
+  publicationSelectionSchema,
+  publicationCheckSchema,
+  installedResourceFailureSchema,
+  initialInstallCommandSchema,
+  parentMaterialRequestSchema,
+  parentMaterialWireSchema,
+} from "./installation-schemas.ts";
 import type { JTDDataType, SomeJTDSchemaType } from "ajv/dist/jtd.js";
 import {
   selectedOwnerSchema,
@@ -8,6 +16,7 @@ import {
 import { preparationInputSchema } from "./preparation-schemas.ts";
 
 const discriminator: "kind" = "kind";
+const resourceOperations: ("check" | "repair")[] = ["check", "repair"];
 const string = { type: "string" } satisfies SomeJTDSchemaType;
 const selection = selectedOwnerSchema;
 const operation = {
@@ -51,7 +60,72 @@ const acceptedReceipt = {
     profileCommitted: { properties: {}, additionalProperties: true },
   },
 } satisfies SomeJTDSchemaType;
+const shellCorruptReasons: (
+  "descriptor" | "inventory" | "resource" | "controller"
+)[] = ["descriptor", "inventory", "resource", "controller"];
+const shellUnavailableReasons: (
+  | "cache"
+  | "network"
+  | "crypto"
+  | "cancelled"
+  | "uncontrolled"
+  | "waiting"
+  | "timeout"
+)[] = [
+  "cache",
+  "network",
+  "crypto",
+  "cancelled",
+  "uncontrolled",
+  "waiting",
+  "timeout",
+];
+const shellFailure = {
+  discriminator,
+  mapping: {
+    missing: { properties: { path: string } },
+    corrupt: {
+      properties: {
+        reason: { enum: shellCorruptReasons },
+      },
+    },
+    unavailable: {
+      properties: {
+        reason: {
+          enum: shellUnavailableReasons,
+        },
+      },
+    },
+  },
+} satisfies SomeJTDSchemaType;
+const shellBridgeRequest = {
+  discriminator,
+  mapping: {
+    prepare: { properties: { requestId: string } },
+    current: { properties: { requestId: string, epoch: string, hash: string } },
+  },
+} satisfies SomeJTDSchemaType;
+const shellBridgeResponse = {
+  discriminator,
+  mapping: {
+    prepared: {
+      properties: { requestId: string, epoch: string, hash: string },
+    },
+    current: {
+      properties: {
+        requestId: string,
+        epoch: string,
+        hash: string,
+        current: { type: "boolean" },
+      },
+    },
+    refused: { properties: { requestId: string, failure: shellFailure } },
+    invalidated: { properties: { epoch: string } },
+  },
+} satisfies SomeJTDSchemaType;
 export const selectionValidationSchemas = {
+  validateShellBridgeRequest: shellBridgeRequest,
+  validateShellBridgeResponse: shellBridgeResponse,
   validateSelectedOwnerWitness: selection,
   validateSelectedOperation: operation,
   validateSelectedReadTarget: {
@@ -80,6 +154,7 @@ export const selectionValidationSchemas = {
   validateSelectedWorkerRequest: {
     discriminator,
     mapping: {
+      openInstalledRecovery: { properties: { id: string, opening: {} } },
       openRecovery: {
         properties: {
           id: string,
@@ -89,6 +164,19 @@ export const selectionValidationSchemas = {
         },
       },
       readDirectory: { properties: { id: string } },
+      installations: { properties: { id: string } },
+      checkPublication: {
+        properties: { id: string, input: publicationSelectionSchema },
+      },
+      repairPublication: {
+        properties: { id: string, input: publicationSelectionSchema },
+      },
+      initialInstall: {
+        properties: { id: string, command: initialInstallCommandSchema },
+      },
+      parentMaterial: {
+        properties: { id: string, input: parentMaterialRequestSchema },
+      },
       readDiagnostics: { properties: { id: string } },
       recordDiagnostic: {
         properties: { id: string, event: diagnosticEventSchema },
@@ -118,6 +206,21 @@ export const selectionValidationSchemas = {
     discriminator,
     mapping: {
       directory: { properties: { id: string, value: {} } },
+      installationCatalog: { properties: { id: string, value: {} } },
+      publicationCheck: {
+        properties: {
+          id: string,
+          operation: { enum: resourceOperations },
+          value: publicationCheckSchema,
+        },
+      },
+      contentUnavailable: {
+        properties: { id: string, value: installedResourceFailureSchema },
+      },
+      installationRead: { properties: { id: string, value: {} } },
+      parentMaterial: {
+        properties: { id: string, value: parentMaterialWireSchema },
+      },
       diagnostics: {
         properties: {
           id: string,
@@ -267,3 +370,6 @@ export type RawSelectedWorkerRequest = JTDDataType<
 export type RawSelectedWorkerResponse = JTDDataType<
   typeof selectionValidationSchemas.validateSelectedWorkerResponse
 >;
+
+export type RawShellBridgeRequest = JTDDataType<typeof shellBridgeRequest>;
+export type RawShellBridgeResponse = JTDDataType<typeof shellBridgeResponse>;

@@ -1,3 +1,4 @@
+import { parseShellHash } from "./shell.ts";
 import {
   validateSelectedOwnerWitness,
   validateSelectedOperation,
@@ -16,6 +17,8 @@ import {
   validateProfileAdministrationResult,
   validateSelectedWorkerRequest,
   validateSelectedWorkerResponse,
+  validateShellBridgeRequest,
+  validateShellBridgeResponse,
 } from "./generated-selection-validators.js";
 import type {
   ApplicationRead,
@@ -423,4 +426,38 @@ export function parseSelectedWorkerResponseWire(input: unknown) {
   if (!validateSelectedWorkerResponse(input))
     throw new Error("Selected worker response is unsupported");
   return deepFreeze(input);
+}
+
+export function parseShellBridgeRequest(input: unknown) {
+  if (!validateShellBridgeRequest(input))
+    throw new Error("Shell bridge request is unsupported");
+  const requestId = parseId({ kind: "command", value: input.requestId });
+  if (input.kind === "prepare") return deepFreeze({ ...input, requestId });
+  return deepFreeze({
+    ...input,
+    requestId,
+    epoch: parseCounter(input.epoch),
+    hash: parseShellHash(input.hash),
+  });
+}
+export function parseShellBridgeResponse(input: unknown) {
+  if (!validateShellBridgeResponse(input))
+    throw new Error("Shell bridge response is unsupported");
+  if (input.kind === "invalidated")
+    return deepFreeze({ ...input, epoch: parseCounter(input.epoch) });
+  const requestId = parseId({ kind: "command", value: input.requestId });
+  if (input.kind === "refused") {
+    if (
+      input.failure.kind === "missing" &&
+      (input.failure.path.length < 1 || input.failure.path.length > 1024)
+    )
+      throw new Error("Invalid shell failure path");
+    return deepFreeze({ ...input, requestId });
+  }
+  return deepFreeze({
+    ...input,
+    requestId,
+    epoch: parseCounter(input.epoch),
+    hash: parseShellHash(input.hash),
+  });
 }

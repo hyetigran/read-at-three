@@ -1,3 +1,4 @@
+import { installedFixture } from "../installed-fixture.ts";
 import { createHash } from "node:crypto";
 import {
   canonicalContentBody,
@@ -124,7 +125,7 @@ export const graphBody: Serialized<GraphDevelopmentBody> = {
 export async function graphFixture(
   body: Serialized<GraphDevelopmentBody> = graphBody,
 ) {
-  return parseDevelopmentPackage(
+  const document = await parseDevelopmentPackage(
     {
       formatVersion: 1,
       body,
@@ -132,6 +133,7 @@ export async function graphFixture(
     },
     hash,
   );
+  return installedFixture(document, hash);
 }
 export const task1 = parseId({ kind: "task", value: "task-1" });
 export const task4 = parseId({ kind: "task", value: "task-4" });

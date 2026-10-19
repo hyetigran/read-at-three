@@ -1,3 +1,4 @@
+import { installedFixture } from "../installed-fixture.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
@@ -29,14 +30,15 @@ import { syntheticLessonSixReadiness } from "../lesson-six-readiness-fixture.ts"
 import { hash } from "../lesson-two-fixture.ts";
 
 async function fixture(index: number) {
-  const { content, taskIds } = await syntheticLessonSixReadiness(),
-    taskId = taskIds[index];
+  const { content: document, taskIds } = await syntheticLessonSixReadiness();
+  const content = await installedFixture(document, hash);
+  const taskId = taskIds[index];
   if (!taskId) throw Error("Synthetic task required");
   const initial = initialState(content, taskId);
   if (initial.kind === "teaching" || initial.kind === "frontier")
     throw Error("Synthetic graph state required");
   let state = initial;
-  const definition = taskDefinition({ content, taskId });
+  const definition = taskDefinition({ content: content.document, taskId });
   return {
     content,
     taskId,
@@ -346,7 +348,7 @@ test("new rhyme support refuses mismatched initials and unrelated boards", async
 });
 test("V3 first target statement stays readonly and second target retains sound response", async () => {
   const f = await fixture(7);
-  const task = writingTask({ content: f.content, taskId: f.taskId });
+  const task = writingTask({ content: f.content.document, taskId: f.taskId });
   if (!task) throw Error("Synthetic writing required");
   assert.deepEqual(
     task.nodes.map((n) => n.presentation.obligation.kind),
@@ -365,7 +367,7 @@ test("V3 first target statement stays readonly and second target retains sound r
   if (!first) throw Error("Synthetic target required");
   assert.equal(
     writingPermission({
-      content: f.content,
+      content: f.content.document,
       state: f.state,
       targetId: first.id,
     }).writable,
@@ -374,7 +376,7 @@ test("V3 first target statement stays readonly and second target retains sound r
   f.act({ kind: "continue" });
   assert.deepEqual(
     writingPermission({
-      content: f.content,
+      content: f.content.document,
       state: f.state,
       targetId: first.id,
     }),
@@ -383,7 +385,7 @@ test("V3 first target statement stays readonly and second target retains sound r
   f.act({ kind: "back" });
   assert.equal(
     writingPermission({
-      content: f.content,
+      content: f.content.document,
       state: f.state,
       targetId: first.id,
     }).writable,

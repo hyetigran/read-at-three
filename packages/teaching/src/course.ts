@@ -8,7 +8,8 @@ import { validateInkChunks } from "./ink.ts";
 import { evaluateInkHistory } from "./ink-history.ts";
 import { deepFreeze, parseCounter } from "./identity.ts";
 import { resolvedLessons } from "./course-content.ts";
-import type { ActivityArtKey, RuntimePackage } from "./course-content.ts";
+import type { ActivityArtKey } from "./course-content.ts";
+import type { InstalledTeaching } from "./installed-teaching.ts";
 import type {
   AvailableAction,
   CommitReceipt,
@@ -120,7 +121,7 @@ export function courseProjection({
   context,
   actions,
 }: {
-  active: RuntimePackage;
+  active: InstalledTeaching;
   context: StoredContext;
   actions: readonly AvailableAction[];
 }): CourseProjection {
@@ -134,7 +135,7 @@ export function courseProjection({
     )
       entries.push({ ...action, intent: action.intent });
   const history = context.history ?? context.sessions.map(savedWork);
-  const lessons = resolvedLessons(active).map((lesson) => ({
+  const lessons = resolvedLessons(active.document).map((lesson) => ({
     lessonId: lesson.lessonId,
     number: lesson.number,
     title: lesson.title,

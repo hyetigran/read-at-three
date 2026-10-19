@@ -31,9 +31,14 @@ export function createProfileDirectory({
 }: {
   db: ReturnType<typeof drizzle>;
   executor: SqlExecutor;
-  preparation: PreparationPolicy;
+  preparation: PreparationPolicy | (() => PreparationPolicy);
 }) {
-  const preparation = parsePreparationPolicy(suppliedPreparation);
+  const policy = () =>
+    parsePreparationPolicy(
+      typeof suppliedPreparation === "function"
+        ? suppliedPreparation()
+        : suppliedPreparation,
+    );
   const removal = createProfileRemoval({ db, executor });
   async function rows() {
     const installations = await db.select().from(schema.installation).all();
@@ -75,6 +80,7 @@ export function createProfileDirectory({
     return { installation, state, profiles };
   }
   async function read(): Promise<ProfileDirectory> {
+    const preparation = policy();
     const { installation, state, profiles } = await rows();
     return parseProfileDirectory({
       administration: {
@@ -308,6 +314,7 @@ export function createProfileDirectory({
       departure: DepartureWitness;
     }): Promise<CommandRejection | null>;
   }): Promise<ProfileAdministrationReceipt | CommandRejection> {
+    const preparation = policy();
     const current = await read();
     const resolved = await resolveRetained({ command, directory: current });
     if (resolved) return resolved;

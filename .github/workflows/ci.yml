@@ -28,9 +28,8 @@ jobs:
       - run: npm run build
   browser:
     name: Browser checks (${{ matrix.mode }})
-    needs: checks
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:

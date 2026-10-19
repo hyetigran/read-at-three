@@ -2,17 +2,21 @@ import type { HashFunction } from "../../teaching/src/index.ts";
 import type { SqlExecutor } from "./executor.ts";
 import { migrations } from "./generated-migration.ts";
 export { migrationStatements } from "./generated-migration.ts";
-export const DATABASE_VERSION = 12;
+export const DATABASE_VERSION = 13;
 export type MigrationDataHook = (
   version: number,
 ) => Promise<(() => Promise<void>) | undefined>;
 export async function transaction<T>(
   executor: SqlExecutor,
   work: () => Promise<T>,
+  checkCurrent?: () => void,
 ): Promise<T> {
+  checkCurrent?.();
   await executor.execute("BEGIN IMMEDIATE", []);
   try {
+    checkCurrent?.();
     const result = await work();
+    checkCurrent?.();
     await executor.execute("COMMIT", []);
     return result;
   } catch (error) {
@@ -31,10 +35,19 @@ function normalize(sql: string): string {
   return sql.replace(/\s+/g, " ").trim().replace(/;$/, "");
 }
 export async function initializeDatabase(
-  executor: SqlExecutor,
+  connection: SqlExecutor,
   hashFunction: HashFunction,
   prepareData?: MigrationDataHook,
+  checkCurrent?: () => void,
 ): Promise<void> {
+  const executor: SqlExecutor = checkCurrent
+    ? {
+        execute(sql, parameters) {
+          if (sql !== "ROLLBACK") checkCurrent();
+          return connection.execute(sql, parameters);
+        },
+      }
+    : connection;
   await executor.execute("PRAGMA foreign_keys=ON", []);
   const foreignKeys = firstValue(
     (await executor.execute("PRAGMA foreign_keys", [])).rows,
@@ -189,20 +202,27 @@ export async function initializeDatabase(
         if (disabled !== 0 && disabled !== 0n)
           throw new Error("Cannot enter isolated parent table migration");
       }
-      await transaction(executor, async () => {
-        for (const statement of migration.statements)
-          await executor.execute(statement, []);
-        await migrateData?.();
-        await executor.execute(
-          "INSERT INTO schema_migration(version,migration_id,checksum) VALUES(?,?,?)",
-          [migration.version, migration.id, checksum],
-        );
-        if (
-          (await executor.execute("PRAGMA foreign_key_check", [])).rows.length
-        )
-          throw new Error("Migration violated the ownership graph");
-        await executor.execute(`PRAGMA user_version=${migration.version}`, []);
-      });
+      await transaction(
+        executor,
+        async () => {
+          for (const statement of migration.statements)
+            await executor.execute(statement, []);
+          await migrateData?.();
+          await executor.execute(
+            "INSERT INTO schema_migration(version,migration_id,checksum) VALUES(?,?,?)",
+            [migration.version, migration.id, checksum],
+          );
+          if (
+            (await executor.execute("PRAGMA foreign_key_check", [])).rows.length
+          )
+            throw new Error("Migration violated the ownership graph");
+          await executor.execute(
+            `PRAGMA user_version=${migration.version}`,
+            [],
+          );
+        },
+        checkCurrent,
+      );
     } finally {
       if (rebuildParent) {
         await executor.execute("PRAGMA foreign_keys=ON", []);

@@ -1,5 +1,13 @@
 import {
   parsePreparationInput,
+  parseInitialInstallCommand,
+  parsePublicationSelection,
+  parsePublicationCheck,
+  parseInstalledResourceFailure,
+  parseParentMaterialRequest,
+  parseParentMaterialWire,
+  parseInstallationRead,
+  parseInstallationCatalog,
   parseDiagnosticEvent,
   parseDiagnosticRing,
   parseCurrentApplicationRead,
@@ -49,6 +57,14 @@ import type {
   SelectedRecoveryInventory,
   SelectedRecoveryOpening,
   RawPreparationInput,
+  InitialInstallCommand,
+  InstallationRead,
+  InstallationCatalog,
+  PublicationSelection,
+  PublicationCheck,
+  InstalledResourceFailure,
+  ParentMaterialRequest,
+  ParentMaterialRead,
 } from "@readatthree/teaching";
 
 export type LocalSupportMetadata = Readonly<{
@@ -68,6 +84,43 @@ export type WorkerRequestId = string & { readonly __brand: "WorkerRequestId" };
 type Input<Method extends keyof SelectedApplication> = Parameters<
   SelectedApplication[Method]
 >[0];
+type MaterialWire = ReturnType<typeof parseParentMaterialWire>;
+export function serializeParentMaterial(
+  value: ParentMaterialRead,
+): MaterialWire {
+  if (value.kind === "unavailable")
+    return parseParentMaterialWire({
+      kind: "unavailable",
+      packageHash: value.packageHash,
+      reason: value.failure.kind,
+    });
+  if (value.kind === "firstTaskPreview") {
+    if (
+      value.task.kind !== "printedGraphV1" &&
+      value.task.kind !== "printedGraphV2"
+    )
+      return parseParentMaterialWire({
+        kind: "unavailable",
+        packageHash: value.packageHash,
+        reason: "unsupportedPreview",
+      });
+    return parseParentMaterialWire({
+      kind: value.kind,
+      packageHash: value.packageHash,
+      task: value.task,
+    });
+  }
+  const { formatVersion, preparationHash, body, assets } = value.document;
+  return parseParentMaterialWire(
+    JSON.parse(
+      JSON.stringify({
+        kind: "preparation",
+        packageHash: value.packageHash,
+        document: { formatVersion, preparationHash, body, assets },
+      }),
+    ),
+  );
+}
 export type WorkerRequest = { id: WorkerRequestId } & (
   | {
       kind: "openRecovery";
@@ -75,7 +128,15 @@ export type WorkerRequest = { id: WorkerRequestId } & (
       preparation: RawPreparationInput;
       opening: SelectedRecoveryOpening;
     }
+  | { kind: "openInstalledRecovery"; opening: SelectedRecoveryOpening }
   | { kind: "readDirectory" }
+  | { kind: "installations" }
+  | { kind: "initialInstall"; command: InitialInstallCommand }
+  | {
+      kind: "checkPublication" | "repairPublication";
+      input: PublicationSelection;
+    }
+  | { kind: "parentMaterial"; input: ParentMaterialRequest }
   | { kind: "readDiagnostics" }
   | { kind: "recordDiagnostic"; event: DiagnosticEvent }
   | { kind: "read"; input: Input<"readApplication"> }
@@ -92,6 +153,15 @@ export type WorkerRequest = { id: WorkerRequestId } & (
 );
 export type WorkerResponse = { id: WorkerRequestId } & (
   | { kind: "directory" | "reconciled"; value: ProfileDirectory }
+  | { kind: "installationCatalog"; value: InstallationCatalog }
+  | { kind: "installationRead"; value: InstallationRead }
+  | {
+      kind: "publicationCheck";
+      operation: "check" | "repair";
+      value: PublicationCheck;
+    }
+  | { kind: "contentUnavailable"; value: InstalledResourceFailure }
+  | { kind: "parentMaterial"; value: MaterialWire }
   | {
       kind: "diagnostics";
       value: DiagnosticRead;
@@ -130,6 +200,12 @@ export function parseRequest(input: unknown): WorkerRequest {
   const value = parseSelectedWorkerRequestWire(input);
   const id = parseWorkerRequestId(value.id);
   switch (value.kind) {
+    case "openInstalledRecovery":
+      return {
+        id,
+        kind: value.kind,
+        opening: parseSelectedRecoveryOpening(value.opening),
+      };
     case "openRecovery":
       return {
         id,
@@ -138,6 +214,26 @@ export function parseRequest(input: unknown): WorkerRequest {
         preparation: parsePreparationInput(value.preparation),
         opening: parseSelectedRecoveryOpening(value.opening),
       };
+    case "initialInstall":
+      return {
+        id,
+        kind: value.kind,
+        command: parseInitialInstallCommand(value.command),
+      };
+    case "checkPublication":
+    case "repairPublication":
+      return {
+        id,
+        kind: value.kind,
+        input: parsePublicationSelection(value.input),
+      };
+    case "parentMaterial":
+      return {
+        id,
+        kind: value.kind,
+        input: parseParentMaterialRequest(value.input),
+      };
+    case "installations":
     case "readDirectory":
     case "readDiagnostics":
       return { id, kind: value.kind };
@@ -229,6 +325,37 @@ export function parseResponse(input: unknown): WorkerResponse {
   const value = parseSelectedWorkerResponseWire(input);
   const id = parseWorkerRequestId(value.id);
   switch (value.kind) {
+    case "publicationCheck":
+      return {
+        id,
+        kind: value.kind,
+        operation: value.operation,
+        value: parsePublicationCheck(value.value),
+      };
+    case "contentUnavailable":
+      return {
+        id,
+        kind: value.kind,
+        value: parseInstalledResourceFailure(value.value),
+      };
+    case "installationCatalog":
+      return {
+        id,
+        kind: value.kind,
+        value: parseInstallationCatalog(value.value),
+      };
+    case "installationRead":
+      return {
+        id,
+        kind: value.kind,
+        value: parseInstallationRead(value.value),
+      };
+    case "parentMaterial":
+      return {
+        id,
+        kind: value.kind,
+        value: parseParentMaterialWire(value.value),
+      };
     case "directory":
     case "reconciled":
       return {

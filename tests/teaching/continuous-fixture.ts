@@ -1,3 +1,4 @@
+import { installedFixture } from "../installed-fixture.ts";
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import {
@@ -35,34 +36,35 @@ export async function continuousFixture() {
     ?.task.id;
   if (!selectedId) throw new Error("Continuous fixture task missing");
   const entry = taskDefinition({ content, taskId: selectedId });
-  const initial = initialState(content, selectedId);
+  const installed = await installedFixture(content, continuousHash);
+  const initial = initialState(installed, selectedId);
   if (entry.kind !== "graphControls" || initial.kind !== "graphControls")
     throw new Error("Continuous fixture variant missing");
   const taskId = entry.graph.task.id;
   let state = initial;
   function view() {
-    return project(content, state);
+    return project(installed, state);
   }
   function actions() {
     return controlActions({
-      content,
+      content: installed,
       state,
-      status: completionProof(content, state) ? "completed" : "inProgress",
+      status: completionProof(installed, state) ? "completed" : "inProgress",
     });
   }
   function act(action: GraphAction) {
     const before = state;
     const plan = evaluateGraph({
-      content,
+      content: installed,
       state,
-      status: completionProof(content, state) ? "completed" : "inProgress",
+      status: completionProof(installed, state) ? "completed" : "inProgress",
       action,
     });
     if (plan.after.kind !== "graphControls")
       throw new Error("Continuous state variant changed");
     if (plan.kind === "acceptance" || plan.kind === "completion")
       validateAcceptanceTransition({
-        content,
+        content: installed,
         taskId,
         before,
         after: plan.after,
@@ -88,6 +90,7 @@ export async function continuousFixture() {
   }
   return {
     content,
+    installed,
     taskId,
     task: entry.graph.task,
     graph: entry.graph,
@@ -107,7 +110,7 @@ export async function continuousFixture() {
     },
     roundTrip() {
       const restored = parseTeachingState(JSON.parse(JSON.stringify(state)));
-      validatePosition(content, restored, taskId);
+      validatePosition(installed, restored, taskId);
       if (restored.kind !== "graphControls")
         throw new Error("Continuous restore changed variant");
       state = restored;

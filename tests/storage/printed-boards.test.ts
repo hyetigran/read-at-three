@@ -25,7 +25,7 @@ test("printed slow acceptance leaves fast due through physical SQLite reopen and
   assert.equal(view.kind, "teaching");
   if (view.kind !== "teaching") throw new Error("Fast response required");
   assert.equal(view.turn.id, "fixture.board.fast");
-  assert.equal(first.db.prepare("PRAGMA user_version").get()?.user_version, 12);
+  assert.equal(first.db.prepare("PRAGMA user_version").get()?.user_version, 13);
   const before = view;
   first.db.close();
   const next = f.connect();
@@ -262,7 +262,7 @@ test("V11 migration rolls back the whole V10 file on refused COMMIT and recovers
   assert.equal(db.prepare("PRAGMA foreign_keys").get()?.foreign_keys, 1);
   assert.deepEqual(db.prepare("PRAGMA foreign_key_check").all(), []);
   await initializeDatabase(executor, hash);
-  assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 12);
+  assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 13);
   const committed = await readFile(file);
   await initializeDatabase(executor, hash);
   assert.deepEqual(await readFile(file), committed);

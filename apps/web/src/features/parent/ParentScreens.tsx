@@ -1,3 +1,5 @@
+import { useQuery } from "@tanstack/react-query";
+import { browserConfiguration } from "../../platform/browser-configuration.ts";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Check, Settings } from "lucide-react";
 import { animalCatalog, canonical, resolveAvatar } from "@readatthree/teaching";
@@ -24,6 +26,7 @@ export type ParentScreensProps = {
   visit: ParentVisit;
   directory: ProfileDirectory;
   preparation: PreparationAvailability;
+  readParentMaterial: BrowserTeachingClient["parentMaterial"];
   packageHash: PackageHash;
   busy: boolean;
   onGrant: () => void;
@@ -162,7 +165,7 @@ export function ParentScreens(props: ParentScreensProps) {
   const {
     visit,
     directory,
-    preparation,
+    preparation: developmentPreparation,
     busy,
     onGrant,
     onNavigate,
@@ -170,6 +173,46 @@ export function ParentScreens(props: ParentScreensProps) {
     onReturn,
     onSubmit,
   } = props;
+  const installed = browserConfiguration.kind === "installed";
+  const preparationTicket: TaskPreviewTicket = {
+    lifetime: visit.lifetime,
+    routeAttempt: visit.routeAttempt,
+    packageHash: props.packageHash,
+  };
+  const preparationQuery = useQuery({
+    queryKey: [
+      "installed-parent-preparation",
+      visit.lifetime.selection,
+      visit.lifetime.connectionTicket,
+      visit.lifetime.visitId,
+      visit.routeAttempt,
+      props.packageHash,
+    ],
+    queryFn: async (): Promise<PreparationAvailability> => {
+      if (!props.isCurrent(preparationTicket))
+        throw new Error("Parent visit was retired");
+      const material = await props.readParentMaterial({
+        kind: "preparation",
+        packageHash: props.packageHash,
+      });
+      if (!props.isCurrent(preparationTicket))
+        throw new Error("Parent visit was retired");
+      return material.kind === "preparation"
+        ? { kind: "available", document: material.document }
+        : { kind: "unavailable", reason: "missing" };
+    },
+    enabled: installed && visit.destination.kind === "preparation",
+    networkMode: "always",
+    retry: false,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+  });
+  const preparation: PreparationAvailability = installed
+    ? (preparationQuery.data ?? {
+        kind: "unavailable",
+        reason: preparationQuery.error ? "invalid" : "missing",
+      })
+    : developmentPreparation;
   const destination = visit.destination;
   const first = directory.initialSetup.kind === "firstLaunch";
   const target =
@@ -773,30 +816,38 @@ export function ParentScreens(props: ParentScreensProps) {
         );
         break;
       case "preparation":
-        content = (
-          <PreparationReader
-            availability={preparation}
-            visit={visit}
-            packageHash={props.packageHash}
-            acknowledged={directory.preparation.kind === "acknowledged"}
-            busy={busy}
-            onAcknowledge={() => {
-              if (preparation.kind !== "available") return;
-              onSubmit(
-                {
-                  kind: "acknowledgePreparation",
-                  directory: directory.administration,
-                  hash: preparation.document.preparationHash,
-                },
-                "preparation",
-              );
-            }}
-            onContinue={finishPreparation}
-            onReturn={onReturn}
-            connectionTicket={props.connectionTicket}
-            isCurrent={props.isCurrent}
-          />
-        );
+        content =
+          installed && preparationQuery.isPending ? (
+            <section className="parent-message" role="status">
+              <p>
+                <AddedText>Loading parent preparation</AddedText>
+              </p>
+            </section>
+          ) : (
+            <PreparationReader
+              readParentMaterial={props.readParentMaterial}
+              availability={preparation}
+              visit={visit}
+              packageHash={props.packageHash}
+              acknowledged={directory.preparation.kind === "acknowledged"}
+              busy={busy}
+              onAcknowledge={() => {
+                if (preparation.kind !== "available") return;
+                onSubmit(
+                  {
+                    kind: "acknowledgePreparation",
+                    directory: directory.administration,
+                    hash: preparation.document.preparationHash,
+                  },
+                  "preparation",
+                );
+              }}
+              onContinue={finishPreparation}
+              onReturn={onReturn}
+              connectionTicket={props.connectionTicket}
+              isCurrent={props.isCurrent}
+            />
+          );
         break;
       case "initialProfile":
       case "createProfile":
