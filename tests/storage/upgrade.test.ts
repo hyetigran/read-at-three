@@ -12,6 +12,7 @@ import {
 import { migrations } from "../../packages/storage/src/generated-migration.ts";
 import { canonical } from "../../packages/teaching/src/index.ts";
 import { hash, storageFixture } from "./support.ts";
+import { createTeachingApplication } from "../../packages/storage/src/store.ts";
 import type {
   SqlExecutor,
   SqlValue,
@@ -414,3 +415,127 @@ test("every V3 migration write and pre-COMMIT interruption rolls back genuine V2
     DATABASE_VERSION,
   );
 });
+
+for (const malformed of ["preferences", "completed", "skipped"] as const) {
+  test(`read-only predecessor admission refuses ${malformed} before any migration or bootstrap write`, async (t) => {
+    const f = await storageFixture(t);
+    const first = f.connect();
+    await seed({ db: first.db });
+    if (malformed === "preferences") {
+      first.db.exec("DELETE FROM installation");
+      first.db
+        .prepare("UPDATE profile SET preferences=?")
+        .run('{"version":99}');
+    } else {
+      first.db.prepare("UPDATE task_run SET status=?").run(malformed);
+      first.db.exec("UPDATE session SET status='closed'");
+    }
+    const objects = first.db
+      .prepare(
+        "SELECT type,name,tbl_name,rootpage,sql FROM sqlite_master ORDER BY type,name",
+      )
+      .all();
+    const names = first.db
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
+      )
+      .all()
+      .map((row) => {
+        if (typeof row.name !== "string" || !/^[a-z_]+$/.test(row.name))
+          throw new Error("Unexpected fixture table");
+        return row.name;
+      });
+    const before = names.map((name) => ({
+      name,
+      rows: first.db.prepare(`SELECT * FROM ${name}`).all(),
+    }));
+    const filename = first.db.prepare("PRAGMA database_list").get()?.file;
+    assert.equal(typeof filename, "string");
+    if (typeof filename !== "string")
+      throw new Error("Fixture file unavailable");
+    const bytes = await readFile(filename);
+    const attempts: string[] = [];
+    const opened = f.connect({
+      hook: async (sql, work) => {
+        attempts.push(sql);
+        return work();
+      },
+    });
+    await assert.rejects(
+      opened.app.readDirectory(),
+      malformed === "preferences" ? /preferences/ : /acceptance head/,
+    );
+    assert.deepEqual(
+      attempts.filter(
+        (sql) =>
+          !/^\s*(?:select\b|PRAGMA\s+(?:foreign_keys(?:=ON)?|foreign_key_check|user_version|journal_mode|synchronous)\s*$)/i.test(
+            sql,
+          ),
+      ),
+      [],
+    );
+    assert.deepEqual(
+      first.db
+        .prepare(
+          "SELECT type,name,tbl_name,rootpage,sql FROM sqlite_master ORDER BY type,name",
+        )
+        .all(),
+      objects,
+    );
+    assert.deepEqual(
+      names.map((name) => ({
+        name,
+        rows: first.db.prepare(`SELECT * FROM ${name}`).all(),
+      })),
+      before,
+    );
+    assert.equal(
+      first.db.prepare("PRAGMA user_version").get()?.user_version,
+      1,
+    );
+    opened.db.close();
+    first.db.close();
+    assert.deepEqual(await readFile(filename), bytes);
+  });
+}
+
+for (const version of [1, 2] as const) {
+  test(`valid captured DB${version} with no installation metadata preserves old child while bootstrapping a new child`, async (t) => {
+    const f = await storageFixture(t);
+    const first = f.connect();
+    await seed({ db: first.db, version });
+    first.db.exec("DELETE FROM installation");
+    const oldProfiles = first.db.prepare("SELECT * FROM profile").all();
+    const oldRuns = first.db
+      .prepare("SELECT run_id,state,package_hash FROM task_run")
+      .all();
+    let next = 0;
+    const application = createTeachingApplication({
+      executor: first.executor,
+      content: f.content,
+      ids: () => `compatibility-bootstrap-${++next}`,
+      hash,
+    });
+    const directory = await application.readDirectory();
+    assert.equal(directory.initialSetup.kind, "firstLaunch");
+    assert.equal(directory.profiles.length, oldProfiles.length + 1);
+    for (const row of oldProfiles) {
+      if (typeof row.profile_id !== "string")
+        throw new Error("Fixture profile identity unavailable");
+      assert.deepEqual(
+        first.db
+          .prepare("SELECT * FROM profile WHERE profile_id=?")
+          .get(row.profile_id),
+        row,
+      );
+    }
+    assert.deepEqual(
+      first.db.prepare("SELECT run_id,state,package_hash FROM task_run").all(),
+      oldRuns,
+    );
+    assert.equal(
+      first.db.prepare("PRAGMA user_version").get()?.user_version,
+      DATABASE_VERSION,
+    );
+  });
+}

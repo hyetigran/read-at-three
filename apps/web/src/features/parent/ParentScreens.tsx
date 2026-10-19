@@ -20,6 +20,9 @@ import type { ParentDestination, ParentVisit } from "./parent-visit.ts";
 import type { BrowserTeachingClient } from "../../platform/teaching-client.ts";
 import { readOriginStorageEstimate } from "../../platform/storage-estimate.ts";
 import type { TaskPreviewTicket } from "./task-preview.ts";
+import { LessonFiles } from "./LessonFiles.tsx";
+import type { LessonFilesClient } from "./LessonFiles.tsx";
+import type { LessonFilesCommand } from "@readatthree/teaching";
 
 export type ParentAfter = "map" | "profiles" | "preparation" | "removal";
 export type ParentScreensProps = {
@@ -38,6 +41,11 @@ export type ParentScreensProps = {
     after: ParentAfter,
   ) => void;
   readDiagnostics?: BrowserTeachingClient["readDiagnostics"];
+  lessonFiles?: Readonly<{
+    client: LessonFilesClient;
+    retained: { current: LessonFilesCommand | null };
+    onChanged(): Promise<void>;
+  }>;
   connectionTicket: () => number;
   isCurrent: (ticket: TaskPreviewTicket) => boolean;
 };
@@ -294,6 +302,36 @@ export function ParentScreens(props: ParentScreensProps) {
           </section>
         );
         break;
+      case "lessonFiles":
+        content =
+          props.lessonFiles && installed ? (
+            <LessonFiles
+              key={canonical([
+                props.packageHash,
+                visit.lifetime.connectionTicket,
+                visit.lifetime.visitId,
+                visit.routeAttempt,
+              ])}
+              client={props.lessonFiles.client}
+              installationId={directory.administration.installationId}
+              visitKey={[
+                visit.lifetime.connectionTicket,
+                visit.lifetime.visitId,
+                visit.routeAttempt,
+                props.packageHash,
+              ]}
+              isCurrent={() => props.isCurrent(preparationTicket)}
+              retained={props.lessonFiles.retained}
+              onChanged={props.lessonFiles.onChanged}
+            />
+          ) : (
+            <p>
+              <AddedText>
+                Lesson-file updates are available after signed installation.
+              </AddedText>
+            </p>
+          );
+        break;
       case "settings":
         content = (
           <section className="course-settings">
@@ -308,6 +346,13 @@ export function ParentScreens(props: ParentScreensProps) {
               </AddedText>
             </p>
             <div className="parent-settings-links">
+              <Button
+                className="course-secondary"
+                onClick={() => onNavigate({ kind: "lessonFiles" })}
+                disabled={busy}
+              >
+                <AddedText>Lesson files</AddedText>
+              </Button>
               <Button
                 className="course-primary"
                 onClick={() => manage({ kind: "profiles" })}
@@ -1080,13 +1125,15 @@ export function ParentScreens(props: ParentScreensProps) {
                 ? "Parent preparation"
                 : destination.kind === "settings"
                   ? "Parent settings"
-                  : destination.kind === "support"
-                    ? "Local support"
-                    : destination.kind === "removal"
-                      ? "Manage saved work"
-                      : destination.kind === "profiles"
-                        ? "Child profiles"
-                        : "Choose an animal"}
+                  : destination.kind === "lessonFiles"
+                    ? "Lesson files"
+                    : destination.kind === "support"
+                      ? "Local support"
+                      : destination.kind === "removal"
+                        ? "Manage saved work"
+                        : destination.kind === "profiles"
+                          ? "Child profiles"
+                          : "Choose an animal"}
           </AddedText>
         </h1>
       </header>

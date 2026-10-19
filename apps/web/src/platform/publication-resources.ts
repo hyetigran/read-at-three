@@ -1,14 +1,19 @@
 import type {
-  PublicationResourcePorts,
+  CatalogPublicationResources,
   PublicationResponse,
 } from "@readatthree/teaching";
+import {
+  parsePublicationHash,
+  publicationCatalogLimits,
+} from "@readatthree/teaching";
+import { requireCollectionClaim } from "@readatthree/storage";
 
 export function createWebPublicationResources(
   input: Readonly<{
     origin: string;
     signal: AbortSignal;
   }>,
-): PublicationResourcePorts {
+): CatalogPublicationResources {
   const origin = new URL(input.origin);
   if (
     origin.origin !== input.origin ||
@@ -56,6 +61,19 @@ export function createWebPublicationResources(
     };
   }
   return {
+    async inventory({ mode }) {
+      input.signal.throwIfAborted();
+      const prefix = `reading-content-v1-${mode}-`;
+      const owned = [];
+      for (const name of await caches.keys()) {
+        if (!name.startsWith(prefix)) continue;
+        if (owned.length >= publicationCatalogLimits.namespaces)
+          throw new Error("Owned content inventory limit reached");
+        owned.push(parsePublicationHash(name.slice(prefix.length)));
+      }
+      input.signal.throwIfAborted();
+      return owned.sort();
+    },
     async download({ mode, hash, path }) {
       input.signal.throwIfAborted();
       const url = new URL(`/_reading/download/${mode}/${hash}/${path}`, origin)
@@ -81,6 +99,24 @@ export function createWebPublicationResources(
             : undefined;
           const prefix = location(mode, hash, "");
           return run({
+            async erase(claim) {
+              const requireClaim = async () => {
+                input.signal.throwIfAborted();
+                await requireCollectionClaim({ claim, mode, hash });
+                input.signal.throwIfAborted();
+              };
+              await requireClaim();
+              const keys = cache ? await cache.keys() : [];
+              await requireClaim();
+              for (const key of keys) {
+                await requireClaim();
+                await cache?.delete(key);
+                await requireClaim();
+              }
+              await caches.delete(name);
+              await requireClaim();
+              cache = undefined;
+            },
             async paths() {
               const keys = cache ? await cache.keys() : [];
               return keys.map((key) =>

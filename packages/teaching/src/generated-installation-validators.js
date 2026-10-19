@@ -168,6 +168,7 @@ const schema30 = {
                             "stream",
                             "crypto",
                             "cancelled",
+                            "quota",
                           ],
                         },
                       },
@@ -798,7 +799,8 @@ function validate58(
                               data10 === "download" ||
                               data10 === "stream" ||
                               data10 === "crypto" ||
-                              data10 === "cancelled")
+                              data10 === "cancelled" ||
+                              data10 === "quota")
                           )) {
                             const err27 = {
                               instancePath:
@@ -2054,6 +2056,7 @@ const schema31 = {
                         "stream",
                         "crypto",
                         "cancelled",
+                        "quota",
                       ],
                     },
                   },
@@ -2375,7 +2378,8 @@ function validate59(
                           data5 === "download" ||
                           data5 === "stream" ||
                           data5 === "crypto" ||
-                          data5 === "cancelled")
+                          data5 === "cancelled" ||
+                          data5 === "quota")
                       )) {
                         const err12 = {
                           instancePath: instancePath + "/reason/failure/reason",
@@ -28000,5 +28004,9717 @@ function validate66(
     errors++;
   }
   validate66.errors = vErrors;
+  return errors === 0;
+}
+export const validateLessonFilesCommand = validate67;
+const schema39 = {
+  properties: {
+    version: { type: "uint8" },
+    family: { enum: ["lesson-files"] },
+    installationId: { type: "string" },
+    commandId: { type: "string" },
+    expected: {
+      discriminator: "kind",
+      mapping: {
+        absent: { properties: {} },
+        present: {
+          properties: {
+            revision: { type: "string" },
+            activePackageHash: { type: "string" },
+            fallbackPackageHash: { type: "string", nullable: true },
+          },
+        },
+      },
+    },
+    action: {
+      discriminator: "kind",
+      mapping: {
+        download: {
+          properties: {
+            target: {
+              properties: {
+                publicationHash: { type: "string" },
+                courseId: { type: "string" },
+                releaseId: { type: "string" },
+                mode: { enum: ["fixture", "publication"] },
+              },
+            },
+          },
+        },
+        use: {
+          properties: {
+            target: {
+              properties: {
+                publicationHash: { type: "string" },
+                courseId: { type: "string" },
+                releaseId: { type: "string" },
+                mode: { enum: ["fixture", "publication"] },
+              },
+            },
+            ready: {
+              properties: {
+                installationId: { type: "string" },
+                commandId: { type: "string" },
+                payloadHash: { type: "string" },
+              },
+            },
+          },
+        },
+        cancel: {
+          properties: {
+            download: {
+              properties: {
+                installationId: { type: "string" },
+                commandId: { type: "string" },
+                payloadHash: { type: "string" },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+};
+function validate67(
+  data,
+  { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
+) {
+  let vErrors = null;
+  let errors = 0;
+  let valid0 = false;
+  if (data && typeof data == "object" && !Array.isArray(data)) {
+    valid0 = true;
+    if (data.version !== undefined) {
+      let data0 = data.version;
+      if (!(
+        typeof data0 == "number" &&
+        isFinite(data0) &&
+        !(data0 % 1) &&
+        data0 >= 0 &&
+        data0 <= 255
+      )) {
+        const err0 = {
+          instancePath: instancePath + "/version",
+          schemaPath: "/properties/version/type",
+          keyword: "type",
+          params: { type: "uint8", nullable: false },
+          message: "must be uint8",
+        };
+        if (vErrors === null) {
+          vErrors = [err0];
+        } else {
+          vErrors.push(err0);
+        }
+        errors++;
+      }
+    } else {
+      const err1 = {
+        instancePath,
+        schemaPath: "/properties/version",
+        keyword: "properties",
+        params: { error: "missing", missingProperty: "version" },
+        message: "must have property 'version'",
+      };
+      if (vErrors === null) {
+        vErrors = [err1];
+      } else {
+        vErrors.push(err1);
+      }
+      errors++;
+    }
+    if (data.family !== undefined) {
+      let data1 = data.family;
+      if (!(typeof data1 == "string" && data1 === "lesson-files")) {
+        const err2 = {
+          instancePath: instancePath + "/family",
+          schemaPath: "/properties/family/enum",
+          keyword: "enum",
+          params: { allowedValues: schema39.properties.family.enum },
+          message: "must be equal to one of the allowed values",
+        };
+        if (vErrors === null) {
+          vErrors = [err2];
+        } else {
+          vErrors.push(err2);
+        }
+        errors++;
+      }
+    } else {
+      const err3 = {
+        instancePath,
+        schemaPath: "/properties/family",
+        keyword: "properties",
+        params: { error: "missing", missingProperty: "family" },
+        message: "must have property 'family'",
+      };
+      if (vErrors === null) {
+        vErrors = [err3];
+      } else {
+        vErrors.push(err3);
+      }
+      errors++;
+    }
+    if (data.installationId !== undefined) {
+      if (!(typeof data.installationId == "string")) {
+        const err4 = {
+          instancePath: instancePath + "/installationId",
+          schemaPath: "/properties/installationId/type",
+          keyword: "type",
+          params: { type: "string", nullable: false },
+          message: "must be string",
+        };
+        if (vErrors === null) {
+          vErrors = [err4];
+        } else {
+          vErrors.push(err4);
+        }
+        errors++;
+      }
+    } else {
+      const err5 = {
+        instancePath,
+        schemaPath: "/properties/installationId",
+        keyword: "properties",
+        params: { error: "missing", missingProperty: "installationId" },
+        message: "must have property 'installationId'",
+      };
+      if (vErrors === null) {
+        vErrors = [err5];
+      } else {
+        vErrors.push(err5);
+      }
+      errors++;
+    }
+    if (data.commandId !== undefined) {
+      if (!(typeof data.commandId == "string")) {
+        const err6 = {
+          instancePath: instancePath + "/commandId",
+          schemaPath: "/properties/commandId/type",
+          keyword: "type",
+          params: { type: "string", nullable: false },
+          message: "must be string",
+        };
+        if (vErrors === null) {
+          vErrors = [err6];
+        } else {
+          vErrors.push(err6);
+        }
+        errors++;
+      }
+    } else {
+      const err7 = {
+        instancePath,
+        schemaPath: "/properties/commandId",
+        keyword: "properties",
+        params: { error: "missing", missingProperty: "commandId" },
+        message: "must have property 'commandId'",
+      };
+      if (vErrors === null) {
+        vErrors = [err7];
+      } else {
+        vErrors.push(err7);
+      }
+      errors++;
+    }
+    if (data.expected !== undefined) {
+      let data4 = data.expected;
+      let valid2 = false;
+      if (data4 && typeof data4 == "object" && !Array.isArray(data4)) {
+        const tag0 = data4.kind;
+        if (tag0 === undefined) {
+          const err8 = {
+            instancePath: instancePath + "/expected",
+            schemaPath: "/properties/expected/discriminator",
+            keyword: "discriminator",
+            params: { error: "tag", tag: "kind", tagValue: tag0 },
+            message: 'tag "kind" must be string',
+          };
+          if (vErrors === null) {
+            vErrors = [err8];
+          } else {
+            vErrors.push(err8);
+          }
+          errors++;
+        } else if (typeof tag0 == "string") {
+          if (tag0 === "absent") {
+            const _errs5 = errors;
+            let valid4 = false;
+            valid4 = true;
+            for (const key0 in data4) {
+              if (key0 !== "kind") {
+                const err9 = {
+                  instancePath:
+                    instancePath +
+                    "/expected/" +
+                    key0.replace(/~/g, "~0").replace(/\//g, "~1"),
+                  schemaPath: "/properties/expected/mapping/absent",
+                  keyword: "properties",
+                  params: { error: "additional", additionalProperty: key0 },
+                  message: "must NOT have additional properties",
+                };
+                if (vErrors === null) {
+                  vErrors = [err9];
+                } else {
+                  vErrors.push(err9);
+                }
+                errors++;
+              }
+            }
+            if (!valid4) {
+              const err10 = {
+                instancePath: instancePath + "/expected",
+                schemaPath: "/properties/expected/mapping/absent/properties",
+                keyword: "properties",
+                params: { type: "object", nullable: false },
+                message: "must be object",
+              };
+              if (vErrors === null) {
+                vErrors = [err10];
+              } else {
+                vErrors.push(err10);
+              }
+              errors++;
+            }
+            var valid3 = _errs5 === errors;
+            valid2 = valid3;
+          } else if (tag0 === "present") {
+            const _errs6 = errors;
+            let valid8 = false;
+            valid8 = true;
+            if (data4.revision !== undefined) {
+              if (!(typeof data4.revision == "string")) {
+                const err11 = {
+                  instancePath: instancePath + "/expected/revision",
+                  schemaPath:
+                    "/properties/expected/mapping/present/properties/revision/type",
+                  keyword: "type",
+                  params: { type: "string", nullable: false },
+                  message: "must be string",
+                };
+                if (vErrors === null) {
+                  vErrors = [err11];
+                } else {
+                  vErrors.push(err11);
+                }
+                errors++;
+              }
+            } else {
+              const err12 = {
+                instancePath: instancePath + "/expected",
+                schemaPath:
+                  "/properties/expected/mapping/present/properties/revision",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "revision" },
+                message: "must have property 'revision'",
+              };
+              if (vErrors === null) {
+                vErrors = [err12];
+              } else {
+                vErrors.push(err12);
+              }
+              errors++;
+            }
+            if (data4.activePackageHash !== undefined) {
+              if (!(typeof data4.activePackageHash == "string")) {
+                const err13 = {
+                  instancePath: instancePath + "/expected/activePackageHash",
+                  schemaPath:
+                    "/properties/expected/mapping/present/properties/activePackageHash/type",
+                  keyword: "type",
+                  params: { type: "string", nullable: false },
+                  message: "must be string",
+                };
+                if (vErrors === null) {
+                  vErrors = [err13];
+                } else {
+                  vErrors.push(err13);
+                }
+                errors++;
+              }
+            } else {
+              const err14 = {
+                instancePath: instancePath + "/expected",
+                schemaPath:
+                  "/properties/expected/mapping/present/properties/activePackageHash",
+                keyword: "properties",
+                params: {
+                  error: "missing",
+                  missingProperty: "activePackageHash",
+                },
+                message: "must have property 'activePackageHash'",
+              };
+              if (vErrors === null) {
+                vErrors = [err14];
+              } else {
+                vErrors.push(err14);
+              }
+              errors++;
+            }
+            if (data4.fallbackPackageHash !== undefined) {
+              let data7 = data4.fallbackPackageHash;
+              if (!(data7 === null || typeof data7 == "string")) {
+                const err15 = {
+                  instancePath: instancePath + "/expected/fallbackPackageHash",
+                  schemaPath:
+                    "/properties/expected/mapping/present/properties/fallbackPackageHash/type",
+                  keyword: "type",
+                  params: { type: "string", nullable: true },
+                  message: "must be string or null",
+                };
+                if (vErrors === null) {
+                  vErrors = [err15];
+                } else {
+                  vErrors.push(err15);
+                }
+                errors++;
+              }
+            } else {
+              const err16 = {
+                instancePath: instancePath + "/expected",
+                schemaPath:
+                  "/properties/expected/mapping/present/properties/fallbackPackageHash",
+                keyword: "properties",
+                params: {
+                  error: "missing",
+                  missingProperty: "fallbackPackageHash",
+                },
+                message: "must have property 'fallbackPackageHash'",
+              };
+              if (vErrors === null) {
+                vErrors = [err16];
+              } else {
+                vErrors.push(err16);
+              }
+              errors++;
+            }
+            for (const key1 in data4) {
+              if (
+                key1 !== "kind" &&
+                key1 !== "revision" &&
+                key1 !== "activePackageHash" &&
+                key1 !== "fallbackPackageHash"
+              ) {
+                const err17 = {
+                  instancePath:
+                    instancePath +
+                    "/expected/" +
+                    key1.replace(/~/g, "~0").replace(/\//g, "~1"),
+                  schemaPath: "/properties/expected/mapping/present",
+                  keyword: "properties",
+                  params: { error: "additional", additionalProperty: key1 },
+                  message: "must NOT have additional properties",
+                };
+                if (vErrors === null) {
+                  vErrors = [err17];
+                } else {
+                  vErrors.push(err17);
+                }
+                errors++;
+              }
+            }
+            if (!valid8) {
+              const err18 = {
+                instancePath: instancePath + "/expected",
+                schemaPath: "/properties/expected/mapping/present/properties",
+                keyword: "properties",
+                params: { type: "object", nullable: false },
+                message: "must be object",
+              };
+              if (vErrors === null) {
+                vErrors = [err18];
+              } else {
+                vErrors.push(err18);
+              }
+              errors++;
+            }
+            var valid7 = _errs6 === errors;
+            valid2 = valid7;
+          } else {
+            const err19 = {
+              instancePath: instancePath + "/expected/kind",
+              schemaPath: "/properties/expected/mapping",
+              keyword: "discriminator",
+              params: { error: "mapping", tag: "kind", tagValue: tag0 },
+              message: 'value of tag "kind" must be in mapping',
+            };
+            if (vErrors === null) {
+              vErrors = [err19];
+            } else {
+              vErrors.push(err19);
+            }
+            errors++;
+          }
+        } else {
+          const err20 = {
+            instancePath: instancePath + "/expected/kind",
+            schemaPath: "/properties/expected/discriminator",
+            keyword: "discriminator",
+            params: { error: "tag", tag: "kind", tagValue: tag0 },
+            message: 'tag "kind" must be string',
+          };
+          if (vErrors === null) {
+            vErrors = [err20];
+          } else {
+            vErrors.push(err20);
+          }
+          errors++;
+        }
+      } else if (!valid2) {
+        const err21 = {
+          instancePath: instancePath + "/expected",
+          schemaPath: "/properties/expected/discriminator",
+          keyword: "discriminator",
+          params: { type: "object", nullable: false },
+          message: "must be object",
+        };
+        if (vErrors === null) {
+          vErrors = [err21];
+        } else {
+          vErrors.push(err21);
+        }
+        errors++;
+      }
+    } else {
+      const err22 = {
+        instancePath,
+        schemaPath: "/properties/expected",
+        keyword: "properties",
+        params: { error: "missing", missingProperty: "expected" },
+        message: "must have property 'expected'",
+      };
+      if (vErrors === null) {
+        vErrors = [err22];
+      } else {
+        vErrors.push(err22);
+      }
+      errors++;
+    }
+    if (data.action !== undefined) {
+      let data8 = data.action;
+      let valid11 = false;
+      if (data8 && typeof data8 == "object" && !Array.isArray(data8)) {
+        const tag1 = data8.kind;
+        if (tag1 === undefined) {
+          const err23 = {
+            instancePath: instancePath + "/action",
+            schemaPath: "/properties/action/discriminator",
+            keyword: "discriminator",
+            params: { error: "tag", tag: "kind", tagValue: tag1 },
+            message: 'tag "kind" must be string',
+          };
+          if (vErrors === null) {
+            vErrors = [err23];
+          } else {
+            vErrors.push(err23);
+          }
+          errors++;
+        } else if (typeof tag1 == "string") {
+          if (tag1 === "download") {
+            const _errs12 = errors;
+            let valid13 = false;
+            valid13 = true;
+            if (data8.target !== undefined) {
+              let data9 = data8.target;
+              let valid15 = false;
+              if (data9 && typeof data9 == "object" && !Array.isArray(data9)) {
+                valid15 = true;
+                if (data9.publicationHash !== undefined) {
+                  if (!(typeof data9.publicationHash == "string")) {
+                    const err24 = {
+                      instancePath:
+                        instancePath + "/action/target/publicationHash",
+                      schemaPath:
+                        "/properties/action/mapping/download/properties/target/properties/publicationHash/type",
+                      keyword: "type",
+                      params: { type: "string", nullable: false },
+                      message: "must be string",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err24];
+                    } else {
+                      vErrors.push(err24);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err25 = {
+                    instancePath: instancePath + "/action/target",
+                    schemaPath:
+                      "/properties/action/mapping/download/properties/target/properties/publicationHash",
+                    keyword: "properties",
+                    params: {
+                      error: "missing",
+                      missingProperty: "publicationHash",
+                    },
+                    message: "must have property 'publicationHash'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err25];
+                  } else {
+                    vErrors.push(err25);
+                  }
+                  errors++;
+                }
+                if (data9.courseId !== undefined) {
+                  if (!(typeof data9.courseId == "string")) {
+                    const err26 = {
+                      instancePath: instancePath + "/action/target/courseId",
+                      schemaPath:
+                        "/properties/action/mapping/download/properties/target/properties/courseId/type",
+                      keyword: "type",
+                      params: { type: "string", nullable: false },
+                      message: "must be string",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err26];
+                    } else {
+                      vErrors.push(err26);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err27 = {
+                    instancePath: instancePath + "/action/target",
+                    schemaPath:
+                      "/properties/action/mapping/download/properties/target/properties/courseId",
+                    keyword: "properties",
+                    params: { error: "missing", missingProperty: "courseId" },
+                    message: "must have property 'courseId'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err27];
+                  } else {
+                    vErrors.push(err27);
+                  }
+                  errors++;
+                }
+                if (data9.releaseId !== undefined) {
+                  if (!(typeof data9.releaseId == "string")) {
+                    const err28 = {
+                      instancePath: instancePath + "/action/target/releaseId",
+                      schemaPath:
+                        "/properties/action/mapping/download/properties/target/properties/releaseId/type",
+                      keyword: "type",
+                      params: { type: "string", nullable: false },
+                      message: "must be string",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err28];
+                    } else {
+                      vErrors.push(err28);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err29 = {
+                    instancePath: instancePath + "/action/target",
+                    schemaPath:
+                      "/properties/action/mapping/download/properties/target/properties/releaseId",
+                    keyword: "properties",
+                    params: { error: "missing", missingProperty: "releaseId" },
+                    message: "must have property 'releaseId'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err29];
+                  } else {
+                    vErrors.push(err29);
+                  }
+                  errors++;
+                }
+                if (data9.mode !== undefined) {
+                  let data13 = data9.mode;
+                  if (!(
+                    typeof data13 == "string" &&
+                    (data13 === "fixture" || data13 === "publication")
+                  )) {
+                    const err30 = {
+                      instancePath: instancePath + "/action/target/mode",
+                      schemaPath:
+                        "/properties/action/mapping/download/properties/target/properties/mode/enum",
+                      keyword: "enum",
+                      params: {
+                        allowedValues:
+                          schema39.properties.action.mapping.download.properties
+                            .target.properties.mode.enum,
+                      },
+                      message: "must be equal to one of the allowed values",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err30];
+                    } else {
+                      vErrors.push(err30);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err31 = {
+                    instancePath: instancePath + "/action/target",
+                    schemaPath:
+                      "/properties/action/mapping/download/properties/target/properties/mode",
+                    keyword: "properties",
+                    params: { error: "missing", missingProperty: "mode" },
+                    message: "must have property 'mode'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err31];
+                  } else {
+                    vErrors.push(err31);
+                  }
+                  errors++;
+                }
+                for (const key2 in data9) {
+                  if (
+                    key2 !== "publicationHash" &&
+                    key2 !== "courseId" &&
+                    key2 !== "releaseId" &&
+                    key2 !== "mode"
+                  ) {
+                    const err32 = {
+                      instancePath:
+                        instancePath +
+                        "/action/target/" +
+                        key2.replace(/~/g, "~0").replace(/\//g, "~1"),
+                      schemaPath:
+                        "/properties/action/mapping/download/properties/target",
+                      keyword: "properties",
+                      params: { error: "additional", additionalProperty: key2 },
+                      message: "must NOT have additional properties",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err32];
+                    } else {
+                      vErrors.push(err32);
+                    }
+                    errors++;
+                  }
+                }
+              }
+              if (!valid15) {
+                const err33 = {
+                  instancePath: instancePath + "/action/target",
+                  schemaPath:
+                    "/properties/action/mapping/download/properties/target/properties",
+                  keyword: "properties",
+                  params: { type: "object", nullable: false },
+                  message: "must be object",
+                };
+                if (vErrors === null) {
+                  vErrors = [err33];
+                } else {
+                  vErrors.push(err33);
+                }
+                errors++;
+              }
+            } else {
+              const err34 = {
+                instancePath: instancePath + "/action",
+                schemaPath:
+                  "/properties/action/mapping/download/properties/target",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "target" },
+                message: "must have property 'target'",
+              };
+              if (vErrors === null) {
+                vErrors = [err34];
+              } else {
+                vErrors.push(err34);
+              }
+              errors++;
+            }
+            for (const key3 in data8) {
+              if (key3 !== "kind" && key3 !== "target") {
+                const err35 = {
+                  instancePath:
+                    instancePath +
+                    "/action/" +
+                    key3.replace(/~/g, "~0").replace(/\//g, "~1"),
+                  schemaPath: "/properties/action/mapping/download",
+                  keyword: "properties",
+                  params: { error: "additional", additionalProperty: key3 },
+                  message: "must NOT have additional properties",
+                };
+                if (vErrors === null) {
+                  vErrors = [err35];
+                } else {
+                  vErrors.push(err35);
+                }
+                errors++;
+              }
+            }
+            if (!valid13) {
+              const err36 = {
+                instancePath: instancePath + "/action",
+                schemaPath: "/properties/action/mapping/download/properties",
+                keyword: "properties",
+                params: { type: "object", nullable: false },
+                message: "must be object",
+              };
+              if (vErrors === null) {
+                vErrors = [err36];
+              } else {
+                vErrors.push(err36);
+              }
+              errors++;
+            }
+            var valid12 = _errs12 === errors;
+            valid11 = valid12;
+          } else if (tag1 === "use") {
+            const _errs18 = errors;
+            let valid20 = false;
+            valid20 = true;
+            if (data8.target !== undefined) {
+              let data14 = data8.target;
+              let valid22 = false;
+              if (
+                data14 &&
+                typeof data14 == "object" &&
+                !Array.isArray(data14)
+              ) {
+                valid22 = true;
+                if (data14.publicationHash !== undefined) {
+                  if (!(typeof data14.publicationHash == "string")) {
+                    const err37 = {
+                      instancePath:
+                        instancePath + "/action/target/publicationHash",
+                      schemaPath:
+                        "/properties/action/mapping/use/properties/target/properties/publicationHash/type",
+                      keyword: "type",
+                      params: { type: "string", nullable: false },
+                      message: "must be string",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err37];
+                    } else {
+                      vErrors.push(err37);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err38 = {
+                    instancePath: instancePath + "/action/target",
+                    schemaPath:
+                      "/properties/action/mapping/use/properties/target/properties/publicationHash",
+                    keyword: "properties",
+                    params: {
+                      error: "missing",
+                      missingProperty: "publicationHash",
+                    },
+                    message: "must have property 'publicationHash'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err38];
+                  } else {
+                    vErrors.push(err38);
+                  }
+                  errors++;
+                }
+                if (data14.courseId !== undefined) {
+                  if (!(typeof data14.courseId == "string")) {
+                    const err39 = {
+                      instancePath: instancePath + "/action/target/courseId",
+                      schemaPath:
+                        "/properties/action/mapping/use/properties/target/properties/courseId/type",
+                      keyword: "type",
+                      params: { type: "string", nullable: false },
+                      message: "must be string",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err39];
+                    } else {
+                      vErrors.push(err39);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err40 = {
+                    instancePath: instancePath + "/action/target",
+                    schemaPath:
+                      "/properties/action/mapping/use/properties/target/properties/courseId",
+                    keyword: "properties",
+                    params: { error: "missing", missingProperty: "courseId" },
+                    message: "must have property 'courseId'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err40];
+                  } else {
+                    vErrors.push(err40);
+                  }
+                  errors++;
+                }
+                if (data14.releaseId !== undefined) {
+                  if (!(typeof data14.releaseId == "string")) {
+                    const err41 = {
+                      instancePath: instancePath + "/action/target/releaseId",
+                      schemaPath:
+                        "/properties/action/mapping/use/properties/target/properties/releaseId/type",
+                      keyword: "type",
+                      params: { type: "string", nullable: false },
+                      message: "must be string",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err41];
+                    } else {
+                      vErrors.push(err41);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err42 = {
+                    instancePath: instancePath + "/action/target",
+                    schemaPath:
+                      "/properties/action/mapping/use/properties/target/properties/releaseId",
+                    keyword: "properties",
+                    params: { error: "missing", missingProperty: "releaseId" },
+                    message: "must have property 'releaseId'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err42];
+                  } else {
+                    vErrors.push(err42);
+                  }
+                  errors++;
+                }
+                if (data14.mode !== undefined) {
+                  let data18 = data14.mode;
+                  if (!(
+                    typeof data18 == "string" &&
+                    (data18 === "fixture" || data18 === "publication")
+                  )) {
+                    const err43 = {
+                      instancePath: instancePath + "/action/target/mode",
+                      schemaPath:
+                        "/properties/action/mapping/use/properties/target/properties/mode/enum",
+                      keyword: "enum",
+                      params: {
+                        allowedValues:
+                          schema39.properties.action.mapping.use.properties
+                            .target.properties.mode.enum,
+                      },
+                      message: "must be equal to one of the allowed values",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err43];
+                    } else {
+                      vErrors.push(err43);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err44 = {
+                    instancePath: instancePath + "/action/target",
+                    schemaPath:
+                      "/properties/action/mapping/use/properties/target/properties/mode",
+                    keyword: "properties",
+                    params: { error: "missing", missingProperty: "mode" },
+                    message: "must have property 'mode'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err44];
+                  } else {
+                    vErrors.push(err44);
+                  }
+                  errors++;
+                }
+                for (const key4 in data14) {
+                  if (
+                    key4 !== "publicationHash" &&
+                    key4 !== "courseId" &&
+                    key4 !== "releaseId" &&
+                    key4 !== "mode"
+                  ) {
+                    const err45 = {
+                      instancePath:
+                        instancePath +
+                        "/action/target/" +
+                        key4.replace(/~/g, "~0").replace(/\//g, "~1"),
+                      schemaPath:
+                        "/properties/action/mapping/use/properties/target",
+                      keyword: "properties",
+                      params: { error: "additional", additionalProperty: key4 },
+                      message: "must NOT have additional properties",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err45];
+                    } else {
+                      vErrors.push(err45);
+                    }
+                    errors++;
+                  }
+                }
+              }
+              if (!valid22) {
+                const err46 = {
+                  instancePath: instancePath + "/action/target",
+                  schemaPath:
+                    "/properties/action/mapping/use/properties/target/properties",
+                  keyword: "properties",
+                  params: { type: "object", nullable: false },
+                  message: "must be object",
+                };
+                if (vErrors === null) {
+                  vErrors = [err46];
+                } else {
+                  vErrors.push(err46);
+                }
+                errors++;
+              }
+            } else {
+              const err47 = {
+                instancePath: instancePath + "/action",
+                schemaPath: "/properties/action/mapping/use/properties/target",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "target" },
+                message: "must have property 'target'",
+              };
+              if (vErrors === null) {
+                vErrors = [err47];
+              } else {
+                vErrors.push(err47);
+              }
+              errors++;
+            }
+            if (data8.ready !== undefined) {
+              let data19 = data8.ready;
+              let valid25 = false;
+              if (
+                data19 &&
+                typeof data19 == "object" &&
+                !Array.isArray(data19)
+              ) {
+                valid25 = true;
+                if (data19.installationId !== undefined) {
+                  if (!(typeof data19.installationId == "string")) {
+                    const err48 = {
+                      instancePath:
+                        instancePath + "/action/ready/installationId",
+                      schemaPath:
+                        "/properties/action/mapping/use/properties/ready/properties/installationId/type",
+                      keyword: "type",
+                      params: { type: "string", nullable: false },
+                      message: "must be string",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err48];
+                    } else {
+                      vErrors.push(err48);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err49 = {
+                    instancePath: instancePath + "/action/ready",
+                    schemaPath:
+                      "/properties/action/mapping/use/properties/ready/properties/installationId",
+                    keyword: "properties",
+                    params: {
+                      error: "missing",
+                      missingProperty: "installationId",
+                    },
+                    message: "must have property 'installationId'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err49];
+                  } else {
+                    vErrors.push(err49);
+                  }
+                  errors++;
+                }
+                if (data19.commandId !== undefined) {
+                  if (!(typeof data19.commandId == "string")) {
+                    const err50 = {
+                      instancePath: instancePath + "/action/ready/commandId",
+                      schemaPath:
+                        "/properties/action/mapping/use/properties/ready/properties/commandId/type",
+                      keyword: "type",
+                      params: { type: "string", nullable: false },
+                      message: "must be string",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err50];
+                    } else {
+                      vErrors.push(err50);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err51 = {
+                    instancePath: instancePath + "/action/ready",
+                    schemaPath:
+                      "/properties/action/mapping/use/properties/ready/properties/commandId",
+                    keyword: "properties",
+                    params: { error: "missing", missingProperty: "commandId" },
+                    message: "must have property 'commandId'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err51];
+                  } else {
+                    vErrors.push(err51);
+                  }
+                  errors++;
+                }
+                if (data19.payloadHash !== undefined) {
+                  if (!(typeof data19.payloadHash == "string")) {
+                    const err52 = {
+                      instancePath: instancePath + "/action/ready/payloadHash",
+                      schemaPath:
+                        "/properties/action/mapping/use/properties/ready/properties/payloadHash/type",
+                      keyword: "type",
+                      params: { type: "string", nullable: false },
+                      message: "must be string",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err52];
+                    } else {
+                      vErrors.push(err52);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err53 = {
+                    instancePath: instancePath + "/action/ready",
+                    schemaPath:
+                      "/properties/action/mapping/use/properties/ready/properties/payloadHash",
+                    keyword: "properties",
+                    params: {
+                      error: "missing",
+                      missingProperty: "payloadHash",
+                    },
+                    message: "must have property 'payloadHash'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err53];
+                  } else {
+                    vErrors.push(err53);
+                  }
+                  errors++;
+                }
+                for (const key5 in data19) {
+                  if (
+                    key5 !== "installationId" &&
+                    key5 !== "commandId" &&
+                    key5 !== "payloadHash"
+                  ) {
+                    const err54 = {
+                      instancePath:
+                        instancePath +
+                        "/action/ready/" +
+                        key5.replace(/~/g, "~0").replace(/\//g, "~1"),
+                      schemaPath:
+                        "/properties/action/mapping/use/properties/ready",
+                      keyword: "properties",
+                      params: { error: "additional", additionalProperty: key5 },
+                      message: "must NOT have additional properties",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err54];
+                    } else {
+                      vErrors.push(err54);
+                    }
+                    errors++;
+                  }
+                }
+              }
+              if (!valid25) {
+                const err55 = {
+                  instancePath: instancePath + "/action/ready",
+                  schemaPath:
+                    "/properties/action/mapping/use/properties/ready/properties",
+                  keyword: "properties",
+                  params: { type: "object", nullable: false },
+                  message: "must be object",
+                };
+                if (vErrors === null) {
+                  vErrors = [err55];
+                } else {
+                  vErrors.push(err55);
+                }
+                errors++;
+              }
+            } else {
+              const err56 = {
+                instancePath: instancePath + "/action",
+                schemaPath: "/properties/action/mapping/use/properties/ready",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "ready" },
+                message: "must have property 'ready'",
+              };
+              if (vErrors === null) {
+                vErrors = [err56];
+              } else {
+                vErrors.push(err56);
+              }
+              errors++;
+            }
+            for (const key6 in data8) {
+              if (key6 !== "kind" && key6 !== "target" && key6 !== "ready") {
+                const err57 = {
+                  instancePath:
+                    instancePath +
+                    "/action/" +
+                    key6.replace(/~/g, "~0").replace(/\//g, "~1"),
+                  schemaPath: "/properties/action/mapping/use",
+                  keyword: "properties",
+                  params: { error: "additional", additionalProperty: key6 },
+                  message: "must NOT have additional properties",
+                };
+                if (vErrors === null) {
+                  vErrors = [err57];
+                } else {
+                  vErrors.push(err57);
+                }
+                errors++;
+              }
+            }
+            if (!valid20) {
+              const err58 = {
+                instancePath: instancePath + "/action",
+                schemaPath: "/properties/action/mapping/use/properties",
+                keyword: "properties",
+                params: { type: "object", nullable: false },
+                message: "must be object",
+              };
+              if (vErrors === null) {
+                vErrors = [err58];
+              } else {
+                vErrors.push(err58);
+              }
+              errors++;
+            }
+            var valid19 = _errs18 === errors;
+            valid11 = valid19;
+          } else if (tag1 === "cancel") {
+            const _errs28 = errors;
+            let valid30 = false;
+            valid30 = true;
+            if (data8.download !== undefined) {
+              let data23 = data8.download;
+              let valid32 = false;
+              if (
+                data23 &&
+                typeof data23 == "object" &&
+                !Array.isArray(data23)
+              ) {
+                valid32 = true;
+                if (data23.installationId !== undefined) {
+                  if (!(typeof data23.installationId == "string")) {
+                    const err59 = {
+                      instancePath:
+                        instancePath + "/action/download/installationId",
+                      schemaPath:
+                        "/properties/action/mapping/cancel/properties/download/properties/installationId/type",
+                      keyword: "type",
+                      params: { type: "string", nullable: false },
+                      message: "must be string",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err59];
+                    } else {
+                      vErrors.push(err59);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err60 = {
+                    instancePath: instancePath + "/action/download",
+                    schemaPath:
+                      "/properties/action/mapping/cancel/properties/download/properties/installationId",
+                    keyword: "properties",
+                    params: {
+                      error: "missing",
+                      missingProperty: "installationId",
+                    },
+                    message: "must have property 'installationId'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err60];
+                  } else {
+                    vErrors.push(err60);
+                  }
+                  errors++;
+                }
+                if (data23.commandId !== undefined) {
+                  if (!(typeof data23.commandId == "string")) {
+                    const err61 = {
+                      instancePath: instancePath + "/action/download/commandId",
+                      schemaPath:
+                        "/properties/action/mapping/cancel/properties/download/properties/commandId/type",
+                      keyword: "type",
+                      params: { type: "string", nullable: false },
+                      message: "must be string",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err61];
+                    } else {
+                      vErrors.push(err61);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err62 = {
+                    instancePath: instancePath + "/action/download",
+                    schemaPath:
+                      "/properties/action/mapping/cancel/properties/download/properties/commandId",
+                    keyword: "properties",
+                    params: { error: "missing", missingProperty: "commandId" },
+                    message: "must have property 'commandId'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err62];
+                  } else {
+                    vErrors.push(err62);
+                  }
+                  errors++;
+                }
+                if (data23.payloadHash !== undefined) {
+                  if (!(typeof data23.payloadHash == "string")) {
+                    const err63 = {
+                      instancePath:
+                        instancePath + "/action/download/payloadHash",
+                      schemaPath:
+                        "/properties/action/mapping/cancel/properties/download/properties/payloadHash/type",
+                      keyword: "type",
+                      params: { type: "string", nullable: false },
+                      message: "must be string",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err63];
+                    } else {
+                      vErrors.push(err63);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err64 = {
+                    instancePath: instancePath + "/action/download",
+                    schemaPath:
+                      "/properties/action/mapping/cancel/properties/download/properties/payloadHash",
+                    keyword: "properties",
+                    params: {
+                      error: "missing",
+                      missingProperty: "payloadHash",
+                    },
+                    message: "must have property 'payloadHash'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err64];
+                  } else {
+                    vErrors.push(err64);
+                  }
+                  errors++;
+                }
+                for (const key7 in data23) {
+                  if (
+                    key7 !== "installationId" &&
+                    key7 !== "commandId" &&
+                    key7 !== "payloadHash"
+                  ) {
+                    const err65 = {
+                      instancePath:
+                        instancePath +
+                        "/action/download/" +
+                        key7.replace(/~/g, "~0").replace(/\//g, "~1"),
+                      schemaPath:
+                        "/properties/action/mapping/cancel/properties/download",
+                      keyword: "properties",
+                      params: { error: "additional", additionalProperty: key7 },
+                      message: "must NOT have additional properties",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err65];
+                    } else {
+                      vErrors.push(err65);
+                    }
+                    errors++;
+                  }
+                }
+              }
+              if (!valid32) {
+                const err66 = {
+                  instancePath: instancePath + "/action/download",
+                  schemaPath:
+                    "/properties/action/mapping/cancel/properties/download/properties",
+                  keyword: "properties",
+                  params: { type: "object", nullable: false },
+                  message: "must be object",
+                };
+                if (vErrors === null) {
+                  vErrors = [err66];
+                } else {
+                  vErrors.push(err66);
+                }
+                errors++;
+              }
+            } else {
+              const err67 = {
+                instancePath: instancePath + "/action",
+                schemaPath:
+                  "/properties/action/mapping/cancel/properties/download",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "download" },
+                message: "must have property 'download'",
+              };
+              if (vErrors === null) {
+                vErrors = [err67];
+              } else {
+                vErrors.push(err67);
+              }
+              errors++;
+            }
+            for (const key8 in data8) {
+              if (key8 !== "kind" && key8 !== "download") {
+                const err68 = {
+                  instancePath:
+                    instancePath +
+                    "/action/" +
+                    key8.replace(/~/g, "~0").replace(/\//g, "~1"),
+                  schemaPath: "/properties/action/mapping/cancel",
+                  keyword: "properties",
+                  params: { error: "additional", additionalProperty: key8 },
+                  message: "must NOT have additional properties",
+                };
+                if (vErrors === null) {
+                  vErrors = [err68];
+                } else {
+                  vErrors.push(err68);
+                }
+                errors++;
+              }
+            }
+            if (!valid30) {
+              const err69 = {
+                instancePath: instancePath + "/action",
+                schemaPath: "/properties/action/mapping/cancel/properties",
+                keyword: "properties",
+                params: { type: "object", nullable: false },
+                message: "must be object",
+              };
+              if (vErrors === null) {
+                vErrors = [err69];
+              } else {
+                vErrors.push(err69);
+              }
+              errors++;
+            }
+            var valid29 = _errs28 === errors;
+            valid11 = valid29;
+          } else {
+            const err70 = {
+              instancePath: instancePath + "/action/kind",
+              schemaPath: "/properties/action/mapping",
+              keyword: "discriminator",
+              params: { error: "mapping", tag: "kind", tagValue: tag1 },
+              message: 'value of tag "kind" must be in mapping',
+            };
+            if (vErrors === null) {
+              vErrors = [err70];
+            } else {
+              vErrors.push(err70);
+            }
+            errors++;
+          }
+        } else {
+          const err71 = {
+            instancePath: instancePath + "/action/kind",
+            schemaPath: "/properties/action/discriminator",
+            keyword: "discriminator",
+            params: { error: "tag", tag: "kind", tagValue: tag1 },
+            message: 'tag "kind" must be string',
+          };
+          if (vErrors === null) {
+            vErrors = [err71];
+          } else {
+            vErrors.push(err71);
+          }
+          errors++;
+        }
+      } else if (!valid11) {
+        const err72 = {
+          instancePath: instancePath + "/action",
+          schemaPath: "/properties/action/discriminator",
+          keyword: "discriminator",
+          params: { type: "object", nullable: false },
+          message: "must be object",
+        };
+        if (vErrors === null) {
+          vErrors = [err72];
+        } else {
+          vErrors.push(err72);
+        }
+        errors++;
+      }
+    } else {
+      const err73 = {
+        instancePath,
+        schemaPath: "/properties/action",
+        keyword: "properties",
+        params: { error: "missing", missingProperty: "action" },
+        message: "must have property 'action'",
+      };
+      if (vErrors === null) {
+        vErrors = [err73];
+      } else {
+        vErrors.push(err73);
+      }
+      errors++;
+    }
+    for (const key9 in data) {
+      if (
+        key9 !== "version" &&
+        key9 !== "family" &&
+        key9 !== "installationId" &&
+        key9 !== "commandId" &&
+        key9 !== "expected" &&
+        key9 !== "action"
+      ) {
+        const err74 = {
+          instancePath:
+            instancePath + "/" + key9.replace(/~/g, "~0").replace(/\//g, "~1"),
+          schemaPath: "",
+          keyword: "properties",
+          params: { error: "additional", additionalProperty: key9 },
+          message: "must NOT have additional properties",
+        };
+        if (vErrors === null) {
+          vErrors = [err74];
+        } else {
+          vErrors.push(err74);
+        }
+        errors++;
+      }
+    }
+  }
+  if (!valid0) {
+    const err75 = {
+      instancePath,
+      schemaPath: "/properties",
+      keyword: "properties",
+      params: { type: "object", nullable: false },
+      message: "must be object",
+    };
+    if (vErrors === null) {
+      vErrors = [err75];
+    } else {
+      vErrors.push(err75);
+    }
+    errors++;
+  }
+  validate67.errors = vErrors;
+  return errors === 0;
+}
+export const validateLessonFilesReceipt = validate68;
+const schema40 = {
+  discriminator: "kind",
+  mapping: {
+    accepted: {
+      properties: {
+        version: { type: "uint8" },
+        installationId: { type: "string" },
+        commandId: { type: "string" },
+        payloadHash: { type: "string" },
+        family: { enum: ["lesson-files"] },
+        target: {
+          properties: {
+            publicationHash: { type: "string" },
+            courseId: { type: "string" },
+            releaseId: { type: "string" },
+            mode: { enum: ["fixture", "publication"] },
+          },
+        },
+      },
+    },
+    ready: {
+      properties: {
+        version: { type: "uint8" },
+        installationId: { type: "string" },
+        commandId: { type: "string" },
+        payloadHash: { type: "string" },
+        family: { enum: ["lesson-files"] },
+        target: {
+          properties: {
+            publicationHash: { type: "string" },
+            courseId: { type: "string" },
+            releaseId: { type: "string" },
+            mode: { enum: ["fixture", "publication"] },
+          },
+        },
+        packageHash: { type: "string" },
+      },
+    },
+    activated: {
+      properties: {
+        version: { type: "uint8" },
+        installationId: { type: "string" },
+        commandId: { type: "string" },
+        payloadHash: { type: "string" },
+        family: { enum: ["lesson-files"] },
+        packageHash: { type: "string" },
+        activationRevision: { type: "string" },
+      },
+    },
+    cancelled: {
+      properties: {
+        version: { type: "uint8" },
+        installationId: { type: "string" },
+        commandId: { type: "string" },
+        payloadHash: { type: "string" },
+        family: { enum: ["lesson-files"] },
+        download: {
+          properties: {
+            installationId: { type: "string" },
+            commandId: { type: "string" },
+            payloadHash: { type: "string" },
+          },
+        },
+      },
+    },
+    rejected: {
+      properties: {
+        version: { type: "uint8" },
+        installationId: { type: "string" },
+        commandId: { type: "string" },
+        payloadHash: { type: "string" },
+        family: { enum: ["lesson-files"] },
+        reason: {
+          enum: ["staleActivation", "incompatible", "cancelled", "conflict"],
+        },
+      },
+    },
+  },
+};
+function validate68(
+  data,
+  { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
+) {
+  let vErrors = null;
+  let errors = 0;
+  let valid0 = false;
+  if (data && typeof data == "object" && !Array.isArray(data)) {
+    const tag0 = data.kind;
+    if (tag0 === undefined) {
+      const err0 = {
+        instancePath,
+        schemaPath: "/discriminator",
+        keyword: "discriminator",
+        params: { error: "tag", tag: "kind", tagValue: tag0 },
+        message: 'tag "kind" must be string',
+      };
+      if (vErrors === null) {
+        vErrors = [err0];
+      } else {
+        vErrors.push(err0);
+      }
+      errors++;
+    } else if (typeof tag0 == "string") {
+      if (tag0 === "accepted") {
+        const _errs0 = errors;
+        let valid2 = false;
+        valid2 = true;
+        if (data.version !== undefined) {
+          let data0 = data.version;
+          if (!(
+            typeof data0 == "number" &&
+            isFinite(data0) &&
+            !(data0 % 1) &&
+            data0 >= 0 &&
+            data0 <= 255
+          )) {
+            const err1 = {
+              instancePath: instancePath + "/version",
+              schemaPath: "/mapping/accepted/properties/version/type",
+              keyword: "type",
+              params: { type: "uint8", nullable: false },
+              message: "must be uint8",
+            };
+            if (vErrors === null) {
+              vErrors = [err1];
+            } else {
+              vErrors.push(err1);
+            }
+            errors++;
+          }
+        } else {
+          const err2 = {
+            instancePath,
+            schemaPath: "/mapping/accepted/properties/version",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "version" },
+            message: "must have property 'version'",
+          };
+          if (vErrors === null) {
+            vErrors = [err2];
+          } else {
+            vErrors.push(err2);
+          }
+          errors++;
+        }
+        if (data.installationId !== undefined) {
+          if (!(typeof data.installationId == "string")) {
+            const err3 = {
+              instancePath: instancePath + "/installationId",
+              schemaPath: "/mapping/accepted/properties/installationId/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err3];
+            } else {
+              vErrors.push(err3);
+            }
+            errors++;
+          }
+        } else {
+          const err4 = {
+            instancePath,
+            schemaPath: "/mapping/accepted/properties/installationId",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "installationId" },
+            message: "must have property 'installationId'",
+          };
+          if (vErrors === null) {
+            vErrors = [err4];
+          } else {
+            vErrors.push(err4);
+          }
+          errors++;
+        }
+        if (data.commandId !== undefined) {
+          if (!(typeof data.commandId == "string")) {
+            const err5 = {
+              instancePath: instancePath + "/commandId",
+              schemaPath: "/mapping/accepted/properties/commandId/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err5];
+            } else {
+              vErrors.push(err5);
+            }
+            errors++;
+          }
+        } else {
+          const err6 = {
+            instancePath,
+            schemaPath: "/mapping/accepted/properties/commandId",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "commandId" },
+            message: "must have property 'commandId'",
+          };
+          if (vErrors === null) {
+            vErrors = [err6];
+          } else {
+            vErrors.push(err6);
+          }
+          errors++;
+        }
+        if (data.payloadHash !== undefined) {
+          if (!(typeof data.payloadHash == "string")) {
+            const err7 = {
+              instancePath: instancePath + "/payloadHash",
+              schemaPath: "/mapping/accepted/properties/payloadHash/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err7];
+            } else {
+              vErrors.push(err7);
+            }
+            errors++;
+          }
+        } else {
+          const err8 = {
+            instancePath,
+            schemaPath: "/mapping/accepted/properties/payloadHash",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "payloadHash" },
+            message: "must have property 'payloadHash'",
+          };
+          if (vErrors === null) {
+            vErrors = [err8];
+          } else {
+            vErrors.push(err8);
+          }
+          errors++;
+        }
+        if (data.family !== undefined) {
+          let data4 = data.family;
+          if (!(typeof data4 == "string" && data4 === "lesson-files")) {
+            const err9 = {
+              instancePath: instancePath + "/family",
+              schemaPath: "/mapping/accepted/properties/family/enum",
+              keyword: "enum",
+              params: {
+                allowedValues: schema40.mapping.accepted.properties.family.enum,
+              },
+              message: "must be equal to one of the allowed values",
+            };
+            if (vErrors === null) {
+              vErrors = [err9];
+            } else {
+              vErrors.push(err9);
+            }
+            errors++;
+          }
+        } else {
+          const err10 = {
+            instancePath,
+            schemaPath: "/mapping/accepted/properties/family",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "family" },
+            message: "must have property 'family'",
+          };
+          if (vErrors === null) {
+            vErrors = [err10];
+          } else {
+            vErrors.push(err10);
+          }
+          errors++;
+        }
+        if (data.target !== undefined) {
+          let data5 = data.target;
+          let valid4 = false;
+          if (data5 && typeof data5 == "object" && !Array.isArray(data5)) {
+            valid4 = true;
+            if (data5.publicationHash !== undefined) {
+              if (!(typeof data5.publicationHash == "string")) {
+                const err11 = {
+                  instancePath: instancePath + "/target/publicationHash",
+                  schemaPath:
+                    "/mapping/accepted/properties/target/properties/publicationHash/type",
+                  keyword: "type",
+                  params: { type: "string", nullable: false },
+                  message: "must be string",
+                };
+                if (vErrors === null) {
+                  vErrors = [err11];
+                } else {
+                  vErrors.push(err11);
+                }
+                errors++;
+              }
+            } else {
+              const err12 = {
+                instancePath: instancePath + "/target",
+                schemaPath:
+                  "/mapping/accepted/properties/target/properties/publicationHash",
+                keyword: "properties",
+                params: {
+                  error: "missing",
+                  missingProperty: "publicationHash",
+                },
+                message: "must have property 'publicationHash'",
+              };
+              if (vErrors === null) {
+                vErrors = [err12];
+              } else {
+                vErrors.push(err12);
+              }
+              errors++;
+            }
+            if (data5.courseId !== undefined) {
+              if (!(typeof data5.courseId == "string")) {
+                const err13 = {
+                  instancePath: instancePath + "/target/courseId",
+                  schemaPath:
+                    "/mapping/accepted/properties/target/properties/courseId/type",
+                  keyword: "type",
+                  params: { type: "string", nullable: false },
+                  message: "must be string",
+                };
+                if (vErrors === null) {
+                  vErrors = [err13];
+                } else {
+                  vErrors.push(err13);
+                }
+                errors++;
+              }
+            } else {
+              const err14 = {
+                instancePath: instancePath + "/target",
+                schemaPath:
+                  "/mapping/accepted/properties/target/properties/courseId",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "courseId" },
+                message: "must have property 'courseId'",
+              };
+              if (vErrors === null) {
+                vErrors = [err14];
+              } else {
+                vErrors.push(err14);
+              }
+              errors++;
+            }
+            if (data5.releaseId !== undefined) {
+              if (!(typeof data5.releaseId == "string")) {
+                const err15 = {
+                  instancePath: instancePath + "/target/releaseId",
+                  schemaPath:
+                    "/mapping/accepted/properties/target/properties/releaseId/type",
+                  keyword: "type",
+                  params: { type: "string", nullable: false },
+                  message: "must be string",
+                };
+                if (vErrors === null) {
+                  vErrors = [err15];
+                } else {
+                  vErrors.push(err15);
+                }
+                errors++;
+              }
+            } else {
+              const err16 = {
+                instancePath: instancePath + "/target",
+                schemaPath:
+                  "/mapping/accepted/properties/target/properties/releaseId",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "releaseId" },
+                message: "must have property 'releaseId'",
+              };
+              if (vErrors === null) {
+                vErrors = [err16];
+              } else {
+                vErrors.push(err16);
+              }
+              errors++;
+            }
+            if (data5.mode !== undefined) {
+              let data9 = data5.mode;
+              if (!(
+                typeof data9 == "string" &&
+                (data9 === "fixture" || data9 === "publication")
+              )) {
+                const err17 = {
+                  instancePath: instancePath + "/target/mode",
+                  schemaPath:
+                    "/mapping/accepted/properties/target/properties/mode/enum",
+                  keyword: "enum",
+                  params: {
+                    allowedValues:
+                      schema40.mapping.accepted.properties.target.properties
+                        .mode.enum,
+                  },
+                  message: "must be equal to one of the allowed values",
+                };
+                if (vErrors === null) {
+                  vErrors = [err17];
+                } else {
+                  vErrors.push(err17);
+                }
+                errors++;
+              }
+            } else {
+              const err18 = {
+                instancePath: instancePath + "/target",
+                schemaPath:
+                  "/mapping/accepted/properties/target/properties/mode",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "mode" },
+                message: "must have property 'mode'",
+              };
+              if (vErrors === null) {
+                vErrors = [err18];
+              } else {
+                vErrors.push(err18);
+              }
+              errors++;
+            }
+            for (const key0 in data5) {
+              if (
+                key0 !== "publicationHash" &&
+                key0 !== "courseId" &&
+                key0 !== "releaseId" &&
+                key0 !== "mode"
+              ) {
+                const err19 = {
+                  instancePath:
+                    instancePath +
+                    "/target/" +
+                    key0.replace(/~/g, "~0").replace(/\//g, "~1"),
+                  schemaPath: "/mapping/accepted/properties/target",
+                  keyword: "properties",
+                  params: { error: "additional", additionalProperty: key0 },
+                  message: "must NOT have additional properties",
+                };
+                if (vErrors === null) {
+                  vErrors = [err19];
+                } else {
+                  vErrors.push(err19);
+                }
+                errors++;
+              }
+            }
+          }
+          if (!valid4) {
+            const err20 = {
+              instancePath: instancePath + "/target",
+              schemaPath: "/mapping/accepted/properties/target/properties",
+              keyword: "properties",
+              params: { type: "object", nullable: false },
+              message: "must be object",
+            };
+            if (vErrors === null) {
+              vErrors = [err20];
+            } else {
+              vErrors.push(err20);
+            }
+            errors++;
+          }
+        } else {
+          const err21 = {
+            instancePath,
+            schemaPath: "/mapping/accepted/properties/target",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "target" },
+            message: "must have property 'target'",
+          };
+          if (vErrors === null) {
+            vErrors = [err21];
+          } else {
+            vErrors.push(err21);
+          }
+          errors++;
+        }
+        for (const key1 in data) {
+          if (
+            key1 !== "kind" &&
+            key1 !== "version" &&
+            key1 !== "installationId" &&
+            key1 !== "commandId" &&
+            key1 !== "payloadHash" &&
+            key1 !== "family" &&
+            key1 !== "target"
+          ) {
+            const err22 = {
+              instancePath:
+                instancePath +
+                "/" +
+                key1.replace(/~/g, "~0").replace(/\//g, "~1"),
+              schemaPath: "/mapping/accepted",
+              keyword: "properties",
+              params: { error: "additional", additionalProperty: key1 },
+              message: "must NOT have additional properties",
+            };
+            if (vErrors === null) {
+              vErrors = [err22];
+            } else {
+              vErrors.push(err22);
+            }
+            errors++;
+          }
+        }
+        if (!valid2) {
+          const err23 = {
+            instancePath,
+            schemaPath: "/mapping/accepted/properties",
+            keyword: "properties",
+            params: { type: "object", nullable: false },
+            message: "must be object",
+          };
+          if (vErrors === null) {
+            vErrors = [err23];
+          } else {
+            vErrors.push(err23);
+          }
+          errors++;
+        }
+        var valid1 = _errs0 === errors;
+        valid0 = valid1;
+      } else if (tag0 === "ready") {
+        const _errs11 = errors;
+        let valid9 = false;
+        valid9 = true;
+        if (data.version !== undefined) {
+          let data10 = data.version;
+          if (!(
+            typeof data10 == "number" &&
+            isFinite(data10) &&
+            !(data10 % 1) &&
+            data10 >= 0 &&
+            data10 <= 255
+          )) {
+            const err24 = {
+              instancePath: instancePath + "/version",
+              schemaPath: "/mapping/ready/properties/version/type",
+              keyword: "type",
+              params: { type: "uint8", nullable: false },
+              message: "must be uint8",
+            };
+            if (vErrors === null) {
+              vErrors = [err24];
+            } else {
+              vErrors.push(err24);
+            }
+            errors++;
+          }
+        } else {
+          const err25 = {
+            instancePath,
+            schemaPath: "/mapping/ready/properties/version",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "version" },
+            message: "must have property 'version'",
+          };
+          if (vErrors === null) {
+            vErrors = [err25];
+          } else {
+            vErrors.push(err25);
+          }
+          errors++;
+        }
+        if (data.installationId !== undefined) {
+          if (!(typeof data.installationId == "string")) {
+            const err26 = {
+              instancePath: instancePath + "/installationId",
+              schemaPath: "/mapping/ready/properties/installationId/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err26];
+            } else {
+              vErrors.push(err26);
+            }
+            errors++;
+          }
+        } else {
+          const err27 = {
+            instancePath,
+            schemaPath: "/mapping/ready/properties/installationId",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "installationId" },
+            message: "must have property 'installationId'",
+          };
+          if (vErrors === null) {
+            vErrors = [err27];
+          } else {
+            vErrors.push(err27);
+          }
+          errors++;
+        }
+        if (data.commandId !== undefined) {
+          if (!(typeof data.commandId == "string")) {
+            const err28 = {
+              instancePath: instancePath + "/commandId",
+              schemaPath: "/mapping/ready/properties/commandId/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err28];
+            } else {
+              vErrors.push(err28);
+            }
+            errors++;
+          }
+        } else {
+          const err29 = {
+            instancePath,
+            schemaPath: "/mapping/ready/properties/commandId",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "commandId" },
+            message: "must have property 'commandId'",
+          };
+          if (vErrors === null) {
+            vErrors = [err29];
+          } else {
+            vErrors.push(err29);
+          }
+          errors++;
+        }
+        if (data.payloadHash !== undefined) {
+          if (!(typeof data.payloadHash == "string")) {
+            const err30 = {
+              instancePath: instancePath + "/payloadHash",
+              schemaPath: "/mapping/ready/properties/payloadHash/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err30];
+            } else {
+              vErrors.push(err30);
+            }
+            errors++;
+          }
+        } else {
+          const err31 = {
+            instancePath,
+            schemaPath: "/mapping/ready/properties/payloadHash",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "payloadHash" },
+            message: "must have property 'payloadHash'",
+          };
+          if (vErrors === null) {
+            vErrors = [err31];
+          } else {
+            vErrors.push(err31);
+          }
+          errors++;
+        }
+        if (data.family !== undefined) {
+          let data14 = data.family;
+          if (!(typeof data14 == "string" && data14 === "lesson-files")) {
+            const err32 = {
+              instancePath: instancePath + "/family",
+              schemaPath: "/mapping/ready/properties/family/enum",
+              keyword: "enum",
+              params: {
+                allowedValues: schema40.mapping.ready.properties.family.enum,
+              },
+              message: "must be equal to one of the allowed values",
+            };
+            if (vErrors === null) {
+              vErrors = [err32];
+            } else {
+              vErrors.push(err32);
+            }
+            errors++;
+          }
+        } else {
+          const err33 = {
+            instancePath,
+            schemaPath: "/mapping/ready/properties/family",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "family" },
+            message: "must have property 'family'",
+          };
+          if (vErrors === null) {
+            vErrors = [err33];
+          } else {
+            vErrors.push(err33);
+          }
+          errors++;
+        }
+        if (data.target !== undefined) {
+          let data15 = data.target;
+          let valid11 = false;
+          if (data15 && typeof data15 == "object" && !Array.isArray(data15)) {
+            valid11 = true;
+            if (data15.publicationHash !== undefined) {
+              if (!(typeof data15.publicationHash == "string")) {
+                const err34 = {
+                  instancePath: instancePath + "/target/publicationHash",
+                  schemaPath:
+                    "/mapping/ready/properties/target/properties/publicationHash/type",
+                  keyword: "type",
+                  params: { type: "string", nullable: false },
+                  message: "must be string",
+                };
+                if (vErrors === null) {
+                  vErrors = [err34];
+                } else {
+                  vErrors.push(err34);
+                }
+                errors++;
+              }
+            } else {
+              const err35 = {
+                instancePath: instancePath + "/target",
+                schemaPath:
+                  "/mapping/ready/properties/target/properties/publicationHash",
+                keyword: "properties",
+                params: {
+                  error: "missing",
+                  missingProperty: "publicationHash",
+                },
+                message: "must have property 'publicationHash'",
+              };
+              if (vErrors === null) {
+                vErrors = [err35];
+              } else {
+                vErrors.push(err35);
+              }
+              errors++;
+            }
+            if (data15.courseId !== undefined) {
+              if (!(typeof data15.courseId == "string")) {
+                const err36 = {
+                  instancePath: instancePath + "/target/courseId",
+                  schemaPath:
+                    "/mapping/ready/properties/target/properties/courseId/type",
+                  keyword: "type",
+                  params: { type: "string", nullable: false },
+                  message: "must be string",
+                };
+                if (vErrors === null) {
+                  vErrors = [err36];
+                } else {
+                  vErrors.push(err36);
+                }
+                errors++;
+              }
+            } else {
+              const err37 = {
+                instancePath: instancePath + "/target",
+                schemaPath:
+                  "/mapping/ready/properties/target/properties/courseId",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "courseId" },
+                message: "must have property 'courseId'",
+              };
+              if (vErrors === null) {
+                vErrors = [err37];
+              } else {
+                vErrors.push(err37);
+              }
+              errors++;
+            }
+            if (data15.releaseId !== undefined) {
+              if (!(typeof data15.releaseId == "string")) {
+                const err38 = {
+                  instancePath: instancePath + "/target/releaseId",
+                  schemaPath:
+                    "/mapping/ready/properties/target/properties/releaseId/type",
+                  keyword: "type",
+                  params: { type: "string", nullable: false },
+                  message: "must be string",
+                };
+                if (vErrors === null) {
+                  vErrors = [err38];
+                } else {
+                  vErrors.push(err38);
+                }
+                errors++;
+              }
+            } else {
+              const err39 = {
+                instancePath: instancePath + "/target",
+                schemaPath:
+                  "/mapping/ready/properties/target/properties/releaseId",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "releaseId" },
+                message: "must have property 'releaseId'",
+              };
+              if (vErrors === null) {
+                vErrors = [err39];
+              } else {
+                vErrors.push(err39);
+              }
+              errors++;
+            }
+            if (data15.mode !== undefined) {
+              let data19 = data15.mode;
+              if (!(
+                typeof data19 == "string" &&
+                (data19 === "fixture" || data19 === "publication")
+              )) {
+                const err40 = {
+                  instancePath: instancePath + "/target/mode",
+                  schemaPath:
+                    "/mapping/ready/properties/target/properties/mode/enum",
+                  keyword: "enum",
+                  params: {
+                    allowedValues:
+                      schema40.mapping.ready.properties.target.properties.mode
+                        .enum,
+                  },
+                  message: "must be equal to one of the allowed values",
+                };
+                if (vErrors === null) {
+                  vErrors = [err40];
+                } else {
+                  vErrors.push(err40);
+                }
+                errors++;
+              }
+            } else {
+              const err41 = {
+                instancePath: instancePath + "/target",
+                schemaPath: "/mapping/ready/properties/target/properties/mode",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "mode" },
+                message: "must have property 'mode'",
+              };
+              if (vErrors === null) {
+                vErrors = [err41];
+              } else {
+                vErrors.push(err41);
+              }
+              errors++;
+            }
+            for (const key2 in data15) {
+              if (
+                key2 !== "publicationHash" &&
+                key2 !== "courseId" &&
+                key2 !== "releaseId" &&
+                key2 !== "mode"
+              ) {
+                const err42 = {
+                  instancePath:
+                    instancePath +
+                    "/target/" +
+                    key2.replace(/~/g, "~0").replace(/\//g, "~1"),
+                  schemaPath: "/mapping/ready/properties/target",
+                  keyword: "properties",
+                  params: { error: "additional", additionalProperty: key2 },
+                  message: "must NOT have additional properties",
+                };
+                if (vErrors === null) {
+                  vErrors = [err42];
+                } else {
+                  vErrors.push(err42);
+                }
+                errors++;
+              }
+            }
+          }
+          if (!valid11) {
+            const err43 = {
+              instancePath: instancePath + "/target",
+              schemaPath: "/mapping/ready/properties/target/properties",
+              keyword: "properties",
+              params: { type: "object", nullable: false },
+              message: "must be object",
+            };
+            if (vErrors === null) {
+              vErrors = [err43];
+            } else {
+              vErrors.push(err43);
+            }
+            errors++;
+          }
+        } else {
+          const err44 = {
+            instancePath,
+            schemaPath: "/mapping/ready/properties/target",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "target" },
+            message: "must have property 'target'",
+          };
+          if (vErrors === null) {
+            vErrors = [err44];
+          } else {
+            vErrors.push(err44);
+          }
+          errors++;
+        }
+        if (data.packageHash !== undefined) {
+          if (!(typeof data.packageHash == "string")) {
+            const err45 = {
+              instancePath: instancePath + "/packageHash",
+              schemaPath: "/mapping/ready/properties/packageHash/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err45];
+            } else {
+              vErrors.push(err45);
+            }
+            errors++;
+          }
+        } else {
+          const err46 = {
+            instancePath,
+            schemaPath: "/mapping/ready/properties/packageHash",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "packageHash" },
+            message: "must have property 'packageHash'",
+          };
+          if (vErrors === null) {
+            vErrors = [err46];
+          } else {
+            vErrors.push(err46);
+          }
+          errors++;
+        }
+        for (const key3 in data) {
+          if (
+            key3 !== "kind" &&
+            key3 !== "version" &&
+            key3 !== "installationId" &&
+            key3 !== "commandId" &&
+            key3 !== "payloadHash" &&
+            key3 !== "family" &&
+            key3 !== "target" &&
+            key3 !== "packageHash"
+          ) {
+            const err47 = {
+              instancePath:
+                instancePath +
+                "/" +
+                key3.replace(/~/g, "~0").replace(/\//g, "~1"),
+              schemaPath: "/mapping/ready",
+              keyword: "properties",
+              params: { error: "additional", additionalProperty: key3 },
+              message: "must NOT have additional properties",
+            };
+            if (vErrors === null) {
+              vErrors = [err47];
+            } else {
+              vErrors.push(err47);
+            }
+            errors++;
+          }
+        }
+        if (!valid9) {
+          const err48 = {
+            instancePath,
+            schemaPath: "/mapping/ready/properties",
+            keyword: "properties",
+            params: { type: "object", nullable: false },
+            message: "must be object",
+          };
+          if (vErrors === null) {
+            vErrors = [err48];
+          } else {
+            vErrors.push(err48);
+          }
+          errors++;
+        }
+        var valid8 = _errs11 === errors;
+        valid0 = valid8;
+      } else if (tag0 === "activated") {
+        const _errs23 = errors;
+        let valid16 = false;
+        valid16 = true;
+        if (data.version !== undefined) {
+          let data21 = data.version;
+          if (!(
+            typeof data21 == "number" &&
+            isFinite(data21) &&
+            !(data21 % 1) &&
+            data21 >= 0 &&
+            data21 <= 255
+          )) {
+            const err49 = {
+              instancePath: instancePath + "/version",
+              schemaPath: "/mapping/activated/properties/version/type",
+              keyword: "type",
+              params: { type: "uint8", nullable: false },
+              message: "must be uint8",
+            };
+            if (vErrors === null) {
+              vErrors = [err49];
+            } else {
+              vErrors.push(err49);
+            }
+            errors++;
+          }
+        } else {
+          const err50 = {
+            instancePath,
+            schemaPath: "/mapping/activated/properties/version",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "version" },
+            message: "must have property 'version'",
+          };
+          if (vErrors === null) {
+            vErrors = [err50];
+          } else {
+            vErrors.push(err50);
+          }
+          errors++;
+        }
+        if (data.installationId !== undefined) {
+          if (!(typeof data.installationId == "string")) {
+            const err51 = {
+              instancePath: instancePath + "/installationId",
+              schemaPath: "/mapping/activated/properties/installationId/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err51];
+            } else {
+              vErrors.push(err51);
+            }
+            errors++;
+          }
+        } else {
+          const err52 = {
+            instancePath,
+            schemaPath: "/mapping/activated/properties/installationId",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "installationId" },
+            message: "must have property 'installationId'",
+          };
+          if (vErrors === null) {
+            vErrors = [err52];
+          } else {
+            vErrors.push(err52);
+          }
+          errors++;
+        }
+        if (data.commandId !== undefined) {
+          if (!(typeof data.commandId == "string")) {
+            const err53 = {
+              instancePath: instancePath + "/commandId",
+              schemaPath: "/mapping/activated/properties/commandId/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err53];
+            } else {
+              vErrors.push(err53);
+            }
+            errors++;
+          }
+        } else {
+          const err54 = {
+            instancePath,
+            schemaPath: "/mapping/activated/properties/commandId",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "commandId" },
+            message: "must have property 'commandId'",
+          };
+          if (vErrors === null) {
+            vErrors = [err54];
+          } else {
+            vErrors.push(err54);
+          }
+          errors++;
+        }
+        if (data.payloadHash !== undefined) {
+          if (!(typeof data.payloadHash == "string")) {
+            const err55 = {
+              instancePath: instancePath + "/payloadHash",
+              schemaPath: "/mapping/activated/properties/payloadHash/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err55];
+            } else {
+              vErrors.push(err55);
+            }
+            errors++;
+          }
+        } else {
+          const err56 = {
+            instancePath,
+            schemaPath: "/mapping/activated/properties/payloadHash",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "payloadHash" },
+            message: "must have property 'payloadHash'",
+          };
+          if (vErrors === null) {
+            vErrors = [err56];
+          } else {
+            vErrors.push(err56);
+          }
+          errors++;
+        }
+        if (data.family !== undefined) {
+          let data25 = data.family;
+          if (!(typeof data25 == "string" && data25 === "lesson-files")) {
+            const err57 = {
+              instancePath: instancePath + "/family",
+              schemaPath: "/mapping/activated/properties/family/enum",
+              keyword: "enum",
+              params: {
+                allowedValues:
+                  schema40.mapping.activated.properties.family.enum,
+              },
+              message: "must be equal to one of the allowed values",
+            };
+            if (vErrors === null) {
+              vErrors = [err57];
+            } else {
+              vErrors.push(err57);
+            }
+            errors++;
+          }
+        } else {
+          const err58 = {
+            instancePath,
+            schemaPath: "/mapping/activated/properties/family",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "family" },
+            message: "must have property 'family'",
+          };
+          if (vErrors === null) {
+            vErrors = [err58];
+          } else {
+            vErrors.push(err58);
+          }
+          errors++;
+        }
+        if (data.packageHash !== undefined) {
+          if (!(typeof data.packageHash == "string")) {
+            const err59 = {
+              instancePath: instancePath + "/packageHash",
+              schemaPath: "/mapping/activated/properties/packageHash/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err59];
+            } else {
+              vErrors.push(err59);
+            }
+            errors++;
+          }
+        } else {
+          const err60 = {
+            instancePath,
+            schemaPath: "/mapping/activated/properties/packageHash",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "packageHash" },
+            message: "must have property 'packageHash'",
+          };
+          if (vErrors === null) {
+            vErrors = [err60];
+          } else {
+            vErrors.push(err60);
+          }
+          errors++;
+        }
+        if (data.activationRevision !== undefined) {
+          if (!(typeof data.activationRevision == "string")) {
+            const err61 = {
+              instancePath: instancePath + "/activationRevision",
+              schemaPath:
+                "/mapping/activated/properties/activationRevision/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err61];
+            } else {
+              vErrors.push(err61);
+            }
+            errors++;
+          }
+        } else {
+          const err62 = {
+            instancePath,
+            schemaPath: "/mapping/activated/properties/activationRevision",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "activationRevision" },
+            message: "must have property 'activationRevision'",
+          };
+          if (vErrors === null) {
+            vErrors = [err62];
+          } else {
+            vErrors.push(err62);
+          }
+          errors++;
+        }
+        for (const key4 in data) {
+          if (
+            key4 !== "kind" &&
+            key4 !== "version" &&
+            key4 !== "installationId" &&
+            key4 !== "commandId" &&
+            key4 !== "payloadHash" &&
+            key4 !== "family" &&
+            key4 !== "packageHash" &&
+            key4 !== "activationRevision"
+          ) {
+            const err63 = {
+              instancePath:
+                instancePath +
+                "/" +
+                key4.replace(/~/g, "~0").replace(/\//g, "~1"),
+              schemaPath: "/mapping/activated",
+              keyword: "properties",
+              params: { error: "additional", additionalProperty: key4 },
+              message: "must NOT have additional properties",
+            };
+            if (vErrors === null) {
+              vErrors = [err63];
+            } else {
+              vErrors.push(err63);
+            }
+            errors++;
+          }
+        }
+        if (!valid16) {
+          const err64 = {
+            instancePath,
+            schemaPath: "/mapping/activated/properties",
+            keyword: "properties",
+            params: { type: "object", nullable: false },
+            message: "must be object",
+          };
+          if (vErrors === null) {
+            vErrors = [err64];
+          } else {
+            vErrors.push(err64);
+          }
+          errors++;
+        }
+        var valid15 = _errs23 === errors;
+        valid0 = valid15;
+      } else if (tag0 === "cancelled") {
+        const _errs31 = errors;
+        let valid20 = false;
+        valid20 = true;
+        if (data.version !== undefined) {
+          let data28 = data.version;
+          if (!(
+            typeof data28 == "number" &&
+            isFinite(data28) &&
+            !(data28 % 1) &&
+            data28 >= 0 &&
+            data28 <= 255
+          )) {
+            const err65 = {
+              instancePath: instancePath + "/version",
+              schemaPath: "/mapping/cancelled/properties/version/type",
+              keyword: "type",
+              params: { type: "uint8", nullable: false },
+              message: "must be uint8",
+            };
+            if (vErrors === null) {
+              vErrors = [err65];
+            } else {
+              vErrors.push(err65);
+            }
+            errors++;
+          }
+        } else {
+          const err66 = {
+            instancePath,
+            schemaPath: "/mapping/cancelled/properties/version",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "version" },
+            message: "must have property 'version'",
+          };
+          if (vErrors === null) {
+            vErrors = [err66];
+          } else {
+            vErrors.push(err66);
+          }
+          errors++;
+        }
+        if (data.installationId !== undefined) {
+          if (!(typeof data.installationId == "string")) {
+            const err67 = {
+              instancePath: instancePath + "/installationId",
+              schemaPath: "/mapping/cancelled/properties/installationId/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err67];
+            } else {
+              vErrors.push(err67);
+            }
+            errors++;
+          }
+        } else {
+          const err68 = {
+            instancePath,
+            schemaPath: "/mapping/cancelled/properties/installationId",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "installationId" },
+            message: "must have property 'installationId'",
+          };
+          if (vErrors === null) {
+            vErrors = [err68];
+          } else {
+            vErrors.push(err68);
+          }
+          errors++;
+        }
+        if (data.commandId !== undefined) {
+          if (!(typeof data.commandId == "string")) {
+            const err69 = {
+              instancePath: instancePath + "/commandId",
+              schemaPath: "/mapping/cancelled/properties/commandId/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err69];
+            } else {
+              vErrors.push(err69);
+            }
+            errors++;
+          }
+        } else {
+          const err70 = {
+            instancePath,
+            schemaPath: "/mapping/cancelled/properties/commandId",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "commandId" },
+            message: "must have property 'commandId'",
+          };
+          if (vErrors === null) {
+            vErrors = [err70];
+          } else {
+            vErrors.push(err70);
+          }
+          errors++;
+        }
+        if (data.payloadHash !== undefined) {
+          if (!(typeof data.payloadHash == "string")) {
+            const err71 = {
+              instancePath: instancePath + "/payloadHash",
+              schemaPath: "/mapping/cancelled/properties/payloadHash/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err71];
+            } else {
+              vErrors.push(err71);
+            }
+            errors++;
+          }
+        } else {
+          const err72 = {
+            instancePath,
+            schemaPath: "/mapping/cancelled/properties/payloadHash",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "payloadHash" },
+            message: "must have property 'payloadHash'",
+          };
+          if (vErrors === null) {
+            vErrors = [err72];
+          } else {
+            vErrors.push(err72);
+          }
+          errors++;
+        }
+        if (data.family !== undefined) {
+          let data32 = data.family;
+          if (!(typeof data32 == "string" && data32 === "lesson-files")) {
+            const err73 = {
+              instancePath: instancePath + "/family",
+              schemaPath: "/mapping/cancelled/properties/family/enum",
+              keyword: "enum",
+              params: {
+                allowedValues:
+                  schema40.mapping.cancelled.properties.family.enum,
+              },
+              message: "must be equal to one of the allowed values",
+            };
+            if (vErrors === null) {
+              vErrors = [err73];
+            } else {
+              vErrors.push(err73);
+            }
+            errors++;
+          }
+        } else {
+          const err74 = {
+            instancePath,
+            schemaPath: "/mapping/cancelled/properties/family",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "family" },
+            message: "must have property 'family'",
+          };
+          if (vErrors === null) {
+            vErrors = [err74];
+          } else {
+            vErrors.push(err74);
+          }
+          errors++;
+        }
+        if (data.download !== undefined) {
+          let data33 = data.download;
+          let valid22 = false;
+          if (data33 && typeof data33 == "object" && !Array.isArray(data33)) {
+            valid22 = true;
+            if (data33.installationId !== undefined) {
+              if (!(typeof data33.installationId == "string")) {
+                const err75 = {
+                  instancePath: instancePath + "/download/installationId",
+                  schemaPath:
+                    "/mapping/cancelled/properties/download/properties/installationId/type",
+                  keyword: "type",
+                  params: { type: "string", nullable: false },
+                  message: "must be string",
+                };
+                if (vErrors === null) {
+                  vErrors = [err75];
+                } else {
+                  vErrors.push(err75);
+                }
+                errors++;
+              }
+            } else {
+              const err76 = {
+                instancePath: instancePath + "/download",
+                schemaPath:
+                  "/mapping/cancelled/properties/download/properties/installationId",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "installationId" },
+                message: "must have property 'installationId'",
+              };
+              if (vErrors === null) {
+                vErrors = [err76];
+              } else {
+                vErrors.push(err76);
+              }
+              errors++;
+            }
+            if (data33.commandId !== undefined) {
+              if (!(typeof data33.commandId == "string")) {
+                const err77 = {
+                  instancePath: instancePath + "/download/commandId",
+                  schemaPath:
+                    "/mapping/cancelled/properties/download/properties/commandId/type",
+                  keyword: "type",
+                  params: { type: "string", nullable: false },
+                  message: "must be string",
+                };
+                if (vErrors === null) {
+                  vErrors = [err77];
+                } else {
+                  vErrors.push(err77);
+                }
+                errors++;
+              }
+            } else {
+              const err78 = {
+                instancePath: instancePath + "/download",
+                schemaPath:
+                  "/mapping/cancelled/properties/download/properties/commandId",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "commandId" },
+                message: "must have property 'commandId'",
+              };
+              if (vErrors === null) {
+                vErrors = [err78];
+              } else {
+                vErrors.push(err78);
+              }
+              errors++;
+            }
+            if (data33.payloadHash !== undefined) {
+              if (!(typeof data33.payloadHash == "string")) {
+                const err79 = {
+                  instancePath: instancePath + "/download/payloadHash",
+                  schemaPath:
+                    "/mapping/cancelled/properties/download/properties/payloadHash/type",
+                  keyword: "type",
+                  params: { type: "string", nullable: false },
+                  message: "must be string",
+                };
+                if (vErrors === null) {
+                  vErrors = [err79];
+                } else {
+                  vErrors.push(err79);
+                }
+                errors++;
+              }
+            } else {
+              const err80 = {
+                instancePath: instancePath + "/download",
+                schemaPath:
+                  "/mapping/cancelled/properties/download/properties/payloadHash",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "payloadHash" },
+                message: "must have property 'payloadHash'",
+              };
+              if (vErrors === null) {
+                vErrors = [err80];
+              } else {
+                vErrors.push(err80);
+              }
+              errors++;
+            }
+            for (const key5 in data33) {
+              if (
+                key5 !== "installationId" &&
+                key5 !== "commandId" &&
+                key5 !== "payloadHash"
+              ) {
+                const err81 = {
+                  instancePath:
+                    instancePath +
+                    "/download/" +
+                    key5.replace(/~/g, "~0").replace(/\//g, "~1"),
+                  schemaPath: "/mapping/cancelled/properties/download",
+                  keyword: "properties",
+                  params: { error: "additional", additionalProperty: key5 },
+                  message: "must NOT have additional properties",
+                };
+                if (vErrors === null) {
+                  vErrors = [err81];
+                } else {
+                  vErrors.push(err81);
+                }
+                errors++;
+              }
+            }
+          }
+          if (!valid22) {
+            const err82 = {
+              instancePath: instancePath + "/download",
+              schemaPath: "/mapping/cancelled/properties/download/properties",
+              keyword: "properties",
+              params: { type: "object", nullable: false },
+              message: "must be object",
+            };
+            if (vErrors === null) {
+              vErrors = [err82];
+            } else {
+              vErrors.push(err82);
+            }
+            errors++;
+          }
+        } else {
+          const err83 = {
+            instancePath,
+            schemaPath: "/mapping/cancelled/properties/download",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "download" },
+            message: "must have property 'download'",
+          };
+          if (vErrors === null) {
+            vErrors = [err83];
+          } else {
+            vErrors.push(err83);
+          }
+          errors++;
+        }
+        for (const key6 in data) {
+          if (
+            key6 !== "kind" &&
+            key6 !== "version" &&
+            key6 !== "installationId" &&
+            key6 !== "commandId" &&
+            key6 !== "payloadHash" &&
+            key6 !== "family" &&
+            key6 !== "download"
+          ) {
+            const err84 = {
+              instancePath:
+                instancePath +
+                "/" +
+                key6.replace(/~/g, "~0").replace(/\//g, "~1"),
+              schemaPath: "/mapping/cancelled",
+              keyword: "properties",
+              params: { error: "additional", additionalProperty: key6 },
+              message: "must NOT have additional properties",
+            };
+            if (vErrors === null) {
+              vErrors = [err84];
+            } else {
+              vErrors.push(err84);
+            }
+            errors++;
+          }
+        }
+        if (!valid20) {
+          const err85 = {
+            instancePath,
+            schemaPath: "/mapping/cancelled/properties",
+            keyword: "properties",
+            params: { type: "object", nullable: false },
+            message: "must be object",
+          };
+          if (vErrors === null) {
+            vErrors = [err85];
+          } else {
+            vErrors.push(err85);
+          }
+          errors++;
+        }
+        var valid19 = _errs31 === errors;
+        valid0 = valid19;
+      } else if (tag0 === "rejected") {
+        const _errs41 = errors;
+        let valid27 = false;
+        valid27 = true;
+        if (data.version !== undefined) {
+          let data37 = data.version;
+          if (!(
+            typeof data37 == "number" &&
+            isFinite(data37) &&
+            !(data37 % 1) &&
+            data37 >= 0 &&
+            data37 <= 255
+          )) {
+            const err86 = {
+              instancePath: instancePath + "/version",
+              schemaPath: "/mapping/rejected/properties/version/type",
+              keyword: "type",
+              params: { type: "uint8", nullable: false },
+              message: "must be uint8",
+            };
+            if (vErrors === null) {
+              vErrors = [err86];
+            } else {
+              vErrors.push(err86);
+            }
+            errors++;
+          }
+        } else {
+          const err87 = {
+            instancePath,
+            schemaPath: "/mapping/rejected/properties/version",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "version" },
+            message: "must have property 'version'",
+          };
+          if (vErrors === null) {
+            vErrors = [err87];
+          } else {
+            vErrors.push(err87);
+          }
+          errors++;
+        }
+        if (data.installationId !== undefined) {
+          if (!(typeof data.installationId == "string")) {
+            const err88 = {
+              instancePath: instancePath + "/installationId",
+              schemaPath: "/mapping/rejected/properties/installationId/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err88];
+            } else {
+              vErrors.push(err88);
+            }
+            errors++;
+          }
+        } else {
+          const err89 = {
+            instancePath,
+            schemaPath: "/mapping/rejected/properties/installationId",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "installationId" },
+            message: "must have property 'installationId'",
+          };
+          if (vErrors === null) {
+            vErrors = [err89];
+          } else {
+            vErrors.push(err89);
+          }
+          errors++;
+        }
+        if (data.commandId !== undefined) {
+          if (!(typeof data.commandId == "string")) {
+            const err90 = {
+              instancePath: instancePath + "/commandId",
+              schemaPath: "/mapping/rejected/properties/commandId/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err90];
+            } else {
+              vErrors.push(err90);
+            }
+            errors++;
+          }
+        } else {
+          const err91 = {
+            instancePath,
+            schemaPath: "/mapping/rejected/properties/commandId",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "commandId" },
+            message: "must have property 'commandId'",
+          };
+          if (vErrors === null) {
+            vErrors = [err91];
+          } else {
+            vErrors.push(err91);
+          }
+          errors++;
+        }
+        if (data.payloadHash !== undefined) {
+          if (!(typeof data.payloadHash == "string")) {
+            const err92 = {
+              instancePath: instancePath + "/payloadHash",
+              schemaPath: "/mapping/rejected/properties/payloadHash/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err92];
+            } else {
+              vErrors.push(err92);
+            }
+            errors++;
+          }
+        } else {
+          const err93 = {
+            instancePath,
+            schemaPath: "/mapping/rejected/properties/payloadHash",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "payloadHash" },
+            message: "must have property 'payloadHash'",
+          };
+          if (vErrors === null) {
+            vErrors = [err93];
+          } else {
+            vErrors.push(err93);
+          }
+          errors++;
+        }
+        if (data.family !== undefined) {
+          let data41 = data.family;
+          if (!(typeof data41 == "string" && data41 === "lesson-files")) {
+            const err94 = {
+              instancePath: instancePath + "/family",
+              schemaPath: "/mapping/rejected/properties/family/enum",
+              keyword: "enum",
+              params: {
+                allowedValues: schema40.mapping.rejected.properties.family.enum,
+              },
+              message: "must be equal to one of the allowed values",
+            };
+            if (vErrors === null) {
+              vErrors = [err94];
+            } else {
+              vErrors.push(err94);
+            }
+            errors++;
+          }
+        } else {
+          const err95 = {
+            instancePath,
+            schemaPath: "/mapping/rejected/properties/family",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "family" },
+            message: "must have property 'family'",
+          };
+          if (vErrors === null) {
+            vErrors = [err95];
+          } else {
+            vErrors.push(err95);
+          }
+          errors++;
+        }
+        if (data.reason !== undefined) {
+          let data42 = data.reason;
+          if (!(
+            typeof data42 == "string" &&
+            (data42 === "staleActivation" ||
+              data42 === "incompatible" ||
+              data42 === "cancelled" ||
+              data42 === "conflict")
+          )) {
+            const err96 = {
+              instancePath: instancePath + "/reason",
+              schemaPath: "/mapping/rejected/properties/reason/enum",
+              keyword: "enum",
+              params: {
+                allowedValues: schema40.mapping.rejected.properties.reason.enum,
+              },
+              message: "must be equal to one of the allowed values",
+            };
+            if (vErrors === null) {
+              vErrors = [err96];
+            } else {
+              vErrors.push(err96);
+            }
+            errors++;
+          }
+        } else {
+          const err97 = {
+            instancePath,
+            schemaPath: "/mapping/rejected/properties/reason",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "reason" },
+            message: "must have property 'reason'",
+          };
+          if (vErrors === null) {
+            vErrors = [err97];
+          } else {
+            vErrors.push(err97);
+          }
+          errors++;
+        }
+        for (const key7 in data) {
+          if (
+            key7 !== "kind" &&
+            key7 !== "version" &&
+            key7 !== "installationId" &&
+            key7 !== "commandId" &&
+            key7 !== "payloadHash" &&
+            key7 !== "family" &&
+            key7 !== "reason"
+          ) {
+            const err98 = {
+              instancePath:
+                instancePath +
+                "/" +
+                key7.replace(/~/g, "~0").replace(/\//g, "~1"),
+              schemaPath: "/mapping/rejected",
+              keyword: "properties",
+              params: { error: "additional", additionalProperty: key7 },
+              message: "must NOT have additional properties",
+            };
+            if (vErrors === null) {
+              vErrors = [err98];
+            } else {
+              vErrors.push(err98);
+            }
+            errors++;
+          }
+        }
+        if (!valid27) {
+          const err99 = {
+            instancePath,
+            schemaPath: "/mapping/rejected/properties",
+            keyword: "properties",
+            params: { type: "object", nullable: false },
+            message: "must be object",
+          };
+          if (vErrors === null) {
+            vErrors = [err99];
+          } else {
+            vErrors.push(err99);
+          }
+          errors++;
+        }
+        var valid26 = _errs41 === errors;
+        valid0 = valid26;
+      } else {
+        const err100 = {
+          instancePath: instancePath + "/kind",
+          schemaPath: "/mapping",
+          keyword: "discriminator",
+          params: { error: "mapping", tag: "kind", tagValue: tag0 },
+          message: 'value of tag "kind" must be in mapping',
+        };
+        if (vErrors === null) {
+          vErrors = [err100];
+        } else {
+          vErrors.push(err100);
+        }
+        errors++;
+      }
+    } else {
+      const err101 = {
+        instancePath: instancePath + "/kind",
+        schemaPath: "/discriminator",
+        keyword: "discriminator",
+        params: { error: "tag", tag: "kind", tagValue: tag0 },
+        message: 'tag "kind" must be string',
+      };
+      if (vErrors === null) {
+        vErrors = [err101];
+      } else {
+        vErrors.push(err101);
+      }
+      errors++;
+    }
+  } else if (!valid0) {
+    const err102 = {
+      instancePath,
+      schemaPath: "/discriminator",
+      keyword: "discriminator",
+      params: { type: "object", nullable: false },
+      message: "must be object",
+    };
+    if (vErrors === null) {
+      vErrors = [err102];
+    } else {
+      vErrors.push(err102);
+    }
+    errors++;
+  }
+  validate68.errors = vErrors;
+  return errors === 0;
+}
+export const validateLessonFilesView = validate69;
+const schema41 = {
+  properties: {
+    activation: {
+      discriminator: "kind",
+      mapping: {
+        absent: { properties: {} },
+        present: {
+          properties: {
+            revision: { type: "string" },
+            activePackageHash: { type: "string" },
+            fallbackPackageHash: { type: "string", nullable: true },
+          },
+        },
+      },
+    },
+    offer: {
+      discriminator: "kind",
+      mapping: {
+        absent: { properties: {} },
+        available: {
+          properties: {
+            target: {
+              properties: {
+                publicationHash: { type: "string" },
+                courseId: { type: "string" },
+                releaseId: { type: "string" },
+                mode: { enum: ["fixture", "publication"] },
+              },
+            },
+          },
+        },
+        ready: {
+          properties: {
+            target: {
+              properties: {
+                publicationHash: { type: "string" },
+                courseId: { type: "string" },
+                releaseId: { type: "string" },
+                mode: { enum: ["fixture", "publication"] },
+              },
+            },
+            packageHash: { type: "string" },
+            receipt: {
+              properties: {
+                installationId: { type: "string" },
+                commandId: { type: "string" },
+                payloadHash: { type: "string" },
+              },
+            },
+          },
+        },
+      },
+    },
+    commands: {
+      elements: {
+        properties: {
+          command: {
+            properties: {
+              version: { type: "uint8" },
+              family: { enum: ["lesson-files"] },
+              installationId: { type: "string" },
+              commandId: { type: "string" },
+              expected: {
+                discriminator: "kind",
+                mapping: {
+                  absent: { properties: {} },
+                  present: {
+                    properties: {
+                      revision: { type: "string" },
+                      activePackageHash: { type: "string" },
+                      fallbackPackageHash: { type: "string", nullable: true },
+                    },
+                  },
+                },
+              },
+              action: {
+                discriminator: "kind",
+                mapping: {
+                  download: {
+                    properties: {
+                      target: {
+                        properties: {
+                          publicationHash: { type: "string" },
+                          courseId: { type: "string" },
+                          releaseId: { type: "string" },
+                          mode: { enum: ["fixture", "publication"] },
+                        },
+                      },
+                    },
+                  },
+                  use: {
+                    properties: {
+                      target: {
+                        properties: {
+                          publicationHash: { type: "string" },
+                          courseId: { type: "string" },
+                          releaseId: { type: "string" },
+                          mode: { enum: ["fixture", "publication"] },
+                        },
+                      },
+                      ready: {
+                        properties: {
+                          installationId: { type: "string" },
+                          commandId: { type: "string" },
+                          payloadHash: { type: "string" },
+                        },
+                      },
+                    },
+                  },
+                  cancel: {
+                    properties: {
+                      download: {
+                        properties: {
+                          installationId: { type: "string" },
+                          commandId: { type: "string" },
+                          payloadHash: { type: "string" },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          receipt: {
+            discriminator: "kind",
+            mapping: {
+              accepted: {
+                properties: {
+                  version: { type: "uint8" },
+                  installationId: { type: "string" },
+                  commandId: { type: "string" },
+                  payloadHash: { type: "string" },
+                  family: { enum: ["lesson-files"] },
+                  target: {
+                    properties: {
+                      publicationHash: { type: "string" },
+                      courseId: { type: "string" },
+                      releaseId: { type: "string" },
+                      mode: { enum: ["fixture", "publication"] },
+                    },
+                  },
+                },
+              },
+              ready: {
+                properties: {
+                  version: { type: "uint8" },
+                  installationId: { type: "string" },
+                  commandId: { type: "string" },
+                  payloadHash: { type: "string" },
+                  family: { enum: ["lesson-files"] },
+                  target: {
+                    properties: {
+                      publicationHash: { type: "string" },
+                      courseId: { type: "string" },
+                      releaseId: { type: "string" },
+                      mode: { enum: ["fixture", "publication"] },
+                    },
+                  },
+                  packageHash: { type: "string" },
+                },
+              },
+              activated: {
+                properties: {
+                  version: { type: "uint8" },
+                  installationId: { type: "string" },
+                  commandId: { type: "string" },
+                  payloadHash: { type: "string" },
+                  family: { enum: ["lesson-files"] },
+                  packageHash: { type: "string" },
+                  activationRevision: { type: "string" },
+                },
+              },
+              cancelled: {
+                properties: {
+                  version: { type: "uint8" },
+                  installationId: { type: "string" },
+                  commandId: { type: "string" },
+                  payloadHash: { type: "string" },
+                  family: { enum: ["lesson-files"] },
+                  download: {
+                    properties: {
+                      installationId: { type: "string" },
+                      commandId: { type: "string" },
+                      payloadHash: { type: "string" },
+                    },
+                  },
+                },
+              },
+              rejected: {
+                properties: {
+                  version: { type: "uint8" },
+                  installationId: { type: "string" },
+                  commandId: { type: "string" },
+                  payloadHash: { type: "string" },
+                  family: { enum: ["lesson-files"] },
+                  reason: {
+                    enum: [
+                      "staleActivation",
+                      "incompatible",
+                      "cancelled",
+                      "conflict",
+                    ],
+                  },
+                },
+              },
+            },
+          },
+          observation: {
+            discriminator: "kind",
+            mapping: {
+              idle: { properties: {} },
+              acquiring: { properties: {} },
+              retryable: {
+                properties: {
+                  reason: { enum: ["unavailable", "quota", "interrupted"] },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    packages: {
+      elements: {
+        properties: {
+          packageHash: { type: "string" },
+          role: { enum: ["active", "fallback", "historical", "inactive"] },
+          bytes: {
+            enum: [
+              "unchecked",
+              "verified",
+              "missing",
+              "corrupt",
+              "metadataOnly",
+            ],
+          },
+        },
+      },
+    },
+  },
+};
+function validate69(
+  data,
+  { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
+) {
+  let vErrors = null;
+  let errors = 0;
+  let valid0 = false;
+  if (data && typeof data == "object" && !Array.isArray(data)) {
+    valid0 = true;
+    if (data.activation !== undefined) {
+      let data0 = data.activation;
+      let valid2 = false;
+      if (data0 && typeof data0 == "object" && !Array.isArray(data0)) {
+        const tag0 = data0.kind;
+        if (tag0 === undefined) {
+          const err0 = {
+            instancePath: instancePath + "/activation",
+            schemaPath: "/properties/activation/discriminator",
+            keyword: "discriminator",
+            params: { error: "tag", tag: "kind", tagValue: tag0 },
+            message: 'tag "kind" must be string',
+          };
+          if (vErrors === null) {
+            vErrors = [err0];
+          } else {
+            vErrors.push(err0);
+          }
+          errors++;
+        } else if (typeof tag0 == "string") {
+          if (tag0 === "absent") {
+            const _errs1 = errors;
+            let valid4 = false;
+            valid4 = true;
+            for (const key0 in data0) {
+              if (key0 !== "kind") {
+                const err1 = {
+                  instancePath:
+                    instancePath +
+                    "/activation/" +
+                    key0.replace(/~/g, "~0").replace(/\//g, "~1"),
+                  schemaPath: "/properties/activation/mapping/absent",
+                  keyword: "properties",
+                  params: { error: "additional", additionalProperty: key0 },
+                  message: "must NOT have additional properties",
+                };
+                if (vErrors === null) {
+                  vErrors = [err1];
+                } else {
+                  vErrors.push(err1);
+                }
+                errors++;
+              }
+            }
+            if (!valid4) {
+              const err2 = {
+                instancePath: instancePath + "/activation",
+                schemaPath: "/properties/activation/mapping/absent/properties",
+                keyword: "properties",
+                params: { type: "object", nullable: false },
+                message: "must be object",
+              };
+              if (vErrors === null) {
+                vErrors = [err2];
+              } else {
+                vErrors.push(err2);
+              }
+              errors++;
+            }
+            var valid3 = _errs1 === errors;
+            valid2 = valid3;
+          } else if (tag0 === "present") {
+            const _errs2 = errors;
+            let valid8 = false;
+            valid8 = true;
+            if (data0.revision !== undefined) {
+              if (!(typeof data0.revision == "string")) {
+                const err3 = {
+                  instancePath: instancePath + "/activation/revision",
+                  schemaPath:
+                    "/properties/activation/mapping/present/properties/revision/type",
+                  keyword: "type",
+                  params: { type: "string", nullable: false },
+                  message: "must be string",
+                };
+                if (vErrors === null) {
+                  vErrors = [err3];
+                } else {
+                  vErrors.push(err3);
+                }
+                errors++;
+              }
+            } else {
+              const err4 = {
+                instancePath: instancePath + "/activation",
+                schemaPath:
+                  "/properties/activation/mapping/present/properties/revision",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "revision" },
+                message: "must have property 'revision'",
+              };
+              if (vErrors === null) {
+                vErrors = [err4];
+              } else {
+                vErrors.push(err4);
+              }
+              errors++;
+            }
+            if (data0.activePackageHash !== undefined) {
+              if (!(typeof data0.activePackageHash == "string")) {
+                const err5 = {
+                  instancePath: instancePath + "/activation/activePackageHash",
+                  schemaPath:
+                    "/properties/activation/mapping/present/properties/activePackageHash/type",
+                  keyword: "type",
+                  params: { type: "string", nullable: false },
+                  message: "must be string",
+                };
+                if (vErrors === null) {
+                  vErrors = [err5];
+                } else {
+                  vErrors.push(err5);
+                }
+                errors++;
+              }
+            } else {
+              const err6 = {
+                instancePath: instancePath + "/activation",
+                schemaPath:
+                  "/properties/activation/mapping/present/properties/activePackageHash",
+                keyword: "properties",
+                params: {
+                  error: "missing",
+                  missingProperty: "activePackageHash",
+                },
+                message: "must have property 'activePackageHash'",
+              };
+              if (vErrors === null) {
+                vErrors = [err6];
+              } else {
+                vErrors.push(err6);
+              }
+              errors++;
+            }
+            if (data0.fallbackPackageHash !== undefined) {
+              let data3 = data0.fallbackPackageHash;
+              if (!(data3 === null || typeof data3 == "string")) {
+                const err7 = {
+                  instancePath:
+                    instancePath + "/activation/fallbackPackageHash",
+                  schemaPath:
+                    "/properties/activation/mapping/present/properties/fallbackPackageHash/type",
+                  keyword: "type",
+                  params: { type: "string", nullable: true },
+                  message: "must be string or null",
+                };
+                if (vErrors === null) {
+                  vErrors = [err7];
+                } else {
+                  vErrors.push(err7);
+                }
+                errors++;
+              }
+            } else {
+              const err8 = {
+                instancePath: instancePath + "/activation",
+                schemaPath:
+                  "/properties/activation/mapping/present/properties/fallbackPackageHash",
+                keyword: "properties",
+                params: {
+                  error: "missing",
+                  missingProperty: "fallbackPackageHash",
+                },
+                message: "must have property 'fallbackPackageHash'",
+              };
+              if (vErrors === null) {
+                vErrors = [err8];
+              } else {
+                vErrors.push(err8);
+              }
+              errors++;
+            }
+            for (const key1 in data0) {
+              if (
+                key1 !== "kind" &&
+                key1 !== "revision" &&
+                key1 !== "activePackageHash" &&
+                key1 !== "fallbackPackageHash"
+              ) {
+                const err9 = {
+                  instancePath:
+                    instancePath +
+                    "/activation/" +
+                    key1.replace(/~/g, "~0").replace(/\//g, "~1"),
+                  schemaPath: "/properties/activation/mapping/present",
+                  keyword: "properties",
+                  params: { error: "additional", additionalProperty: key1 },
+                  message: "must NOT have additional properties",
+                };
+                if (vErrors === null) {
+                  vErrors = [err9];
+                } else {
+                  vErrors.push(err9);
+                }
+                errors++;
+              }
+            }
+            if (!valid8) {
+              const err10 = {
+                instancePath: instancePath + "/activation",
+                schemaPath: "/properties/activation/mapping/present/properties",
+                keyword: "properties",
+                params: { type: "object", nullable: false },
+                message: "must be object",
+              };
+              if (vErrors === null) {
+                vErrors = [err10];
+              } else {
+                vErrors.push(err10);
+              }
+              errors++;
+            }
+            var valid7 = _errs2 === errors;
+            valid2 = valid7;
+          } else {
+            const err11 = {
+              instancePath: instancePath + "/activation/kind",
+              schemaPath: "/properties/activation/mapping",
+              keyword: "discriminator",
+              params: { error: "mapping", tag: "kind", tagValue: tag0 },
+              message: 'value of tag "kind" must be in mapping',
+            };
+            if (vErrors === null) {
+              vErrors = [err11];
+            } else {
+              vErrors.push(err11);
+            }
+            errors++;
+          }
+        } else {
+          const err12 = {
+            instancePath: instancePath + "/activation/kind",
+            schemaPath: "/properties/activation/discriminator",
+            keyword: "discriminator",
+            params: { error: "tag", tag: "kind", tagValue: tag0 },
+            message: 'tag "kind" must be string',
+          };
+          if (vErrors === null) {
+            vErrors = [err12];
+          } else {
+            vErrors.push(err12);
+          }
+          errors++;
+        }
+      } else if (!valid2) {
+        const err13 = {
+          instancePath: instancePath + "/activation",
+          schemaPath: "/properties/activation/discriminator",
+          keyword: "discriminator",
+          params: { type: "object", nullable: false },
+          message: "must be object",
+        };
+        if (vErrors === null) {
+          vErrors = [err13];
+        } else {
+          vErrors.push(err13);
+        }
+        errors++;
+      }
+    } else {
+      const err14 = {
+        instancePath,
+        schemaPath: "/properties/activation",
+        keyword: "properties",
+        params: { error: "missing", missingProperty: "activation" },
+        message: "must have property 'activation'",
+      };
+      if (vErrors === null) {
+        vErrors = [err14];
+      } else {
+        vErrors.push(err14);
+      }
+      errors++;
+    }
+    if (data.offer !== undefined) {
+      let data4 = data.offer;
+      let valid11 = false;
+      if (data4 && typeof data4 == "object" && !Array.isArray(data4)) {
+        const tag1 = data4.kind;
+        if (tag1 === undefined) {
+          const err15 = {
+            instancePath: instancePath + "/offer",
+            schemaPath: "/properties/offer/discriminator",
+            keyword: "discriminator",
+            params: { error: "tag", tag: "kind", tagValue: tag1 },
+            message: 'tag "kind" must be string',
+          };
+          if (vErrors === null) {
+            vErrors = [err15];
+          } else {
+            vErrors.push(err15);
+          }
+          errors++;
+        } else if (typeof tag1 == "string") {
+          if (tag1 === "absent") {
+            const _errs8 = errors;
+            let valid13 = false;
+            valid13 = true;
+            for (const key2 in data4) {
+              if (key2 !== "kind") {
+                const err16 = {
+                  instancePath:
+                    instancePath +
+                    "/offer/" +
+                    key2.replace(/~/g, "~0").replace(/\//g, "~1"),
+                  schemaPath: "/properties/offer/mapping/absent",
+                  keyword: "properties",
+                  params: { error: "additional", additionalProperty: key2 },
+                  message: "must NOT have additional properties",
+                };
+                if (vErrors === null) {
+                  vErrors = [err16];
+                } else {
+                  vErrors.push(err16);
+                }
+                errors++;
+              }
+            }
+            if (!valid13) {
+              const err17 = {
+                instancePath: instancePath + "/offer",
+                schemaPath: "/properties/offer/mapping/absent/properties",
+                keyword: "properties",
+                params: { type: "object", nullable: false },
+                message: "must be object",
+              };
+              if (vErrors === null) {
+                vErrors = [err17];
+              } else {
+                vErrors.push(err17);
+              }
+              errors++;
+            }
+            var valid12 = _errs8 === errors;
+            valid11 = valid12;
+          } else if (tag1 === "available") {
+            const _errs9 = errors;
+            let valid17 = false;
+            valid17 = true;
+            if (data4.target !== undefined) {
+              let data5 = data4.target;
+              let valid19 = false;
+              if (data5 && typeof data5 == "object" && !Array.isArray(data5)) {
+                valid19 = true;
+                if (data5.publicationHash !== undefined) {
+                  if (!(typeof data5.publicationHash == "string")) {
+                    const err18 = {
+                      instancePath:
+                        instancePath + "/offer/target/publicationHash",
+                      schemaPath:
+                        "/properties/offer/mapping/available/properties/target/properties/publicationHash/type",
+                      keyword: "type",
+                      params: { type: "string", nullable: false },
+                      message: "must be string",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err18];
+                    } else {
+                      vErrors.push(err18);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err19 = {
+                    instancePath: instancePath + "/offer/target",
+                    schemaPath:
+                      "/properties/offer/mapping/available/properties/target/properties/publicationHash",
+                    keyword: "properties",
+                    params: {
+                      error: "missing",
+                      missingProperty: "publicationHash",
+                    },
+                    message: "must have property 'publicationHash'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err19];
+                  } else {
+                    vErrors.push(err19);
+                  }
+                  errors++;
+                }
+                if (data5.courseId !== undefined) {
+                  if (!(typeof data5.courseId == "string")) {
+                    const err20 = {
+                      instancePath: instancePath + "/offer/target/courseId",
+                      schemaPath:
+                        "/properties/offer/mapping/available/properties/target/properties/courseId/type",
+                      keyword: "type",
+                      params: { type: "string", nullable: false },
+                      message: "must be string",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err20];
+                    } else {
+                      vErrors.push(err20);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err21 = {
+                    instancePath: instancePath + "/offer/target",
+                    schemaPath:
+                      "/properties/offer/mapping/available/properties/target/properties/courseId",
+                    keyword: "properties",
+                    params: { error: "missing", missingProperty: "courseId" },
+                    message: "must have property 'courseId'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err21];
+                  } else {
+                    vErrors.push(err21);
+                  }
+                  errors++;
+                }
+                if (data5.releaseId !== undefined) {
+                  if (!(typeof data5.releaseId == "string")) {
+                    const err22 = {
+                      instancePath: instancePath + "/offer/target/releaseId",
+                      schemaPath:
+                        "/properties/offer/mapping/available/properties/target/properties/releaseId/type",
+                      keyword: "type",
+                      params: { type: "string", nullable: false },
+                      message: "must be string",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err22];
+                    } else {
+                      vErrors.push(err22);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err23 = {
+                    instancePath: instancePath + "/offer/target",
+                    schemaPath:
+                      "/properties/offer/mapping/available/properties/target/properties/releaseId",
+                    keyword: "properties",
+                    params: { error: "missing", missingProperty: "releaseId" },
+                    message: "must have property 'releaseId'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err23];
+                  } else {
+                    vErrors.push(err23);
+                  }
+                  errors++;
+                }
+                if (data5.mode !== undefined) {
+                  let data9 = data5.mode;
+                  if (!(
+                    typeof data9 == "string" &&
+                    (data9 === "fixture" || data9 === "publication")
+                  )) {
+                    const err24 = {
+                      instancePath: instancePath + "/offer/target/mode",
+                      schemaPath:
+                        "/properties/offer/mapping/available/properties/target/properties/mode/enum",
+                      keyword: "enum",
+                      params: {
+                        allowedValues:
+                          schema41.properties.offer.mapping.available.properties
+                            .target.properties.mode.enum,
+                      },
+                      message: "must be equal to one of the allowed values",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err24];
+                    } else {
+                      vErrors.push(err24);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err25 = {
+                    instancePath: instancePath + "/offer/target",
+                    schemaPath:
+                      "/properties/offer/mapping/available/properties/target/properties/mode",
+                    keyword: "properties",
+                    params: { error: "missing", missingProperty: "mode" },
+                    message: "must have property 'mode'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err25];
+                  } else {
+                    vErrors.push(err25);
+                  }
+                  errors++;
+                }
+                for (const key3 in data5) {
+                  if (
+                    key3 !== "publicationHash" &&
+                    key3 !== "courseId" &&
+                    key3 !== "releaseId" &&
+                    key3 !== "mode"
+                  ) {
+                    const err26 = {
+                      instancePath:
+                        instancePath +
+                        "/offer/target/" +
+                        key3.replace(/~/g, "~0").replace(/\//g, "~1"),
+                      schemaPath:
+                        "/properties/offer/mapping/available/properties/target",
+                      keyword: "properties",
+                      params: { error: "additional", additionalProperty: key3 },
+                      message: "must NOT have additional properties",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err26];
+                    } else {
+                      vErrors.push(err26);
+                    }
+                    errors++;
+                  }
+                }
+              }
+              if (!valid19) {
+                const err27 = {
+                  instancePath: instancePath + "/offer/target",
+                  schemaPath:
+                    "/properties/offer/mapping/available/properties/target/properties",
+                  keyword: "properties",
+                  params: { type: "object", nullable: false },
+                  message: "must be object",
+                };
+                if (vErrors === null) {
+                  vErrors = [err27];
+                } else {
+                  vErrors.push(err27);
+                }
+                errors++;
+              }
+            } else {
+              const err28 = {
+                instancePath: instancePath + "/offer",
+                schemaPath:
+                  "/properties/offer/mapping/available/properties/target",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "target" },
+                message: "must have property 'target'",
+              };
+              if (vErrors === null) {
+                vErrors = [err28];
+              } else {
+                vErrors.push(err28);
+              }
+              errors++;
+            }
+            for (const key4 in data4) {
+              if (key4 !== "kind" && key4 !== "target") {
+                const err29 = {
+                  instancePath:
+                    instancePath +
+                    "/offer/" +
+                    key4.replace(/~/g, "~0").replace(/\//g, "~1"),
+                  schemaPath: "/properties/offer/mapping/available",
+                  keyword: "properties",
+                  params: { error: "additional", additionalProperty: key4 },
+                  message: "must NOT have additional properties",
+                };
+                if (vErrors === null) {
+                  vErrors = [err29];
+                } else {
+                  vErrors.push(err29);
+                }
+                errors++;
+              }
+            }
+            if (!valid17) {
+              const err30 = {
+                instancePath: instancePath + "/offer",
+                schemaPath: "/properties/offer/mapping/available/properties",
+                keyword: "properties",
+                params: { type: "object", nullable: false },
+                message: "must be object",
+              };
+              if (vErrors === null) {
+                vErrors = [err30];
+              } else {
+                vErrors.push(err30);
+              }
+              errors++;
+            }
+            var valid16 = _errs9 === errors;
+            valid11 = valid16;
+          } else if (tag1 === "ready") {
+            const _errs15 = errors;
+            let valid24 = false;
+            valid24 = true;
+            if (data4.target !== undefined) {
+              let data10 = data4.target;
+              let valid26 = false;
+              if (
+                data10 &&
+                typeof data10 == "object" &&
+                !Array.isArray(data10)
+              ) {
+                valid26 = true;
+                if (data10.publicationHash !== undefined) {
+                  if (!(typeof data10.publicationHash == "string")) {
+                    const err31 = {
+                      instancePath:
+                        instancePath + "/offer/target/publicationHash",
+                      schemaPath:
+                        "/properties/offer/mapping/ready/properties/target/properties/publicationHash/type",
+                      keyword: "type",
+                      params: { type: "string", nullable: false },
+                      message: "must be string",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err31];
+                    } else {
+                      vErrors.push(err31);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err32 = {
+                    instancePath: instancePath + "/offer/target",
+                    schemaPath:
+                      "/properties/offer/mapping/ready/properties/target/properties/publicationHash",
+                    keyword: "properties",
+                    params: {
+                      error: "missing",
+                      missingProperty: "publicationHash",
+                    },
+                    message: "must have property 'publicationHash'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err32];
+                  } else {
+                    vErrors.push(err32);
+                  }
+                  errors++;
+                }
+                if (data10.courseId !== undefined) {
+                  if (!(typeof data10.courseId == "string")) {
+                    const err33 = {
+                      instancePath: instancePath + "/offer/target/courseId",
+                      schemaPath:
+                        "/properties/offer/mapping/ready/properties/target/properties/courseId/type",
+                      keyword: "type",
+                      params: { type: "string", nullable: false },
+                      message: "must be string",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err33];
+                    } else {
+                      vErrors.push(err33);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err34 = {
+                    instancePath: instancePath + "/offer/target",
+                    schemaPath:
+                      "/properties/offer/mapping/ready/properties/target/properties/courseId",
+                    keyword: "properties",
+                    params: { error: "missing", missingProperty: "courseId" },
+                    message: "must have property 'courseId'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err34];
+                  } else {
+                    vErrors.push(err34);
+                  }
+                  errors++;
+                }
+                if (data10.releaseId !== undefined) {
+                  if (!(typeof data10.releaseId == "string")) {
+                    const err35 = {
+                      instancePath: instancePath + "/offer/target/releaseId",
+                      schemaPath:
+                        "/properties/offer/mapping/ready/properties/target/properties/releaseId/type",
+                      keyword: "type",
+                      params: { type: "string", nullable: false },
+                      message: "must be string",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err35];
+                    } else {
+                      vErrors.push(err35);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err36 = {
+                    instancePath: instancePath + "/offer/target",
+                    schemaPath:
+                      "/properties/offer/mapping/ready/properties/target/properties/releaseId",
+                    keyword: "properties",
+                    params: { error: "missing", missingProperty: "releaseId" },
+                    message: "must have property 'releaseId'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err36];
+                  } else {
+                    vErrors.push(err36);
+                  }
+                  errors++;
+                }
+                if (data10.mode !== undefined) {
+                  let data14 = data10.mode;
+                  if (!(
+                    typeof data14 == "string" &&
+                    (data14 === "fixture" || data14 === "publication")
+                  )) {
+                    const err37 = {
+                      instancePath: instancePath + "/offer/target/mode",
+                      schemaPath:
+                        "/properties/offer/mapping/ready/properties/target/properties/mode/enum",
+                      keyword: "enum",
+                      params: {
+                        allowedValues:
+                          schema41.properties.offer.mapping.ready.properties
+                            .target.properties.mode.enum,
+                      },
+                      message: "must be equal to one of the allowed values",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err37];
+                    } else {
+                      vErrors.push(err37);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err38 = {
+                    instancePath: instancePath + "/offer/target",
+                    schemaPath:
+                      "/properties/offer/mapping/ready/properties/target/properties/mode",
+                    keyword: "properties",
+                    params: { error: "missing", missingProperty: "mode" },
+                    message: "must have property 'mode'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err38];
+                  } else {
+                    vErrors.push(err38);
+                  }
+                  errors++;
+                }
+                for (const key5 in data10) {
+                  if (
+                    key5 !== "publicationHash" &&
+                    key5 !== "courseId" &&
+                    key5 !== "releaseId" &&
+                    key5 !== "mode"
+                  ) {
+                    const err39 = {
+                      instancePath:
+                        instancePath +
+                        "/offer/target/" +
+                        key5.replace(/~/g, "~0").replace(/\//g, "~1"),
+                      schemaPath:
+                        "/properties/offer/mapping/ready/properties/target",
+                      keyword: "properties",
+                      params: { error: "additional", additionalProperty: key5 },
+                      message: "must NOT have additional properties",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err39];
+                    } else {
+                      vErrors.push(err39);
+                    }
+                    errors++;
+                  }
+                }
+              }
+              if (!valid26) {
+                const err40 = {
+                  instancePath: instancePath + "/offer/target",
+                  schemaPath:
+                    "/properties/offer/mapping/ready/properties/target/properties",
+                  keyword: "properties",
+                  params: { type: "object", nullable: false },
+                  message: "must be object",
+                };
+                if (vErrors === null) {
+                  vErrors = [err40];
+                } else {
+                  vErrors.push(err40);
+                }
+                errors++;
+              }
+            } else {
+              const err41 = {
+                instancePath: instancePath + "/offer",
+                schemaPath: "/properties/offer/mapping/ready/properties/target",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "target" },
+                message: "must have property 'target'",
+              };
+              if (vErrors === null) {
+                vErrors = [err41];
+              } else {
+                vErrors.push(err41);
+              }
+              errors++;
+            }
+            if (data4.packageHash !== undefined) {
+              if (!(typeof data4.packageHash == "string")) {
+                const err42 = {
+                  instancePath: instancePath + "/offer/packageHash",
+                  schemaPath:
+                    "/properties/offer/mapping/ready/properties/packageHash/type",
+                  keyword: "type",
+                  params: { type: "string", nullable: false },
+                  message: "must be string",
+                };
+                if (vErrors === null) {
+                  vErrors = [err42];
+                } else {
+                  vErrors.push(err42);
+                }
+                errors++;
+              }
+            } else {
+              const err43 = {
+                instancePath: instancePath + "/offer",
+                schemaPath:
+                  "/properties/offer/mapping/ready/properties/packageHash",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "packageHash" },
+                message: "must have property 'packageHash'",
+              };
+              if (vErrors === null) {
+                vErrors = [err43];
+              } else {
+                vErrors.push(err43);
+              }
+              errors++;
+            }
+            if (data4.receipt !== undefined) {
+              let data16 = data4.receipt;
+              let valid29 = false;
+              if (
+                data16 &&
+                typeof data16 == "object" &&
+                !Array.isArray(data16)
+              ) {
+                valid29 = true;
+                if (data16.installationId !== undefined) {
+                  if (!(typeof data16.installationId == "string")) {
+                    const err44 = {
+                      instancePath:
+                        instancePath + "/offer/receipt/installationId",
+                      schemaPath:
+                        "/properties/offer/mapping/ready/properties/receipt/properties/installationId/type",
+                      keyword: "type",
+                      params: { type: "string", nullable: false },
+                      message: "must be string",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err44];
+                    } else {
+                      vErrors.push(err44);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err45 = {
+                    instancePath: instancePath + "/offer/receipt",
+                    schemaPath:
+                      "/properties/offer/mapping/ready/properties/receipt/properties/installationId",
+                    keyword: "properties",
+                    params: {
+                      error: "missing",
+                      missingProperty: "installationId",
+                    },
+                    message: "must have property 'installationId'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err45];
+                  } else {
+                    vErrors.push(err45);
+                  }
+                  errors++;
+                }
+                if (data16.commandId !== undefined) {
+                  if (!(typeof data16.commandId == "string")) {
+                    const err46 = {
+                      instancePath: instancePath + "/offer/receipt/commandId",
+                      schemaPath:
+                        "/properties/offer/mapping/ready/properties/receipt/properties/commandId/type",
+                      keyword: "type",
+                      params: { type: "string", nullable: false },
+                      message: "must be string",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err46];
+                    } else {
+                      vErrors.push(err46);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err47 = {
+                    instancePath: instancePath + "/offer/receipt",
+                    schemaPath:
+                      "/properties/offer/mapping/ready/properties/receipt/properties/commandId",
+                    keyword: "properties",
+                    params: { error: "missing", missingProperty: "commandId" },
+                    message: "must have property 'commandId'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err47];
+                  } else {
+                    vErrors.push(err47);
+                  }
+                  errors++;
+                }
+                if (data16.payloadHash !== undefined) {
+                  if (!(typeof data16.payloadHash == "string")) {
+                    const err48 = {
+                      instancePath: instancePath + "/offer/receipt/payloadHash",
+                      schemaPath:
+                        "/properties/offer/mapping/ready/properties/receipt/properties/payloadHash/type",
+                      keyword: "type",
+                      params: { type: "string", nullable: false },
+                      message: "must be string",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err48];
+                    } else {
+                      vErrors.push(err48);
+                    }
+                    errors++;
+                  }
+                } else {
+                  const err49 = {
+                    instancePath: instancePath + "/offer/receipt",
+                    schemaPath:
+                      "/properties/offer/mapping/ready/properties/receipt/properties/payloadHash",
+                    keyword: "properties",
+                    params: {
+                      error: "missing",
+                      missingProperty: "payloadHash",
+                    },
+                    message: "must have property 'payloadHash'",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err49];
+                  } else {
+                    vErrors.push(err49);
+                  }
+                  errors++;
+                }
+                for (const key6 in data16) {
+                  if (
+                    key6 !== "installationId" &&
+                    key6 !== "commandId" &&
+                    key6 !== "payloadHash"
+                  ) {
+                    const err50 = {
+                      instancePath:
+                        instancePath +
+                        "/offer/receipt/" +
+                        key6.replace(/~/g, "~0").replace(/\//g, "~1"),
+                      schemaPath:
+                        "/properties/offer/mapping/ready/properties/receipt",
+                      keyword: "properties",
+                      params: { error: "additional", additionalProperty: key6 },
+                      message: "must NOT have additional properties",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err50];
+                    } else {
+                      vErrors.push(err50);
+                    }
+                    errors++;
+                  }
+                }
+              }
+              if (!valid29) {
+                const err51 = {
+                  instancePath: instancePath + "/offer/receipt",
+                  schemaPath:
+                    "/properties/offer/mapping/ready/properties/receipt/properties",
+                  keyword: "properties",
+                  params: { type: "object", nullable: false },
+                  message: "must be object",
+                };
+                if (vErrors === null) {
+                  vErrors = [err51];
+                } else {
+                  vErrors.push(err51);
+                }
+                errors++;
+              }
+            } else {
+              const err52 = {
+                instancePath: instancePath + "/offer",
+                schemaPath:
+                  "/properties/offer/mapping/ready/properties/receipt",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "receipt" },
+                message: "must have property 'receipt'",
+              };
+              if (vErrors === null) {
+                vErrors = [err52];
+              } else {
+                vErrors.push(err52);
+              }
+              errors++;
+            }
+            for (const key7 in data4) {
+              if (
+                key7 !== "kind" &&
+                key7 !== "target" &&
+                key7 !== "packageHash" &&
+                key7 !== "receipt"
+              ) {
+                const err53 = {
+                  instancePath:
+                    instancePath +
+                    "/offer/" +
+                    key7.replace(/~/g, "~0").replace(/\//g, "~1"),
+                  schemaPath: "/properties/offer/mapping/ready",
+                  keyword: "properties",
+                  params: { error: "additional", additionalProperty: key7 },
+                  message: "must NOT have additional properties",
+                };
+                if (vErrors === null) {
+                  vErrors = [err53];
+                } else {
+                  vErrors.push(err53);
+                }
+                errors++;
+              }
+            }
+            if (!valid24) {
+              const err54 = {
+                instancePath: instancePath + "/offer",
+                schemaPath: "/properties/offer/mapping/ready/properties",
+                keyword: "properties",
+                params: { type: "object", nullable: false },
+                message: "must be object",
+              };
+              if (vErrors === null) {
+                vErrors = [err54];
+              } else {
+                vErrors.push(err54);
+              }
+              errors++;
+            }
+            var valid23 = _errs15 === errors;
+            valid11 = valid23;
+          } else {
+            const err55 = {
+              instancePath: instancePath + "/offer/kind",
+              schemaPath: "/properties/offer/mapping",
+              keyword: "discriminator",
+              params: { error: "mapping", tag: "kind", tagValue: tag1 },
+              message: 'value of tag "kind" must be in mapping',
+            };
+            if (vErrors === null) {
+              vErrors = [err55];
+            } else {
+              vErrors.push(err55);
+            }
+            errors++;
+          }
+        } else {
+          const err56 = {
+            instancePath: instancePath + "/offer/kind",
+            schemaPath: "/properties/offer/discriminator",
+            keyword: "discriminator",
+            params: { error: "tag", tag: "kind", tagValue: tag1 },
+            message: 'tag "kind" must be string',
+          };
+          if (vErrors === null) {
+            vErrors = [err56];
+          } else {
+            vErrors.push(err56);
+          }
+          errors++;
+        }
+      } else if (!valid11) {
+        const err57 = {
+          instancePath: instancePath + "/offer",
+          schemaPath: "/properties/offer/discriminator",
+          keyword: "discriminator",
+          params: { type: "object", nullable: false },
+          message: "must be object",
+        };
+        if (vErrors === null) {
+          vErrors = [err57];
+        } else {
+          vErrors.push(err57);
+        }
+        errors++;
+      }
+    } else {
+      const err58 = {
+        instancePath,
+        schemaPath: "/properties/offer",
+        keyword: "properties",
+        params: { error: "missing", missingProperty: "offer" },
+        message: "must have property 'offer'",
+      };
+      if (vErrors === null) {
+        vErrors = [err58];
+      } else {
+        vErrors.push(err58);
+      }
+      errors++;
+    }
+    if (data.commands !== undefined) {
+      let data20 = data.commands;
+      let valid33 = false;
+      if (!valid33) {
+        if (Array.isArray(data20)) {
+          let valid35 = true;
+          const len0 = data20.length;
+          for (let i0 = 0; i0 < len0; i0++) {
+            let data21 = data20[i0];
+            const _errs27 = errors;
+            let valid36 = false;
+            if (data21 && typeof data21 == "object" && !Array.isArray(data21)) {
+              valid36 = true;
+              if (data21.command !== undefined) {
+                let data22 = data21.command;
+                let valid38 = false;
+                if (
+                  data22 &&
+                  typeof data22 == "object" &&
+                  !Array.isArray(data22)
+                ) {
+                  valid38 = true;
+                  if (data22.version !== undefined) {
+                    let data23 = data22.version;
+                    if (!(
+                      typeof data23 == "number" &&
+                      isFinite(data23) &&
+                      !(data23 % 1) &&
+                      data23 >= 0 &&
+                      data23 <= 255
+                    )) {
+                      const err59 = {
+                        instancePath:
+                          instancePath + "/commands/" + i0 + "/command/version",
+                        schemaPath:
+                          "/properties/commands/elements/properties/command/properties/version/type",
+                        keyword: "type",
+                        params: { type: "uint8", nullable: false },
+                        message: "must be uint8",
+                      };
+                      if (vErrors === null) {
+                        vErrors = [err59];
+                      } else {
+                        vErrors.push(err59);
+                      }
+                      errors++;
+                    }
+                  } else {
+                    const err60 = {
+                      instancePath:
+                        instancePath + "/commands/" + i0 + "/command",
+                      schemaPath:
+                        "/properties/commands/elements/properties/command/properties/version",
+                      keyword: "properties",
+                      params: { error: "missing", missingProperty: "version" },
+                      message: "must have property 'version'",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err60];
+                    } else {
+                      vErrors.push(err60);
+                    }
+                    errors++;
+                  }
+                  if (data22.family !== undefined) {
+                    let data24 = data22.family;
+                    if (!(
+                      typeof data24 == "string" && data24 === "lesson-files"
+                    )) {
+                      const err61 = {
+                        instancePath:
+                          instancePath + "/commands/" + i0 + "/command/family",
+                        schemaPath:
+                          "/properties/commands/elements/properties/command/properties/family/enum",
+                        keyword: "enum",
+                        params: {
+                          allowedValues:
+                            schema41.properties.commands.elements.properties
+                              .command.properties.family.enum,
+                        },
+                        message: "must be equal to one of the allowed values",
+                      };
+                      if (vErrors === null) {
+                        vErrors = [err61];
+                      } else {
+                        vErrors.push(err61);
+                      }
+                      errors++;
+                    }
+                  } else {
+                    const err62 = {
+                      instancePath:
+                        instancePath + "/commands/" + i0 + "/command",
+                      schemaPath:
+                        "/properties/commands/elements/properties/command/properties/family",
+                      keyword: "properties",
+                      params: { error: "missing", missingProperty: "family" },
+                      message: "must have property 'family'",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err62];
+                    } else {
+                      vErrors.push(err62);
+                    }
+                    errors++;
+                  }
+                  if (data22.installationId !== undefined) {
+                    if (!(typeof data22.installationId == "string")) {
+                      const err63 = {
+                        instancePath:
+                          instancePath +
+                          "/commands/" +
+                          i0 +
+                          "/command/installationId",
+                        schemaPath:
+                          "/properties/commands/elements/properties/command/properties/installationId/type",
+                        keyword: "type",
+                        params: { type: "string", nullable: false },
+                        message: "must be string",
+                      };
+                      if (vErrors === null) {
+                        vErrors = [err63];
+                      } else {
+                        vErrors.push(err63);
+                      }
+                      errors++;
+                    }
+                  } else {
+                    const err64 = {
+                      instancePath:
+                        instancePath + "/commands/" + i0 + "/command",
+                      schemaPath:
+                        "/properties/commands/elements/properties/command/properties/installationId",
+                      keyword: "properties",
+                      params: {
+                        error: "missing",
+                        missingProperty: "installationId",
+                      },
+                      message: "must have property 'installationId'",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err64];
+                    } else {
+                      vErrors.push(err64);
+                    }
+                    errors++;
+                  }
+                  if (data22.commandId !== undefined) {
+                    if (!(typeof data22.commandId == "string")) {
+                      const err65 = {
+                        instancePath:
+                          instancePath +
+                          "/commands/" +
+                          i0 +
+                          "/command/commandId",
+                        schemaPath:
+                          "/properties/commands/elements/properties/command/properties/commandId/type",
+                        keyword: "type",
+                        params: { type: "string", nullable: false },
+                        message: "must be string",
+                      };
+                      if (vErrors === null) {
+                        vErrors = [err65];
+                      } else {
+                        vErrors.push(err65);
+                      }
+                      errors++;
+                    }
+                  } else {
+                    const err66 = {
+                      instancePath:
+                        instancePath + "/commands/" + i0 + "/command",
+                      schemaPath:
+                        "/properties/commands/elements/properties/command/properties/commandId",
+                      keyword: "properties",
+                      params: {
+                        error: "missing",
+                        missingProperty: "commandId",
+                      },
+                      message: "must have property 'commandId'",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err66];
+                    } else {
+                      vErrors.push(err66);
+                    }
+                    errors++;
+                  }
+                  if (data22.expected !== undefined) {
+                    let data27 = data22.expected;
+                    let valid40 = false;
+                    if (
+                      data27 &&
+                      typeof data27 == "object" &&
+                      !Array.isArray(data27)
+                    ) {
+                      const tag2 = data27.kind;
+                      if (tag2 === undefined) {
+                        const err67 = {
+                          instancePath:
+                            instancePath +
+                            "/commands/" +
+                            i0 +
+                            "/command/expected",
+                          schemaPath:
+                            "/properties/commands/elements/properties/command/properties/expected/discriminator",
+                          keyword: "discriminator",
+                          params: { error: "tag", tag: "kind", tagValue: tag2 },
+                          message: 'tag "kind" must be string',
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err67];
+                        } else {
+                          vErrors.push(err67);
+                        }
+                        errors++;
+                      } else if (typeof tag2 == "string") {
+                        if (tag2 === "absent") {
+                          const _errs34 = errors;
+                          let valid42 = false;
+                          valid42 = true;
+                          for (const key8 in data27) {
+                            if (key8 !== "kind") {
+                              const err68 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/command/expected/" +
+                                  key8.replace(/~/g, "~0").replace(/\//g, "~1"),
+                                schemaPath:
+                                  "/properties/commands/elements/properties/command/properties/expected/mapping/absent",
+                                keyword: "properties",
+                                params: {
+                                  error: "additional",
+                                  additionalProperty: key8,
+                                },
+                                message: "must NOT have additional properties",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err68];
+                              } else {
+                                vErrors.push(err68);
+                              }
+                              errors++;
+                            }
+                          }
+                          if (!valid42) {
+                            const err69 = {
+                              instancePath:
+                                instancePath +
+                                "/commands/" +
+                                i0 +
+                                "/command/expected",
+                              schemaPath:
+                                "/properties/commands/elements/properties/command/properties/expected/mapping/absent/properties",
+                              keyword: "properties",
+                              params: { type: "object", nullable: false },
+                              message: "must be object",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err69];
+                            } else {
+                              vErrors.push(err69);
+                            }
+                            errors++;
+                          }
+                          var valid41 = _errs34 === errors;
+                          valid40 = valid41;
+                        } else if (tag2 === "present") {
+                          const _errs35 = errors;
+                          let valid46 = false;
+                          valid46 = true;
+                          if (data27.revision !== undefined) {
+                            if (!(typeof data27.revision == "string")) {
+                              const err70 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/command/expected/revision",
+                                schemaPath:
+                                  "/properties/commands/elements/properties/command/properties/expected/mapping/present/properties/revision/type",
+                                keyword: "type",
+                                params: { type: "string", nullable: false },
+                                message: "must be string",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err70];
+                              } else {
+                                vErrors.push(err70);
+                              }
+                              errors++;
+                            }
+                          } else {
+                            const err71 = {
+                              instancePath:
+                                instancePath +
+                                "/commands/" +
+                                i0 +
+                                "/command/expected",
+                              schemaPath:
+                                "/properties/commands/elements/properties/command/properties/expected/mapping/present/properties/revision",
+                              keyword: "properties",
+                              params: {
+                                error: "missing",
+                                missingProperty: "revision",
+                              },
+                              message: "must have property 'revision'",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err71];
+                            } else {
+                              vErrors.push(err71);
+                            }
+                            errors++;
+                          }
+                          if (data27.activePackageHash !== undefined) {
+                            if (
+                              !(typeof data27.activePackageHash == "string")
+                            ) {
+                              const err72 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/command/expected/activePackageHash",
+                                schemaPath:
+                                  "/properties/commands/elements/properties/command/properties/expected/mapping/present/properties/activePackageHash/type",
+                                keyword: "type",
+                                params: { type: "string", nullable: false },
+                                message: "must be string",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err72];
+                              } else {
+                                vErrors.push(err72);
+                              }
+                              errors++;
+                            }
+                          } else {
+                            const err73 = {
+                              instancePath:
+                                instancePath +
+                                "/commands/" +
+                                i0 +
+                                "/command/expected",
+                              schemaPath:
+                                "/properties/commands/elements/properties/command/properties/expected/mapping/present/properties/activePackageHash",
+                              keyword: "properties",
+                              params: {
+                                error: "missing",
+                                missingProperty: "activePackageHash",
+                              },
+                              message: "must have property 'activePackageHash'",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err73];
+                            } else {
+                              vErrors.push(err73);
+                            }
+                            errors++;
+                          }
+                          if (data27.fallbackPackageHash !== undefined) {
+                            let data30 = data27.fallbackPackageHash;
+                            if (!(
+                              data30 === null || typeof data30 == "string"
+                            )) {
+                              const err74 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/command/expected/fallbackPackageHash",
+                                schemaPath:
+                                  "/properties/commands/elements/properties/command/properties/expected/mapping/present/properties/fallbackPackageHash/type",
+                                keyword: "type",
+                                params: { type: "string", nullable: true },
+                                message: "must be string or null",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err74];
+                              } else {
+                                vErrors.push(err74);
+                              }
+                              errors++;
+                            }
+                          } else {
+                            const err75 = {
+                              instancePath:
+                                instancePath +
+                                "/commands/" +
+                                i0 +
+                                "/command/expected",
+                              schemaPath:
+                                "/properties/commands/elements/properties/command/properties/expected/mapping/present/properties/fallbackPackageHash",
+                              keyword: "properties",
+                              params: {
+                                error: "missing",
+                                missingProperty: "fallbackPackageHash",
+                              },
+                              message:
+                                "must have property 'fallbackPackageHash'",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err75];
+                            } else {
+                              vErrors.push(err75);
+                            }
+                            errors++;
+                          }
+                          for (const key9 in data27) {
+                            if (
+                              key9 !== "kind" &&
+                              key9 !== "revision" &&
+                              key9 !== "activePackageHash" &&
+                              key9 !== "fallbackPackageHash"
+                            ) {
+                              const err76 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/command/expected/" +
+                                  key9.replace(/~/g, "~0").replace(/\//g, "~1"),
+                                schemaPath:
+                                  "/properties/commands/elements/properties/command/properties/expected/mapping/present",
+                                keyword: "properties",
+                                params: {
+                                  error: "additional",
+                                  additionalProperty: key9,
+                                },
+                                message: "must NOT have additional properties",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err76];
+                              } else {
+                                vErrors.push(err76);
+                              }
+                              errors++;
+                            }
+                          }
+                          if (!valid46) {
+                            const err77 = {
+                              instancePath:
+                                instancePath +
+                                "/commands/" +
+                                i0 +
+                                "/command/expected",
+                              schemaPath:
+                                "/properties/commands/elements/properties/command/properties/expected/mapping/present/properties",
+                              keyword: "properties",
+                              params: { type: "object", nullable: false },
+                              message: "must be object",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err77];
+                            } else {
+                              vErrors.push(err77);
+                            }
+                            errors++;
+                          }
+                          var valid45 = _errs35 === errors;
+                          valid40 = valid45;
+                        } else {
+                          const err78 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/command/expected/kind",
+                            schemaPath:
+                              "/properties/commands/elements/properties/command/properties/expected/mapping",
+                            keyword: "discriminator",
+                            params: {
+                              error: "mapping",
+                              tag: "kind",
+                              tagValue: tag2,
+                            },
+                            message: 'value of tag "kind" must be in mapping',
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err78];
+                          } else {
+                            vErrors.push(err78);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err79 = {
+                          instancePath:
+                            instancePath +
+                            "/commands/" +
+                            i0 +
+                            "/command/expected/kind",
+                          schemaPath:
+                            "/properties/commands/elements/properties/command/properties/expected/discriminator",
+                          keyword: "discriminator",
+                          params: { error: "tag", tag: "kind", tagValue: tag2 },
+                          message: 'tag "kind" must be string',
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err79];
+                        } else {
+                          vErrors.push(err79);
+                        }
+                        errors++;
+                      }
+                    } else if (!valid40) {
+                      const err80 = {
+                        instancePath:
+                          instancePath +
+                          "/commands/" +
+                          i0 +
+                          "/command/expected",
+                        schemaPath:
+                          "/properties/commands/elements/properties/command/properties/expected/discriminator",
+                        keyword: "discriminator",
+                        params: { type: "object", nullable: false },
+                        message: "must be object",
+                      };
+                      if (vErrors === null) {
+                        vErrors = [err80];
+                      } else {
+                        vErrors.push(err80);
+                      }
+                      errors++;
+                    }
+                  } else {
+                    const err81 = {
+                      instancePath:
+                        instancePath + "/commands/" + i0 + "/command",
+                      schemaPath:
+                        "/properties/commands/elements/properties/command/properties/expected",
+                      keyword: "properties",
+                      params: { error: "missing", missingProperty: "expected" },
+                      message: "must have property 'expected'",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err81];
+                    } else {
+                      vErrors.push(err81);
+                    }
+                    errors++;
+                  }
+                  if (data22.action !== undefined) {
+                    let data31 = data22.action;
+                    let valid49 = false;
+                    if (
+                      data31 &&
+                      typeof data31 == "object" &&
+                      !Array.isArray(data31)
+                    ) {
+                      const tag3 = data31.kind;
+                      if (tag3 === undefined) {
+                        const err82 = {
+                          instancePath:
+                            instancePath +
+                            "/commands/" +
+                            i0 +
+                            "/command/action",
+                          schemaPath:
+                            "/properties/commands/elements/properties/command/properties/action/discriminator",
+                          keyword: "discriminator",
+                          params: { error: "tag", tag: "kind", tagValue: tag3 },
+                          message: 'tag "kind" must be string',
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err82];
+                        } else {
+                          vErrors.push(err82);
+                        }
+                        errors++;
+                      } else if (typeof tag3 == "string") {
+                        if (tag3 === "download") {
+                          const _errs41 = errors;
+                          let valid51 = false;
+                          valid51 = true;
+                          if (data31.target !== undefined) {
+                            let data32 = data31.target;
+                            let valid53 = false;
+                            if (
+                              data32 &&
+                              typeof data32 == "object" &&
+                              !Array.isArray(data32)
+                            ) {
+                              valid53 = true;
+                              if (data32.publicationHash !== undefined) {
+                                if (
+                                  !(typeof data32.publicationHash == "string")
+                                ) {
+                                  const err83 = {
+                                    instancePath:
+                                      instancePath +
+                                      "/commands/" +
+                                      i0 +
+                                      "/command/action/target/publicationHash",
+                                    schemaPath:
+                                      "/properties/commands/elements/properties/command/properties/action/mapping/download/properties/target/properties/publicationHash/type",
+                                    keyword: "type",
+                                    params: { type: "string", nullable: false },
+                                    message: "must be string",
+                                  };
+                                  if (vErrors === null) {
+                                    vErrors = [err83];
+                                  } else {
+                                    vErrors.push(err83);
+                                  }
+                                  errors++;
+                                }
+                              } else {
+                                const err84 = {
+                                  instancePath:
+                                    instancePath +
+                                    "/commands/" +
+                                    i0 +
+                                    "/command/action/target",
+                                  schemaPath:
+                                    "/properties/commands/elements/properties/command/properties/action/mapping/download/properties/target/properties/publicationHash",
+                                  keyword: "properties",
+                                  params: {
+                                    error: "missing",
+                                    missingProperty: "publicationHash",
+                                  },
+                                  message:
+                                    "must have property 'publicationHash'",
+                                };
+                                if (vErrors === null) {
+                                  vErrors = [err84];
+                                } else {
+                                  vErrors.push(err84);
+                                }
+                                errors++;
+                              }
+                              if (data32.courseId !== undefined) {
+                                if (!(typeof data32.courseId == "string")) {
+                                  const err85 = {
+                                    instancePath:
+                                      instancePath +
+                                      "/commands/" +
+                                      i0 +
+                                      "/command/action/target/courseId",
+                                    schemaPath:
+                                      "/properties/commands/elements/properties/command/properties/action/mapping/download/properties/target/properties/courseId/type",
+                                    keyword: "type",
+                                    params: { type: "string", nullable: false },
+                                    message: "must be string",
+                                  };
+                                  if (vErrors === null) {
+                                    vErrors = [err85];
+                                  } else {
+                                    vErrors.push(err85);
+                                  }
+                                  errors++;
+                                }
+                              } else {
+                                const err86 = {
+                                  instancePath:
+                                    instancePath +
+                                    "/commands/" +
+                                    i0 +
+                                    "/command/action/target",
+                                  schemaPath:
+                                    "/properties/commands/elements/properties/command/properties/action/mapping/download/properties/target/properties/courseId",
+                                  keyword: "properties",
+                                  params: {
+                                    error: "missing",
+                                    missingProperty: "courseId",
+                                  },
+                                  message: "must have property 'courseId'",
+                                };
+                                if (vErrors === null) {
+                                  vErrors = [err86];
+                                } else {
+                                  vErrors.push(err86);
+                                }
+                                errors++;
+                              }
+                              if (data32.releaseId !== undefined) {
+                                if (!(typeof data32.releaseId == "string")) {
+                                  const err87 = {
+                                    instancePath:
+                                      instancePath +
+                                      "/commands/" +
+                                      i0 +
+                                      "/command/action/target/releaseId",
+                                    schemaPath:
+                                      "/properties/commands/elements/properties/command/properties/action/mapping/download/properties/target/properties/releaseId/type",
+                                    keyword: "type",
+                                    params: { type: "string", nullable: false },
+                                    message: "must be string",
+                                  };
+                                  if (vErrors === null) {
+                                    vErrors = [err87];
+                                  } else {
+                                    vErrors.push(err87);
+                                  }
+                                  errors++;
+                                }
+                              } else {
+                                const err88 = {
+                                  instancePath:
+                                    instancePath +
+                                    "/commands/" +
+                                    i0 +
+                                    "/command/action/target",
+                                  schemaPath:
+                                    "/properties/commands/elements/properties/command/properties/action/mapping/download/properties/target/properties/releaseId",
+                                  keyword: "properties",
+                                  params: {
+                                    error: "missing",
+                                    missingProperty: "releaseId",
+                                  },
+                                  message: "must have property 'releaseId'",
+                                };
+                                if (vErrors === null) {
+                                  vErrors = [err88];
+                                } else {
+                                  vErrors.push(err88);
+                                }
+                                errors++;
+                              }
+                              if (data32.mode !== undefined) {
+                                let data36 = data32.mode;
+                                if (!(
+                                  typeof data36 == "string" &&
+                                  (data36 === "fixture" ||
+                                    data36 === "publication")
+                                )) {
+                                  const err89 = {
+                                    instancePath:
+                                      instancePath +
+                                      "/commands/" +
+                                      i0 +
+                                      "/command/action/target/mode",
+                                    schemaPath:
+                                      "/properties/commands/elements/properties/command/properties/action/mapping/download/properties/target/properties/mode/enum",
+                                    keyword: "enum",
+                                    params: {
+                                      allowedValues:
+                                        schema41.properties.commands.elements
+                                          .properties.command.properties.action
+                                          .mapping.download.properties.target
+                                          .properties.mode.enum,
+                                    },
+                                    message:
+                                      "must be equal to one of the allowed values",
+                                  };
+                                  if (vErrors === null) {
+                                    vErrors = [err89];
+                                  } else {
+                                    vErrors.push(err89);
+                                  }
+                                  errors++;
+                                }
+                              } else {
+                                const err90 = {
+                                  instancePath:
+                                    instancePath +
+                                    "/commands/" +
+                                    i0 +
+                                    "/command/action/target",
+                                  schemaPath:
+                                    "/properties/commands/elements/properties/command/properties/action/mapping/download/properties/target/properties/mode",
+                                  keyword: "properties",
+                                  params: {
+                                    error: "missing",
+                                    missingProperty: "mode",
+                                  },
+                                  message: "must have property 'mode'",
+                                };
+                                if (vErrors === null) {
+                                  vErrors = [err90];
+                                } else {
+                                  vErrors.push(err90);
+                                }
+                                errors++;
+                              }
+                              for (const key10 in data32) {
+                                if (
+                                  key10 !== "publicationHash" &&
+                                  key10 !== "courseId" &&
+                                  key10 !== "releaseId" &&
+                                  key10 !== "mode"
+                                ) {
+                                  const err91 = {
+                                    instancePath:
+                                      instancePath +
+                                      "/commands/" +
+                                      i0 +
+                                      "/command/action/target/" +
+                                      key10
+                                        .replace(/~/g, "~0")
+                                        .replace(/\//g, "~1"),
+                                    schemaPath:
+                                      "/properties/commands/elements/properties/command/properties/action/mapping/download/properties/target",
+                                    keyword: "properties",
+                                    params: {
+                                      error: "additional",
+                                      additionalProperty: key10,
+                                    },
+                                    message:
+                                      "must NOT have additional properties",
+                                  };
+                                  if (vErrors === null) {
+                                    vErrors = [err91];
+                                  } else {
+                                    vErrors.push(err91);
+                                  }
+                                  errors++;
+                                }
+                              }
+                            }
+                            if (!valid53) {
+                              const err92 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/command/action/target",
+                                schemaPath:
+                                  "/properties/commands/elements/properties/command/properties/action/mapping/download/properties/target/properties",
+                                keyword: "properties",
+                                params: { type: "object", nullable: false },
+                                message: "must be object",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err92];
+                              } else {
+                                vErrors.push(err92);
+                              }
+                              errors++;
+                            }
+                          } else {
+                            const err93 = {
+                              instancePath:
+                                instancePath +
+                                "/commands/" +
+                                i0 +
+                                "/command/action",
+                              schemaPath:
+                                "/properties/commands/elements/properties/command/properties/action/mapping/download/properties/target",
+                              keyword: "properties",
+                              params: {
+                                error: "missing",
+                                missingProperty: "target",
+                              },
+                              message: "must have property 'target'",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err93];
+                            } else {
+                              vErrors.push(err93);
+                            }
+                            errors++;
+                          }
+                          for (const key11 in data31) {
+                            if (key11 !== "kind" && key11 !== "target") {
+                              const err94 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/command/action/" +
+                                  key11
+                                    .replace(/~/g, "~0")
+                                    .replace(/\//g, "~1"),
+                                schemaPath:
+                                  "/properties/commands/elements/properties/command/properties/action/mapping/download",
+                                keyword: "properties",
+                                params: {
+                                  error: "additional",
+                                  additionalProperty: key11,
+                                },
+                                message: "must NOT have additional properties",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err94];
+                              } else {
+                                vErrors.push(err94);
+                              }
+                              errors++;
+                            }
+                          }
+                          if (!valid51) {
+                            const err95 = {
+                              instancePath:
+                                instancePath +
+                                "/commands/" +
+                                i0 +
+                                "/command/action",
+                              schemaPath:
+                                "/properties/commands/elements/properties/command/properties/action/mapping/download/properties",
+                              keyword: "properties",
+                              params: { type: "object", nullable: false },
+                              message: "must be object",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err95];
+                            } else {
+                              vErrors.push(err95);
+                            }
+                            errors++;
+                          }
+                          var valid50 = _errs41 === errors;
+                          valid49 = valid50;
+                        } else if (tag3 === "use") {
+                          const _errs47 = errors;
+                          let valid58 = false;
+                          valid58 = true;
+                          if (data31.target !== undefined) {
+                            let data37 = data31.target;
+                            let valid60 = false;
+                            if (
+                              data37 &&
+                              typeof data37 == "object" &&
+                              !Array.isArray(data37)
+                            ) {
+                              valid60 = true;
+                              if (data37.publicationHash !== undefined) {
+                                if (
+                                  !(typeof data37.publicationHash == "string")
+                                ) {
+                                  const err96 = {
+                                    instancePath:
+                                      instancePath +
+                                      "/commands/" +
+                                      i0 +
+                                      "/command/action/target/publicationHash",
+                                    schemaPath:
+                                      "/properties/commands/elements/properties/command/properties/action/mapping/use/properties/target/properties/publicationHash/type",
+                                    keyword: "type",
+                                    params: { type: "string", nullable: false },
+                                    message: "must be string",
+                                  };
+                                  if (vErrors === null) {
+                                    vErrors = [err96];
+                                  } else {
+                                    vErrors.push(err96);
+                                  }
+                                  errors++;
+                                }
+                              } else {
+                                const err97 = {
+                                  instancePath:
+                                    instancePath +
+                                    "/commands/" +
+                                    i0 +
+                                    "/command/action/target",
+                                  schemaPath:
+                                    "/properties/commands/elements/properties/command/properties/action/mapping/use/properties/target/properties/publicationHash",
+                                  keyword: "properties",
+                                  params: {
+                                    error: "missing",
+                                    missingProperty: "publicationHash",
+                                  },
+                                  message:
+                                    "must have property 'publicationHash'",
+                                };
+                                if (vErrors === null) {
+                                  vErrors = [err97];
+                                } else {
+                                  vErrors.push(err97);
+                                }
+                                errors++;
+                              }
+                              if (data37.courseId !== undefined) {
+                                if (!(typeof data37.courseId == "string")) {
+                                  const err98 = {
+                                    instancePath:
+                                      instancePath +
+                                      "/commands/" +
+                                      i0 +
+                                      "/command/action/target/courseId",
+                                    schemaPath:
+                                      "/properties/commands/elements/properties/command/properties/action/mapping/use/properties/target/properties/courseId/type",
+                                    keyword: "type",
+                                    params: { type: "string", nullable: false },
+                                    message: "must be string",
+                                  };
+                                  if (vErrors === null) {
+                                    vErrors = [err98];
+                                  } else {
+                                    vErrors.push(err98);
+                                  }
+                                  errors++;
+                                }
+                              } else {
+                                const err99 = {
+                                  instancePath:
+                                    instancePath +
+                                    "/commands/" +
+                                    i0 +
+                                    "/command/action/target",
+                                  schemaPath:
+                                    "/properties/commands/elements/properties/command/properties/action/mapping/use/properties/target/properties/courseId",
+                                  keyword: "properties",
+                                  params: {
+                                    error: "missing",
+                                    missingProperty: "courseId",
+                                  },
+                                  message: "must have property 'courseId'",
+                                };
+                                if (vErrors === null) {
+                                  vErrors = [err99];
+                                } else {
+                                  vErrors.push(err99);
+                                }
+                                errors++;
+                              }
+                              if (data37.releaseId !== undefined) {
+                                if (!(typeof data37.releaseId == "string")) {
+                                  const err100 = {
+                                    instancePath:
+                                      instancePath +
+                                      "/commands/" +
+                                      i0 +
+                                      "/command/action/target/releaseId",
+                                    schemaPath:
+                                      "/properties/commands/elements/properties/command/properties/action/mapping/use/properties/target/properties/releaseId/type",
+                                    keyword: "type",
+                                    params: { type: "string", nullable: false },
+                                    message: "must be string",
+                                  };
+                                  if (vErrors === null) {
+                                    vErrors = [err100];
+                                  } else {
+                                    vErrors.push(err100);
+                                  }
+                                  errors++;
+                                }
+                              } else {
+                                const err101 = {
+                                  instancePath:
+                                    instancePath +
+                                    "/commands/" +
+                                    i0 +
+                                    "/command/action/target",
+                                  schemaPath:
+                                    "/properties/commands/elements/properties/command/properties/action/mapping/use/properties/target/properties/releaseId",
+                                  keyword: "properties",
+                                  params: {
+                                    error: "missing",
+                                    missingProperty: "releaseId",
+                                  },
+                                  message: "must have property 'releaseId'",
+                                };
+                                if (vErrors === null) {
+                                  vErrors = [err101];
+                                } else {
+                                  vErrors.push(err101);
+                                }
+                                errors++;
+                              }
+                              if (data37.mode !== undefined) {
+                                let data41 = data37.mode;
+                                if (!(
+                                  typeof data41 == "string" &&
+                                  (data41 === "fixture" ||
+                                    data41 === "publication")
+                                )) {
+                                  const err102 = {
+                                    instancePath:
+                                      instancePath +
+                                      "/commands/" +
+                                      i0 +
+                                      "/command/action/target/mode",
+                                    schemaPath:
+                                      "/properties/commands/elements/properties/command/properties/action/mapping/use/properties/target/properties/mode/enum",
+                                    keyword: "enum",
+                                    params: {
+                                      allowedValues:
+                                        schema41.properties.commands.elements
+                                          .properties.command.properties.action
+                                          .mapping.use.properties.target
+                                          .properties.mode.enum,
+                                    },
+                                    message:
+                                      "must be equal to one of the allowed values",
+                                  };
+                                  if (vErrors === null) {
+                                    vErrors = [err102];
+                                  } else {
+                                    vErrors.push(err102);
+                                  }
+                                  errors++;
+                                }
+                              } else {
+                                const err103 = {
+                                  instancePath:
+                                    instancePath +
+                                    "/commands/" +
+                                    i0 +
+                                    "/command/action/target",
+                                  schemaPath:
+                                    "/properties/commands/elements/properties/command/properties/action/mapping/use/properties/target/properties/mode",
+                                  keyword: "properties",
+                                  params: {
+                                    error: "missing",
+                                    missingProperty: "mode",
+                                  },
+                                  message: "must have property 'mode'",
+                                };
+                                if (vErrors === null) {
+                                  vErrors = [err103];
+                                } else {
+                                  vErrors.push(err103);
+                                }
+                                errors++;
+                              }
+                              for (const key12 in data37) {
+                                if (
+                                  key12 !== "publicationHash" &&
+                                  key12 !== "courseId" &&
+                                  key12 !== "releaseId" &&
+                                  key12 !== "mode"
+                                ) {
+                                  const err104 = {
+                                    instancePath:
+                                      instancePath +
+                                      "/commands/" +
+                                      i0 +
+                                      "/command/action/target/" +
+                                      key12
+                                        .replace(/~/g, "~0")
+                                        .replace(/\//g, "~1"),
+                                    schemaPath:
+                                      "/properties/commands/elements/properties/command/properties/action/mapping/use/properties/target",
+                                    keyword: "properties",
+                                    params: {
+                                      error: "additional",
+                                      additionalProperty: key12,
+                                    },
+                                    message:
+                                      "must NOT have additional properties",
+                                  };
+                                  if (vErrors === null) {
+                                    vErrors = [err104];
+                                  } else {
+                                    vErrors.push(err104);
+                                  }
+                                  errors++;
+                                }
+                              }
+                            }
+                            if (!valid60) {
+                              const err105 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/command/action/target",
+                                schemaPath:
+                                  "/properties/commands/elements/properties/command/properties/action/mapping/use/properties/target/properties",
+                                keyword: "properties",
+                                params: { type: "object", nullable: false },
+                                message: "must be object",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err105];
+                              } else {
+                                vErrors.push(err105);
+                              }
+                              errors++;
+                            }
+                          } else {
+                            const err106 = {
+                              instancePath:
+                                instancePath +
+                                "/commands/" +
+                                i0 +
+                                "/command/action",
+                              schemaPath:
+                                "/properties/commands/elements/properties/command/properties/action/mapping/use/properties/target",
+                              keyword: "properties",
+                              params: {
+                                error: "missing",
+                                missingProperty: "target",
+                              },
+                              message: "must have property 'target'",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err106];
+                            } else {
+                              vErrors.push(err106);
+                            }
+                            errors++;
+                          }
+                          if (data31.ready !== undefined) {
+                            let data42 = data31.ready;
+                            let valid63 = false;
+                            if (
+                              data42 &&
+                              typeof data42 == "object" &&
+                              !Array.isArray(data42)
+                            ) {
+                              valid63 = true;
+                              if (data42.installationId !== undefined) {
+                                if (
+                                  !(typeof data42.installationId == "string")
+                                ) {
+                                  const err107 = {
+                                    instancePath:
+                                      instancePath +
+                                      "/commands/" +
+                                      i0 +
+                                      "/command/action/ready/installationId",
+                                    schemaPath:
+                                      "/properties/commands/elements/properties/command/properties/action/mapping/use/properties/ready/properties/installationId/type",
+                                    keyword: "type",
+                                    params: { type: "string", nullable: false },
+                                    message: "must be string",
+                                  };
+                                  if (vErrors === null) {
+                                    vErrors = [err107];
+                                  } else {
+                                    vErrors.push(err107);
+                                  }
+                                  errors++;
+                                }
+                              } else {
+                                const err108 = {
+                                  instancePath:
+                                    instancePath +
+                                    "/commands/" +
+                                    i0 +
+                                    "/command/action/ready",
+                                  schemaPath:
+                                    "/properties/commands/elements/properties/command/properties/action/mapping/use/properties/ready/properties/installationId",
+                                  keyword: "properties",
+                                  params: {
+                                    error: "missing",
+                                    missingProperty: "installationId",
+                                  },
+                                  message:
+                                    "must have property 'installationId'",
+                                };
+                                if (vErrors === null) {
+                                  vErrors = [err108];
+                                } else {
+                                  vErrors.push(err108);
+                                }
+                                errors++;
+                              }
+                              if (data42.commandId !== undefined) {
+                                if (!(typeof data42.commandId == "string")) {
+                                  const err109 = {
+                                    instancePath:
+                                      instancePath +
+                                      "/commands/" +
+                                      i0 +
+                                      "/command/action/ready/commandId",
+                                    schemaPath:
+                                      "/properties/commands/elements/properties/command/properties/action/mapping/use/properties/ready/properties/commandId/type",
+                                    keyword: "type",
+                                    params: { type: "string", nullable: false },
+                                    message: "must be string",
+                                  };
+                                  if (vErrors === null) {
+                                    vErrors = [err109];
+                                  } else {
+                                    vErrors.push(err109);
+                                  }
+                                  errors++;
+                                }
+                              } else {
+                                const err110 = {
+                                  instancePath:
+                                    instancePath +
+                                    "/commands/" +
+                                    i0 +
+                                    "/command/action/ready",
+                                  schemaPath:
+                                    "/properties/commands/elements/properties/command/properties/action/mapping/use/properties/ready/properties/commandId",
+                                  keyword: "properties",
+                                  params: {
+                                    error: "missing",
+                                    missingProperty: "commandId",
+                                  },
+                                  message: "must have property 'commandId'",
+                                };
+                                if (vErrors === null) {
+                                  vErrors = [err110];
+                                } else {
+                                  vErrors.push(err110);
+                                }
+                                errors++;
+                              }
+                              if (data42.payloadHash !== undefined) {
+                                if (!(typeof data42.payloadHash == "string")) {
+                                  const err111 = {
+                                    instancePath:
+                                      instancePath +
+                                      "/commands/" +
+                                      i0 +
+                                      "/command/action/ready/payloadHash",
+                                    schemaPath:
+                                      "/properties/commands/elements/properties/command/properties/action/mapping/use/properties/ready/properties/payloadHash/type",
+                                    keyword: "type",
+                                    params: { type: "string", nullable: false },
+                                    message: "must be string",
+                                  };
+                                  if (vErrors === null) {
+                                    vErrors = [err111];
+                                  } else {
+                                    vErrors.push(err111);
+                                  }
+                                  errors++;
+                                }
+                              } else {
+                                const err112 = {
+                                  instancePath:
+                                    instancePath +
+                                    "/commands/" +
+                                    i0 +
+                                    "/command/action/ready",
+                                  schemaPath:
+                                    "/properties/commands/elements/properties/command/properties/action/mapping/use/properties/ready/properties/payloadHash",
+                                  keyword: "properties",
+                                  params: {
+                                    error: "missing",
+                                    missingProperty: "payloadHash",
+                                  },
+                                  message: "must have property 'payloadHash'",
+                                };
+                                if (vErrors === null) {
+                                  vErrors = [err112];
+                                } else {
+                                  vErrors.push(err112);
+                                }
+                                errors++;
+                              }
+                              for (const key13 in data42) {
+                                if (
+                                  key13 !== "installationId" &&
+                                  key13 !== "commandId" &&
+                                  key13 !== "payloadHash"
+                                ) {
+                                  const err113 = {
+                                    instancePath:
+                                      instancePath +
+                                      "/commands/" +
+                                      i0 +
+                                      "/command/action/ready/" +
+                                      key13
+                                        .replace(/~/g, "~0")
+                                        .replace(/\//g, "~1"),
+                                    schemaPath:
+                                      "/properties/commands/elements/properties/command/properties/action/mapping/use/properties/ready",
+                                    keyword: "properties",
+                                    params: {
+                                      error: "additional",
+                                      additionalProperty: key13,
+                                    },
+                                    message:
+                                      "must NOT have additional properties",
+                                  };
+                                  if (vErrors === null) {
+                                    vErrors = [err113];
+                                  } else {
+                                    vErrors.push(err113);
+                                  }
+                                  errors++;
+                                }
+                              }
+                            }
+                            if (!valid63) {
+                              const err114 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/command/action/ready",
+                                schemaPath:
+                                  "/properties/commands/elements/properties/command/properties/action/mapping/use/properties/ready/properties",
+                                keyword: "properties",
+                                params: { type: "object", nullable: false },
+                                message: "must be object",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err114];
+                              } else {
+                                vErrors.push(err114);
+                              }
+                              errors++;
+                            }
+                          } else {
+                            const err115 = {
+                              instancePath:
+                                instancePath +
+                                "/commands/" +
+                                i0 +
+                                "/command/action",
+                              schemaPath:
+                                "/properties/commands/elements/properties/command/properties/action/mapping/use/properties/ready",
+                              keyword: "properties",
+                              params: {
+                                error: "missing",
+                                missingProperty: "ready",
+                              },
+                              message: "must have property 'ready'",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err115];
+                            } else {
+                              vErrors.push(err115);
+                            }
+                            errors++;
+                          }
+                          for (const key14 in data31) {
+                            if (
+                              key14 !== "kind" &&
+                              key14 !== "target" &&
+                              key14 !== "ready"
+                            ) {
+                              const err116 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/command/action/" +
+                                  key14
+                                    .replace(/~/g, "~0")
+                                    .replace(/\//g, "~1"),
+                                schemaPath:
+                                  "/properties/commands/elements/properties/command/properties/action/mapping/use",
+                                keyword: "properties",
+                                params: {
+                                  error: "additional",
+                                  additionalProperty: key14,
+                                },
+                                message: "must NOT have additional properties",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err116];
+                              } else {
+                                vErrors.push(err116);
+                              }
+                              errors++;
+                            }
+                          }
+                          if (!valid58) {
+                            const err117 = {
+                              instancePath:
+                                instancePath +
+                                "/commands/" +
+                                i0 +
+                                "/command/action",
+                              schemaPath:
+                                "/properties/commands/elements/properties/command/properties/action/mapping/use/properties",
+                              keyword: "properties",
+                              params: { type: "object", nullable: false },
+                              message: "must be object",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err117];
+                            } else {
+                              vErrors.push(err117);
+                            }
+                            errors++;
+                          }
+                          var valid57 = _errs47 === errors;
+                          valid49 = valid57;
+                        } else if (tag3 === "cancel") {
+                          const _errs57 = errors;
+                          let valid68 = false;
+                          valid68 = true;
+                          if (data31.download !== undefined) {
+                            let data46 = data31.download;
+                            let valid70 = false;
+                            if (
+                              data46 &&
+                              typeof data46 == "object" &&
+                              !Array.isArray(data46)
+                            ) {
+                              valid70 = true;
+                              if (data46.installationId !== undefined) {
+                                if (
+                                  !(typeof data46.installationId == "string")
+                                ) {
+                                  const err118 = {
+                                    instancePath:
+                                      instancePath +
+                                      "/commands/" +
+                                      i0 +
+                                      "/command/action/download/installationId",
+                                    schemaPath:
+                                      "/properties/commands/elements/properties/command/properties/action/mapping/cancel/properties/download/properties/installationId/type",
+                                    keyword: "type",
+                                    params: { type: "string", nullable: false },
+                                    message: "must be string",
+                                  };
+                                  if (vErrors === null) {
+                                    vErrors = [err118];
+                                  } else {
+                                    vErrors.push(err118);
+                                  }
+                                  errors++;
+                                }
+                              } else {
+                                const err119 = {
+                                  instancePath:
+                                    instancePath +
+                                    "/commands/" +
+                                    i0 +
+                                    "/command/action/download",
+                                  schemaPath:
+                                    "/properties/commands/elements/properties/command/properties/action/mapping/cancel/properties/download/properties/installationId",
+                                  keyword: "properties",
+                                  params: {
+                                    error: "missing",
+                                    missingProperty: "installationId",
+                                  },
+                                  message:
+                                    "must have property 'installationId'",
+                                };
+                                if (vErrors === null) {
+                                  vErrors = [err119];
+                                } else {
+                                  vErrors.push(err119);
+                                }
+                                errors++;
+                              }
+                              if (data46.commandId !== undefined) {
+                                if (!(typeof data46.commandId == "string")) {
+                                  const err120 = {
+                                    instancePath:
+                                      instancePath +
+                                      "/commands/" +
+                                      i0 +
+                                      "/command/action/download/commandId",
+                                    schemaPath:
+                                      "/properties/commands/elements/properties/command/properties/action/mapping/cancel/properties/download/properties/commandId/type",
+                                    keyword: "type",
+                                    params: { type: "string", nullable: false },
+                                    message: "must be string",
+                                  };
+                                  if (vErrors === null) {
+                                    vErrors = [err120];
+                                  } else {
+                                    vErrors.push(err120);
+                                  }
+                                  errors++;
+                                }
+                              } else {
+                                const err121 = {
+                                  instancePath:
+                                    instancePath +
+                                    "/commands/" +
+                                    i0 +
+                                    "/command/action/download",
+                                  schemaPath:
+                                    "/properties/commands/elements/properties/command/properties/action/mapping/cancel/properties/download/properties/commandId",
+                                  keyword: "properties",
+                                  params: {
+                                    error: "missing",
+                                    missingProperty: "commandId",
+                                  },
+                                  message: "must have property 'commandId'",
+                                };
+                                if (vErrors === null) {
+                                  vErrors = [err121];
+                                } else {
+                                  vErrors.push(err121);
+                                }
+                                errors++;
+                              }
+                              if (data46.payloadHash !== undefined) {
+                                if (!(typeof data46.payloadHash == "string")) {
+                                  const err122 = {
+                                    instancePath:
+                                      instancePath +
+                                      "/commands/" +
+                                      i0 +
+                                      "/command/action/download/payloadHash",
+                                    schemaPath:
+                                      "/properties/commands/elements/properties/command/properties/action/mapping/cancel/properties/download/properties/payloadHash/type",
+                                    keyword: "type",
+                                    params: { type: "string", nullable: false },
+                                    message: "must be string",
+                                  };
+                                  if (vErrors === null) {
+                                    vErrors = [err122];
+                                  } else {
+                                    vErrors.push(err122);
+                                  }
+                                  errors++;
+                                }
+                              } else {
+                                const err123 = {
+                                  instancePath:
+                                    instancePath +
+                                    "/commands/" +
+                                    i0 +
+                                    "/command/action/download",
+                                  schemaPath:
+                                    "/properties/commands/elements/properties/command/properties/action/mapping/cancel/properties/download/properties/payloadHash",
+                                  keyword: "properties",
+                                  params: {
+                                    error: "missing",
+                                    missingProperty: "payloadHash",
+                                  },
+                                  message: "must have property 'payloadHash'",
+                                };
+                                if (vErrors === null) {
+                                  vErrors = [err123];
+                                } else {
+                                  vErrors.push(err123);
+                                }
+                                errors++;
+                              }
+                              for (const key15 in data46) {
+                                if (
+                                  key15 !== "installationId" &&
+                                  key15 !== "commandId" &&
+                                  key15 !== "payloadHash"
+                                ) {
+                                  const err124 = {
+                                    instancePath:
+                                      instancePath +
+                                      "/commands/" +
+                                      i0 +
+                                      "/command/action/download/" +
+                                      key15
+                                        .replace(/~/g, "~0")
+                                        .replace(/\//g, "~1"),
+                                    schemaPath:
+                                      "/properties/commands/elements/properties/command/properties/action/mapping/cancel/properties/download",
+                                    keyword: "properties",
+                                    params: {
+                                      error: "additional",
+                                      additionalProperty: key15,
+                                    },
+                                    message:
+                                      "must NOT have additional properties",
+                                  };
+                                  if (vErrors === null) {
+                                    vErrors = [err124];
+                                  } else {
+                                    vErrors.push(err124);
+                                  }
+                                  errors++;
+                                }
+                              }
+                            }
+                            if (!valid70) {
+                              const err125 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/command/action/download",
+                                schemaPath:
+                                  "/properties/commands/elements/properties/command/properties/action/mapping/cancel/properties/download/properties",
+                                keyword: "properties",
+                                params: { type: "object", nullable: false },
+                                message: "must be object",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err125];
+                              } else {
+                                vErrors.push(err125);
+                              }
+                              errors++;
+                            }
+                          } else {
+                            const err126 = {
+                              instancePath:
+                                instancePath +
+                                "/commands/" +
+                                i0 +
+                                "/command/action",
+                              schemaPath:
+                                "/properties/commands/elements/properties/command/properties/action/mapping/cancel/properties/download",
+                              keyword: "properties",
+                              params: {
+                                error: "missing",
+                                missingProperty: "download",
+                              },
+                              message: "must have property 'download'",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err126];
+                            } else {
+                              vErrors.push(err126);
+                            }
+                            errors++;
+                          }
+                          for (const key16 in data31) {
+                            if (key16 !== "kind" && key16 !== "download") {
+                              const err127 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/command/action/" +
+                                  key16
+                                    .replace(/~/g, "~0")
+                                    .replace(/\//g, "~1"),
+                                schemaPath:
+                                  "/properties/commands/elements/properties/command/properties/action/mapping/cancel",
+                                keyword: "properties",
+                                params: {
+                                  error: "additional",
+                                  additionalProperty: key16,
+                                },
+                                message: "must NOT have additional properties",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err127];
+                              } else {
+                                vErrors.push(err127);
+                              }
+                              errors++;
+                            }
+                          }
+                          if (!valid68) {
+                            const err128 = {
+                              instancePath:
+                                instancePath +
+                                "/commands/" +
+                                i0 +
+                                "/command/action",
+                              schemaPath:
+                                "/properties/commands/elements/properties/command/properties/action/mapping/cancel/properties",
+                              keyword: "properties",
+                              params: { type: "object", nullable: false },
+                              message: "must be object",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err128];
+                            } else {
+                              vErrors.push(err128);
+                            }
+                            errors++;
+                          }
+                          var valid67 = _errs57 === errors;
+                          valid49 = valid67;
+                        } else {
+                          const err129 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/command/action/kind",
+                            schemaPath:
+                              "/properties/commands/elements/properties/command/properties/action/mapping",
+                            keyword: "discriminator",
+                            params: {
+                              error: "mapping",
+                              tag: "kind",
+                              tagValue: tag3,
+                            },
+                            message: 'value of tag "kind" must be in mapping',
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err129];
+                          } else {
+                            vErrors.push(err129);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err130 = {
+                          instancePath:
+                            instancePath +
+                            "/commands/" +
+                            i0 +
+                            "/command/action/kind",
+                          schemaPath:
+                            "/properties/commands/elements/properties/command/properties/action/discriminator",
+                          keyword: "discriminator",
+                          params: { error: "tag", tag: "kind", tagValue: tag3 },
+                          message: 'tag "kind" must be string',
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err130];
+                        } else {
+                          vErrors.push(err130);
+                        }
+                        errors++;
+                      }
+                    } else if (!valid49) {
+                      const err131 = {
+                        instancePath:
+                          instancePath + "/commands/" + i0 + "/command/action",
+                        schemaPath:
+                          "/properties/commands/elements/properties/command/properties/action/discriminator",
+                        keyword: "discriminator",
+                        params: { type: "object", nullable: false },
+                        message: "must be object",
+                      };
+                      if (vErrors === null) {
+                        vErrors = [err131];
+                      } else {
+                        vErrors.push(err131);
+                      }
+                      errors++;
+                    }
+                  } else {
+                    const err132 = {
+                      instancePath:
+                        instancePath + "/commands/" + i0 + "/command",
+                      schemaPath:
+                        "/properties/commands/elements/properties/command/properties/action",
+                      keyword: "properties",
+                      params: { error: "missing", missingProperty: "action" },
+                      message: "must have property 'action'",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err132];
+                    } else {
+                      vErrors.push(err132);
+                    }
+                    errors++;
+                  }
+                  for (const key17 in data22) {
+                    if (
+                      key17 !== "version" &&
+                      key17 !== "family" &&
+                      key17 !== "installationId" &&
+                      key17 !== "commandId" &&
+                      key17 !== "expected" &&
+                      key17 !== "action"
+                    ) {
+                      const err133 = {
+                        instancePath:
+                          instancePath +
+                          "/commands/" +
+                          i0 +
+                          "/command/" +
+                          key17.replace(/~/g, "~0").replace(/\//g, "~1"),
+                        schemaPath:
+                          "/properties/commands/elements/properties/command",
+                        keyword: "properties",
+                        params: {
+                          error: "additional",
+                          additionalProperty: key17,
+                        },
+                        message: "must NOT have additional properties",
+                      };
+                      if (vErrors === null) {
+                        vErrors = [err133];
+                      } else {
+                        vErrors.push(err133);
+                      }
+                      errors++;
+                    }
+                  }
+                }
+                if (!valid38) {
+                  const err134 = {
+                    instancePath: instancePath + "/commands/" + i0 + "/command",
+                    schemaPath:
+                      "/properties/commands/elements/properties/command/properties",
+                    keyword: "properties",
+                    params: { type: "object", nullable: false },
+                    message: "must be object",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err134];
+                  } else {
+                    vErrors.push(err134);
+                  }
+                  errors++;
+                }
+              } else {
+                const err135 = {
+                  instancePath: instancePath + "/commands/" + i0,
+                  schemaPath:
+                    "/properties/commands/elements/properties/command",
+                  keyword: "properties",
+                  params: { error: "missing", missingProperty: "command" },
+                  message: "must have property 'command'",
+                };
+                if (vErrors === null) {
+                  vErrors = [err135];
+                } else {
+                  vErrors.push(err135);
+                }
+                errors++;
+              }
+              if (data21.receipt !== undefined) {
+                let data50 = data21.receipt;
+                let valid75 = false;
+                if (
+                  data50 &&
+                  typeof data50 == "object" &&
+                  !Array.isArray(data50)
+                ) {
+                  const tag4 = data50.kind;
+                  if (tag4 === undefined) {
+                    const err136 = {
+                      instancePath:
+                        instancePath + "/commands/" + i0 + "/receipt",
+                      schemaPath:
+                        "/properties/commands/elements/properties/receipt/discriminator",
+                      keyword: "discriminator",
+                      params: { error: "tag", tag: "kind", tagValue: tag4 },
+                      message: 'tag "kind" must be string',
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err136];
+                    } else {
+                      vErrors.push(err136);
+                    }
+                    errors++;
+                  } else if (typeof tag4 == "string") {
+                    if (tag4 === "accepted") {
+                      const _errs63 = errors;
+                      let valid77 = false;
+                      valid77 = true;
+                      if (data50.version !== undefined) {
+                        let data51 = data50.version;
+                        if (!(
+                          typeof data51 == "number" &&
+                          isFinite(data51) &&
+                          !(data51 % 1) &&
+                          data51 >= 0 &&
+                          data51 <= 255
+                        )) {
+                          const err137 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/version",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/accepted/properties/version/type",
+                            keyword: "type",
+                            params: { type: "uint8", nullable: false },
+                            message: "must be uint8",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err137];
+                          } else {
+                            vErrors.push(err137);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err138 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/accepted/properties/version",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "version",
+                          },
+                          message: "must have property 'version'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err138];
+                        } else {
+                          vErrors.push(err138);
+                        }
+                        errors++;
+                      }
+                      if (data50.installationId !== undefined) {
+                        if (!(typeof data50.installationId == "string")) {
+                          const err139 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/installationId",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/accepted/properties/installationId/type",
+                            keyword: "type",
+                            params: { type: "string", nullable: false },
+                            message: "must be string",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err139];
+                          } else {
+                            vErrors.push(err139);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err140 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/accepted/properties/installationId",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "installationId",
+                          },
+                          message: "must have property 'installationId'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err140];
+                        } else {
+                          vErrors.push(err140);
+                        }
+                        errors++;
+                      }
+                      if (data50.commandId !== undefined) {
+                        if (!(typeof data50.commandId == "string")) {
+                          const err141 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/commandId",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/accepted/properties/commandId/type",
+                            keyword: "type",
+                            params: { type: "string", nullable: false },
+                            message: "must be string",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err141];
+                          } else {
+                            vErrors.push(err141);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err142 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/accepted/properties/commandId",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "commandId",
+                          },
+                          message: "must have property 'commandId'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err142];
+                        } else {
+                          vErrors.push(err142);
+                        }
+                        errors++;
+                      }
+                      if (data50.payloadHash !== undefined) {
+                        if (!(typeof data50.payloadHash == "string")) {
+                          const err143 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/payloadHash",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/accepted/properties/payloadHash/type",
+                            keyword: "type",
+                            params: { type: "string", nullable: false },
+                            message: "must be string",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err143];
+                          } else {
+                            vErrors.push(err143);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err144 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/accepted/properties/payloadHash",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "payloadHash",
+                          },
+                          message: "must have property 'payloadHash'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err144];
+                        } else {
+                          vErrors.push(err144);
+                        }
+                        errors++;
+                      }
+                      if (data50.family !== undefined) {
+                        let data55 = data50.family;
+                        if (!(
+                          typeof data55 == "string" && data55 === "lesson-files"
+                        )) {
+                          const err145 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/family",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/accepted/properties/family/enum",
+                            keyword: "enum",
+                            params: {
+                              allowedValues:
+                                schema41.properties.commands.elements.properties
+                                  .receipt.mapping.accepted.properties.family
+                                  .enum,
+                            },
+                            message:
+                              "must be equal to one of the allowed values",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err145];
+                          } else {
+                            vErrors.push(err145);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err146 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/accepted/properties/family",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "family",
+                          },
+                          message: "must have property 'family'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err146];
+                        } else {
+                          vErrors.push(err146);
+                        }
+                        errors++;
+                      }
+                      if (data50.target !== undefined) {
+                        let data56 = data50.target;
+                        let valid79 = false;
+                        if (
+                          data56 &&
+                          typeof data56 == "object" &&
+                          !Array.isArray(data56)
+                        ) {
+                          valid79 = true;
+                          if (data56.publicationHash !== undefined) {
+                            if (!(typeof data56.publicationHash == "string")) {
+                              const err147 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/receipt/target/publicationHash",
+                                schemaPath:
+                                  "/properties/commands/elements/properties/receipt/mapping/accepted/properties/target/properties/publicationHash/type",
+                                keyword: "type",
+                                params: { type: "string", nullable: false },
+                                message: "must be string",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err147];
+                              } else {
+                                vErrors.push(err147);
+                              }
+                              errors++;
+                            }
+                          } else {
+                            const err148 = {
+                              instancePath:
+                                instancePath +
+                                "/commands/" +
+                                i0 +
+                                "/receipt/target",
+                              schemaPath:
+                                "/properties/commands/elements/properties/receipt/mapping/accepted/properties/target/properties/publicationHash",
+                              keyword: "properties",
+                              params: {
+                                error: "missing",
+                                missingProperty: "publicationHash",
+                              },
+                              message: "must have property 'publicationHash'",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err148];
+                            } else {
+                              vErrors.push(err148);
+                            }
+                            errors++;
+                          }
+                          if (data56.courseId !== undefined) {
+                            if (!(typeof data56.courseId == "string")) {
+                              const err149 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/receipt/target/courseId",
+                                schemaPath:
+                                  "/properties/commands/elements/properties/receipt/mapping/accepted/properties/target/properties/courseId/type",
+                                keyword: "type",
+                                params: { type: "string", nullable: false },
+                                message: "must be string",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err149];
+                              } else {
+                                vErrors.push(err149);
+                              }
+                              errors++;
+                            }
+                          } else {
+                            const err150 = {
+                              instancePath:
+                                instancePath +
+                                "/commands/" +
+                                i0 +
+                                "/receipt/target",
+                              schemaPath:
+                                "/properties/commands/elements/properties/receipt/mapping/accepted/properties/target/properties/courseId",
+                              keyword: "properties",
+                              params: {
+                                error: "missing",
+                                missingProperty: "courseId",
+                              },
+                              message: "must have property 'courseId'",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err150];
+                            } else {
+                              vErrors.push(err150);
+                            }
+                            errors++;
+                          }
+                          if (data56.releaseId !== undefined) {
+                            if (!(typeof data56.releaseId == "string")) {
+                              const err151 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/receipt/target/releaseId",
+                                schemaPath:
+                                  "/properties/commands/elements/properties/receipt/mapping/accepted/properties/target/properties/releaseId/type",
+                                keyword: "type",
+                                params: { type: "string", nullable: false },
+                                message: "must be string",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err151];
+                              } else {
+                                vErrors.push(err151);
+                              }
+                              errors++;
+                            }
+                          } else {
+                            const err152 = {
+                              instancePath:
+                                instancePath +
+                                "/commands/" +
+                                i0 +
+                                "/receipt/target",
+                              schemaPath:
+                                "/properties/commands/elements/properties/receipt/mapping/accepted/properties/target/properties/releaseId",
+                              keyword: "properties",
+                              params: {
+                                error: "missing",
+                                missingProperty: "releaseId",
+                              },
+                              message: "must have property 'releaseId'",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err152];
+                            } else {
+                              vErrors.push(err152);
+                            }
+                            errors++;
+                          }
+                          if (data56.mode !== undefined) {
+                            let data60 = data56.mode;
+                            if (!(
+                              typeof data60 == "string" &&
+                              (data60 === "fixture" || data60 === "publication")
+                            )) {
+                              const err153 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/receipt/target/mode",
+                                schemaPath:
+                                  "/properties/commands/elements/properties/receipt/mapping/accepted/properties/target/properties/mode/enum",
+                                keyword: "enum",
+                                params: {
+                                  allowedValues:
+                                    schema41.properties.commands.elements
+                                      .properties.receipt.mapping.accepted
+                                      .properties.target.properties.mode.enum,
+                                },
+                                message:
+                                  "must be equal to one of the allowed values",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err153];
+                              } else {
+                                vErrors.push(err153);
+                              }
+                              errors++;
+                            }
+                          } else {
+                            const err154 = {
+                              instancePath:
+                                instancePath +
+                                "/commands/" +
+                                i0 +
+                                "/receipt/target",
+                              schemaPath:
+                                "/properties/commands/elements/properties/receipt/mapping/accepted/properties/target/properties/mode",
+                              keyword: "properties",
+                              params: {
+                                error: "missing",
+                                missingProperty: "mode",
+                              },
+                              message: "must have property 'mode'",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err154];
+                            } else {
+                              vErrors.push(err154);
+                            }
+                            errors++;
+                          }
+                          for (const key18 in data56) {
+                            if (
+                              key18 !== "publicationHash" &&
+                              key18 !== "courseId" &&
+                              key18 !== "releaseId" &&
+                              key18 !== "mode"
+                            ) {
+                              const err155 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/receipt/target/" +
+                                  key18
+                                    .replace(/~/g, "~0")
+                                    .replace(/\//g, "~1"),
+                                schemaPath:
+                                  "/properties/commands/elements/properties/receipt/mapping/accepted/properties/target",
+                                keyword: "properties",
+                                params: {
+                                  error: "additional",
+                                  additionalProperty: key18,
+                                },
+                                message: "must NOT have additional properties",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err155];
+                              } else {
+                                vErrors.push(err155);
+                              }
+                              errors++;
+                            }
+                          }
+                        }
+                        if (!valid79) {
+                          const err156 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/target",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/accepted/properties/target/properties",
+                            keyword: "properties",
+                            params: { type: "object", nullable: false },
+                            message: "must be object",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err156];
+                          } else {
+                            vErrors.push(err156);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err157 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/accepted/properties/target",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "target",
+                          },
+                          message: "must have property 'target'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err157];
+                        } else {
+                          vErrors.push(err157);
+                        }
+                        errors++;
+                      }
+                      for (const key19 in data50) {
+                        if (
+                          key19 !== "kind" &&
+                          key19 !== "version" &&
+                          key19 !== "installationId" &&
+                          key19 !== "commandId" &&
+                          key19 !== "payloadHash" &&
+                          key19 !== "family" &&
+                          key19 !== "target"
+                        ) {
+                          const err158 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/" +
+                              key19.replace(/~/g, "~0").replace(/\//g, "~1"),
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/accepted",
+                            keyword: "properties",
+                            params: {
+                              error: "additional",
+                              additionalProperty: key19,
+                            },
+                            message: "must NOT have additional properties",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err158];
+                          } else {
+                            vErrors.push(err158);
+                          }
+                          errors++;
+                        }
+                      }
+                      if (!valid77) {
+                        const err159 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/accepted/properties",
+                          keyword: "properties",
+                          params: { type: "object", nullable: false },
+                          message: "must be object",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err159];
+                        } else {
+                          vErrors.push(err159);
+                        }
+                        errors++;
+                      }
+                      var valid76 = _errs63 === errors;
+                      valid75 = valid76;
+                    } else if (tag4 === "ready") {
+                      const _errs74 = errors;
+                      let valid84 = false;
+                      valid84 = true;
+                      if (data50.version !== undefined) {
+                        let data61 = data50.version;
+                        if (!(
+                          typeof data61 == "number" &&
+                          isFinite(data61) &&
+                          !(data61 % 1) &&
+                          data61 >= 0 &&
+                          data61 <= 255
+                        )) {
+                          const err160 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/version",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/ready/properties/version/type",
+                            keyword: "type",
+                            params: { type: "uint8", nullable: false },
+                            message: "must be uint8",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err160];
+                          } else {
+                            vErrors.push(err160);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err161 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/ready/properties/version",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "version",
+                          },
+                          message: "must have property 'version'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err161];
+                        } else {
+                          vErrors.push(err161);
+                        }
+                        errors++;
+                      }
+                      if (data50.installationId !== undefined) {
+                        if (!(typeof data50.installationId == "string")) {
+                          const err162 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/installationId",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/ready/properties/installationId/type",
+                            keyword: "type",
+                            params: { type: "string", nullable: false },
+                            message: "must be string",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err162];
+                          } else {
+                            vErrors.push(err162);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err163 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/ready/properties/installationId",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "installationId",
+                          },
+                          message: "must have property 'installationId'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err163];
+                        } else {
+                          vErrors.push(err163);
+                        }
+                        errors++;
+                      }
+                      if (data50.commandId !== undefined) {
+                        if (!(typeof data50.commandId == "string")) {
+                          const err164 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/commandId",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/ready/properties/commandId/type",
+                            keyword: "type",
+                            params: { type: "string", nullable: false },
+                            message: "must be string",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err164];
+                          } else {
+                            vErrors.push(err164);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err165 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/ready/properties/commandId",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "commandId",
+                          },
+                          message: "must have property 'commandId'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err165];
+                        } else {
+                          vErrors.push(err165);
+                        }
+                        errors++;
+                      }
+                      if (data50.payloadHash !== undefined) {
+                        if (!(typeof data50.payloadHash == "string")) {
+                          const err166 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/payloadHash",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/ready/properties/payloadHash/type",
+                            keyword: "type",
+                            params: { type: "string", nullable: false },
+                            message: "must be string",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err166];
+                          } else {
+                            vErrors.push(err166);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err167 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/ready/properties/payloadHash",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "payloadHash",
+                          },
+                          message: "must have property 'payloadHash'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err167];
+                        } else {
+                          vErrors.push(err167);
+                        }
+                        errors++;
+                      }
+                      if (data50.family !== undefined) {
+                        let data65 = data50.family;
+                        if (!(
+                          typeof data65 == "string" && data65 === "lesson-files"
+                        )) {
+                          const err168 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/family",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/ready/properties/family/enum",
+                            keyword: "enum",
+                            params: {
+                              allowedValues:
+                                schema41.properties.commands.elements.properties
+                                  .receipt.mapping.ready.properties.family.enum,
+                            },
+                            message:
+                              "must be equal to one of the allowed values",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err168];
+                          } else {
+                            vErrors.push(err168);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err169 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/ready/properties/family",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "family",
+                          },
+                          message: "must have property 'family'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err169];
+                        } else {
+                          vErrors.push(err169);
+                        }
+                        errors++;
+                      }
+                      if (data50.target !== undefined) {
+                        let data66 = data50.target;
+                        let valid86 = false;
+                        if (
+                          data66 &&
+                          typeof data66 == "object" &&
+                          !Array.isArray(data66)
+                        ) {
+                          valid86 = true;
+                          if (data66.publicationHash !== undefined) {
+                            if (!(typeof data66.publicationHash == "string")) {
+                              const err170 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/receipt/target/publicationHash",
+                                schemaPath:
+                                  "/properties/commands/elements/properties/receipt/mapping/ready/properties/target/properties/publicationHash/type",
+                                keyword: "type",
+                                params: { type: "string", nullable: false },
+                                message: "must be string",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err170];
+                              } else {
+                                vErrors.push(err170);
+                              }
+                              errors++;
+                            }
+                          } else {
+                            const err171 = {
+                              instancePath:
+                                instancePath +
+                                "/commands/" +
+                                i0 +
+                                "/receipt/target",
+                              schemaPath:
+                                "/properties/commands/elements/properties/receipt/mapping/ready/properties/target/properties/publicationHash",
+                              keyword: "properties",
+                              params: {
+                                error: "missing",
+                                missingProperty: "publicationHash",
+                              },
+                              message: "must have property 'publicationHash'",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err171];
+                            } else {
+                              vErrors.push(err171);
+                            }
+                            errors++;
+                          }
+                          if (data66.courseId !== undefined) {
+                            if (!(typeof data66.courseId == "string")) {
+                              const err172 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/receipt/target/courseId",
+                                schemaPath:
+                                  "/properties/commands/elements/properties/receipt/mapping/ready/properties/target/properties/courseId/type",
+                                keyword: "type",
+                                params: { type: "string", nullable: false },
+                                message: "must be string",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err172];
+                              } else {
+                                vErrors.push(err172);
+                              }
+                              errors++;
+                            }
+                          } else {
+                            const err173 = {
+                              instancePath:
+                                instancePath +
+                                "/commands/" +
+                                i0 +
+                                "/receipt/target",
+                              schemaPath:
+                                "/properties/commands/elements/properties/receipt/mapping/ready/properties/target/properties/courseId",
+                              keyword: "properties",
+                              params: {
+                                error: "missing",
+                                missingProperty: "courseId",
+                              },
+                              message: "must have property 'courseId'",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err173];
+                            } else {
+                              vErrors.push(err173);
+                            }
+                            errors++;
+                          }
+                          if (data66.releaseId !== undefined) {
+                            if (!(typeof data66.releaseId == "string")) {
+                              const err174 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/receipt/target/releaseId",
+                                schemaPath:
+                                  "/properties/commands/elements/properties/receipt/mapping/ready/properties/target/properties/releaseId/type",
+                                keyword: "type",
+                                params: { type: "string", nullable: false },
+                                message: "must be string",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err174];
+                              } else {
+                                vErrors.push(err174);
+                              }
+                              errors++;
+                            }
+                          } else {
+                            const err175 = {
+                              instancePath:
+                                instancePath +
+                                "/commands/" +
+                                i0 +
+                                "/receipt/target",
+                              schemaPath:
+                                "/properties/commands/elements/properties/receipt/mapping/ready/properties/target/properties/releaseId",
+                              keyword: "properties",
+                              params: {
+                                error: "missing",
+                                missingProperty: "releaseId",
+                              },
+                              message: "must have property 'releaseId'",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err175];
+                            } else {
+                              vErrors.push(err175);
+                            }
+                            errors++;
+                          }
+                          if (data66.mode !== undefined) {
+                            let data70 = data66.mode;
+                            if (!(
+                              typeof data70 == "string" &&
+                              (data70 === "fixture" || data70 === "publication")
+                            )) {
+                              const err176 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/receipt/target/mode",
+                                schemaPath:
+                                  "/properties/commands/elements/properties/receipt/mapping/ready/properties/target/properties/mode/enum",
+                                keyword: "enum",
+                                params: {
+                                  allowedValues:
+                                    schema41.properties.commands.elements
+                                      .properties.receipt.mapping.ready
+                                      .properties.target.properties.mode.enum,
+                                },
+                                message:
+                                  "must be equal to one of the allowed values",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err176];
+                              } else {
+                                vErrors.push(err176);
+                              }
+                              errors++;
+                            }
+                          } else {
+                            const err177 = {
+                              instancePath:
+                                instancePath +
+                                "/commands/" +
+                                i0 +
+                                "/receipt/target",
+                              schemaPath:
+                                "/properties/commands/elements/properties/receipt/mapping/ready/properties/target/properties/mode",
+                              keyword: "properties",
+                              params: {
+                                error: "missing",
+                                missingProperty: "mode",
+                              },
+                              message: "must have property 'mode'",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err177];
+                            } else {
+                              vErrors.push(err177);
+                            }
+                            errors++;
+                          }
+                          for (const key20 in data66) {
+                            if (
+                              key20 !== "publicationHash" &&
+                              key20 !== "courseId" &&
+                              key20 !== "releaseId" &&
+                              key20 !== "mode"
+                            ) {
+                              const err178 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/receipt/target/" +
+                                  key20
+                                    .replace(/~/g, "~0")
+                                    .replace(/\//g, "~1"),
+                                schemaPath:
+                                  "/properties/commands/elements/properties/receipt/mapping/ready/properties/target",
+                                keyword: "properties",
+                                params: {
+                                  error: "additional",
+                                  additionalProperty: key20,
+                                },
+                                message: "must NOT have additional properties",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err178];
+                              } else {
+                                vErrors.push(err178);
+                              }
+                              errors++;
+                            }
+                          }
+                        }
+                        if (!valid86) {
+                          const err179 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/target",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/ready/properties/target/properties",
+                            keyword: "properties",
+                            params: { type: "object", nullable: false },
+                            message: "must be object",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err179];
+                          } else {
+                            vErrors.push(err179);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err180 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/ready/properties/target",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "target",
+                          },
+                          message: "must have property 'target'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err180];
+                        } else {
+                          vErrors.push(err180);
+                        }
+                        errors++;
+                      }
+                      if (data50.packageHash !== undefined) {
+                        if (!(typeof data50.packageHash == "string")) {
+                          const err181 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/packageHash",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/ready/properties/packageHash/type",
+                            keyword: "type",
+                            params: { type: "string", nullable: false },
+                            message: "must be string",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err181];
+                          } else {
+                            vErrors.push(err181);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err182 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/ready/properties/packageHash",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "packageHash",
+                          },
+                          message: "must have property 'packageHash'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err182];
+                        } else {
+                          vErrors.push(err182);
+                        }
+                        errors++;
+                      }
+                      for (const key21 in data50) {
+                        if (
+                          key21 !== "kind" &&
+                          key21 !== "version" &&
+                          key21 !== "installationId" &&
+                          key21 !== "commandId" &&
+                          key21 !== "payloadHash" &&
+                          key21 !== "family" &&
+                          key21 !== "target" &&
+                          key21 !== "packageHash"
+                        ) {
+                          const err183 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/" +
+                              key21.replace(/~/g, "~0").replace(/\//g, "~1"),
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/ready",
+                            keyword: "properties",
+                            params: {
+                              error: "additional",
+                              additionalProperty: key21,
+                            },
+                            message: "must NOT have additional properties",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err183];
+                          } else {
+                            vErrors.push(err183);
+                          }
+                          errors++;
+                        }
+                      }
+                      if (!valid84) {
+                        const err184 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/ready/properties",
+                          keyword: "properties",
+                          params: { type: "object", nullable: false },
+                          message: "must be object",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err184];
+                        } else {
+                          vErrors.push(err184);
+                        }
+                        errors++;
+                      }
+                      var valid83 = _errs74 === errors;
+                      valid75 = valid83;
+                    } else if (tag4 === "activated") {
+                      const _errs86 = errors;
+                      let valid91 = false;
+                      valid91 = true;
+                      if (data50.version !== undefined) {
+                        let data72 = data50.version;
+                        if (!(
+                          typeof data72 == "number" &&
+                          isFinite(data72) &&
+                          !(data72 % 1) &&
+                          data72 >= 0 &&
+                          data72 <= 255
+                        )) {
+                          const err185 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/version",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/activated/properties/version/type",
+                            keyword: "type",
+                            params: { type: "uint8", nullable: false },
+                            message: "must be uint8",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err185];
+                          } else {
+                            vErrors.push(err185);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err186 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/activated/properties/version",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "version",
+                          },
+                          message: "must have property 'version'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err186];
+                        } else {
+                          vErrors.push(err186);
+                        }
+                        errors++;
+                      }
+                      if (data50.installationId !== undefined) {
+                        if (!(typeof data50.installationId == "string")) {
+                          const err187 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/installationId",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/activated/properties/installationId/type",
+                            keyword: "type",
+                            params: { type: "string", nullable: false },
+                            message: "must be string",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err187];
+                          } else {
+                            vErrors.push(err187);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err188 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/activated/properties/installationId",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "installationId",
+                          },
+                          message: "must have property 'installationId'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err188];
+                        } else {
+                          vErrors.push(err188);
+                        }
+                        errors++;
+                      }
+                      if (data50.commandId !== undefined) {
+                        if (!(typeof data50.commandId == "string")) {
+                          const err189 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/commandId",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/activated/properties/commandId/type",
+                            keyword: "type",
+                            params: { type: "string", nullable: false },
+                            message: "must be string",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err189];
+                          } else {
+                            vErrors.push(err189);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err190 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/activated/properties/commandId",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "commandId",
+                          },
+                          message: "must have property 'commandId'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err190];
+                        } else {
+                          vErrors.push(err190);
+                        }
+                        errors++;
+                      }
+                      if (data50.payloadHash !== undefined) {
+                        if (!(typeof data50.payloadHash == "string")) {
+                          const err191 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/payloadHash",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/activated/properties/payloadHash/type",
+                            keyword: "type",
+                            params: { type: "string", nullable: false },
+                            message: "must be string",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err191];
+                          } else {
+                            vErrors.push(err191);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err192 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/activated/properties/payloadHash",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "payloadHash",
+                          },
+                          message: "must have property 'payloadHash'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err192];
+                        } else {
+                          vErrors.push(err192);
+                        }
+                        errors++;
+                      }
+                      if (data50.family !== undefined) {
+                        let data76 = data50.family;
+                        if (!(
+                          typeof data76 == "string" && data76 === "lesson-files"
+                        )) {
+                          const err193 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/family",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/activated/properties/family/enum",
+                            keyword: "enum",
+                            params: {
+                              allowedValues:
+                                schema41.properties.commands.elements.properties
+                                  .receipt.mapping.activated.properties.family
+                                  .enum,
+                            },
+                            message:
+                              "must be equal to one of the allowed values",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err193];
+                          } else {
+                            vErrors.push(err193);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err194 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/activated/properties/family",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "family",
+                          },
+                          message: "must have property 'family'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err194];
+                        } else {
+                          vErrors.push(err194);
+                        }
+                        errors++;
+                      }
+                      if (data50.packageHash !== undefined) {
+                        if (!(typeof data50.packageHash == "string")) {
+                          const err195 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/packageHash",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/activated/properties/packageHash/type",
+                            keyword: "type",
+                            params: { type: "string", nullable: false },
+                            message: "must be string",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err195];
+                          } else {
+                            vErrors.push(err195);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err196 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/activated/properties/packageHash",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "packageHash",
+                          },
+                          message: "must have property 'packageHash'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err196];
+                        } else {
+                          vErrors.push(err196);
+                        }
+                        errors++;
+                      }
+                      if (data50.activationRevision !== undefined) {
+                        if (!(typeof data50.activationRevision == "string")) {
+                          const err197 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/activationRevision",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/activated/properties/activationRevision/type",
+                            keyword: "type",
+                            params: { type: "string", nullable: false },
+                            message: "must be string",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err197];
+                          } else {
+                            vErrors.push(err197);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err198 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/activated/properties/activationRevision",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "activationRevision",
+                          },
+                          message: "must have property 'activationRevision'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err198];
+                        } else {
+                          vErrors.push(err198);
+                        }
+                        errors++;
+                      }
+                      for (const key22 in data50) {
+                        if (
+                          key22 !== "kind" &&
+                          key22 !== "version" &&
+                          key22 !== "installationId" &&
+                          key22 !== "commandId" &&
+                          key22 !== "payloadHash" &&
+                          key22 !== "family" &&
+                          key22 !== "packageHash" &&
+                          key22 !== "activationRevision"
+                        ) {
+                          const err199 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/" +
+                              key22.replace(/~/g, "~0").replace(/\//g, "~1"),
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/activated",
+                            keyword: "properties",
+                            params: {
+                              error: "additional",
+                              additionalProperty: key22,
+                            },
+                            message: "must NOT have additional properties",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err199];
+                          } else {
+                            vErrors.push(err199);
+                          }
+                          errors++;
+                        }
+                      }
+                      if (!valid91) {
+                        const err200 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/activated/properties",
+                          keyword: "properties",
+                          params: { type: "object", nullable: false },
+                          message: "must be object",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err200];
+                        } else {
+                          vErrors.push(err200);
+                        }
+                        errors++;
+                      }
+                      var valid90 = _errs86 === errors;
+                      valid75 = valid90;
+                    } else if (tag4 === "cancelled") {
+                      const _errs94 = errors;
+                      let valid95 = false;
+                      valid95 = true;
+                      if (data50.version !== undefined) {
+                        let data79 = data50.version;
+                        if (!(
+                          typeof data79 == "number" &&
+                          isFinite(data79) &&
+                          !(data79 % 1) &&
+                          data79 >= 0 &&
+                          data79 <= 255
+                        )) {
+                          const err201 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/version",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/cancelled/properties/version/type",
+                            keyword: "type",
+                            params: { type: "uint8", nullable: false },
+                            message: "must be uint8",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err201];
+                          } else {
+                            vErrors.push(err201);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err202 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/cancelled/properties/version",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "version",
+                          },
+                          message: "must have property 'version'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err202];
+                        } else {
+                          vErrors.push(err202);
+                        }
+                        errors++;
+                      }
+                      if (data50.installationId !== undefined) {
+                        if (!(typeof data50.installationId == "string")) {
+                          const err203 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/installationId",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/cancelled/properties/installationId/type",
+                            keyword: "type",
+                            params: { type: "string", nullable: false },
+                            message: "must be string",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err203];
+                          } else {
+                            vErrors.push(err203);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err204 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/cancelled/properties/installationId",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "installationId",
+                          },
+                          message: "must have property 'installationId'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err204];
+                        } else {
+                          vErrors.push(err204);
+                        }
+                        errors++;
+                      }
+                      if (data50.commandId !== undefined) {
+                        if (!(typeof data50.commandId == "string")) {
+                          const err205 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/commandId",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/cancelled/properties/commandId/type",
+                            keyword: "type",
+                            params: { type: "string", nullable: false },
+                            message: "must be string",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err205];
+                          } else {
+                            vErrors.push(err205);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err206 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/cancelled/properties/commandId",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "commandId",
+                          },
+                          message: "must have property 'commandId'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err206];
+                        } else {
+                          vErrors.push(err206);
+                        }
+                        errors++;
+                      }
+                      if (data50.payloadHash !== undefined) {
+                        if (!(typeof data50.payloadHash == "string")) {
+                          const err207 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/payloadHash",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/cancelled/properties/payloadHash/type",
+                            keyword: "type",
+                            params: { type: "string", nullable: false },
+                            message: "must be string",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err207];
+                          } else {
+                            vErrors.push(err207);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err208 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/cancelled/properties/payloadHash",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "payloadHash",
+                          },
+                          message: "must have property 'payloadHash'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err208];
+                        } else {
+                          vErrors.push(err208);
+                        }
+                        errors++;
+                      }
+                      if (data50.family !== undefined) {
+                        let data83 = data50.family;
+                        if (!(
+                          typeof data83 == "string" && data83 === "lesson-files"
+                        )) {
+                          const err209 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/family",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/cancelled/properties/family/enum",
+                            keyword: "enum",
+                            params: {
+                              allowedValues:
+                                schema41.properties.commands.elements.properties
+                                  .receipt.mapping.cancelled.properties.family
+                                  .enum,
+                            },
+                            message:
+                              "must be equal to one of the allowed values",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err209];
+                          } else {
+                            vErrors.push(err209);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err210 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/cancelled/properties/family",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "family",
+                          },
+                          message: "must have property 'family'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err210];
+                        } else {
+                          vErrors.push(err210);
+                        }
+                        errors++;
+                      }
+                      if (data50.download !== undefined) {
+                        let data84 = data50.download;
+                        let valid97 = false;
+                        if (
+                          data84 &&
+                          typeof data84 == "object" &&
+                          !Array.isArray(data84)
+                        ) {
+                          valid97 = true;
+                          if (data84.installationId !== undefined) {
+                            if (!(typeof data84.installationId == "string")) {
+                              const err211 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/receipt/download/installationId",
+                                schemaPath:
+                                  "/properties/commands/elements/properties/receipt/mapping/cancelled/properties/download/properties/installationId/type",
+                                keyword: "type",
+                                params: { type: "string", nullable: false },
+                                message: "must be string",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err211];
+                              } else {
+                                vErrors.push(err211);
+                              }
+                              errors++;
+                            }
+                          } else {
+                            const err212 = {
+                              instancePath:
+                                instancePath +
+                                "/commands/" +
+                                i0 +
+                                "/receipt/download",
+                              schemaPath:
+                                "/properties/commands/elements/properties/receipt/mapping/cancelled/properties/download/properties/installationId",
+                              keyword: "properties",
+                              params: {
+                                error: "missing",
+                                missingProperty: "installationId",
+                              },
+                              message: "must have property 'installationId'",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err212];
+                            } else {
+                              vErrors.push(err212);
+                            }
+                            errors++;
+                          }
+                          if (data84.commandId !== undefined) {
+                            if (!(typeof data84.commandId == "string")) {
+                              const err213 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/receipt/download/commandId",
+                                schemaPath:
+                                  "/properties/commands/elements/properties/receipt/mapping/cancelled/properties/download/properties/commandId/type",
+                                keyword: "type",
+                                params: { type: "string", nullable: false },
+                                message: "must be string",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err213];
+                              } else {
+                                vErrors.push(err213);
+                              }
+                              errors++;
+                            }
+                          } else {
+                            const err214 = {
+                              instancePath:
+                                instancePath +
+                                "/commands/" +
+                                i0 +
+                                "/receipt/download",
+                              schemaPath:
+                                "/properties/commands/elements/properties/receipt/mapping/cancelled/properties/download/properties/commandId",
+                              keyword: "properties",
+                              params: {
+                                error: "missing",
+                                missingProperty: "commandId",
+                              },
+                              message: "must have property 'commandId'",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err214];
+                            } else {
+                              vErrors.push(err214);
+                            }
+                            errors++;
+                          }
+                          if (data84.payloadHash !== undefined) {
+                            if (!(typeof data84.payloadHash == "string")) {
+                              const err215 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/receipt/download/payloadHash",
+                                schemaPath:
+                                  "/properties/commands/elements/properties/receipt/mapping/cancelled/properties/download/properties/payloadHash/type",
+                                keyword: "type",
+                                params: { type: "string", nullable: false },
+                                message: "must be string",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err215];
+                              } else {
+                                vErrors.push(err215);
+                              }
+                              errors++;
+                            }
+                          } else {
+                            const err216 = {
+                              instancePath:
+                                instancePath +
+                                "/commands/" +
+                                i0 +
+                                "/receipt/download",
+                              schemaPath:
+                                "/properties/commands/elements/properties/receipt/mapping/cancelled/properties/download/properties/payloadHash",
+                              keyword: "properties",
+                              params: {
+                                error: "missing",
+                                missingProperty: "payloadHash",
+                              },
+                              message: "must have property 'payloadHash'",
+                            };
+                            if (vErrors === null) {
+                              vErrors = [err216];
+                            } else {
+                              vErrors.push(err216);
+                            }
+                            errors++;
+                          }
+                          for (const key23 in data84) {
+                            if (
+                              key23 !== "installationId" &&
+                              key23 !== "commandId" &&
+                              key23 !== "payloadHash"
+                            ) {
+                              const err217 = {
+                                instancePath:
+                                  instancePath +
+                                  "/commands/" +
+                                  i0 +
+                                  "/receipt/download/" +
+                                  key23
+                                    .replace(/~/g, "~0")
+                                    .replace(/\//g, "~1"),
+                                schemaPath:
+                                  "/properties/commands/elements/properties/receipt/mapping/cancelled/properties/download",
+                                keyword: "properties",
+                                params: {
+                                  error: "additional",
+                                  additionalProperty: key23,
+                                },
+                                message: "must NOT have additional properties",
+                              };
+                              if (vErrors === null) {
+                                vErrors = [err217];
+                              } else {
+                                vErrors.push(err217);
+                              }
+                              errors++;
+                            }
+                          }
+                        }
+                        if (!valid97) {
+                          const err218 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/download",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/cancelled/properties/download/properties",
+                            keyword: "properties",
+                            params: { type: "object", nullable: false },
+                            message: "must be object",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err218];
+                          } else {
+                            vErrors.push(err218);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err219 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/cancelled/properties/download",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "download",
+                          },
+                          message: "must have property 'download'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err219];
+                        } else {
+                          vErrors.push(err219);
+                        }
+                        errors++;
+                      }
+                      for (const key24 in data50) {
+                        if (
+                          key24 !== "kind" &&
+                          key24 !== "version" &&
+                          key24 !== "installationId" &&
+                          key24 !== "commandId" &&
+                          key24 !== "payloadHash" &&
+                          key24 !== "family" &&
+                          key24 !== "download"
+                        ) {
+                          const err220 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/" +
+                              key24.replace(/~/g, "~0").replace(/\//g, "~1"),
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/cancelled",
+                            keyword: "properties",
+                            params: {
+                              error: "additional",
+                              additionalProperty: key24,
+                            },
+                            message: "must NOT have additional properties",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err220];
+                          } else {
+                            vErrors.push(err220);
+                          }
+                          errors++;
+                        }
+                      }
+                      if (!valid95) {
+                        const err221 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/cancelled/properties",
+                          keyword: "properties",
+                          params: { type: "object", nullable: false },
+                          message: "must be object",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err221];
+                        } else {
+                          vErrors.push(err221);
+                        }
+                        errors++;
+                      }
+                      var valid94 = _errs94 === errors;
+                      valid75 = valid94;
+                    } else if (tag4 === "rejected") {
+                      const _errs104 = errors;
+                      let valid102 = false;
+                      valid102 = true;
+                      if (data50.version !== undefined) {
+                        let data88 = data50.version;
+                        if (!(
+                          typeof data88 == "number" &&
+                          isFinite(data88) &&
+                          !(data88 % 1) &&
+                          data88 >= 0 &&
+                          data88 <= 255
+                        )) {
+                          const err222 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/version",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/rejected/properties/version/type",
+                            keyword: "type",
+                            params: { type: "uint8", nullable: false },
+                            message: "must be uint8",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err222];
+                          } else {
+                            vErrors.push(err222);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err223 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/rejected/properties/version",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "version",
+                          },
+                          message: "must have property 'version'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err223];
+                        } else {
+                          vErrors.push(err223);
+                        }
+                        errors++;
+                      }
+                      if (data50.installationId !== undefined) {
+                        if (!(typeof data50.installationId == "string")) {
+                          const err224 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/installationId",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/rejected/properties/installationId/type",
+                            keyword: "type",
+                            params: { type: "string", nullable: false },
+                            message: "must be string",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err224];
+                          } else {
+                            vErrors.push(err224);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err225 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/rejected/properties/installationId",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "installationId",
+                          },
+                          message: "must have property 'installationId'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err225];
+                        } else {
+                          vErrors.push(err225);
+                        }
+                        errors++;
+                      }
+                      if (data50.commandId !== undefined) {
+                        if (!(typeof data50.commandId == "string")) {
+                          const err226 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/commandId",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/rejected/properties/commandId/type",
+                            keyword: "type",
+                            params: { type: "string", nullable: false },
+                            message: "must be string",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err226];
+                          } else {
+                            vErrors.push(err226);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err227 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/rejected/properties/commandId",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "commandId",
+                          },
+                          message: "must have property 'commandId'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err227];
+                        } else {
+                          vErrors.push(err227);
+                        }
+                        errors++;
+                      }
+                      if (data50.payloadHash !== undefined) {
+                        if (!(typeof data50.payloadHash == "string")) {
+                          const err228 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/payloadHash",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/rejected/properties/payloadHash/type",
+                            keyword: "type",
+                            params: { type: "string", nullable: false },
+                            message: "must be string",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err228];
+                          } else {
+                            vErrors.push(err228);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err229 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/rejected/properties/payloadHash",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "payloadHash",
+                          },
+                          message: "must have property 'payloadHash'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err229];
+                        } else {
+                          vErrors.push(err229);
+                        }
+                        errors++;
+                      }
+                      if (data50.family !== undefined) {
+                        let data92 = data50.family;
+                        if (!(
+                          typeof data92 == "string" && data92 === "lesson-files"
+                        )) {
+                          const err230 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/family",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/rejected/properties/family/enum",
+                            keyword: "enum",
+                            params: {
+                              allowedValues:
+                                schema41.properties.commands.elements.properties
+                                  .receipt.mapping.rejected.properties.family
+                                  .enum,
+                            },
+                            message:
+                              "must be equal to one of the allowed values",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err230];
+                          } else {
+                            vErrors.push(err230);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err231 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/rejected/properties/family",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "family",
+                          },
+                          message: "must have property 'family'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err231];
+                        } else {
+                          vErrors.push(err231);
+                        }
+                        errors++;
+                      }
+                      if (data50.reason !== undefined) {
+                        let data93 = data50.reason;
+                        if (!(
+                          typeof data93 == "string" &&
+                          (data93 === "staleActivation" ||
+                            data93 === "incompatible" ||
+                            data93 === "cancelled" ||
+                            data93 === "conflict")
+                        )) {
+                          const err232 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/reason",
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/rejected/properties/reason/enum",
+                            keyword: "enum",
+                            params: {
+                              allowedValues:
+                                schema41.properties.commands.elements.properties
+                                  .receipt.mapping.rejected.properties.reason
+                                  .enum,
+                            },
+                            message:
+                              "must be equal to one of the allowed values",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err232];
+                          } else {
+                            vErrors.push(err232);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err233 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/rejected/properties/reason",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "reason",
+                          },
+                          message: "must have property 'reason'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err233];
+                        } else {
+                          vErrors.push(err233);
+                        }
+                        errors++;
+                      }
+                      for (const key25 in data50) {
+                        if (
+                          key25 !== "kind" &&
+                          key25 !== "version" &&
+                          key25 !== "installationId" &&
+                          key25 !== "commandId" &&
+                          key25 !== "payloadHash" &&
+                          key25 !== "family" &&
+                          key25 !== "reason"
+                        ) {
+                          const err234 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/receipt/" +
+                              key25.replace(/~/g, "~0").replace(/\//g, "~1"),
+                            schemaPath:
+                              "/properties/commands/elements/properties/receipt/mapping/rejected",
+                            keyword: "properties",
+                            params: {
+                              error: "additional",
+                              additionalProperty: key25,
+                            },
+                            message: "must NOT have additional properties",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err234];
+                          } else {
+                            vErrors.push(err234);
+                          }
+                          errors++;
+                        }
+                      }
+                      if (!valid102) {
+                        const err235 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/receipt",
+                          schemaPath:
+                            "/properties/commands/elements/properties/receipt/mapping/rejected/properties",
+                          keyword: "properties",
+                          params: { type: "object", nullable: false },
+                          message: "must be object",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err235];
+                        } else {
+                          vErrors.push(err235);
+                        }
+                        errors++;
+                      }
+                      var valid101 = _errs104 === errors;
+                      valid75 = valid101;
+                    } else {
+                      const err236 = {
+                        instancePath:
+                          instancePath + "/commands/" + i0 + "/receipt/kind",
+                        schemaPath:
+                          "/properties/commands/elements/properties/receipt/mapping",
+                        keyword: "discriminator",
+                        params: {
+                          error: "mapping",
+                          tag: "kind",
+                          tagValue: tag4,
+                        },
+                        message: 'value of tag "kind" must be in mapping',
+                      };
+                      if (vErrors === null) {
+                        vErrors = [err236];
+                      } else {
+                        vErrors.push(err236);
+                      }
+                      errors++;
+                    }
+                  } else {
+                    const err237 = {
+                      instancePath:
+                        instancePath + "/commands/" + i0 + "/receipt/kind",
+                      schemaPath:
+                        "/properties/commands/elements/properties/receipt/discriminator",
+                      keyword: "discriminator",
+                      params: { error: "tag", tag: "kind", tagValue: tag4 },
+                      message: 'tag "kind" must be string',
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err237];
+                    } else {
+                      vErrors.push(err237);
+                    }
+                    errors++;
+                  }
+                } else if (!valid75) {
+                  const err238 = {
+                    instancePath: instancePath + "/commands/" + i0 + "/receipt",
+                    schemaPath:
+                      "/properties/commands/elements/properties/receipt/discriminator",
+                    keyword: "discriminator",
+                    params: { type: "object", nullable: false },
+                    message: "must be object",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err238];
+                  } else {
+                    vErrors.push(err238);
+                  }
+                  errors++;
+                }
+              } else {
+                const err239 = {
+                  instancePath: instancePath + "/commands/" + i0,
+                  schemaPath:
+                    "/properties/commands/elements/properties/receipt",
+                  keyword: "properties",
+                  params: { error: "missing", missingProperty: "receipt" },
+                  message: "must have property 'receipt'",
+                };
+                if (vErrors === null) {
+                  vErrors = [err239];
+                } else {
+                  vErrors.push(err239);
+                }
+                errors++;
+              }
+              if (data21.observation !== undefined) {
+                let data94 = data21.observation;
+                let valid105 = false;
+                if (
+                  data94 &&
+                  typeof data94 == "object" &&
+                  !Array.isArray(data94)
+                ) {
+                  const tag5 = data94.kind;
+                  if (tag5 === undefined) {
+                    const err240 = {
+                      instancePath:
+                        instancePath + "/commands/" + i0 + "/observation",
+                      schemaPath:
+                        "/properties/commands/elements/properties/observation/discriminator",
+                      keyword: "discriminator",
+                      params: { error: "tag", tag: "kind", tagValue: tag5 },
+                      message: 'tag "kind" must be string',
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err240];
+                    } else {
+                      vErrors.push(err240);
+                    }
+                    errors++;
+                  } else if (typeof tag5 == "string") {
+                    if (tag5 === "idle") {
+                      const _errs112 = errors;
+                      let valid107 = false;
+                      valid107 = true;
+                      for (const key26 in data94) {
+                        if (key26 !== "kind") {
+                          const err241 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/observation/" +
+                              key26.replace(/~/g, "~0").replace(/\//g, "~1"),
+                            schemaPath:
+                              "/properties/commands/elements/properties/observation/mapping/idle",
+                            keyword: "properties",
+                            params: {
+                              error: "additional",
+                              additionalProperty: key26,
+                            },
+                            message: "must NOT have additional properties",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err241];
+                          } else {
+                            vErrors.push(err241);
+                          }
+                          errors++;
+                        }
+                      }
+                      if (!valid107) {
+                        const err242 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/observation",
+                          schemaPath:
+                            "/properties/commands/elements/properties/observation/mapping/idle/properties",
+                          keyword: "properties",
+                          params: { type: "object", nullable: false },
+                          message: "must be object",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err242];
+                        } else {
+                          vErrors.push(err242);
+                        }
+                        errors++;
+                      }
+                      var valid106 = _errs112 === errors;
+                      valid105 = valid106;
+                    } else if (tag5 === "acquiring") {
+                      const _errs113 = errors;
+                      let valid111 = false;
+                      valid111 = true;
+                      for (const key27 in data94) {
+                        if (key27 !== "kind") {
+                          const err243 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/observation/" +
+                              key27.replace(/~/g, "~0").replace(/\//g, "~1"),
+                            schemaPath:
+                              "/properties/commands/elements/properties/observation/mapping/acquiring",
+                            keyword: "properties",
+                            params: {
+                              error: "additional",
+                              additionalProperty: key27,
+                            },
+                            message: "must NOT have additional properties",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err243];
+                          } else {
+                            vErrors.push(err243);
+                          }
+                          errors++;
+                        }
+                      }
+                      if (!valid111) {
+                        const err244 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/observation",
+                          schemaPath:
+                            "/properties/commands/elements/properties/observation/mapping/acquiring/properties",
+                          keyword: "properties",
+                          params: { type: "object", nullable: false },
+                          message: "must be object",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err244];
+                        } else {
+                          vErrors.push(err244);
+                        }
+                        errors++;
+                      }
+                      var valid110 = _errs113 === errors;
+                      valid105 = valid110;
+                    } else if (tag5 === "retryable") {
+                      const _errs114 = errors;
+                      let valid115 = false;
+                      valid115 = true;
+                      if (data94.reason !== undefined) {
+                        let data95 = data94.reason;
+                        if (!(
+                          typeof data95 == "string" &&
+                          (data95 === "unavailable" ||
+                            data95 === "quota" ||
+                            data95 === "interrupted")
+                        )) {
+                          const err245 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/observation/reason",
+                            schemaPath:
+                              "/properties/commands/elements/properties/observation/mapping/retryable/properties/reason/enum",
+                            keyword: "enum",
+                            params: {
+                              allowedValues:
+                                schema41.properties.commands.elements.properties
+                                  .observation.mapping.retryable.properties
+                                  .reason.enum,
+                            },
+                            message:
+                              "must be equal to one of the allowed values",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err245];
+                          } else {
+                            vErrors.push(err245);
+                          }
+                          errors++;
+                        }
+                      } else {
+                        const err246 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/observation",
+                          schemaPath:
+                            "/properties/commands/elements/properties/observation/mapping/retryable/properties/reason",
+                          keyword: "properties",
+                          params: {
+                            error: "missing",
+                            missingProperty: "reason",
+                          },
+                          message: "must have property 'reason'",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err246];
+                        } else {
+                          vErrors.push(err246);
+                        }
+                        errors++;
+                      }
+                      for (const key28 in data94) {
+                        if (key28 !== "kind" && key28 !== "reason") {
+                          const err247 = {
+                            instancePath:
+                              instancePath +
+                              "/commands/" +
+                              i0 +
+                              "/observation/" +
+                              key28.replace(/~/g, "~0").replace(/\//g, "~1"),
+                            schemaPath:
+                              "/properties/commands/elements/properties/observation/mapping/retryable",
+                            keyword: "properties",
+                            params: {
+                              error: "additional",
+                              additionalProperty: key28,
+                            },
+                            message: "must NOT have additional properties",
+                          };
+                          if (vErrors === null) {
+                            vErrors = [err247];
+                          } else {
+                            vErrors.push(err247);
+                          }
+                          errors++;
+                        }
+                      }
+                      if (!valid115) {
+                        const err248 = {
+                          instancePath:
+                            instancePath + "/commands/" + i0 + "/observation",
+                          schemaPath:
+                            "/properties/commands/elements/properties/observation/mapping/retryable/properties",
+                          keyword: "properties",
+                          params: { type: "object", nullable: false },
+                          message: "must be object",
+                        };
+                        if (vErrors === null) {
+                          vErrors = [err248];
+                        } else {
+                          vErrors.push(err248);
+                        }
+                        errors++;
+                      }
+                      var valid114 = _errs114 === errors;
+                      valid105 = valid114;
+                    } else {
+                      const err249 = {
+                        instancePath:
+                          instancePath +
+                          "/commands/" +
+                          i0 +
+                          "/observation/kind",
+                        schemaPath:
+                          "/properties/commands/elements/properties/observation/mapping",
+                        keyword: "discriminator",
+                        params: {
+                          error: "mapping",
+                          tag: "kind",
+                          tagValue: tag5,
+                        },
+                        message: 'value of tag "kind" must be in mapping',
+                      };
+                      if (vErrors === null) {
+                        vErrors = [err249];
+                      } else {
+                        vErrors.push(err249);
+                      }
+                      errors++;
+                    }
+                  } else {
+                    const err250 = {
+                      instancePath:
+                        instancePath + "/commands/" + i0 + "/observation/kind",
+                      schemaPath:
+                        "/properties/commands/elements/properties/observation/discriminator",
+                      keyword: "discriminator",
+                      params: { error: "tag", tag: "kind", tagValue: tag5 },
+                      message: 'tag "kind" must be string',
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err250];
+                    } else {
+                      vErrors.push(err250);
+                    }
+                    errors++;
+                  }
+                } else if (!valid105) {
+                  const err251 = {
+                    instancePath:
+                      instancePath + "/commands/" + i0 + "/observation",
+                    schemaPath:
+                      "/properties/commands/elements/properties/observation/discriminator",
+                    keyword: "discriminator",
+                    params: { type: "object", nullable: false },
+                    message: "must be object",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err251];
+                  } else {
+                    vErrors.push(err251);
+                  }
+                  errors++;
+                }
+              } else {
+                const err252 = {
+                  instancePath: instancePath + "/commands/" + i0,
+                  schemaPath:
+                    "/properties/commands/elements/properties/observation",
+                  keyword: "properties",
+                  params: { error: "missing", missingProperty: "observation" },
+                  message: "must have property 'observation'",
+                };
+                if (vErrors === null) {
+                  vErrors = [err252];
+                } else {
+                  vErrors.push(err252);
+                }
+                errors++;
+              }
+              for (const key29 in data21) {
+                if (
+                  key29 !== "command" &&
+                  key29 !== "receipt" &&
+                  key29 !== "observation"
+                ) {
+                  const err253 = {
+                    instancePath:
+                      instancePath +
+                      "/commands/" +
+                      i0 +
+                      "/" +
+                      key29.replace(/~/g, "~0").replace(/\//g, "~1"),
+                    schemaPath: "/properties/commands/elements",
+                    keyword: "properties",
+                    params: { error: "additional", additionalProperty: key29 },
+                    message: "must NOT have additional properties",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err253];
+                  } else {
+                    vErrors.push(err253);
+                  }
+                  errors++;
+                }
+              }
+            }
+            if (!valid36) {
+              const err254 = {
+                instancePath: instancePath + "/commands/" + i0,
+                schemaPath: "/properties/commands/elements/properties",
+                keyword: "properties",
+                params: { type: "object", nullable: false },
+                message: "must be object",
+              };
+              if (vErrors === null) {
+                vErrors = [err254];
+              } else {
+                vErrors.push(err254);
+              }
+              errors++;
+            }
+            var valid34 = _errs27 === errors;
+            if (!valid34) {
+              valid35 = false;
+            }
+          }
+          valid33 = valid35;
+        } else {
+          const err255 = {
+            instancePath: instancePath + "/commands",
+            schemaPath: "/properties/commands/elements",
+            keyword: "elements",
+            params: { type: "array", nullable: false },
+            message: "must be array",
+          };
+          if (vErrors === null) {
+            vErrors = [err255];
+          } else {
+            vErrors.push(err255);
+          }
+          errors++;
+        }
+      }
+    } else {
+      const err256 = {
+        instancePath,
+        schemaPath: "/properties/commands",
+        keyword: "properties",
+        params: { error: "missing", missingProperty: "commands" },
+        message: "must have property 'commands'",
+      };
+      if (vErrors === null) {
+        vErrors = [err256];
+      } else {
+        vErrors.push(err256);
+      }
+      errors++;
+    }
+    if (data.packages !== undefined) {
+      let data96 = data.packages;
+      let valid119 = false;
+      if (!valid119) {
+        if (Array.isArray(data96)) {
+          let valid121 = true;
+          const len1 = data96.length;
+          for (let i1 = 0; i1 < len1; i1++) {
+            let data97 = data96[i1];
+            const _errs117 = errors;
+            let valid122 = false;
+            if (data97 && typeof data97 == "object" && !Array.isArray(data97)) {
+              valid122 = true;
+              if (data97.packageHash !== undefined) {
+                if (!(typeof data97.packageHash == "string")) {
+                  const err257 = {
+                    instancePath:
+                      instancePath + "/packages/" + i1 + "/packageHash",
+                    schemaPath:
+                      "/properties/packages/elements/properties/packageHash/type",
+                    keyword: "type",
+                    params: { type: "string", nullable: false },
+                    message: "must be string",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err257];
+                  } else {
+                    vErrors.push(err257);
+                  }
+                  errors++;
+                }
+              } else {
+                const err258 = {
+                  instancePath: instancePath + "/packages/" + i1,
+                  schemaPath:
+                    "/properties/packages/elements/properties/packageHash",
+                  keyword: "properties",
+                  params: { error: "missing", missingProperty: "packageHash" },
+                  message: "must have property 'packageHash'",
+                };
+                if (vErrors === null) {
+                  vErrors = [err258];
+                } else {
+                  vErrors.push(err258);
+                }
+                errors++;
+              }
+              if (data97.role !== undefined) {
+                let data99 = data97.role;
+                if (!(
+                  typeof data99 == "string" &&
+                  (data99 === "active" ||
+                    data99 === "fallback" ||
+                    data99 === "historical" ||
+                    data99 === "inactive")
+                )) {
+                  const err259 = {
+                    instancePath: instancePath + "/packages/" + i1 + "/role",
+                    schemaPath:
+                      "/properties/packages/elements/properties/role/enum",
+                    keyword: "enum",
+                    params: {
+                      allowedValues:
+                        schema41.properties.packages.elements.properties.role
+                          .enum,
+                    },
+                    message: "must be equal to one of the allowed values",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err259];
+                  } else {
+                    vErrors.push(err259);
+                  }
+                  errors++;
+                }
+              } else {
+                const err260 = {
+                  instancePath: instancePath + "/packages/" + i1,
+                  schemaPath: "/properties/packages/elements/properties/role",
+                  keyword: "properties",
+                  params: { error: "missing", missingProperty: "role" },
+                  message: "must have property 'role'",
+                };
+                if (vErrors === null) {
+                  vErrors = [err260];
+                } else {
+                  vErrors.push(err260);
+                }
+                errors++;
+              }
+              if (data97.bytes !== undefined) {
+                let data100 = data97.bytes;
+                if (!(
+                  typeof data100 == "string" &&
+                  (data100 === "unchecked" ||
+                    data100 === "verified" ||
+                    data100 === "missing" ||
+                    data100 === "corrupt" ||
+                    data100 === "metadataOnly")
+                )) {
+                  const err261 = {
+                    instancePath: instancePath + "/packages/" + i1 + "/bytes",
+                    schemaPath:
+                      "/properties/packages/elements/properties/bytes/enum",
+                    keyword: "enum",
+                    params: {
+                      allowedValues:
+                        schema41.properties.packages.elements.properties.bytes
+                          .enum,
+                    },
+                    message: "must be equal to one of the allowed values",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err261];
+                  } else {
+                    vErrors.push(err261);
+                  }
+                  errors++;
+                }
+              } else {
+                const err262 = {
+                  instancePath: instancePath + "/packages/" + i1,
+                  schemaPath: "/properties/packages/elements/properties/bytes",
+                  keyword: "properties",
+                  params: { error: "missing", missingProperty: "bytes" },
+                  message: "must have property 'bytes'",
+                };
+                if (vErrors === null) {
+                  vErrors = [err262];
+                } else {
+                  vErrors.push(err262);
+                }
+                errors++;
+              }
+              for (const key30 in data97) {
+                if (
+                  key30 !== "packageHash" &&
+                  key30 !== "role" &&
+                  key30 !== "bytes"
+                ) {
+                  const err263 = {
+                    instancePath:
+                      instancePath +
+                      "/packages/" +
+                      i1 +
+                      "/" +
+                      key30.replace(/~/g, "~0").replace(/\//g, "~1"),
+                    schemaPath: "/properties/packages/elements",
+                    keyword: "properties",
+                    params: { error: "additional", additionalProperty: key30 },
+                    message: "must NOT have additional properties",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err263];
+                  } else {
+                    vErrors.push(err263);
+                  }
+                  errors++;
+                }
+              }
+            }
+            if (!valid122) {
+              const err264 = {
+                instancePath: instancePath + "/packages/" + i1,
+                schemaPath: "/properties/packages/elements/properties",
+                keyword: "properties",
+                params: { type: "object", nullable: false },
+                message: "must be object",
+              };
+              if (vErrors === null) {
+                vErrors = [err264];
+              } else {
+                vErrors.push(err264);
+              }
+              errors++;
+            }
+            var valid120 = _errs117 === errors;
+            if (!valid120) {
+              valid121 = false;
+            }
+          }
+          valid119 = valid121;
+        } else {
+          const err265 = {
+            instancePath: instancePath + "/packages",
+            schemaPath: "/properties/packages/elements",
+            keyword: "elements",
+            params: { type: "array", nullable: false },
+            message: "must be array",
+          };
+          if (vErrors === null) {
+            vErrors = [err265];
+          } else {
+            vErrors.push(err265);
+          }
+          errors++;
+        }
+      }
+    } else {
+      const err266 = {
+        instancePath,
+        schemaPath: "/properties/packages",
+        keyword: "properties",
+        params: { error: "missing", missingProperty: "packages" },
+        message: "must have property 'packages'",
+      };
+      if (vErrors === null) {
+        vErrors = [err266];
+      } else {
+        vErrors.push(err266);
+      }
+      errors++;
+    }
+    for (const key31 in data) {
+      if (
+        key31 !== "activation" &&
+        key31 !== "offer" &&
+        key31 !== "commands" &&
+        key31 !== "packages"
+      ) {
+        const err267 = {
+          instancePath:
+            instancePath + "/" + key31.replace(/~/g, "~0").replace(/\//g, "~1"),
+          schemaPath: "",
+          keyword: "properties",
+          params: { error: "additional", additionalProperty: key31 },
+          message: "must NOT have additional properties",
+        };
+        if (vErrors === null) {
+          vErrors = [err267];
+        } else {
+          vErrors.push(err267);
+        }
+        errors++;
+      }
+    }
+  }
+  if (!valid0) {
+    const err268 = {
+      instancePath,
+      schemaPath: "/properties",
+      keyword: "properties",
+      params: { type: "object", nullable: false },
+      message: "must be object",
+    };
+    if (vErrors === null) {
+      vErrors = [err268];
+    } else {
+      vErrors.push(err268);
+    }
+    errors++;
+  }
+  validate69.errors = vErrors;
   return errors === 0;
 }

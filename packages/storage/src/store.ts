@@ -46,6 +46,7 @@ import {
   parseSelectedOwnerWitness,
   parseCurrentApplicationRead,
   RetiredSelectionError,
+  parseLocalPreferences,
 } from "../../teaching/src/index.ts";
 import type {
   PublicationSelection,
@@ -98,10 +99,23 @@ import type {
   ProfileDeletionReceipt,
   CommandResult,
   RecoveryResult,
+  LessonFilesApplication,
 } from "../../teaching/src/index.ts";
-import { createInitialInstallation } from "./initial-installation.ts";
-import { readInstalledPackages } from "./installed-packages.ts";
+import {
+  createInitialInstallation,
+  readInstallationEvidence,
+} from "./initial-installation.ts";
+import {
+  readInstalledPackages,
+  registerSignedPackage,
+} from "./installed-packages.ts";
+import {
+  createPackageCatalog,
+  readLessonFilesEvidence,
+} from "./package-catalog.ts";
+import { validateCatalogInventory } from "./catalog-inventory.ts";
 import { decodePersonalReceipt } from "./personal-receipt.ts";
+import { decodeAdministrationEvidence } from "./profile-receipt.ts";
 import {
   durableReceipt,
   validateAcceptanceHistory,
@@ -171,15 +185,27 @@ export function createTeachingApplication(
   options: TeachingApplicationOptions,
 ): SelectedApplication &
   LocalSupportApplication &
-  PortableInstallationApplication {
+  PortableInstallationApplication &
+  LessonFilesApplication {
   const {
-    executor,
+    executor: connection,
     content: suppliedContent,
     ids,
     hash,
     preparation = { kind: "unavailable" },
     installed,
   } = options;
+  let readOnlyVersion: number | undefined;
+  const executor: SqlExecutor = {
+    execute(sql, parameters) {
+      if (
+        readOnlyVersion !== undefined &&
+        !/^\s*(?:SELECT\b|PRAGMA\s+user_version\s*$)/i.test(sql)
+      )
+        throw new Error("Read-only compatibility admission attempted a write");
+      return connection.execute(sql, parameters);
+    },
+  };
   const productCourseId = parseId({
     kind: "course",
     value: installed?.courseId ?? suppliedContent?.body.courseId ?? "",
@@ -367,6 +393,120 @@ export function createTeachingApplication(
           activation.courseId,
         );
   }
+  async function admitReadOnly(version: number) {
+    if (version === 0) return;
+    readOnlyVersion = version;
+    acceptanceMode = version < 7 ? "v6" : "v7";
+    legacyCursorRead = version < 6;
+    try {
+      await warmPackages();
+      const installations = await db.select().from(schema.installation).all();
+      if (
+        installations.length > 1 ||
+        installations.some((row) => Number(row.databaseVersion) !== version)
+      )
+        throw new Error("Installation metadata is incompatible");
+      const profiles = await db.select().from(schema.profile).all();
+      for (const profile of profiles) {
+        if (
+          Number(profile.preferencesVersion) !== 1 ||
+          profile.preferences.length > 16384
+        )
+          throw new Error("Saved profile preferences are unsupported");
+        parseLocalPreferences(JSON.parse(profile.preferences));
+      }
+      await validateOwners();
+      const activations = await db.select().from(schema.courseActivation).all();
+      const sessions = await db.select().from(schema.session).all();
+      if (
+        sessions.some(
+          (session) =>
+            !activations.some(
+              (activation) => activation.courseId === session.courseId,
+            ),
+        )
+      )
+        throw new Error("Saved teaching has no course activation");
+      if (version >= 4) await ink.inventory();
+      const receipts = await db.select().from(schema.commandReceipt).all();
+      const runs = await db.select().from(schema.taskRunV6).all();
+      const documents =
+        version >= 4 ? await db.select().from(schema.inkDocument).all() : [];
+      for (const receipt of receipts) {
+        const result = decodePersonalReceipt(receipt);
+        if (
+          (receipt.scopeKind === "profile" &&
+            receipt.scopeId !== receipt.ownerProfileId) ||
+          (receipt.scopeKind === "session" &&
+            !sessions.some(
+              (session) =>
+                session.sessionId === receipt.scopeId &&
+                session.profileId === receipt.ownerProfileId &&
+                session.generation === receipt.ownerGeneration,
+            )) ||
+          (receipt.scopeKind === "document" &&
+            !documents.some(
+              (document) =>
+                document.documentId === receipt.scopeId &&
+                document.profileId === receipt.ownerProfileId &&
+                document.generation === receipt.ownerGeneration,
+            ))
+        )
+          throw new Error("Saved receipt has no semantic owner");
+        if (
+          result.kind === "committed" &&
+          !runs.some(
+            (run) =>
+              run.runId === result.runId &&
+              run.sessionId === result.sessionId &&
+              run.packageHash === result.packageHash &&
+              run.profileId === result.owner.profileId &&
+              run.generation === result.owner.generation,
+          )
+        )
+          throw new Error("Saved teaching receipt source binding is invalid");
+      }
+      if (version >= 6) {
+        const lessons = await db.select().from(schema.lessonCredit).all();
+        if (
+          lessons.some(
+            (lesson) =>
+              !activations.some(
+                (activation) => activation.courseId === lesson.courseId,
+              ),
+          )
+        )
+          throw new Error("Saved lesson credit has no course activation");
+      }
+      if (version >= 8) {
+        if (installations.length) await profileDirectory.read();
+        const evidence =
+          version === 8
+            ? (
+                await db
+                  .select()
+                  .from(schema.profileAdministrationReceiptV8)
+                  .all()
+              ).map((row) => ({ ...row, evidenceKind: "full" as const }))
+            : await db.select().from(schema.profileAdministrationReceipt).all();
+        for (const row of evidence) decodeAdministrationEvidence(row);
+      }
+      if (version >= 13) {
+        const commands = await db
+          .select()
+          .from(schema.installationCommand)
+          .all();
+        for (const row of commands) await readInstallationEvidence(row, hash);
+      }
+      if (version >= 14) {
+        await validateCatalogInventory({ db, executor, hash });
+      }
+    } finally {
+      readOnlyVersion = undefined;
+      acceptanceMode = "v7";
+      legacyCursorRead = false;
+    }
+  }
   let initialization: Promise<ReturnType<typeof createCoordinator>> | undefined;
   let schemaInitialized = false;
   function checkInitializationLifetime() {
@@ -397,7 +537,6 @@ export function createTeachingApplication(
             const readyPackages = await db
               .select()
               .from(schema.installedPackage)
-              .where(eq(schema.installedPackage.state, "ready"))
               .all();
             if (
               readyPackages.length !== prepared.length ||
@@ -407,7 +546,7 @@ export function createTeachingApplication(
               )
             )
               throw new Error("Prepared package set changed before migration");
-            for (const value of prepared) await ensurePackage(value);
+            await warmPackages();
             if (version === 8) {
               await validateOwners();
               await ink.inventory();
@@ -453,6 +592,7 @@ export function createTeachingApplication(
           };
         },
         initializationGuard,
+        admitReadOnly,
       );
       await warmPackages();
       await transaction(
@@ -688,22 +828,38 @@ export function createTeachingApplication(
       throw new Error("Saved package ownership is invalid");
     const state = parseTeachingState(JSON.parse(run.state));
     validatePosition(value, state, run.taskId);
-    const advances = await db
-      .select()
-      .from(schema.taskAdvance)
-      .where(eq(schema.taskAdvance.runId, run.runId))
-      .orderBy(asc(schema.taskAdvance.seq))
-      .all();
-    const credits = await db
-      .select()
-      .from(schema.taskCredit)
-      .where(eq(schema.taskCredit.runId, run.runId))
-      .all();
-    const documents = await db
-      .select()
-      .from(schema.inkDocument)
-      .where(eq(schema.inkDocument.runId, run.runId))
-      .all();
+    const advances =
+      readOnlyVersion !== undefined && readOnlyVersion < 3
+        ? (
+            await db
+              .select()
+              .from(schema.taskAdvanceV2)
+              .where(eq(schema.taskAdvanceV2.runId, run.runId))
+              .orderBy(asc(schema.taskAdvanceV2.seq))
+              .all()
+          ).map((row) => ({ ...row, acceptingCommand: null }))
+        : await db
+            .select()
+            .from(schema.taskAdvance)
+            .where(eq(schema.taskAdvance.runId, run.runId))
+            .orderBy(asc(schema.taskAdvance.seq))
+            .all();
+    const credits =
+      readOnlyVersion !== undefined && readOnlyVersion < 2
+        ? []
+        : await db
+            .select()
+            .from(schema.taskCredit)
+            .where(eq(schema.taskCredit.runId, run.runId))
+            .all();
+    const documents =
+      readOnlyVersion !== undefined && readOnlyVersion < 4
+        ? []
+        : await db
+            .select()
+            .from(schema.inkDocument)
+            .where(eq(schema.inkDocument.runId, run.runId))
+            .all();
     let legacyLimit = parseCounter(
       (BigInt(run.nextAdvanceSeq) - 1n).toString(),
     );
@@ -851,29 +1007,35 @@ export function createTeachingApplication(
       selected.runId !== profile.undoRunId
     )
       throw new Error("Closed terminal cursor does not own Undo");
-    const results = await db
-      .select()
-      .from(schema.taskResult)
-      .where(
-        and(
-          eq(schema.taskResult.profileId, owner.profileId),
-          eq(schema.taskResult.generation, owner.generation),
-          eq(schema.taskResult.courseId, courseId),
-        ),
-      )
-      .all();
-    const credits = await db
-      .select()
-      .from(schema.taskCredit)
-      .where(
-        and(
-          eq(schema.taskCredit.profileId, owner.profileId),
-          eq(schema.taskCredit.generation, owner.generation),
-          eq(schema.taskCredit.courseId, courseId),
-          eq(schema.taskCredit.status, "valid"),
-        ),
-      )
-      .all();
+    const results =
+      readOnlyVersion !== undefined && readOnlyVersion < 2
+        ? []
+        : await db
+            .select()
+            .from(schema.taskResult)
+            .where(
+              and(
+                eq(schema.taskResult.profileId, owner.profileId),
+                eq(schema.taskResult.generation, owner.generation),
+                eq(schema.taskResult.courseId, courseId),
+              ),
+            )
+            .all();
+    const credits =
+      readOnlyVersion !== undefined && readOnlyVersion < 2
+        ? []
+        : await db
+            .select()
+            .from(schema.taskCredit)
+            .where(
+              and(
+                eq(schema.taskCredit.profileId, owner.profileId),
+                eq(schema.taskCredit.generation, owner.generation),
+                eq(schema.taskCredit.courseId, courseId),
+                eq(schema.taskCredit.status, "valid"),
+              ),
+            )
+            .all();
     for (const credit of credits)
       if (
         !validatedRuns.some(
@@ -899,7 +1061,10 @@ export function createTeachingApplication(
         )
       )
         throw new Error("Effective task result has no valid credit");
-    const lessonResults = await lessonProgress.validate({ owner, courseId });
+    const lessonResults =
+      readOnlyVersion !== undefined && readOnlyVersion < 6
+        ? []
+        : await lessonProgress.validate({ owner, courseId });
     const history: SavedWork[] = [];
     for (const run of retainedRuns) {
       const row = rows.find((row) => row.sessionId === run.sessionId);
@@ -2046,6 +2211,7 @@ export function createTeachingApplication(
     });
   }
   async function activeKey() {
+    await packageCatalog?.prepareAdmission();
     return exclusive(async () => {
       await ensureInitialized();
       const activation = (
@@ -2131,6 +2297,7 @@ export function createTeachingApplication(
     ) => Promise<T>,
   ): Promise<T> {
     if (!availability) throw new Error("Installed availability is unavailable");
+    await packageCatalog?.prepareAdmission();
     const retained = await exclusive(async () => {
       await ensureInitialized();
       await warmPackages();
@@ -2162,11 +2329,13 @@ export function createTeachingApplication(
       );
     } catch (error) {
       const reason = resourceReason(error);
-      if (reason)
+      if (reason) {
+        packageCatalog?.invalidate(retained.key, reason);
         throw new InstalledResourceUnavailableError({
           packageHash: retained.key,
           reason,
         });
+      }
       throw error;
     }
   }
@@ -2813,6 +2982,14 @@ export function createTeachingApplication(
         kind: "active";
         row: typeof schema.courseActivation.$inferSelect;
       }>
+    | Readonly<{
+        kind: "fallback";
+        row: typeof schema.courseActivation.$inferSelect;
+      }>
+    | Readonly<{
+        kind: "pending";
+        row: typeof schema.lessonFilesCommand.$inferSelect;
+      }>
     | Readonly<{ kind: "session"; row: typeof schema.session.$inferSelect }>
     | Readonly<{ kind: "run"; row: typeof schema.taskRun.$inferSelect }>
     | Readonly<{ kind: "ink"; row: typeof schema.inkDocument.$inferSelect }>;
@@ -2932,18 +3109,30 @@ export function createTeachingApplication(
     )[0];
     if (active?.activePackageHash === key)
       return { kind: "active", row: active };
+    if (active?.fallbackPackageHash === key)
+      return { kind: "fallback", row: active };
     const retainedSession = sessions.find(
       (session) => session.packageHash === key,
     );
     if (retainedSession) return { kind: "session", row: retainedSession };
     if (runs[0]) return { kind: "run", row: runs[0] };
     if (inks[0]) return { kind: "ink", row: inks[0] };
+    for (const row of await db.select().from(schema.lessonFilesCommand).all()) {
+      const saved = await readLessonFilesEvidence(row, hash);
+      if (
+        saved.command.action.kind === "download" &&
+        saved.downloadState === "pending" &&
+        saved.receipt.kind === "ready" &&
+        saved.receipt.packageHash === key
+      )
+        return { kind: "pending", row };
+    }
   }
   async function sameRepairAnchor(
     anchor: RepairAnchor,
     key: PackageHash,
   ): Promise<boolean> {
-    if (anchor.kind === "active") {
+    if (anchor.kind === "active" || anchor.kind === "fallback") {
       const row = (
         await db
           .select()
@@ -2953,8 +3142,35 @@ export function createTeachingApplication(
       )[0];
       return (
         !!row &&
-        row.activePackageHash === key &&
+        (anchor.kind === "active"
+          ? row.activePackageHash
+          : row.fallbackPackageHash) === key &&
         repairCanonical(row) === repairCanonical(anchor.row)
+      );
+    }
+    if (anchor.kind === "pending") {
+      const row = (
+        await db
+          .select()
+          .from(schema.lessonFilesCommand)
+          .where(
+            and(
+              eq(
+                schema.lessonFilesCommand.installationId,
+                anchor.row.installationId,
+              ),
+              eq(schema.lessonFilesCommand.commandId, anchor.row.commandId),
+            ),
+          )
+          .all()
+      )[0];
+      if (!row || repairCanonical(row) !== repairCanonical(anchor.row))
+        return false;
+      const saved = await readLessonFilesEvidence(row, hash);
+      return (
+        saved.downloadState === "pending" &&
+        saved.receipt.kind === "ready" &&
+        saved.receipt.packageHash === key
       );
     }
     const profiles = await db.select().from(schema.profile).all();
@@ -3103,7 +3319,21 @@ export function createTeachingApplication(
             )
               return { kind: "staleTarget", target };
             await validateScope(lease);
+            if (acquire)
+              await guardedTransaction(lease, async () => {
+                if (
+                  (await registerSignedPackage({
+                    db,
+                    material,
+                    mode: installed.mode,
+                  })) !== "registered"
+                )
+                  throw new Error(
+                    "Exact repaired package registration conflicts",
+                  );
+              });
             checkLease(lease);
+            packageCatalog?.observedVerified(target.packageHash);
             return { kind: "verified", target };
           });
         } finally {
@@ -3112,7 +3342,10 @@ export function createTeachingApplication(
       });
     } catch (error) {
       const reason = resourceReason(error);
-      if (reason) return { kind: "unavailable", target, reason };
+      if (reason) {
+        packageCatalog?.invalidate(target.packageHash, reason);
+        return { kind: "unavailable", target, reason };
+      }
       throw error;
     }
   }
@@ -3128,7 +3361,30 @@ export function createTeachingApplication(
         refresh: warmPackages,
       })
     : undefined;
+  const packageCatalog = installed
+    ? createPackageCatalog({
+        db,
+        executor,
+        hash,
+        options: installed,
+        exclusive,
+        initialize: ensureInitialized,
+        refresh: warmPackages,
+        pinned,
+        validateRetained: () => admitReadOnly(DATABASE_VERSION),
+      })
+    : undefined;
   return {
+    readLessonFiles: async () => {
+      if (!packageCatalog)
+        throw new Error("Lesson-file updates require installed mode");
+      return packageCatalog.readLessonFiles();
+    },
+    changeLessonFiles: async (command) => {
+      if (!packageCatalog)
+        throw new Error("Lesson-file updates require installed mode");
+      return packageCatalog.changeLessonFiles(command);
+    },
     checkPublication: (target) => publicationOperation(target, false),
     repairPublication: (target) => publicationOperation(target, true),
     parentMaterial: async (input) => {
@@ -3230,7 +3486,10 @@ export function createTeachingApplication(
         }
       }),
     readDiagnostics: () => exclusive(diagnostics),
-    readDirectory: () => exclusive(discoverDirectory),
+    readDirectory: async () => {
+      await packageCatalog?.prepareAdmission();
+      return exclusive(discoverDirectory);
+    },
     readDeparture: async (input) => {
       if (!installed) return queuedreadDeparture(input);
       return withFreshCursor(input.selection, (_material, lease) =>
@@ -3307,8 +3566,9 @@ export function createTeachingApplication(
         queuedreadInk(input, lease),
       );
     },
-    openRecovery: (input) =>
-      exclusive(async () => {
+    openRecovery: async (input) => {
+      await packageCatalog?.prepareAdmission();
+      return exclusive(async () => {
         const opening = parseSelectedRecoveryOpening(input);
         await ensureInitialized();
         if (
@@ -3356,7 +3616,8 @@ export function createTeachingApplication(
           captures: await ink.inventory(),
           directory: await profileDirectory.read(),
         });
-      }),
+      });
+    },
     recoverInk: async (input) => {
       if (!installed) return queuedrecoverInk(input);
       const operation = parseSelectedOperation(input.operation);

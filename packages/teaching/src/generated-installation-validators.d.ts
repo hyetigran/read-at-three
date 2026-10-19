@@ -10,6 +10,9 @@ import type {
   RawActivationWitness,
   RawInstallationRead,
   RawInstallationCatalog,
+  RawLessonFilesCommand,
+  RawLessonFilesReceipt,
+  RawLessonFilesView,
 } from "./installation-schemas.ts";
 export declare const validatePublicationSelection: ValidateFunction<RawPublicationSelection>;
 export declare const validatePublicationCheck: ValidateFunction<RawPublicationCheck>;
@@ -21,3 +24,6 @@ export declare const validateParentMaterialRequest: ValidateFunction<RawParentMa
 export declare const validateActivationWitness: ValidateFunction<RawActivationWitness>;
 export declare const validateInstallationRead: ValidateFunction<RawInstallationRead>;
 export declare const validateInstallationCatalog: ValidateFunction<RawInstallationCatalog>;
+export declare const validateLessonFilesCommand: ValidateFunction<RawLessonFilesCommand>;
+export declare const validateLessonFilesReceipt: ValidateFunction<RawLessonFilesReceipt>;
+export declare const validateLessonFilesView: ValidateFunction<RawLessonFilesView>;

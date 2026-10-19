@@ -514,7 +514,7 @@ The initial application bundles Lessons 1–6 and their runtime assets. A web re
 3. Reject path traversal, unexpected file types, unbounded archives, and undeclared executable content.
 4. Finish staging all required runtime assets. Preserve the currently active package throughout.
 5. Publish immutable package bytes with the platform protocol below, then transactionally record verified readiness.
-6. Atomically change the course's activation record for new sessions.
+6. The parent separately chooses Use these lessons after the download is ready. Freshly verify content and application-shell resources, then atomically change the course's activation record for new sessions.
 7. Collect unreferenced staging artifacts and old bytes only after checking active/fallback activation, every retained task run including terminal runs supporting historical credits, retained documents, and rollback retention. Retained personal state pins its exact verified runtime bytes even after its Undo window closes, because import/migration validates its source membership. Closing a run or deleting only its drawings does not release this pin. Explicit personal reset/deletion may remove references; recheck all remaining owners before collecting shared bytes.
 
 **Native publication:** write under a staging directory on the same volume; verify every file and manifest, flush files and directory metadata using the selected OS's supported durability primitives, then atomically rename to a content-hash directory. Only after publication succeeds may a DB transaction mark ready. A separate activation transaction checks ready/compatible/cumulative again and updates active/fallback hashes and revision. The filesystem and DB are not one transaction; exact directory flush guarantees must be established by the selected binding.
@@ -546,6 +546,10 @@ Each application release declares readable DB/content/teaching-state/ink version
 | Completed old drawing + newest cumulative course       | Open the drawing with its original package/guides; a new replay uses the active package in a different run.                                           |
 
 Release acceptance covers every supported combination, not only newest content on a clean install. Keep required old decoders/packages and fixture artifacts until all references have been explicitly migrated or removed by the parent.
+
+### 9.5 React SPA catalog implementation
+
+The portable command, retained metadata, migration, collection and snapshot-hold boundaries are specified in [the content catalog contract](docs/architecture/CONTENT_CATALOG.md). The gated parent Lesson files screen caches committed projections through TanStack Query. It does not own activation or teaching state. Web CacheStorage and OPFS qualification is separate from the later React Native/Expo adapter and physical-device release gates.
 
 ## 10. Source authoring, review, and publishing
 

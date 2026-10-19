@@ -49,6 +49,7 @@ export type ParentDestination =
   | Readonly<{ kind: "unavailable" }>
   | Readonly<{ kind: "settings" }>
   | Readonly<{ kind: "support" }>
+  | Readonly<{ kind: "lessonFiles" }>
   | Readonly<{
       kind: "removal";
       target: ProfileEditWitness;
@@ -124,6 +125,8 @@ export function parentAddress(destination: ParentDestination): string {
       return "/parent/settings";
     case "support":
       return "/parent/support";
+    case "lessonFiles":
+      return "/parent/lesson-files";
     case "removal":
       return "/parent/profiles/remove";
     case "profiles":

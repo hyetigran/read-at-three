@@ -1,8 +1,9 @@
 import type { HashFunction } from "../../teaching/src/index.ts";
 import type { SqlExecutor } from "./executor.ts";
 import { migrations } from "./generated-migration.ts";
+import { verifyForeignKeyPolicy } from "./foreign-key-policy.ts";
 export { migrationStatements } from "./generated-migration.ts";
-export const DATABASE_VERSION = 13;
+export const DATABASE_VERSION = 14;
 export type MigrationDataHook = (
   version: number,
 ) => Promise<(() => Promise<void>) | undefined>;
@@ -34,11 +35,90 @@ function firstValue(rows: unknown[][]): unknown {
 function normalize(sql: string): string {
   return sql.replace(/\s+/g, " ").trim().replace(/;$/, "");
 }
+function expectedObjects(version: number) {
+  const objects = new Map<string, { type: string; table: string }>();
+  for (const migration of migrations.slice(0, version)) {
+    for (const statement of migration.statements) {
+      const table = /^CREATE TABLE [`"]?([a-z_0-9]+)/.exec(statement);
+      const index =
+        /^CREATE (?:UNIQUE )?INDEX [`"]?([a-z_0-9]+)[`"]? ON [`"]?([a-z_0-9]+)/.exec(
+          statement,
+        );
+      const view = /^CREATE VIEW ([a-z_]+) AS /.exec(statement);
+      const trigger =
+        /^CREATE TRIGGER ([a-z_]+) AFTER (?:INSERT|UPDATE) ON "([a-z_]+)" /.exec(
+          statement,
+        );
+      const dropped = /^DROP (TABLE|INDEX) [`"]?([a-z_0-9]+)/.exec(statement);
+      const renamed =
+        /^ALTER TABLE [`"]?([a-z_0-9]+)[`"]? RENAME TO [`"]?([a-z_0-9]+)/.exec(
+          statement,
+        );
+      if (table?.[1]) objects.set(table[1], { type: "table", table: table[1] });
+      else if (index?.[1] && index[2])
+        objects.set(index[1], { type: "index", table: index[2] });
+      else if (view?.[1])
+        objects.set(view[1], { type: "view", table: view[1] });
+      else if (trigger?.[1] && trigger[2])
+        objects.set(trigger[1], { type: "trigger", table: trigger[2] });
+      else if (dropped?.[2]) {
+        objects.delete(dropped[2]);
+        if (dropped[1] === "TABLE")
+          for (const [name, object] of objects)
+            if (object.table === dropped[2]) objects.delete(name);
+      } else if (renamed?.[1] && renamed[2]) {
+        const previous = renamed[1],
+          next = renamed[2];
+        if (!objects.delete(previous))
+          throw new Error("Bundled schema rename is unsupported");
+        objects.set(next, { type: "table", table: next });
+        for (const object of objects.values())
+          if (object.table === previous) object.table = next;
+      } else if (/^CREATE\b/.test(statement))
+        throw new Error("Bundled schema object is unclassified");
+    }
+  }
+  return objects;
+}
 export async function initializeDatabase(
   connection: SqlExecutor,
   hashFunction: HashFunction,
   prepareData?: MigrationDataHook,
   checkCurrent?: () => void,
+  admitReadOnly?: (version: number) => Promise<void>,
+): Promise<void> {
+  return processDatabase(
+    connection,
+    hashFunction,
+    prepareData,
+    checkCurrent,
+    admitReadOnly,
+  );
+}
+export async function verifyCurrentDatabase(
+  connection: SqlExecutor,
+  hashFunction: HashFunction,
+  checkCurrent?: () => void,
+): Promise<void> {
+  return processDatabase(
+    connection,
+    hashFunction,
+    undefined,
+    checkCurrent,
+    async (version) => {
+      if (version !== DATABASE_VERSION)
+        throw new Error("Current database schema is required");
+    },
+    true,
+  );
+}
+async function processDatabase(
+  connection: SqlExecutor,
+  hashFunction: HashFunction,
+  prepareData?: MigrationDataHook,
+  checkCurrent?: () => void,
+  admitReadOnly?: (version: number) => Promise<void>,
+  inspectionOnly = false,
 ): Promise<void> {
   const executor: SqlExecutor = checkCurrent
     ? {
@@ -85,7 +165,7 @@ export async function initializeDatabase(
     if (appliedVersion === 0) {
       const tables = (
         await executor.execute(
-          "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
+          "SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'",
           [],
         )
       ).rows;
@@ -115,13 +195,13 @@ export async function initializeDatabase(
           appliedVersion >= 9 && original.startsWith("CREATE ")
             ? migrations[8]?.statements.find((candidate) => {
                 const name =
-                  /^CREATE (?:UNIQUE )?(?:TABLE|INDEX) [`"]?([a-z_]+)/.exec(
+                  /^CREATE (?:UNIQUE )?(?:TABLE|INDEX|VIEW|TRIGGER) [`"]?([a-z_]+)/.exec(
                     original,
                   )?.[1];
                 return (
                   name &&
                   candidate.startsWith("CREATE ") &&
-                  /^CREATE (?:UNIQUE )?(?:TABLE|INDEX) [`"]?([a-z_]+)/.exec(
+                  /^CREATE (?:UNIQUE )?(?:TABLE|INDEX|VIEW|TRIGGER) [`"]?([a-z_]+)/.exec(
                     candidate,
                   )?.[1] === name
                 );
@@ -146,9 +226,10 @@ export async function initializeDatabase(
                 )
             : (replacement ?? original);
         if (!statement.startsWith("CREATE ")) continue;
-        const name = /^CREATE (?:UNIQUE )?(?:TABLE|INDEX) [`"]?([a-z_]+)/.exec(
-          statement,
-        )?.[1];
+        const name =
+          /^CREATE (?:UNIQUE )?(?:TABLE|INDEX|VIEW|TRIGGER) [`"]?([a-z_]+)/.exec(
+            statement,
+          )?.[1];
         if (!name) throw new Error("Invalid bundled schema migration");
         const actual = firstValue(
           (
@@ -185,8 +266,27 @@ export async function initializeDatabase(
     }
     if ((await executor.execute("PRAGMA foreign_key_check", [])).rows.length)
       throw new Error("Database ownership graph is corrupt");
+    const expected = expectedObjects(appliedVersion);
+    const objects = (
+      await executor.execute(
+        "SELECT type,name,tbl_name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'",
+        [],
+      )
+    ).rows;
+    if (
+      objects.length !== expected.size ||
+      objects.some(([type, name, table]) => {
+        const object =
+          typeof name === "string" ? expected.get(name) : undefined;
+        return !object || object.type !== type || object.table !== table;
+      })
+    )
+      throw new Error("Database schema contains unclassified objects");
+    if (appliedVersion >= 14) await verifyForeignKeyPolicy(executor);
   }
   await verify(version);
+  await admitReadOnly?.(version);
+  if (inspectionOnly) return;
   for (const migration of migrations.slice(version)) {
     const checksum = checksums[migration.version - 1];
     if (!checksum) throw new Error("Migration checksum is missing");

@@ -10,6 +10,8 @@ import {
 } from "./publication.ts";
 import type { PublicationResource } from "./publication-schemas.ts";
 import { validatePreparationSvg } from "./preparation-svg.ts";
+import type { PackageCollectionClaim } from "./package-catalog.ts";
+import { publicationCatalogLimits } from "./package-catalog.ts";
 
 export type PublicationMode = "fixture" | "publication";
 export type PublicationCancellation = Readonly<{ throwIfCancelled(): void }>;
@@ -29,8 +31,12 @@ export type PublicationNamespace = Readonly<{
   write(
     input: Readonly<{ path: string; bytes: Uint8Array; mediaType: string }>,
   ): Promise<void>;
+  erase?(claim: PackageCollectionClaim): Promise<void>;
 }>;
 export type PublicationResourcePorts = Readonly<{
+  inventory?(
+    input: Readonly<{ mode: PublicationMode }>,
+  ): Promise<readonly PublicationHash[]>;
   exclusive<T>(
     input: Readonly<{
       mode: PublicationMode;
@@ -46,6 +52,25 @@ export type PublicationResourcePorts = Readonly<{
     }>,
   ): Promise<PublicationResponse>;
 }>;
+export type CatalogPublicationResources = Omit<
+  PublicationResourcePorts,
+  "exclusive" | "inventory"
+> &
+  Readonly<{
+    inventory(
+      input: Readonly<{ mode: PublicationMode }>,
+    ): Promise<readonly PublicationHash[]>;
+    exclusive<T>(
+      input: Readonly<{
+        mode: PublicationMode;
+        hash: PublicationHash;
+        run(
+          namespace: PublicationNamespace &
+            Readonly<{ erase(claim: PackageCollectionClaim): Promise<void> }>,
+        ): Promise<T>;
+      }>,
+    ): Promise<T>;
+  }>;
 export type VerifiedPublicationClosure = Readonly<{
   kind: "verified-closure";
   mode: PublicationMode;
@@ -64,7 +89,7 @@ export type PublicationIntegrityReason =
   | "resource-integrity"
   | "svg-grammar";
 export type PublicationUnavailableReason =
-  "cache-access" | "download" | "stream" | "crypto" | "cancelled";
+  "cache-access" | "download" | "stream" | "crypto" | "cancelled" | "quota";
 export class PublicationResourceError extends Error {
   constructor(
     readonly failure:
@@ -87,6 +112,11 @@ async function unavailable<T>(
     return await run();
   } catch (error) {
     if (error instanceof PublicationResourceError) throw error;
+    if (error instanceof Error && error.name === "QuotaExceededError")
+      throw new PublicationResourceError({
+        kind: "unavailable",
+        reason: "quota",
+      });
     throw new PublicationResourceError({ kind: "unavailable", reason });
   }
 }
@@ -449,4 +479,69 @@ export async function withVerifiedPublicationClosure<T>(
       return { kind: "verified-callback", value };
     },
   });
+}
+
+export async function withVerifiedPublicationBatch<T>(
+  request: Omit<VerificationInput, "raw"> &
+    Readonly<{
+      envelopes: readonly Uint8Array[];
+      run(
+        values: readonly Readonly<{
+          raw: Uint8Array;
+          publication: VerifiedPublication;
+          namespace: PublicationNamespace;
+        }>[],
+      ): Promise<T>;
+    }>,
+): Promise<T> {
+  if (
+    !request.envelopes.length ||
+    request.envelopes.length > publicationCatalogLimits.namespaces
+  )
+    throw new Error("Publication batch exceeds its bounded contract");
+  const inputs = await Promise.all(
+    request.envelopes.map(async (raw) => {
+      const input = snapshot({ ...request, raw });
+      const publication = await integrity("envelope-integrity", () =>
+        verifyPublication(input),
+      );
+      inventory(publication);
+      return { input, publication };
+    }),
+  );
+  inputs.sort((a, b) => a.publication.hash.localeCompare(b.publication.hash));
+  if (
+    new Set(inputs.map((entry) => entry.publication.hash)).size !==
+    inputs.length
+  )
+    throw new Error("Publication batch repeats a namespace");
+  const held: {
+    raw: Uint8Array;
+    publication: VerifiedPublication;
+    namespace: PublicationNamespace;
+  }[] = [];
+  async function acquire(index: number): Promise<T> {
+    const entry = inputs[index];
+    if (!entry) return request.run(held);
+    return request.ports.exclusive({
+      mode: request.mode,
+      hash: entry.publication.hash,
+      run: async (namespace) => {
+        const result = await inspect(entry.input, entry.publication, namespace);
+        if (result.kind !== "verified-closure")
+          throw new PublicationResourceError(result);
+        held.push({
+          raw: entry.input.raw,
+          publication: result.publication,
+          namespace,
+        });
+        try {
+          return await acquire(index + 1);
+        } finally {
+          held.pop();
+        }
+      },
+    });
+  }
+  return acquire(0);
 }

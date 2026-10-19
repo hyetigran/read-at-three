@@ -10,12 +10,16 @@ import {
   parseInitialInstallCommand,
   parseParentMaterialRequest,
   parsePreparationPackage,
+  parseLessonFilesCommand,
+  lessonFilesIdentity,
+  assertLessonFilesEvidence,
 } from "@readatthree/teaching";
 import type {
   PublicationSelection,
   PublicationCheck,
   InitialInstallCommand,
   ParentMaterialRequest,
+  LessonFilesCommand,
 } from "@readatthree/teaching";
 import { hashText } from "./hash.ts";
 import { TeachingRecoveryError } from "@readatthree/react-integration";
@@ -151,6 +155,43 @@ export function createBrowserTeachingClient() {
     return response.value;
   }
   return {
+    async readLessonFiles() {
+      const ticket = connectionRevision;
+      const response = await request({ id: id(), kind: "readLessonFiles" });
+      if (response.kind !== "lessonFiles" || ticket !== connectionRevision)
+        throw new Error("Lesson files connection changed");
+      for (const saved of response.value.commands) {
+        const identity = await lessonFilesIdentity(saved.command, hashText);
+        if (
+          identity.payloadHash !== saved.receipt.payloadHash ||
+          ticket !== connectionRevision
+        )
+          throw new Error("Lesson files evidence changed");
+      }
+      return response.value;
+    },
+    async changeLessonFiles(input: LessonFilesCommand) {
+      const command = parseLessonFilesCommand(input),
+        ticket = connectionRevision;
+      const identity = await lessonFilesIdentity(command, hashText);
+      if (ticket !== connectionRevision)
+        throw new Error("Lesson files connection changed");
+      const response = await request({
+        id: id(),
+        kind: "changeLessonFiles",
+        command,
+      });
+      if (
+        response.kind !== "lessonFilesReceipt" ||
+        ticket !== connectionRevision ||
+        response.value.installationId !== command.installationId ||
+        response.value.commandId !== command.commandId ||
+        response.value.payloadHash !== identity.payloadHash
+      )
+        throw new Error("Lesson files reply changed its command identity");
+      assertLessonFilesEvidence(command, response.value);
+      return response.value;
+    },
     checkPublication: (target: PublicationSelection) =>
       publicationOperation("check", target),
     repairPublication: (target: PublicationSelection) =>
@@ -470,6 +511,8 @@ export type InkLifecycleClient = Omit<
   | "readPreparation"
   | "installations"
   | "initialInstall"
+  | "readLessonFiles"
+  | "changeLessonFiles"
   | "parentMaterial"
   | "checkPublication"
   | "repairPublication"

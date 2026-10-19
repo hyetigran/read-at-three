@@ -4,5 +4,6 @@ export type { SqlExecutor, SqlValue } from "./executor.ts";
 export { decodePersonalReceipt } from "./personal-receipt.ts";
 
 export { DATABASE_VERSION } from "./migration.ts";
+export { requireCollectionClaim } from "./collection-claims.ts";
 
 export type { TeachingApplicationOptions } from "./store.ts";
