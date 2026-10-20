@@ -784,10 +784,12 @@ export function createPackageCatalog({
         try {
           await continueCommand(saved.command, false);
         } catch {
-          observations.set(keyFor(saved.command), {
-            kind: "retryable",
-            reason: "interrupted",
-          });
+          const key = keyFor(saved.command);
+          if (observations.get(key)?.kind !== "retryable")
+            observations.set(key, {
+              kind: "retryable",
+              reason: "interrupted",
+            });
         }
       }
     await recoverFallback();

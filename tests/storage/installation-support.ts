@@ -208,6 +208,11 @@ export async function installationFixture(
         }>,
       ) => Promise<void>)
     | undefined;
+  let writeFailure: Readonly<{
+    hash: PublicationHash;
+    path: string;
+    error: Error;
+  }> | null = null;
   let downloads = 0,
     acquisitions = 0,
     hashFailure = false;
@@ -301,6 +306,11 @@ export async function installationFixture(
                 : undefined;
             },
             write: async ({ path, bytes, mediaType }) => {
+              if (
+                writeFailure?.hash === scopeHash &&
+                writeFailure.path === path
+              )
+                throw writeFailure.error;
               scoped.set(path, { bytes: Uint8Array.from(bytes), mediaType });
             },
           }),
@@ -510,6 +520,9 @@ export async function installationFixture(
     };
   }
   return {
+    setWriteFailure(value: typeof writeFailure) {
+      writeFailure = value;
+    },
     anotherRelease,
     acquisitionTargets,
     downloadTargets,

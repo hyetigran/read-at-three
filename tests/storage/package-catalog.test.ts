@@ -975,3 +975,71 @@ for (const variant of ["removed", "reordered", "identity"] as const)
       1,
     );
   });
+
+test("quota observation survives local reconciliation until the exact explicit Retry", async (t) => {
+  const f = await installationFixture(t),
+    first = f.connect();
+  await first.app.initialInstall(await f.command(first.app));
+  await f.until(first.app, "activated");
+  await confirmInitialProfile(first.app, f.ids, hash);
+  const before = first.db.prepare("SELECT * FROM profile").all();
+  const b = await f.anotherRelease("fixture.quota.b"),
+    second = f.connect(undefined, {
+      publicationHash: b.target,
+      releaseId: b.releaseId,
+    });
+  const view = await second.app.readLessonFiles();
+  assert.equal(view.offer.kind, "available");
+  if (view.offer.kind !== "available") return;
+  const command = parseLessonFilesCommand({
+    version: 1,
+    family: "lesson-files",
+    installationId: (await second.app.readDirectory()).administration
+      .installationId,
+    commandId: "quota-real-intent",
+    expected: view.activation,
+    action: { kind: "download", target: view.offer.target },
+  });
+  const error = new Error("Synthetic resource write fault");
+  error.name = "QuotaExceededError";
+  f.setWriteFailure({ hash: b.target, path: "curriculum.json", error });
+  await second.app.changeLessonFiles(command);
+  let observation;
+  for (let i = 0; i < 300; i++) {
+    const page = await second.app.readLessonFiles(),
+      saved = page.commands.find(
+        (item) => item.command.commandId === command.commandId,
+      );
+    if (saved?.observation.kind === "retryable") {
+      observation = saved.observation;
+      break;
+    }
+    await setImmediate();
+  }
+  assert.deepEqual(observation, { kind: "retryable", reason: "quota" });
+  for (let i = 0; i < 3; i++) {
+    const page = await second.app.readLessonFiles(),
+      saved = page.commands.find(
+        (item) => item.command.commandId === command.commandId,
+      );
+    assert.deepEqual(saved?.observation, {
+      kind: "retryable",
+      reason: "quota",
+    });
+    assert.equal(saved?.receipt.kind, "accepted");
+  }
+  assert.deepEqual(first.db.prepare("SELECT * FROM profile").all(), before);
+  f.setWriteFailure(null);
+  await second.app.changeLessonFiles(command);
+  await until(second.app, command.commandId, "ready");
+  const final = await second.app.readLessonFiles();
+  assert.equal(final.activation.kind, "present");
+  if (final.activation.kind !== "present") return;
+  assert.equal(final.activation.activePackageHash, f.target);
+  assert.deepEqual(
+    final.commands.find((item) => item.command.commandId === command.commandId)
+      ?.command,
+    command,
+  );
+  assert.deepEqual(first.db.prepare("SELECT * FROM profile").all(), before);
+});
