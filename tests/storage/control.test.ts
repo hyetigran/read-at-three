@@ -16,7 +16,12 @@ import type {
   SelectedTeachingOperation,
 } from "../../packages/teaching/src/index.ts";
 import { controlFixture } from "../teaching/control-fixture.ts";
-import { hash, storageFixture } from "./support.ts";
+import {
+  databaseSnapshot,
+  hash,
+  isReadOnlySqlAttempt,
+  storageFixture,
+} from "./support.ts";
 async function setup(t: Parameters<typeof storageFixture>[0]) {
   const oral = await controlFixture();
   const f = await storageFixture(t, oral.content);
@@ -365,11 +370,23 @@ test("reopen rejects missing, changed semantic action, changed hash, wrong check
         )
         .run(json, payloadHash, advanceId);
     }
-    assert.equal(
-      (await selectedProjection(f.connect().app)).kind,
-      "recovery",
+    const before = await databaseSnapshot(first.db),
+      attempts: string[] = [];
+    const cold = f.connect({
+      hook: async (sql, work) => {
+        attempts.push(sql);
+        return work();
+      },
+    });
+    await assert.rejects(
+      selectedProjection(cold.app),
+      /acceptance|accepting|queue|command|payload|checkpoint|package|run|Response unavailable/i,
       tamper,
     );
+    assert.ok(attempts.length > 0);
+    assert.ok(attempts.every(isReadOnlySqlAttempt), tamper);
+    assert.deepEqual(await databaseSnapshot(cold.db), before, tamper);
+
     assert.equal(accepted(first.db), 8);
     assert.equal(
       first.db.prepare("SELECT count(*) AS n FROM profile").get()?.n,

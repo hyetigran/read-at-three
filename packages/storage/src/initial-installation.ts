@@ -11,7 +11,6 @@ import {
   requireInstallMaterial,
   requireInstallationLease,
   UnsupportedInstallProfileError,
-  packageMetadata,
 } from "../../teaching/src/index.ts";
 import type {
   InitialInstallCommand,
@@ -30,7 +29,46 @@ import type { drizzle } from "drizzle-orm/sqlite-proxy";
 import { transaction } from "./migration.ts";
 import type { SqlExecutor } from "./executor.ts";
 import * as schema from "./schema.ts";
-import { equalBytes } from "./utf8.ts";
+import { registerSignedPackage } from "./installed-packages.ts";
+export async function readInstallationEvidence(
+  row: typeof schema.installationCommand.$inferSelect,
+  hash: HashFunction,
+) {
+  const saved = await initialInstallIdentity(
+    parseInitialInstallCommand(JSON.parse(row.command)),
+    hash,
+  );
+  const fact = parseInstallationFact(JSON.parse(row.result));
+  const key = parseHash({
+    kind: "package",
+    value: saved.command.target.publicationHash,
+  });
+  const registered =
+    fact.kind === "accepted" ? null : fact.registeredPackageHash;
+  const revision = fact.kind === "activated" ? fact.activationRevision : null;
+  if (
+    Number(row.commandVersion) !== 1 ||
+    Number(row.resultVersion) !== 1 ||
+    saved.preimage !== row.command ||
+    saved.payloadHash !== row.payloadHash ||
+    canonical(fact) !== row.result ||
+    fact.kind !== row.stage ||
+    fact.installationId !== row.installationId ||
+    fact.commandId !== row.commandId ||
+    fact.payloadHash !== row.payloadHash ||
+    registered !== row.registeredPackageHash ||
+    revision !== row.activatedRevision ||
+    (registered !== null && registered !== key) ||
+    (fact.kind === "accepted" && fact.targetPackageHash !== key)
+  )
+    throw new Error("Installation evidence is inconsistent");
+  return {
+    command: saved.command,
+    fact,
+    preimage: saved.preimage,
+    payloadHash: saved.payloadHash,
+  };
+}
 export function createInitialInstallation({
   db,
   executor,
@@ -130,34 +168,9 @@ export function createInitialInstallation({
         .all()
     )[0];
     if (!row) return null;
-    const saved = await identify(
-      parseInitialInstallCommand(JSON.parse(row.command)),
-    );
+    const saved = await readInstallationEvidence(row, hash);
     const requested = await identify(command);
-    const fact = parseInstallationFact(JSON.parse(row.result));
-    const key = parseHash({
-      kind: "package",
-      value: saved.command.target.publicationHash,
-    });
-    const registered =
-      fact.kind === "accepted" ? null : fact.registeredPackageHash;
-    const revision = fact.kind === "activated" ? fact.activationRevision : null;
-    if (
-      Number(row.commandVersion) !== 1 ||
-      Number(row.resultVersion) !== 1 ||
-      saved.preimage !== row.command ||
-      saved.payloadHash !== row.payloadHash ||
-      canonical(fact) !== row.result ||
-      fact.kind !== row.stage ||
-      fact.installationId !== row.installationId ||
-      fact.commandId !== row.commandId ||
-      fact.payloadHash !== row.payloadHash ||
-      registered !== row.registeredPackageHash ||
-      revision !== row.activatedRevision ||
-      (registered !== null && registered !== key) ||
-      (fact.kind === "accepted" && fact.targetPackageHash !== key)
-    )
-      throw new Error("Installation evidence is inconsistent");
+    const fact = saved.fact;
     if (
       requested.preimage !== saved.preimage ||
       requested.payloadHash !== saved.payloadHash
@@ -205,6 +218,35 @@ export function createInitialInstallation({
         )
         .run();
     else await db.insert(schema.installationCommand).values(values).run();
+    const ownerId = canonical([
+      "initialInstall",
+      command.installationId,
+      command.commandId,
+    ]);
+    if (fact.kind === "accepted" || fact.kind === "readyInactive") {
+      await db
+        .insert(schema.packageHold)
+        .values({
+          ownerKind: "pendingCommand",
+          ownerId,
+          packageHash: parseHash({
+            kind: "package",
+            value: command.target.publicationHash,
+          }),
+        })
+        .onConflictDoNothing()
+        .run();
+    } else {
+      await db
+        .delete(schema.packageHold)
+        .where(
+          and(
+            eq(schema.packageHold.ownerKind, "pendingCommand"),
+            eq(schema.packageHold.ownerId, ownerId),
+          ),
+        )
+        .run();
+    }
   }
   async function reject(
     command: InitialInstallCommand,
@@ -255,76 +297,13 @@ export function createInitialInstallation({
           value.body.courseId !== options.courseId
         )
           return reject(command, current.fact, "packageIdentityConflict");
-        const release = (
-          await db
-            .select()
-            .from(schema.installedPackage)
-            .where(
-              and(
-                eq(schema.installedPackage.courseId, value.body.courseId),
-                eq(schema.installedPackage.releaseId, value.body.releaseId),
-              ),
-            )
-            .all()
-        )[0];
-        if (release && release.packageHash !== value.key)
-          return reject(command, current.fact, "releaseIdentityConflict");
-        const base = (
-          await db
-            .select()
-            .from(schema.installedPackage)
-            .where(eq(schema.installedPackage.packageHash, value.key))
-            .all()
-        )[0];
-        if (base) {
-          const rep = (
-            await db
-              .select()
-              .from(schema.installedRepresentation)
-              .where(eq(schema.installedRepresentation.packageHash, value.key))
-              .all()
-          )[0];
-          if (
-            base.state !== "ready" ||
-            base.courseId !== value.body.courseId ||
-            base.releaseId !== value.body.releaseId ||
-            !equalBytes(base.verifiedManifest, material.envelope) ||
-            !rep ||
-            rep.kind !== "signed-v1" ||
-            rep.mode !== options.mode ||
-            !rep.curriculumUtf8 ||
-            !equalBytes(rep.curriculumUtf8, material.curriculum) ||
-            !rep.preparationUtf8 ||
-            !equalBytes(rep.preparationUtf8, material.preparationBytes)
-          )
-            return reject(command, current.fact, "packageIdentityConflict");
-        } else {
-          const metadata = packageMetadata(value.document);
-          await db
-            .insert(schema.installedPackage)
-            .values({
-              packageHash: value.key,
-              courseId: value.body.courseId,
-              releaseId: value.body.releaseId,
-              contentSchemaVersion: metadata.contentSchemaVersion,
-              capabilities: canonical(metadata.capabilities),
-              manifestVersion: 1,
-              verifiedManifest: material.envelope,
-              state: "ready",
-              storageKey: value.key,
-            })
-            .run();
-          await db
-            .insert(schema.installedRepresentation)
-            .values({
-              packageHash: value.key,
-              kind: "signed-v1",
-              mode: options.mode,
-              curriculumUtf8: material.curriculum,
-              preparationUtf8: material.preparationBytes,
-            })
-            .run();
-        }
+        const registered = await registerSignedPackage({
+          db,
+          material,
+          mode: options.mode,
+        });
+        if (registered !== "registered")
+          return reject(command, current.fact, registered);
         live();
         const fact = parseInstallationFact({
           version: 1,
@@ -502,6 +481,21 @@ export function createInitialInstallation({
       await initialize();
       const old = await retained(command);
       if (old) return old;
+      const catalog = await db
+        .select()
+        .from(schema.lessonFilesCommand)
+        .where(
+          and(
+            eq(
+              schema.lessonFilesCommand.installationId,
+              command.installationId,
+            ),
+            eq(schema.lessonFilesCommand.commandId, command.commandId),
+          ),
+        )
+        .all();
+      if (catalog.length)
+        throw new Error("Command identity belongs to lesson files");
       live();
       if (command.installationId !== (await installationId()))
         throw new Error("Installation identity changed");

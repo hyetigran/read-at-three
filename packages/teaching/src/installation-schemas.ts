@@ -184,6 +184,7 @@ const contentUnavailable = [
   "stream",
   "crypto",
   "cancelled",
+  "quota",
 ] as const;
 const shellCorruption = [
   "descriptor",
@@ -263,6 +264,150 @@ export type RawInstalledResourceFailure = JTDDataType<
   typeof installedResourceFailureSchema
 >;
 
+const lessonFilesTargetSchema = {
+  properties: {
+    publicationHash: string,
+    courseId: string,
+    releaseId: string,
+    mode: { enum: publicationModes },
+  },
+} satisfies SomeJTDSchemaType;
+const downloadReferenceSchema = {
+  properties: {
+    installationId: string,
+    commandId: string,
+    payloadHash: string,
+  },
+} satisfies SomeJTDSchemaType;
+const lessonFilesFamily: "lesson-files"[] = ["lesson-files"];
+export const lessonFilesCommandSchema = {
+  properties: {
+    version: { type: "uint8" },
+    family: { enum: lessonFilesFamily },
+    installationId: string,
+    commandId: string,
+    expected: activationWitnessSchema,
+    action: {
+      discriminator,
+      mapping: {
+        download: { properties: { target: lessonFilesTargetSchema } },
+        use: {
+          properties: {
+            target: lessonFilesTargetSchema,
+            ready: downloadReferenceSchema,
+          },
+        },
+        cancel: { properties: { download: downloadReferenceSchema } },
+      },
+    },
+  },
+} satisfies SomeJTDSchemaType;
+const lessonFilesIdentity = {
+  ...identity,
+  family: { enum: lessonFilesFamily },
+};
+const lessonFilesRejections: (
+  "staleActivation" | "incompatible" | "cancelled" | "conflict"
+)[] = ["staleActivation", "incompatible", "cancelled", "conflict"];
+export const lessonFilesReceiptSchema = {
+  discriminator,
+  mapping: {
+    accepted: {
+      properties: { ...lessonFilesIdentity, target: lessonFilesTargetSchema },
+    },
+    ready: {
+      properties: {
+        ...lessonFilesIdentity,
+        target: lessonFilesTargetSchema,
+        packageHash: string,
+      },
+    },
+    activated: {
+      properties: {
+        ...lessonFilesIdentity,
+        packageHash: string,
+        activationRevision: string,
+      },
+    },
+    cancelled: {
+      properties: { ...lessonFilesIdentity, download: downloadReferenceSchema },
+    },
+    rejected: {
+      properties: {
+        ...lessonFilesIdentity,
+        reason: { enum: lessonFilesRejections },
+      },
+    },
+  },
+} satisfies SomeJTDSchemaType;
+export type RawLessonFilesCommand = JTDDataType<
+  typeof lessonFilesCommandSchema
+>;
+export type RawLessonFilesReceipt = JTDDataType<
+  typeof lessonFilesReceiptSchema
+>;
+const packageRoles: ("active" | "fallback" | "historical" | "inactive")[] = [
+  "active",
+  "fallback",
+  "historical",
+  "inactive",
+];
+const packageBytes: (
+  "unchecked" | "verified" | "missing" | "corrupt" | "metadataOnly"
+)[] = ["unchecked", "verified", "missing", "corrupt", "metadataOnly"];
+const acquisitionReasons: ("unavailable" | "quota" | "interrupted")[] = [
+  "unavailable",
+  "quota",
+  "interrupted",
+];
+export const lessonFilesViewSchema = {
+  properties: {
+    activation: activationWitnessSchema,
+    offer: {
+      discriminator,
+      mapping: {
+        absent: { properties: {} },
+        available: { properties: { target: lessonFilesTargetSchema } },
+        ready: {
+          properties: {
+            target: lessonFilesTargetSchema,
+            packageHash: string,
+            receipt: downloadReferenceSchema,
+          },
+        },
+      },
+    },
+    commands: {
+      elements: {
+        properties: {
+          command: lessonFilesCommandSchema,
+          receipt: lessonFilesReceiptSchema,
+          observation: {
+            discriminator,
+            mapping: {
+              idle: { properties: {} },
+              acquiring: { properties: {} },
+              retryable: {
+                properties: { reason: { enum: acquisitionReasons } },
+              },
+            },
+          },
+        },
+      },
+    },
+    packages: {
+      elements: {
+        properties: {
+          packageHash: string,
+          role: { enum: packageRoles },
+          bytes: { enum: packageBytes },
+        },
+      },
+    },
+  },
+} satisfies SomeJTDSchemaType;
+export type RawLessonFilesView = JTDDataType<typeof lessonFilesViewSchema>;
+
 export const installationValidationSchemas = {
   validatePublicationSelection: publicationSelectionSchema,
   validatePublicationCheck: publicationCheckSchema,
@@ -274,6 +419,9 @@ export const installationValidationSchemas = {
   validateInitialInstallCommand: initialInstallCommandSchema,
   validateInstallationFact: installationFactSchema,
   validateParentMaterialRequest: parentMaterialRequestSchema,
+  validateLessonFilesCommand: lessonFilesCommandSchema,
+  validateLessonFilesReceipt: lessonFilesReceiptSchema,
+  validateLessonFilesView: lessonFilesViewSchema,
 };
 export type RawInitialInstallCommand = JTDDataType<
   typeof initialInstallCommandSchema

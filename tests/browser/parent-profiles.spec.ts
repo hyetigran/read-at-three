@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
+import { DATABASE_VERSION } from "@readatthree/storage";
 import {
   parsePreparationAvailability,
   prepareProfileAdministration,
@@ -1265,7 +1266,7 @@ test("parent support displays bounded local metadata and whole-origin estimates 
   expect(JSON.parse(text)).toMatchObject({
     version: 1,
     persistence: "durable",
-    metadata: { versions: { database: 13, inkCodec: 1 } },
+    metadata: { versions: { database: DATABASE_VERSION, inkCodec: 1 } },
     browserWholeOriginEstimate: { scope: "origin" },
   });
   expect(await directory(page)).toEqual(before);

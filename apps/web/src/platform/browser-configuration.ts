@@ -21,6 +21,10 @@ export type BrowserConfiguration =
         publicationHash: PublicationHash;
         releaseId: ReleaseId;
       }> | null;
+      offer?: Readonly<{
+        publicationHash: PublicationHash;
+        releaseId: ReleaseId;
+      }>;
     }>;
 
 declare const __READING_BROWSER_CONFIGURATION__: BrowserConfiguration;

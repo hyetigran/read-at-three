@@ -13,7 +13,7 @@ import {
 } from "@readatthree/teaching";
 import type { SelectedTeachingOperation } from "@readatthree/teaching";
 import { profileFixture } from "./profile-support.ts";
-import { hash } from "./support.ts";
+import { databaseSnapshot, hash, isReadOnlySqlAttempt } from "./support.ts";
 
 test("an accepted A operation remains retired after A to B to A, and fresh switch-back Undo executes", async (t) => {
   const content = await parseDevelopmentPackage(
@@ -331,48 +331,33 @@ test("retired teaching recovery cannot execute a missing command and resolves an
   assert.notDeepEqual(directory.selection.owner, ownerA);
 });
 
-test("canonical teaching corruption permits only validated selected recovery discovery with no further writes", async (t) => {
-  const fixture = await profileFixture(t);
-  let recorded: string[] | null = null;
-  const first = fixture.connect();
+test("canonical teaching corruption refuses selected recovery discovery before persistent writes", async (t) => {
+  const fixture = await profileFixture(t),
+    first = fixture.connect();
   await fixture.setup(first.app);
   await fixture.start(first.app);
+  const selection = (await first.app.readDirectory()).selection;
   first.db.exec("DELETE FROM course_cursor");
+  const before = await databaseSnapshot(first.db);
   first.db.close();
+  const recorded: string[] = [];
   const reopened = fixture.connect({
     hook: async (sql, work) => {
-      recorded?.push(sql);
+      recorded.push(sql);
       return work();
     },
   });
-  await assert.rejects(reopened.app.openRecovery({ kind: "cold" }));
-  const before = reopened.db
-    .prepare("SELECT * FROM task_run ORDER BY run_id")
-    .all();
-  recorded = [];
-  const directory = await reopened.app.readDirectory();
-  const read = await reopened.app.readApplication({
-    selection: directory.selection,
-    target: { kind: "cursor" },
-  });
-  assert.equal(read.application.kind, "recovery");
-  assert.deepEqual(read.directory, directory);
-  await assert.rejects(
-    reopened.app.readDeparture({ selection: directory.selection }),
-  );
-  await assert.rejects(reopened.app.openRecovery({ kind: "cold" }));
-  assert.equal(
-    recorded.some((sql) =>
-      /^(?:INSERT|UPDATE|DELETE|REPLACE|BEGIN|COMMIT|CREATE|ALTER)/i.test(
-        sql.trim(),
-      ),
-    ),
-    false,
-  );
-  assert.deepEqual(
-    reopened.db.prepare("SELECT * FROM task_run ORDER BY run_id").all(),
-    before,
-  );
+  for (const read of [
+    () => reopened.app.openRecovery({ kind: "cold" }),
+    () => reopened.app.readDirectory(),
+    () =>
+      reopened.app.readApplication({ selection, target: { kind: "cursor" } }),
+    () => reopened.app.readDeparture({ selection }),
+  ])
+    await assert.rejects(read(), /Saved teaching is missing its resume cursor/);
+  assert.ok(recorded.length > 0);
+  assert.ok(recorded.every(isReadOnlySqlAttempt));
+  assert.deepEqual(await databaseSnapshot(reopened.db), before);
 });
 
 for (const substitutedTask of ["fixture.task", "fixture.graph.l01.t04"]) {

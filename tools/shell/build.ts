@@ -87,6 +87,7 @@ const schema = {
         initialTarget: {
           properties: { publicationHash: text, releaseId: text },
         },
+        offer: { properties: { publicationHash: text, releaseId: text } },
       },
     },
     publicationApprovals: {
@@ -137,6 +138,19 @@ export function parseShellBuildConfiguration(raw: unknown) {
           }),
         }
       : null,
+    ...(raw.installation.offer
+      ? {
+          offer: {
+            publicationHash: parsePublicationHash(
+              raw.installation.offer.publicationHash,
+            ),
+            releaseId: parseId({
+              kind: "release",
+              value: raw.installation.offer.releaseId,
+            }),
+          },
+        }
+      : {}),
   };
   return { config: raw, browser };
 }

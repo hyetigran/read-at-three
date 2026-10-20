@@ -1,3 +1,5 @@
+import { declarePackageColumn } from "./package-references.ts";
+import type { PackageColumnRule } from "./package-references.ts";
 import {
   check,
   customType,
@@ -45,7 +47,10 @@ const lessonId = identity("lesson");
 const taskId = identity("task");
 const receiptScopeId = identity<"profile" | "session" | "document">("profile");
 const scopeTargetId = identity<"lesson" | "task">("lesson");
-const packageHash = hashed("package");
+const packageHash = (name: string, rule: PackageColumnRule) => {
+  declarePackageColumn(name, rule);
+  return hashed("package")(name);
+};
 const payloadHash = hashed("payload");
 const preparationHash = hashed("preparation");
 const migrationId = identity("migration");
@@ -259,7 +264,10 @@ function installedPackageTable(version: 1 | 2 | 3 | 4) {
   return sqliteTable(
     "installed_package",
     {
-      packageHash: packageHash("package_hash").primaryKey(),
+      packageHash: packageHash("package_hash", {
+        table: "installed_package",
+        role: "metadata",
+      }).primaryKey(),
       courseId: courseId("course_id").notNull(),
       releaseId: releaseId("release_id").notNull(),
       contentSchemaVersion: integer("content_schema_version").notNull(),
@@ -305,8 +313,14 @@ export const courseActivation = sqliteTable(
   "course_activation",
   {
     courseId: courseId("course_id").primaryKey(),
-    activePackageHash: packageHash("active_package_hash").notNull(),
-    fallbackPackageHash: packageHash("fallback_package_hash"),
+    activePackageHash: packageHash("active_package_hash", {
+      table: "course_activation",
+      role: "root",
+    }).notNull(),
+    fallbackPackageHash: packageHash("fallback_package_hash", {
+      table: "course_activation",
+      role: "root",
+    }),
     revision: counter("revision").notNull(),
   },
   (table) => [
@@ -355,7 +369,10 @@ export const session = sqliteTable(
     profileId: profileId("profile_id").notNull(),
     generation: counter("generation").notNull(),
     courseId: courseId("course_id").notNull(),
-    packageHash: packageHash("package_hash").notNull(),
+    packageHash: packageHash("package_hash", {
+      table: "session",
+      role: "root",
+    }).notNull(),
     lessonId: lessonId("lesson_id").notNull(),
     taskId: taskId("task_id").notNull(),
     currentRunId: runId("current_run_id").notNull(),
@@ -433,7 +450,10 @@ export const taskRunV6 = sqliteTable(
     profileId: profileId("profile_id").notNull(),
     generation: counter("generation").notNull(),
     courseId: courseId("course_id").notNull(),
-    packageHash: packageHash("package_hash").notNull(),
+    packageHash: packageHash("package_hash", {
+      table: "task_run",
+      role: "root",
+    }).notNull(),
     lessonId: lessonId("lesson_id").notNull(),
     taskId: taskId("task_id").notNull(),
     ordinal: counter("ordinal").notNull(),
@@ -483,7 +503,10 @@ export const taskRun = sqliteTable(
     profileId: profileId("profile_id").notNull(),
     generation: counter("generation").notNull(),
     courseId: courseId("course_id").notNull(),
-    packageHash: packageHash("package_hash").notNull(),
+    packageHash: packageHash("package_hash", {
+      table: "task_run",
+      role: "root",
+    }).notNull(),
     lessonId: lessonId("lesson_id").notNull(),
     taskId: taskId("task_id").notNull(),
     ordinal: counter("ordinal").notNull(),
@@ -812,7 +835,10 @@ export const taskCredit = sqliteTable(
     sessionId: sessionId("session_id").notNull(),
     runId: runId("run_id").notNull(),
     terminalAdvanceId: advanceId("terminal_advance_id").notNull(),
-    packageHash: packageHash("package_hash").notNull(),
+    packageHash: packageHash("package_hash", {
+      table: "task_credit",
+      role: "root",
+    }).notNull(),
     outcome: text("outcome", { enum: ["completed", "skipped"] }).notNull(),
     status: text("status", { enum: ["valid", "withdrawn"] }).notNull(),
     receiptVersion: integer("receipt_version").notNull(),
@@ -933,7 +959,10 @@ export const inkDocument = sqliteTable(
     profileId: profileId("profile_id").notNull(),
     generation: counter("generation").notNull(),
     courseId: courseId("course_id").notNull(),
-    packageHash: packageHash("package_hash").notNull(),
+    packageHash: packageHash("package_hash", {
+      table: "ink_document",
+      role: "root",
+    }).notNull(),
     lessonId: lessonId("lesson_id").notNull(),
     taskId: taskId("task_id").notNull(),
     targetId: targetId("target_id").notNull(),
@@ -1155,7 +1184,10 @@ export const lessonCredit = sqliteTable(
     generation: counter("generation").notNull(),
     courseId: courseId("course_id").notNull(),
     lessonId: lessonId("lesson_id").notNull(),
-    packageHash: packageHash("package_hash").notNull(),
+    packageHash: packageHash("package_hash", {
+      table: "lesson_credit",
+      role: "root",
+    }).notNull(),
     status: text("status", { enum: ["valid", "withdrawn"] }).notNull(),
     receiptVersion: integer("receipt_version").notNull(),
     receipt: text("receipt").notNull(),
@@ -1307,7 +1339,10 @@ export const localDiagnostics = sqliteTable(
 export const installedRepresentation = sqliteTable(
   "installed_representation",
   {
-    packageHash: packageHash("package_hash").primaryKey(),
+    packageHash: packageHash("package_hash", {
+      table: "installed_representation",
+      role: "metadata",
+    }).primaryKey(),
     kind: text("kind", { enum: ["development-v1", "signed-v1"] }).notNull(),
     mode: text("mode", { enum: ["fixture", "publication"] }),
     curriculumUtf8: bytes("curriculum_utf8"),
@@ -1338,7 +1373,10 @@ export const installationCommand = sqliteTable(
       enum: ["accepted", "readyInactive", "activated", "rejected"],
     }).notNull(),
     result: text("result").notNull(),
-    registeredPackageHash: packageHash("registered_package_hash"),
+    registeredPackageHash: packageHash("registered_package_hash", {
+      table: "installation_command",
+      role: "pending",
+    }),
     activatedRevision: counter("activated_revision"),
   },
   (table) => [
@@ -1379,5 +1417,90 @@ export const installationCommand = sqliteTable(
       "installation_result_mirrors",
       sql`coalesce(json_extract(result,'$.installationId')=installation_id AND json_extract(result,'$.commandId')=command_id AND json_extract(result,'$.payloadHash')=payload_hash AND json_extract(result,'$.version')=result_version AND json_extract(result,'$.kind')=stage,0)`,
     ),
+  ],
+);
+
+export const lessonFilesCommand = sqliteTable(
+  "lesson_files_command",
+  {
+    installationId: installationId("installation_id").notNull(),
+    commandId: commandId("command_id").notNull(),
+    commandVersion: integer("command_version").notNull(),
+    command: text("command").notNull(),
+    payloadHash: payloadHash("payload_hash").notNull(),
+    resultVersion: integer("result_version").notNull(),
+    stage: text("stage", {
+      enum: ["accepted", "ready", "activated", "cancelled", "rejected"],
+    }).notNull(),
+    result: text("result").notNull(),
+    downloadState: text("download_state", {
+      enum: ["pending", "used", "cancelled"],
+    }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.installationId, table.commandId] }),
+    foreignKey({
+      columns: [table.installationId],
+      foreignColumns: [installation.id],
+    }),
+    hash("payload_hash"),
+    check("lesson_files_command_version", sql`command_version=1`),
+    check("lesson_files_result_version", sql`result_version=1`),
+    check("lesson_files_command_json", sql`json_valid(command)`),
+    check("lesson_files_result_json", sql`json_valid(result)`),
+    check(
+      "lesson_files_stage",
+      sql`stage IN ('accepted','ready','activated','cancelled','rejected')`,
+    ),
+    check(
+      "lesson_files_download_state",
+      sql`download_state IS NULL OR download_state IN ('pending','used','cancelled')`,
+    ),
+  ],
+);
+
+export const packageHold = sqliteTable(
+  "package_hold",
+  {
+    ownerKind: text("owner_kind", {
+      enum: ["pendingCommand", "rollback", "export", "restore"],
+    }).notNull(),
+    ownerId: text("owner_id").notNull(),
+    packageHash: packageHash("package_hash", {
+      table: "package_hold",
+      role: "root",
+    }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.ownerKind, table.ownerId, table.packageHash],
+    }),
+    hash("package_hash"),
+    check(
+      "package_hold_owner_kind",
+      sql`owner_kind IN ('pendingCommand','rollback','export','restore')`,
+    ),
+    check(
+      "package_hold_owner_id",
+      sql`length(owner_id)>0 AND length(owner_id)<=4096 AND json_valid(owner_id)`,
+    ),
+    index("package_hold_target").on(table.packageHash),
+  ],
+);
+
+export const packageCollection = sqliteTable(
+  "package_collection",
+  {
+    packageHash: packageHash("package_hash", {
+      table: "package_collection",
+      role: "metadata",
+    }).primaryKey(),
+    revision: counter("revision").notNull(),
+    state: text("state", { enum: ["collecting", "complete"] }).notNull(),
+  },
+  () => [
+    hash("package_hash"),
+    nonnegative("revision"),
+    check("package_collection_state", sql`state IN ('collecting','complete')`),
   ],
 );

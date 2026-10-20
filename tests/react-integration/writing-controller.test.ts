@@ -1,3 +1,4 @@
+import { DATABASE_VERSION } from "../../packages/storage/src/index.ts";
 import { syntheticPlanEnvelope, hash } from "../lesson-two-fixture.ts";
 import { parseRuntimePackage, canonical } from "@readatthree/teaching";
 import { readEnvelope } from "./support.ts";
@@ -982,8 +983,11 @@ test("ordinary cold opening retains actual stored recovery through one held Retr
 test("failed cold opening exposes recovery without teaching or input and retries through the real replacement connection", async (t) => {
   const f = await controllerFixture(t, { deferOpen: true });
   const before = f.db.prepare("SELECT * FROM task_run ORDER BY run_id").all();
-  assert.equal(f.db.prepare("PRAGMA user_version").get()?.user_version, 13);
-  f.db.exec("PRAGMA user_version=14");
+  assert.equal(
+    f.db.prepare("PRAGMA user_version").get()?.user_version,
+    DATABASE_VERSION,
+  );
+  f.db.exec(`PRAGMA user_version=${DATABASE_VERSION + 1}`);
   f.lose();
   await f.controller.open();
   const state = f.controller.getState();
@@ -997,8 +1001,11 @@ test("failed cold opening exposes recovery without teaching or input and retries
     f.db.prepare("SELECT * FROM task_run ORDER BY run_id").all(),
     before,
   );
-  assert.equal(f.db.prepare("PRAGMA user_version").get()?.user_version, 14);
-  f.db.exec("PRAGMA user_version=13");
+  assert.equal(
+    f.db.prepare("PRAGMA user_version").get()?.user_version,
+    DATABASE_VERSION + 1,
+  );
+  f.db.exec(`PRAGMA user_version=${DATABASE_VERSION}`);
   f.lose();
   await f.controller.retry();
   assert.equal(f.controller.getState().operation.kind, "idle");

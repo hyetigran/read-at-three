@@ -451,3 +451,23 @@
   padding: 16px;
   font-size: 14px;
 }
+.parent-file-list {
+  display: grid;
+  gap: 16px;
+  padding: 0;
+  list-style: none;
+}
+.parent-file-list li {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+.parent-file-list button + button {
+  margin-left: 12px;
+}
+
+.parent-screen .parent-lesson-files {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}

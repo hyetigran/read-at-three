@@ -121,6 +121,9 @@ function ApplicationShell() {
   const installationCommand = useRef<
     import("@readatthree/teaching").InitialInstallCommand | null
   >(null);
+  const lessonFilesCommand = useRef<
+    import("@readatthree/teaching").LessonFilesCommand | null
+  >(null);
   const connectionObservation = useSyncExternalStore(
     client.subscribeConnection,
     client.connectionState,
@@ -297,6 +300,8 @@ function ApplicationShell() {
         displayName: profile.preferences.displayName ?? "",
       };
     if (location.pathname === "/parent/support") return { kind: "support" };
+    if (location.pathname === "/parent/lesson-files")
+      return { kind: "lessonFiles" };
     if (location.pathname === "/parent/preparation")
       return { kind: "preparation", continuation: "return" };
     if (location.pathname === "/parent/profiles/new")
@@ -308,6 +313,7 @@ function ApplicationShell() {
         "/parent/profiles",
         "/parent/preparation",
         "/parent/support",
+        "/parent/lesson-files",
       ].includes(location.pathname)
     )
       return { kind: "unavailable" };
@@ -1024,6 +1030,11 @@ function ApplicationShell() {
         packageHash={read.witness.activePackageHash}
         busy={busy || saveError !== null}
         readDiagnostics={client.readDiagnostics}
+        lessonFiles={{
+          client,
+          retained: lessonFilesCommand,
+          onChanged: () => controller.reopen(),
+        }}
         onGrant={() => {
           const visit = visitRef.current;
           if (

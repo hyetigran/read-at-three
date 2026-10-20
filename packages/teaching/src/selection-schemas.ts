@@ -5,6 +5,9 @@ import {
   initialInstallCommandSchema,
   parentMaterialRequestSchema,
   parentMaterialWireSchema,
+  lessonFilesCommandSchema,
+  lessonFilesReceiptSchema,
+  lessonFilesViewSchema,
 } from "./installation-schemas.ts";
 import type { JTDDataType, SomeJTDSchemaType } from "ajv/dist/jtd.js";
 import {
@@ -165,6 +168,10 @@ export const selectionValidationSchemas = {
       },
       readDirectory: { properties: { id: string } },
       installations: { properties: { id: string } },
+      readLessonFiles: { properties: { id: string } },
+      changeLessonFiles: {
+        properties: { id: string, command: lessonFilesCommandSchema },
+      },
       checkPublication: {
         properties: { id: string, input: publicationSelectionSchema },
       },
@@ -207,6 +214,10 @@ export const selectionValidationSchemas = {
     mapping: {
       directory: { properties: { id: string, value: {} } },
       installationCatalog: { properties: { id: string, value: {} } },
+      lessonFiles: { properties: { id: string, value: lessonFilesViewSchema } },
+      lessonFilesReceipt: {
+        properties: { id: string, value: lessonFilesReceiptSchema },
+      },
       publicationCheck: {
         properties: {
           id: string,

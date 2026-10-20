@@ -1,4 +1,3 @@
-import { syntheticLessonSixCourse } from "../lesson-six-fixture.ts";
 import {
   prepareSelectedInk,
   executeInk,
@@ -14,13 +13,13 @@ import type {
   DocumentToken,
   InkEdit,
 } from "../../packages/teaching/src/index.ts";
-import { ShellError } from "../../packages/teaching/src/shell.ts";
+
 import {
   InstalledContentUnavailableError,
   parseRuntimePackage,
 } from "../../packages/teaching/src/index.ts";
 import { syntheticPreparation } from "./selected-support.ts";
-import { AsyncLocalStorage } from "node:async_hooks";
+
 import {
   confirmInitialProfile,
   selectedProjection,
@@ -40,16 +39,8 @@ import type {
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import {
-  createHash,
-  generateKeyPairSync,
-  sign,
-  verify,
-  createPublicKey,
-} from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { createHash } from "node:crypto";
+
 import { setImmediate } from "node:timers/promises";
 import { createTeachingApplication } from "../../packages/storage/src/store.ts";
 import { parseInitialInstallCommand } from "../../packages/teaching/src/installation.ts";
@@ -58,480 +49,18 @@ import {
   parseId,
   parseHash,
 } from "../../packages/teaching/src/identity.ts";
-import {
-  parsePublicationHash,
-  publicationUtf8,
-} from "../../packages/teaching/src/publication.ts";
-import type {
-  PublicationCrypto,
-  PublicationHash,
-} from "../../packages/teaching/src/publication.ts";
-import type {
-  PublicationResourcePorts,
-  PublicationResponse,
-} from "../../packages/teaching/src/publication-resources.ts";
+import { publicationUtf8 } from "../../packages/teaching/src/publication.ts";
+import type { PublicationHash } from "../../packages/teaching/src/publication.ts";
+
 import {
   packageMetadata,
   resolvedLessons,
 } from "../../packages/teaching/src/course-content.ts";
-import { syntheticPrintedCourse } from "../printed-board-fixture.ts";
+
 import { executorFor, hash } from "./support.ts";
-import type { SqlHook } from "./support.ts";
-async function fixture(
-  t: { after(fn: () => Promise<void>): void },
-  profile:
-    | "complete"
-    | "completeLessons"
-    | "missingRole"
-    | "unsupportedDocument"
-    | "unsupportedCurriculum" = "complete",
-) {
-  const directory = await mkdtemp(join(tmpdir(), "reading-install-"));
-  const path = join(directory, "reading.sqlite");
-  const connections: DatabaseSync[] = [];
-  t.after(async () => {
-    for (const db of connections) if (db.isOpen) db.close();
-    await rm(directory, { recursive: true, force: true });
-  });
-  const { content } =
-    profile === "completeLessons"
-      ? await syntheticLessonSixCourse()
-      : await syntheticPrintedCourse();
-  const curriculum = publicationUtf8(
-    JSON.stringify(
-      profile === "unsupportedCurriculum"
-        ? { ...content, formatVersion: 2 }
-        : content,
-      null,
-      2,
-    ),
-  );
-  const added = (text: string) => ({
-    copy: { kind: "added", text },
-    marks: [],
-  });
-  const provenance = {
-    kind: "synthetic",
-    reviewId: "fixture.install.review",
-    compositionHash: await hash("Neutral installation"),
-    reviews: [],
-    sources: [],
-  };
-  const preparationBody = {
-    documentId: "fixture.install.preparation",
-    title: added("Neutral parent preparation"),
-    reviewHash: await hash(canonical(provenance)),
-    provenance,
-    sections: [
-      {
-        id: "fixture.intro",
-        title: added("Prepare"),
-        blocks: [
-          {
-            kind: "paragraph",
-            id: "fixture.direction",
-            role: "guidance",
-            content: added("Synthetic instructions."),
-          },
-        ],
-      },
-    ],
-    assets: [],
-  };
-  const preparation = publicationUtf8(
-    JSON.stringify(
-      {
-        formatVersion: profile === "unsupportedDocument" ? 2 : 1,
-        body: preparationBody,
-        preparationHash: await hash(canonical(preparationBody)),
-        assets: [],
-      },
-      null,
-      2,
-    ),
-  );
-  const digest = (bytes: Uint8Array) =>
-    createHash("sha256").update(bytes).digest();
-  const pair = generateKeyPairSync("ed25519");
-  const key = {
-    id: "fixture.install.key",
-    spki: Uint8Array.from(
-      pair.publicKey.export({ type: "spki", format: "der" }),
-    ),
-  };
-  const crypto: PublicationCrypto = {
-    sha256: async (bytes) => digest(bytes),
-    verifyEd25519: async ({ spki, message, signature }) =>
-      verify(
-        null,
-        message,
-        createPublicKey({
-          key: Buffer.from(spki),
-          format: "der",
-          type: "spki",
-        }),
-        signature,
-      ),
-  };
-  const metadata = packageMetadata(content);
-  const body = {
-    courseId: content.body.courseId,
-    releaseId: content.body.releaseId,
-    contentSchemaVersion: metadata.contentSchemaVersion,
-    requiredEngineCapabilities: [...metadata.capabilities],
-    lessonIds: resolvedLessons(content).map((lesson) => lesson.lessonId),
-    curriculum: {
-      path: "curriculum.json",
-      sha256: digest(curriculum).toString("hex"),
-      byteLength: curriculum.length,
-      mediaType: "application/json",
-    },
-    assets:
-      profile === "missingRole"
-        ? []
-        : [
-            {
-              assetId: "parent-preparation-v1",
-              path: "preparation.json",
-              sha256: digest(preparation).toString("hex"),
-              byteLength: preparation.length,
-              mediaType: "application/json",
-            },
-          ],
-    sourceReviewManifestHash: "a".repeat(64),
-    compatibilityMappings: [],
-    progressMappings: [],
-  };
-  const unsigned = {
-    formatVersion: 1,
-    body,
-    packageHash: await hash(canonical(body)),
-    signingKeyId: key.id,
-  };
-  const envelope = publicationUtf8(
-    canonical({
-      ...unsigned,
-      signature: sign(
-        null,
-        publicationUtf8(canonical(unsigned)),
-        pair.privateKey,
-      ).toString("base64url"),
-    }),
-  );
-  const target = parsePublicationHash(unsigned.packageHash);
-  const envelopes = new Map<string, Uint8Array>([[target, envelope]]);
-  const files = new Map([
-    ["curriculum.json", curriculum],
-    ["preparation.json", preparation],
-  ]);
-  const cache = new Map<string, { bytes: Uint8Array; mediaType: string }>();
-  const namespaces = new Map<string, typeof cache>([[target, cache]]);
-  const acquisitionTargets: PublicationHash[] = [];
-  const downloadTargets: { hash: PublicationHash; path: string }[] = [];
-  const heldContent = new AsyncLocalStorage<boolean>();
-  let resourceTail = Promise.resolve();
-  let resourceGate = Promise.resolve();
-  let downloads = 0,
-    acquisitions = 0,
-    hashFailure = false;
-  let gate: Promise<void> = Promise.resolve();
-  let shell = true;
-  let offline = false;
-  let cachedContentLength = true;
-  let lock = false;
-  const response = (
-    bytes: Uint8Array,
-    mediaType: string,
-  ): PublicationResponse => ({
-    status: 200,
-    redirected: false,
-    exactUrl: true,
-    mediaType,
-    contentLength: String(bytes.length),
-    contentEncoding: null,
-    chunks: (async function* () {
-      yield Uint8Array.from(bytes);
-    })(),
-    cancel: async () => {},
-  });
-  const resources: PublicationResourcePorts = {
-    exclusive: async ({ run, hash: scopeHash }) => {
-      const previous = resourceTail;
-      let release!: () => void;
-      resourceTail = new Promise((resolve) => {
-        release = resolve;
-      });
-      await previous;
-      assert.equal(lock, false, "Non-reentrant content lock");
-      const scoped =
-        namespaces.get(scopeHash) ??
-        new Map<string, { bytes: Uint8Array; mediaType: string }>();
-      namespaces.set(scopeHash, scoped);
-      lock = true;
-      try {
-        return await heldContent.run(true, () =>
-          run({
-            paths: async () => {
-              await resourceGate;
-              return [...scoped.keys()];
-            },
-            read: async (path) => {
-              const entry = scoped.get(path);
-              return entry
-                ? {
-                    ...response(entry.bytes, entry.mediaType),
-                    contentLength: cachedContentLength
-                      ? String(entry.bytes.length)
-                      : null,
-                  }
-                : undefined;
-            },
-            write: async ({ path, bytes, mediaType }) => {
-              scoped.set(path, { bytes: Uint8Array.from(bytes), mediaType });
-            },
-          }),
-        );
-      } finally {
-        lock = false;
-        release();
-      }
-    },
-    download: async ({ path, hash: scopeHash }) => {
-      downloadTargets.push({ hash: scopeHash, path });
-      downloads++;
-      if (offline) throw new Error("Offline download refused");
-      const bytes = files.get(path);
-      if (!bytes) throw new Error("Missing neutral resource");
-      return response(bytes, "application/json");
-    },
-  };
-  let serial = 0;
-  const ids = () => `install-fixture-${++serial}`;
-  function connect(hook?: SqlHook) {
-    const db = new DatabaseSync(path);
-    connections.push(db);
-    db.exec("PRAGMA journal_mode=DELETE");
-    db.exec("PRAGMA synchronous=FULL");
-    let live = true;
-    const app = createTeachingApplication({
-      executor: executorFor(db, hook),
-      ids,
-      hash: async (text) => {
-        if (
-          hashFailure &&
-          text.includes('"documentId":"fixture.install.preparation"')
-        )
-          throw new Error("Synthetic crypto unavailable");
-        return hash(text);
-      },
-      installed: {
-        courseId: parseId({ kind: "course", value: content.body.courseId }),
-        mode: "fixture",
-        keys: [key],
-        crypto,
-        resources,
-        envelope: async (requested) => {
-          acquisitions++;
-          acquisitionTargets.push(requested);
-          if (offline) throw new Error("Offline envelope refused");
-          await gate;
-          const bytes = envelopes.get(requested);
-          if (!bytes) throw new Error("Unknown configured publication");
-          return bytes;
-        },
-        lifetime: { isCurrent: () => live },
-        shell: {
-          prepare: async () => {
-            assert.notEqual(
-              heldContent.getStore(),
-              true,
-              "Verified handshake precedes held content/shell scopes",
-            );
-            if (!shell)
-              throw new ShellError({
-                kind: "unavailable",
-                reason: "uncontrolled",
-              });
-            return {
-              withVerified: async (run) => {
-                assert.equal(
-                  heldContent.getStore(),
-                  true,
-                  "Content lock precedes shell lock",
-                );
-                return run({ isCurrent: () => live && shell });
-              },
-            };
-          },
-        },
-      },
-    });
-    return {
-      db,
-      app,
-      retire() {
-        live = false;
-      },
-    };
-  }
-  async function command(
-    app: ReturnType<typeof connect>["app"],
-    name = "fixture.install.command",
-    selectedTarget: PublicationHash = target,
-  ) {
-    const catalog = await app.installations();
-    return parseInitialInstallCommand({
-      version: 1,
-      kind: "initialInstall",
-      installationId: catalog.installationId,
-      commandId: name,
-      source: { mode: "fixture" },
-      target: {
-        publicationHash: selectedTarget,
-        courseId: content.body.courseId,
-        releaseId: content.body.releaseId,
-      },
-      expected: catalog.courses[0]?.activation ?? { kind: "absent" },
-    });
-  }
-  async function until(app: ReturnType<typeof connect>["app"], kind: string) {
-    for (let i = 0; i < 300; i++) {
-      const read = (await app.installations()).commands[0];
-      if (read?.fact.kind === kind) return read;
-      await setImmediate();
-    }
-    throw new Error(
-      `Installation did not reach ${kind}: ${JSON.stringify(await app.installations())}`,
-    );
-  }
-  async function otherTarget() {
-    const nextBody = { ...body, sourceReviewManifestHash: "b".repeat(64) };
-    const nextUnsigned = {
-      formatVersion: 1,
-      body: nextBody,
-      packageHash: await hash(canonical(nextBody)),
-      signingKeyId: key.id,
-    };
-    const raw = publicationUtf8(
-      canonical({
-        ...nextUnsigned,
-        signature: sign(
-          null,
-          publicationUtf8(canonical(nextUnsigned)),
-          pair.privateKey,
-        ).toString("base64url"),
-      }),
-    );
-    const selected = parsePublicationHash(nextUnsigned.packageHash);
-    envelopes.set(selected, raw);
-    return selected;
-  }
-  async function anotherRelease() {
-    const releaseId = parseId({
-      kind: "release",
-      value: "fixture.release.next",
-    });
-    const nextCurriculumBody = { ...content.body, releaseId };
-    const nextContent = await parseRuntimePackage(
-      {
-        ...content,
-        body: nextCurriculumBody,
-        packageHash: await hash(canonical(nextCurriculumBody)),
-      },
-      hash,
-    );
-    const nextCurriculum = publicationUtf8(
-      JSON.stringify(nextContent, null, 2),
-    );
-    const nextBody = {
-      ...body,
-      releaseId,
-      curriculum: {
-        ...body.curriculum,
-        sha256: digest(nextCurriculum).toString("hex"),
-        byteLength: nextCurriculum.length,
-      },
-    };
-    const unsigned = {
-      formatVersion: 1,
-      body: nextBody,
-      packageHash: await hash(canonical(nextBody)),
-      signingKeyId: key.id,
-    };
-    const raw = publicationUtf8(
-      canonical({
-        ...unsigned,
-        signature: sign(
-          null,
-          publicationUtf8(canonical(unsigned)),
-          pair.privateKey,
-        ).toString("base64url"),
-      }),
-    );
-    const nextTarget = parsePublicationHash(unsigned.packageHash);
-    envelopes.set(nextTarget, raw);
-    return {
-      target: nextTarget,
-      envelope: raw,
-      curriculum: nextCurriculum,
-      releaseId,
-    };
-  }
-  return {
-    anotherRelease,
-    acquisitionTargets,
-    downloadTargets,
-    connect,
-    command,
-    until,
-    ids,
-    content,
-    target,
-    otherTarget,
-    get contentLocked() {
-      return lock;
-    },
-    setResourceGate(value: Promise<void>) {
-      resourceGate = value;
-    },
-    replaceEnvelope(bytes: Uint8Array) {
-      envelopes.set(target, Uint8Array.from(bytes));
-    },
-    envelopeFor(requested: PublicationHash) {
-      const bytes = envelopes.get(requested);
-      if (!bytes) throw Error("Missing test envelope");
-      return Uint8Array.from(bytes);
-    },
-    namespacePresent(requested: PublicationHash) {
-      return namespaces.has(requested);
-    },
-    envelope,
-    curriculum,
-    preparation,
-    cache,
-    get downloads() {
-      return downloads;
-    },
-    get acquisitions() {
-      return acquisitions;
-    },
-    setGate(value: Promise<void>) {
-      gate = value;
-    },
-    setCachedContentLength(value: boolean) {
-      cachedContentLength = value;
-    },
-    setOffline(value: boolean) {
-      offline = value;
-    },
-    setShell(value: boolean) {
-      shell = value;
-    },
-    setHashFailure(value: boolean) {
-      hashFailure = value;
-    },
-  };
-}
+
+import { installationFixture as fixture } from "./installation-support.ts";
+
 test("candidate-free opening installs exact signed representation through one durable command", async (t) => {
   const f = await fixture(t);
   const c = f.connect();
@@ -2176,17 +1705,12 @@ test("publication recovery: unchanged old session pin remains authorized after p
   );
 });
 
-test("publication recovery: ready and fallback-only metadata grant no authority", async (t) => {
+test("publication recovery: inactive metadata grants no authority; an exact retained fallback anchors explicit repair", async (t) => {
   const f = await fixture(t),
     c = f.connect();
   await c.app.initialInstall(await f.command(c.app));
   await f.until(c.app, "activated");
   const next = await seedControlledFutureRelease(c.db, f);
-  c.db
-    .prepare(
-      "UPDATE course_activation SET fallback_package_hash=?,revision=revision+1",
-    )
-    .run(next.target);
   const catalog = await c.app.installations(),
     target = {
       installationId: catalog.installationId,
@@ -2202,6 +1726,19 @@ test("publication recovery: ready and fallback-only metadata grant no authority"
   assert.equal(f.acquisitions, a);
   assert.equal(f.downloads, d);
   assert.equal(publicationPersonalCensus(c.db), before);
+  c.db
+    .prepare(
+      "UPDATE course_activation SET fallback_package_hash=?,revision=revision+1",
+    )
+    .run(next.target);
+  const retained = publicationPersonalCensus(c.db);
+  assert.deepEqual(await c.app.repairPublication(target), {
+    kind: "verified",
+    target,
+  });
+  assert(f.acquisitions > a);
+  assert(f.downloads > d);
+  assert.equal(publicationPersonalCensus(c.db), retained);
 });
 
 test(
@@ -2258,9 +1795,9 @@ test(
     const next = await seedControlledFutureRelease(c.db, f);
     c.db
       .prepare(
-        "UPDATE course_activation SET active_package_hash=?,fallback_package_hash=?,revision=revision+1",
+        "UPDATE course_activation SET active_package_hash=?,fallback_package_hash=NULL,revision=revision+1",
       )
-      .run(next.target, f.target);
+      .run(next.target);
     c.db.exec(
       "UPDATE course_cursor SET resume_session_id=NULL,revision=revision+1",
     );

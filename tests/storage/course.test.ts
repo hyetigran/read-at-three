@@ -1,3 +1,4 @@
+import { DATABASE_VERSION } from "../../packages/storage/src/migration.ts";
 import {
   executeTeaching,
   prepareSelectedTeaching,
@@ -24,7 +25,12 @@ import type {
   RuntimePackage,
   TeachingIntent,
 } from "../../packages/teaching/src/index.ts";
-import { hash, storageFixture } from "./support.ts";
+import {
+  databaseSnapshot,
+  hash,
+  isReadOnlySqlAttempt,
+  storageFixture,
+} from "./support.ts";
 async function sourceFixture() {
   return parseDevelopmentPackage(
     JSON.parse(
@@ -589,7 +595,7 @@ test("release-only packages share canonical support while editorial tasks preser
 });
 
 for (const corruption of ["order", "hash", "receipt"] as const)
-  test(`corrupt ${corruption} lesson support enters preserved recovery`, async (t) => {
+  test(`corrupt ${corruption} lesson support is refused before writes`, async (t) => {
     const f = await storageFixture(t, await courseFixture()),
       { app, db } = await f.connectReady();
     await satisfy(f, app, "skipped");
@@ -607,8 +613,21 @@ for (const corruption of ["order", "hash", "receipt"] as const)
         canonical({ version: 1 }),
       );
     const before = db.prepare("SELECT * FROM lesson_credit").all(),
-      cold = f.connect();
-    assert.equal((await selectedProjection(cold.app)).kind, "recovery");
+      conserved = await databaseSnapshot(db),
+      attempts: string[] = [],
+      cold = f.connect({
+        hook: async (sql, work) => {
+          attempts.push(sql);
+          return work();
+        },
+      });
+    await assert.rejects(
+      selectedProjection(cold.app),
+      /Lesson task support is incompatible|Durable lesson receipt is invalid/,
+    );
+    assert.ok(attempts.length > 0);
+    assert.ok(attempts.every(isReadOnlySqlAttempt));
+    assert.deepEqual(await databaseSnapshot(cold.db), conserved);
     assert.deepEqual(
       cold.db.prepare("SELECT * FROM lesson_credit").all(),
       before,
@@ -732,8 +751,11 @@ test("migration 6 data-hook failure rolls back new tables, ledger and version be
     0,
   );
   await initializeDatabase(executor, hash);
-  assert.equal(db.prepare("PRAGMA user_version").get()?.user_version, 13);
-  assert.equal(count(db, "schema_migration"), 13);
+  assert.equal(
+    db.prepare("PRAGMA user_version").get()?.user_version,
+    DATABASE_VERSION,
+  );
+  assert.equal(count(db, "schema_migration"), DATABASE_VERSION);
   assert.equal(count(db, "lesson_credit"), 0);
 });
 
@@ -917,8 +939,21 @@ test("abandoned acceptance corruption is validated while the newer delivery and 
     old.runId,
   );
   const records = db.prepare("SELECT * FROM task_run ORDER BY run_id").all(),
-    cold = f.connect();
-  assert.equal((await selectedProjection(cold.app)).kind, "recovery");
+    conserved = await databaseSnapshot(db),
+    attempts: string[] = [],
+    cold = f.connect({
+      hook: async (sql, work) => {
+        attempts.push(sql);
+        return work();
+      },
+    });
+  await assert.rejects(
+    selectedProjection(cold.app),
+    /Saved acceptance allocation head is invalid/,
+  );
+  assert.ok(attempts.length > 0);
+  assert.ok(attempts.every(isReadOnlySqlAttempt));
+  assert.deepEqual(await databaseSnapshot(cold.db), conserved);
   assert.deepEqual(
     cold.db.prepare("SELECT * FROM task_run ORDER BY run_id").all(),
     records,

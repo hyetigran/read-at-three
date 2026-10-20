@@ -123,6 +123,7 @@ export type {
   PublicationResponse,
   PublicationNamespace,
   PublicationResourcePorts,
+  CatalogPublicationResources,
   PublicationIntegrityReason,
   PublicationUnavailableReason,
   VerifiedPublicationClosure,
@@ -188,6 +189,25 @@ export type { ParentMaterialFailure } from "./installation.ts";
 export { parseParentMaterialRequest } from "./installation.ts";
 
 export { initialInstallIdentity } from "./installation.ts";
+export { runtimeCapabilityProfiles } from "./generated-runtime-profiles.ts";
+export type { PackageCollectionClaim } from "./package-catalog.ts";
+export { publicationCatalogLimits } from "./package-catalog.ts";
+export { parseLessonFilesView } from "./package-catalog.ts";
+export { assertLessonFilesEvidence } from "./package-catalog.ts";
+export {
+  parseLessonFilesCommand,
+  parseLessonFilesReceipt,
+  lessonFilesIdentity,
+} from "./package-catalog.ts";
+export type {
+  LessonFilesTarget,
+  DownloadReference,
+  LessonFilesCommand,
+  LessonFilesReceipt,
+  AcquisitionObservation,
+  LessonFilesView,
+  LessonFilesApplication,
+} from "./package-catalog.ts";
 export {
   createInstallationMaterials,
   parseInstallMaterial,

@@ -20,15 +20,18 @@ import {
   publicationEnvelopePath,
   publishPublicationClosure,
   withVerifiedPublicationClosure,
+  withVerifiedPublicationBatch,
   readPublicationResponse,
   PublicationResourceError,
 } from "./publication-resources.ts";
 import type {
-  PublicationResourcePorts,
+  CatalogPublicationResources,
   PublicationMode,
   PublicationCancellation,
+  PublicationNamespace,
 } from "./publication-resources.ts";
-import type { CourseId, HashFunction } from "./types.ts";
+import type { VerifiedPublication } from "./publication.ts";
+import type { CourseId, HashFunction, ReleaseId } from "./types.ts";
 export class UnsupportedInstallProfileError extends Error {
   constructor() {
     super("Unsupported installation profile");
@@ -127,10 +130,11 @@ export function requireInstallationLease(lease: InstallationLease) {
 
 export type InstalledApplicationOptions = Readonly<{
   courseId: CourseId;
+  offer?: Readonly<{ publicationHash: PublicationHash; releaseId: ReleaseId }>;
   mode: PublicationMode;
   keys: readonly PublicationTrustKey[];
   crypto: PublicationCrypto;
-  resources: PublicationResourcePorts;
+  resources: CatalogPublicationResources;
   envelope(
     hash: PublicationHash,
     cancellation: PublicationCancellation,
@@ -140,6 +144,10 @@ export type InstalledApplicationOptions = Readonly<{
     prepare(
       input: Readonly<{
         teaching: Extract<InstalledTeaching, { kind: "signed-v1" }>;
+        retainedTeachings?: readonly Extract<
+          InstalledTeaching,
+          { kind: "signed-v1" }
+        >[];
         cancellation: PublicationCancellation;
       }>,
     ): Promise<
@@ -272,42 +280,50 @@ export function createInstallationMaterials(
       crypto: options.crypto,
       ports: options.resources,
       cancellation,
-      run: async ({ publication, namespace }) => {
-        const preparation = publication.envelope.body.assets.find(
-          (entry) => entry.assetId === "parent-preparation-v1",
-        );
-        if (!preparation || preparation.mediaType !== "application/json")
-          throw new UnsupportedInstallProfileError();
-        async function read(
-          entry: typeof publication.envelope.body.curriculum,
-        ) {
-          const response = await namespace.read(entry.path);
-          if (!response)
-            throw new PublicationResourceError({
-              kind: "missing",
-              path: entry.path,
-            });
-          return readPublicationResponse({
-            response,
-            byteLength: entry.byteLength,
-            mediaType: entry.mediaType,
-            cancellation,
-          });
-        }
-        const material = await parseInstallMaterial({
-          envelope: raw,
-          curriculum: await read(publication.envelope.body.curriculum),
-          preparationBytes: await read(preparation),
-          keys: options.keys,
-          crypto: options.crypto,
-          hash,
-        });
-        return run(material);
-      },
+      run: async ({ publication, namespace }) =>
+        run(await materialFrom({ raw, publication, namespace })),
     });
     if (result.kind !== "verified-callback")
       throw new PublicationResourceError(result);
     return result.value;
+  }
+  async function materialFrom({
+    raw,
+    publication,
+    namespace,
+  }: Readonly<{
+    raw: Uint8Array;
+    publication: VerifiedPublication;
+    namespace: PublicationNamespace;
+  }>) {
+    const preparation = publication.envelope.body.assets.find(
+      (entry) => entry.assetId === "parent-preparation-v1",
+    );
+    if (!preparation || preparation.mediaType !== "application/json")
+      throw new UnsupportedInstallProfileError();
+    async function read(entry: typeof publication.envelope.body.curriculum) {
+      const response = await namespace.read(entry.path);
+      if (!response)
+        throw new PublicationResourceError({
+          kind: "missing",
+          path: entry.path,
+        });
+      return readPublicationResponse({
+        response,
+        byteLength: entry.byteLength,
+        mediaType: entry.mediaType,
+        cancellation,
+      });
+    }
+    const material = await parseInstallMaterial({
+      envelope: raw,
+      curriculum: await read(publication.envelope.body.curriculum),
+      preparationBytes: await read(preparation),
+      keys: options.keys,
+      crypto: options.crypto,
+      hash,
+    });
+    return material;
   }
   async function withVerified<T>(
     raw: Uint8Array,
@@ -339,5 +355,66 @@ export function createInstallationMaterials(
       }),
     );
   }
-  return { acquire, withContent, withVerified, cancellation };
+  async function withVerifiedBatch<T>(
+    envelopes: readonly Uint8Array[],
+    run: (
+      materials: readonly SignedInstallMaterial[],
+      lease: InstallationLease,
+    ) => Promise<T>,
+  ) {
+    const request = {
+      mode: options.mode,
+      envelopes,
+      keys: options.keys,
+      crypto: options.crypto,
+      ports: options.resources,
+      cancellation,
+    };
+    const first = await withVerifiedPublicationBatch({
+      ...request,
+      run: (entries) => Promise.all(entries.map(materialFrom)),
+    });
+    const anchor = first[0];
+    if (!anchor) throw new Error("Material batch is empty");
+    cancellation.throwIfCancelled();
+    const shell = await options.shell.prepare({
+      teaching: anchor.teaching,
+      retainedTeachings: first.map((value) => value.teaching),
+      cancellation,
+    });
+    return withVerifiedPublicationBatch({
+      ...request,
+      run: async (entries) => {
+        const materials = await Promise.all(entries.map(materialFrom));
+        if (
+          materials.some(
+            (value, index) => value.teaching.key !== first[index]?.teaching.key,
+          )
+        )
+          throw new Error("Material batch identity changed");
+        return shell.withVerified(async (lease) => {
+          const proof = Object.freeze({
+            isCurrent: () => options.lifetime.isCurrent() && lease.isCurrent(),
+          });
+          leases.add(proof);
+          try {
+            requireInstallationLease(proof);
+            const result = await run(materials, proof);
+            requireInstallationLease(proof);
+            return result;
+          } finally {
+            leases.delete(proof);
+          }
+        });
+      },
+    });
+  }
+  return {
+    acquire,
+    cachedEnvelope,
+    withContent,
+    withVerified,
+    withVerifiedBatch,
+    cancellation,
+  };
 }

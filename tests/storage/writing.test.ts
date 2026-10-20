@@ -33,7 +33,12 @@ import type {
   InkChunk,
 } from "../../packages/teaching/src/index.ts";
 import { writingFixture } from "../teaching/writing-fixture.ts";
-import { hash, storageFixture } from "./support.ts";
+import {
+  databaseSnapshot,
+  hash,
+  isReadOnlySqlAttempt,
+  storageFixture,
+} from "./support.ts";
 async function act({
   app,
   kind,
@@ -584,9 +589,25 @@ test("cold recovery removes empty captures, interrupts committed points once, an
   const corrupt = new Uint8Array(16);
   new DataView(corrupt.buffer).setFloat32(0, NaN, true);
   first.db.prepare("UPDATE ink_point_chunk SET payload=?").run(corrupt);
-  const failed = f.connect();
-  await assert.rejects(failed.app.openRecovery({ kind: "cold" }));
-  assert.equal((await selectedProjection(failed.app)).kind, "recovery");
+  const before = await databaseSnapshot(first.db),
+    attempts: string[] = [];
+  const failed = f.connect({
+    hook: async (sql, work) => {
+      attempts.push(sql);
+      return work();
+    },
+  });
+  await assert.rejects(
+    failed.app.openRecovery({ kind: "cold" }),
+    /Invalid canonical ink point/,
+  );
+  await assert.rejects(
+    selectedProjection(failed.app),
+    /Invalid canonical ink point/,
+  );
+  assert.ok(attempts.length > 0);
+  assert.ok(attempts.every(isReadOnlySqlAttempt));
+  assert.deepEqual(await databaseSnapshot(failed.db), before);
   assert.equal(
     first.db.prepare("SELECT count(*) AS n FROM ink_stroke").get()?.n,
     1,
@@ -1237,9 +1258,25 @@ test("reopen rejects rehashed writing acceptance that drops its writing tag or c
         "UPDATE task_advance SET accepting_command=?,payload_hash=? WHERE advance_id=?",
       )
       .run(canonical(source), await hash(canonical(source)), row.advance_id);
-    const reopened = f.connect();
-    assert.equal((await selectedProjection(reopened.app)).kind, "recovery");
-    await assert.rejects(reopened.app.openRecovery({ kind: "cold" }));
+    const before = await databaseSnapshot(first.db),
+      attempts: string[] = [];
+    const reopened = f.connect({
+      hook: async (sql, work) => {
+        attempts.push(sql);
+        return work();
+      },
+    });
+    await assert.rejects(
+      selectedProjection(reopened.app),
+      /Writing acceptance (?:requires its document barrier|document set changed|document binding changed)/,
+    );
+    await assert.rejects(
+      reopened.app.openRecovery({ kind: "cold" }),
+      /Writing acceptance (?:requires its document barrier|document set changed|document binding changed)/,
+    );
+    assert.ok(attempts.length > 0);
+    assert.ok(attempts.every(isReadOnlySqlAttempt));
+    assert.deepEqual(await databaseSnapshot(reopened.db), before);
     assert.equal(
       first.db.prepare("SELECT count(*) AS n FROM task_advance").get()?.n,
       1,

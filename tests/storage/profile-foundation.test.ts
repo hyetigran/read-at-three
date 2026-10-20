@@ -1,3 +1,4 @@
+import { DATABASE_VERSION } from "../../packages/storage/src/migration.ts";
 import { selectedCourse, selectedProjection } from "./selected-support.ts";
 
 import assert from "node:assert/strict";
@@ -53,7 +54,7 @@ test("a fresh directory persists one anonymous selected child and requires the s
   assert.equal(
     reopened.db.prepare("SELECT database_version FROM installation").get()
       ?.database_version,
-    13,
+    DATABASE_VERSION,
   );
 });
 
@@ -148,7 +149,10 @@ test("constructed untouched V7 migration preserves the anonymous child and requi
     first.db.prepare("SELECT preferences FROM profile").get()?.preferences,
     preferences,
   );
-  assert.equal(first.db.prepare("PRAGMA user_version").get()?.user_version, 13);
+  assert.equal(
+    first.db.prepare("PRAGMA user_version").get()?.user_version,
+    DATABASE_VERSION,
+  );
   assert.equal(
     first.db
       .prepare("SELECT count(*) AS count FROM profile_administration_receipt")
@@ -338,7 +342,7 @@ test("a V8 failure immediately before actual migration COMMIT preserves the enti
   });
   assert.equal(
     recovered.db.prepare("PRAGMA user_version").get()?.user_version,
-    13,
+    DATABASE_VERSION,
   );
 });
 

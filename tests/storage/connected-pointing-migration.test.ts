@@ -5,7 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { migrations } from "../../packages/storage/src/generated-migration.ts";
-import { initializeDatabase } from "../../packages/storage/src/migration.ts";
+import {
+  DATABASE_VERSION,
+  initializeDatabase,
+} from "../../packages/storage/src/migration.ts";
 import { executorFor, hash } from "./support.ts";
 
 async function baseline(t: { after(fn: () => Promise<void>): void }) {
@@ -113,10 +116,13 @@ for (const point of [
       11,
     );
     await initializeDatabase(executorFor(f.db), hash);
-    assert.equal(f.db.prepare("PRAGMA user_version").get()?.user_version, 13);
+    assert.equal(
+      f.db.prepare("PRAGMA user_version").get()?.user_version,
+      DATABASE_VERSION,
+    );
     assert.equal(
       f.db.prepare("SELECT count(*) AS n FROM schema_migration").get()?.n,
-      13,
+      DATABASE_VERSION,
     );
     assert.deepEqual(f.db.prepare("PRAGMA foreign_key_check").all(), []);
     assert.equal(
@@ -155,7 +161,10 @@ test("genuinely committed DB12 reply loss upgrades additively and subsequent Ret
   assert.equal(committedLedger.length, 12);
   f.reopen();
   await initializeDatabase(executorFor(f.db), hash);
-  assert.equal(f.db.prepare("PRAGMA user_version").get()?.user_version, 13);
+  assert.equal(
+    f.db.prepare("PRAGMA user_version").get()?.user_version,
+    DATABASE_VERSION,
+  );
   assert.deepEqual(
     f.db
       .prepare(

@@ -8,6 +8,9 @@ import {
   parseParentMaterialWire,
   parseInstallationRead,
   parseInstallationCatalog,
+  parseLessonFilesCommand,
+  parseLessonFilesReceipt,
+  parseLessonFilesView,
   parseDiagnosticEvent,
   parseDiagnosticRing,
   parseCurrentApplicationRead,
@@ -65,6 +68,9 @@ import type {
   InstalledResourceFailure,
   ParentMaterialRequest,
   ParentMaterialRead,
+  LessonFilesCommand,
+  LessonFilesReceipt,
+  LessonFilesView,
 } from "@readatthree/teaching";
 
 export type LocalSupportMetadata = Readonly<{
@@ -131,6 +137,8 @@ export type WorkerRequest = { id: WorkerRequestId } & (
   | { kind: "openInstalledRecovery"; opening: SelectedRecoveryOpening }
   | { kind: "readDirectory" }
   | { kind: "installations" }
+  | { kind: "readLessonFiles" }
+  | { kind: "changeLessonFiles"; command: LessonFilesCommand }
   | { kind: "initialInstall"; command: InitialInstallCommand }
   | {
       kind: "checkPublication" | "repairPublication";
@@ -155,6 +163,8 @@ export type WorkerResponse = { id: WorkerRequestId } & (
   | { kind: "directory" | "reconciled"; value: ProfileDirectory }
   | { kind: "installationCatalog"; value: InstallationCatalog }
   | { kind: "installationRead"; value: InstallationRead }
+  | { kind: "lessonFiles"; value: LessonFilesView }
+  | { kind: "lessonFilesReceipt"; value: LessonFilesReceipt }
   | {
       kind: "publicationCheck";
       operation: "check" | "repair";
@@ -220,6 +230,12 @@ export function parseRequest(input: unknown): WorkerRequest {
         kind: value.kind,
         command: parseInitialInstallCommand(value.command),
       };
+    case "changeLessonFiles":
+      return {
+        id,
+        kind: value.kind,
+        command: parseLessonFilesCommand(value.command),
+      };
     case "checkPublication":
     case "repairPublication":
       return {
@@ -234,6 +250,7 @@ export function parseRequest(input: unknown): WorkerRequest {
         input: parseParentMaterialRequest(value.input),
       };
     case "installations":
+    case "readLessonFiles":
     case "readDirectory":
     case "readDiagnostics":
       return { id, kind: value.kind };
@@ -325,6 +342,14 @@ export function parseResponse(input: unknown): WorkerResponse {
   const value = parseSelectedWorkerResponseWire(input);
   const id = parseWorkerRequestId(value.id);
   switch (value.kind) {
+    case "lessonFiles":
+      return { id, kind: value.kind, value: parseLessonFilesView(value.value) };
+    case "lessonFilesReceipt":
+      return {
+        id,
+        kind: value.kind,
+        value: parseLessonFilesReceipt(value.value),
+      };
     case "publicationCheck":
       return {
         id,

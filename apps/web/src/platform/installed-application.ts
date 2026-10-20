@@ -26,6 +26,7 @@ export function createBrowserInstalledOptions(
   const shell = createShellCache(configuration.shell, location.origin);
   return {
     courseId: configuration.courseId,
+    ...(configuration.offer ? { offer: configuration.offer } : {}),
     mode: configuration.publication.mode,
     keys: configuration.publication.keys,
     crypto: webPublicationCrypto,
