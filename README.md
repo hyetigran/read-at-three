@@ -2,6 +2,8 @@
 
 Production reading application for Lessons 1–6 of the supplied curriculum, with digital handwriting. Implement the entire application as a React/Vite SPA first, then adapt it to React Native/Expo after the complete functional SPA handoff gate passes.
 
+Protected-backup security qualification is paused at the user's request as of October 21, 2026. [Issue #22](https://github.com/hyetigran/read-at-three/issues/22) remains open and the production backup policy stays disabled. Development continues on independent application work; backup-dependent restore and recovery requirements remain pending. See the [PRD delivery deferral](PRD.md#current-delivery-deferral) for the remaining checks and conditions for resuming.
+
 The selected stack uses TypeScript, shadcn/ui for web UI, TanStack React Query, and Drizzle/SQLite. Shared curriculum/session/ink logic and schema stay independent of platform screens. The SPA currently delivers all six Lesson 1 tasks, including printed sounds, oral practice, source corrections/retests and digital sound writing. The parent controls responses, readiness, tracing and independent-writing confirmations. Separate model and child drawing layers persist through the dedicated SQLite WASM/OPFS worker. Undo, Redo and reversible Clear edit the active child practice layer without changing the parent's model or teaching position. Task outcomes, Back/Pause and fresh Replay remain durable. The lesson map, the remaining five lessons, broader application features and Expo adaptation are still being implemented.
 
 - [Product requirements](PRD.md)
