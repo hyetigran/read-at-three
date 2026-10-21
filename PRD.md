@@ -10,7 +10,7 @@ On October 21, 2026, the user paused protected-backup security qualification to 
 
 Remaining work includes combined-workload qualification, reviewed finite resource limits, security fault checks, and final independent review and CI. Existing passing tests cover specific cases and do not establish production readiness. This deferral does not authorize weaker encryption, unencrypted exports, data deletion, or bypassing validation.
 
-Development continues on independent teaching, handwriting, and local-storage recovery work. The backup-dependent portions of issues #23 and #24 remain pending. Their completion and the complete SPA handoff must account for this open requirement. Resume backup qualification through issue #22 before enabling backup or restore or claiming those requirements complete.
+Development continues on independent teaching, handwriting, and local-storage recovery work. The backup-dependent portions of [issue #23](https://github.com/hyetigran/read-at-three/issues/23) and [issue #24](https://github.com/hyetigran/read-at-three/issues/24) remain pending. Their completion and the complete SPA handoff must account for this open requirement. Resume backup qualification through issue #22 before enabling backup or restore or claiming those requirements complete.
 
 ## 1. Product goal and release scope
 
