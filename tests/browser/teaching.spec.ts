@@ -133,7 +133,9 @@ test("a competing tab cannot open a second database and can resume after ownersh
   const competing = await context.newPage();
   await competing.goto(base);
   await expect(
-    competing.getByRole("heading", { name: "Saved storage is unavailable" }),
+    competing.getByRole("heading", {
+      name: "Storage is open in another window",
+    }),
   ).toBeVisible();
   await expect(
     competing.getByRole("button", { name: "Start", exact: true }),
