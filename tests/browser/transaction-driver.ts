@@ -18,6 +18,21 @@ export async function installTransactionDriver(
       if (data?.__transactionControl) {
         event.stopImmediatePropagation();
         if(data.__transactionControl==='arm') { armed=data.cut; target=null; activated=false; failed=false; events.length=0; emit({id:data.id,armed}); }
+        if(data.__transactionControl==='storeVersion') {
+          if(!database || !sqlite.capi.sqlite3_get_autocommit(database.pointer) || !Number.isSafeInteger(data.cut) || data.cut<0 || data.cut>1000000) throw Error('Invalid settled store version fixture');
+          database.exec('PRAGMA user_version='+data.cut);
+          database.close();
+          emit({id:data.id,version:data.cut});
+        }
+        if(data.__transactionControl==='inkCodec') {
+          const table = {document:'ink_document',stroke:'ink_stroke',chunk:'ink_point_chunk'}[data.cut];
+          if(!database || !sqlite.capi.sqlite3_get_autocommit(database.pointer) || !table) throw Error('Invalid settled codec fixture');
+          database.exec('PRAGMA ignore_check_constraints=ON');
+          database.exec('UPDATE '+table+' SET codec_version=2');
+          database.exec('PRAGMA ignore_check_constraints=OFF');
+          database.close();
+          emit({id:data.id,codec:2});
+        }
         if(data.__transactionControl==='snapshot') {
           if(!database || !sqlite.capi.sqlite3_get_autocommit(database.pointer)) throw Error('Snapshot requires settled actual SQLite');
           const tables=[];

@@ -5,6 +5,7 @@ import { loadDevelopmentOpening } from "./development-opening.ts";
 import { registerOfflineShell } from "./controlled-shell.ts";
 import { createPageShellBridge } from "./shell-page-bridge.ts";
 import {
+  UnsupportedStoreFormatError,
   parsePublicationSelection,
   InstalledResourceUnavailableError,
   canonical,
@@ -327,6 +328,12 @@ export function createBrowserTeachingClient() {
                 waiting.reject(new StorageCapacityError());
               else if (result.kind === "storageBusy")
                 waiting.reject(new StorageBusyError());
+              else if (result.kind === "unsupportedStoreFormat")
+                waiting.reject(
+                  new UnsupportedStoreFormatError(
+                    "Your saved files have been kept. Update this app to a version that supports this saved format, then retry opening.",
+                  ),
+                );
               else if (result.kind === "failed")
                 waiting.reject(new Error(result.message));
               else waiting.resolve(result);
