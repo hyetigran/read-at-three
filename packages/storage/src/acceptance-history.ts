@@ -1,4 +1,5 @@
 import {
+  UnsupportedStoreFormatError,
   canonical,
   completionProof,
   currentCheckpoint,
@@ -212,6 +213,10 @@ export async function validateAcceptanceHistory({
           const target = writing.targets.find(
             (value) => value.id === token.targetId,
           );
+          if (document && Number(document.codecVersion) !== 1)
+            throw new UnsupportedStoreFormatError(
+              "Unsupported ink document codec",
+            );
           if (
             !document ||
             !target ||
@@ -226,7 +231,6 @@ export async function validateAcceptanceHistory({
             document.sourceRefs !== canonical(target.sourceRefs) ||
             document.logicalWidth !== target.logicalWidth ||
             document.logicalHeight !== target.logicalHeight ||
-            Number(document.codecVersion) !== 1 ||
             token.phase !==
               writingPermission({
                 content: content.document,
@@ -319,6 +323,10 @@ export async function validateAcceptanceHistory({
               (d) => d.documentId === token.documentId,
             ),
             target = writing.targets.find((t) => t.id === token.targetId);
+          if (document && Number(document.codecVersion) !== 1)
+            throw new UnsupportedStoreFormatError(
+              "Unsupported ink document codec",
+            );
           if (
             !document ||
             !target ||
@@ -333,7 +341,6 @@ export async function validateAcceptanceHistory({
             document.sourceRefs !== canonical(target.sourceRefs) ||
             document.logicalWidth !== target.logicalWidth ||
             document.logicalHeight !== target.logicalHeight ||
-            Number(document.codecVersion) !== 1 ||
             token.phase !==
               writingPermission({
                 content: content.document,

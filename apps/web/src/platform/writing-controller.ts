@@ -3,6 +3,7 @@ import {
   isStorageCapacityError,
 } from "./storage-capacity.ts";
 import {
+  UnsupportedStoreFormatError,
   InstalledResourceUnavailableError,
   canonical,
   prepareWritingControl,
@@ -81,7 +82,10 @@ export type Operation =
   | { kind: "opening" | "idle" }
   | {
       kind: "openingFailed";
-      code: "storage-busy" | "storage-initialization-failed";
+      code:
+        | "storage-busy"
+        | "storage-initialization-failed"
+        | "unsupported-store-format";
       message: string;
     }
   | { kind: "preparing"; request: ActionRequest; origin: Projection }
@@ -763,9 +767,11 @@ export function createWritingController({
           operation: {
             kind: "openingFailed",
             code:
-              error instanceof StorageBusyError
-                ? "storage-busy"
-                : "storage-initialization-failed",
+              error instanceof UnsupportedStoreFormatError
+                ? "unsupported-store-format"
+                : error instanceof StorageBusyError
+                  ? "storage-busy"
+                  : "storage-initialization-failed",
             message:
               error instanceof Error
                 ? error.message
@@ -1574,9 +1580,11 @@ export function createWritingController({
               ? {
                   kind: "openingFailed",
                   code:
-                    error instanceof StorageBusyError
-                      ? "storage-busy"
-                      : "storage-initialization-failed",
+                    error instanceof UnsupportedStoreFormatError
+                      ? "unsupported-store-format"
+                      : error instanceof StorageBusyError
+                        ? "storage-busy"
+                        : "storage-initialization-failed",
                   message:
                     error instanceof Error ? error.message : operation.message,
                 }

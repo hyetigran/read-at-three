@@ -1,3 +1,4 @@
+import { UnsupportedStoreFormatError } from "../../teaching/src/index.ts";
 import type { HashFunction } from "../../teaching/src/index.ts";
 import type { SqlExecutor } from "./executor.ts";
 import { migrations } from "./generated-migration.ts";
@@ -145,7 +146,7 @@ async function processDatabase(
     version < 0 ||
     version > DATABASE_VERSION
   )
-    throw new Error(
+    throw new UnsupportedStoreFormatError(
       "Unsupported database version; update or recover this installation",
     );
   const checksums = await Promise.all(
