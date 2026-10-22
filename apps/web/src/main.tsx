@@ -1154,6 +1154,9 @@ function ApplicationShell() {
           writingController={controller}
           onAction={controller.act}
           onReview={controller.act}
+          onStartFresh={
+            state.storeDamaged ? () => setFreshOpen(true) : undefined
+          }
           onRetry={() => void controller.retry()}
           onOpenRetry={() => void controller.reopen()}
           onLessonMenu={returnToMenu}
@@ -1269,6 +1272,11 @@ function ApplicationShell() {
                 : "Retry save"}
             </AddedText>
           </Button>
+          {state.storeDamaged ? (
+            <Button disabled={busy} onClick={() => setFreshOpen(true)}>
+              <AddedText>Start fresh</AddedText>
+            </Button>
+          ) : null}
         </aside>
       ) : null}
     </>

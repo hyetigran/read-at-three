@@ -41,6 +41,14 @@ specific recovery route and preservation, explicitly resets, and reinstalls
 lessons into a new parent setup. The fixture and signed-shell minification
 support are shared with the cache-cleanup increment.
 
+`tests/browser/live-damaged-store.spec.ts` covers damage reported during a live
+ink save. Its first failure is an explicitly injected closed worker response,
+not a claim of native disk damage. After that connection retires, the test
+changes the actual SQLite header and exercises Retry against those damaged
+bytes without reloading the page. Parent cancellation preserves the files;
+restoring only the test-damaged header allows the exact retained ink command to
+recover, including its unsaved tail. The damage action disappears after recovery.
+
 These checks qualify observed browser behavior. They do not establish physical
 power-loss durability, device recovery, or backup/reimport compatibility. A
 missing or malformed recovery record cannot authorize reset Retry; an absent

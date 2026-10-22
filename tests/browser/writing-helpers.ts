@@ -77,6 +77,9 @@ export async function probe(page: Page) {
           mode=''; queueMicrotask(()=>this.dispatchEvent(new ErrorEvent('error',{message:'Injected transport loss before teaching write'}))); return;
         }
         if(mode === 'hold-finalize' && (message.kind === 'execute' && message.operation.kind === 'ink') && message.operation.command.edit.kind === 'finalize'){mode='';heldWrite={worker:this,message,release:()=>super.postMessage(message,options)};return;}
+        if (mode === 'ink-damage' && message.kind === 'execute' && message.operation.kind === 'ink' && message.operation.command.edit.kind === 'finalize') {
+          mode=''; this.dispatchEvent(new MessageEvent('message',{data:{id:message.id,kind:'damagedStore'}})); return;
+        }
         if (mode === 'ink-failure' && (message.kind === 'execute' && message.operation.kind === 'ink') && message.operation.command.edit.kind === 'finalize') {
           mode=''; this.dispatchEvent(new MessageEvent('message',{data:{id:message.id,kind:'failed',message:'Injected writing transaction failure'}})); return;
         }

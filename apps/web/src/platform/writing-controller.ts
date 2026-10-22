@@ -134,6 +134,7 @@ export type AdministrationOutcome =
   | Readonly<{ kind: "held" }>
   | CommandRejection;
 export type ControllerState = Readonly<{
+  storeDamaged: boolean;
   resourceBlock: InstalledResourceFailure | null;
   operation: Operation;
   correctionPreview: PrintedNode | ControlTurnNode | null;
@@ -186,7 +187,18 @@ type Capture = {
   pending: PendingInk | null;
 };
 const ids = () => crypto.randomUUID();
+function openingFailureCode(
+  error: unknown,
+): Extract<Operation, { kind: "openingFailed" }>["code"] {
+  if (error instanceof PendingStoreResetError) return "store-reset-pending";
+  if (error instanceof DamagedStoreError) return "damaged-store";
+  if (error instanceof UnsupportedStoreFormatError)
+    return "unsupported-store-format";
+  if (error instanceof StorageBusyError) return "storage-busy";
+  return "storage-initialization-failed";
+}
 function saveFailureMessage(error: unknown): string {
+  if (error instanceof DamagedStoreError) return error.message;
   return isStorageCapacityError(error)
     ? new StorageCapacityError().message
     : saveMessage;
@@ -209,6 +221,7 @@ export function createWritingController({
   createTeaching: (stageRestore: RestoreTeaching) => CommittedTeachingExecution;
 }>) {
   let state: ControllerState = {
+    storeDamaged: false,
     resourceBlock: null,
     operation: { kind: "opening" },
     correctionPreview: null,
@@ -342,6 +355,8 @@ export function createWritingController({
     );
   }
   function reopenInput() {
+    if (state.storeDamaged && connected && state.operation.kind === "idle")
+      publish({ storeDamaged: false });
     const wasFenced = fenced;
     const suspended = inputIsSuspended();
     fenced = suspended || state.operation.kind !== "idle" || !connected;
@@ -351,6 +366,7 @@ export function createWritingController({
     paint();
   }
   client.onLoss((reason) => {
+    if (reason instanceof DamagedStoreError) publish({ storeDamaged: true });
     transportGeneration++;
     const wasConnected = connected;
     connected = false;
@@ -772,16 +788,7 @@ export function createWritingController({
         publish({
           operation: {
             kind: "openingFailed",
-            code:
-              error instanceof PendingStoreResetError
-                ? "store-reset-pending"
-                : error instanceof DamagedStoreError
-                  ? "damaged-store"
-                  : error instanceof UnsupportedStoreFormatError
-                    ? "unsupported-store-format"
-                    : error instanceof StorageBusyError
-                      ? "storage-busy"
-                      : "storage-initialization-failed",
+            code: openingFailureCode(error),
             message:
               error instanceof Error
                 ? error.message
@@ -1589,16 +1596,7 @@ export function createWritingController({
             : operation.kind === "openingFailed"
               ? {
                   kind: "openingFailed",
-                  code:
-                    error instanceof PendingStoreResetError
-                      ? "store-reset-pending"
-                      : error instanceof DamagedStoreError
-                        ? "damaged-store"
-                        : error instanceof UnsupportedStoreFormatError
-                          ? "unsupported-store-format"
-                          : error instanceof StorageBusyError
-                            ? "storage-busy"
-                            : "storage-initialization-failed",
+                  code: openingFailureCode(error),
                   message:
                     error instanceof Error ? error.message : operation.message,
                 }

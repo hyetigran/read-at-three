@@ -70,7 +70,31 @@ export async function damageStoreHeader(page: Page) {
         data: new Uint8Array([0]),
       });
       await writer.close();
-      return { offset: target.offset };
+      return { offset: target.offset, path: target.path };
     }),
+  );
+}
+
+export async function restoreStoreHeader(
+  page: Page,
+  target: { path: string; offset: number },
+) {
+  await page.evaluate(
+    async (target) =>
+      navigator.locks.request("read-at-three.sqlite.v1", async () => {
+        let directory = await navigator.storage.getDirectory();
+        const parts = target.path.split("/");
+        for (const part of parts.slice(0, -1))
+          directory = await directory.getDirectoryHandle(part);
+        const file = await directory.getFileHandle(parts.at(-1)!);
+        const stream = await file.createWritable({ keepExistingData: true });
+        await stream.write({
+          type: "write",
+          position: target.offset,
+          data: new Uint8Array([83]),
+        });
+        await stream.close();
+      }),
+    target,
   );
 }
