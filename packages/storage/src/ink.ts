@@ -1,6 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/sqlite-proxy";
 import {
+  UnsupportedStoreFormatError,
   canonical,
   assertInkReferences,
   changeInkHistory,
@@ -210,9 +211,10 @@ export function createInkRepository({
         taskId: row.taskId,
       }),
       target = task?.targets.find((t) => t.id === row.targetId);
+    if (Number(row.codecVersion) !== 1)
+      throw new UnsupportedStoreFormatError("Unsupported ink document codec");
     if (
       !target ||
-      Number(row.codecVersion) !== 1 ||
       row.logicalWidth !== target.logicalWidth ||
       row.logicalHeight !== target.logicalHeight ||
       row.sourceRefs !== canonical(target.sourceRefs) ||
@@ -241,7 +243,7 @@ export function createInkRepository({
           .all()
       ).map((c) => {
         if (Number(c.codecVersion) !== 1)
-          throw new Error("Unsupported chunk codec");
+          throw new UnsupportedStoreFormatError("Unsupported chunk codec");
         return {
           chunkIndex: Number(c.chunkIndex),
           firstPointIndex: Number(c.firstPointIndex),
@@ -250,11 +252,16 @@ export function createInkRepository({
           payload: [...c.payload],
         } satisfies import("../../teaching/src/index.ts").InkChunk;
       });
+      if (
+        Number(stroke.codecVersion) !== 1 ||
+        Number(stroke.brushVersion) !== 1
+      )
+        throw new UnsupportedStoreFormatError(
+          "Unsupported stroke codec or brush",
+        );
       const valid = validateInkChunks({ chunks, bounds });
       if (
         valid.pointCount !== Number(stroke.pointCount) ||
-        Number(stroke.codecVersion) !== 1 ||
-        Number(stroke.brushVersion) !== 1 ||
         (stroke.status !== "capturing" && Number(stroke.pointCount) === 0) ||
         BigInt(stroke.strokeOrder) >= BigInt(row.nextStrokeOrder)
       )

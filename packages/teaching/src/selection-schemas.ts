@@ -274,6 +274,7 @@ export const selectionValidationSchemas = {
       administrationRecovery: { properties: { id: string, value: {} } },
       reconciled: { properties: { id: string, value: {} } },
       storageBusy: { properties: { id: string } },
+      unsupportedStoreFormat: { properties: { id: string } },
       connectionLost: { properties: { id: string } },
       failed: { properties: { id: string, message: string } },
     },

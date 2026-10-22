@@ -11,6 +11,7 @@ import {
 } from "@readatthree/storage";
 import type { SqlExecutor } from "@readatthree/storage";
 import {
+  UnsupportedStoreFormatError,
   InstalledResourceUnavailableError,
   InstalledContentUnavailableError,
   parseRuntimePackage,
@@ -465,7 +466,12 @@ self.addEventListener("message", (event: MessageEvent<unknown>) => {
             }),
           )
           .catch(() => {});
-      if (error instanceof StorageBusyError)
+      if (error instanceof UnsupportedStoreFormatError)
+        self.postMessage({
+          id: request.id,
+          kind: "unsupportedStoreFormat",
+        } satisfies WorkerResponse);
+      else if (error instanceof StorageBusyError)
         self.postMessage({
           id: request.id,
           kind: "storageBusy",
