@@ -1,4 +1,8 @@
 import {
+  StorageCapacityError,
+  isStorageCapacityError,
+} from "./storage-capacity.ts";
+import {
   UnsupportedStoreFormatError,
   InstalledResourceUnavailableError,
   canonical,
@@ -176,6 +180,11 @@ type Capture = {
   pending: PendingInk | null;
 };
 const ids = () => crypto.randomUUID();
+function saveFailureMessage(error: unknown): string {
+  return isStorageCapacityError(error)
+    ? new StorageCapacityError().message
+    : saveMessage;
+}
 const saveMessage =
   "This save could not be confirmed. Keep this reading window open and retry the same action.";
 function writing(
@@ -808,7 +817,11 @@ export function createWritingController({
       if (operationSerial !== ticket) return;
       fence();
       publish({
-        operation: { kind: "failed", prepared, message: saveMessage },
+        operation: {
+          kind: "failed",
+          prepared,
+          message: saveFailureMessage(error),
+        },
       });
     }
   }
@@ -828,7 +841,7 @@ export function createWritingController({
       publish({
         operation: {
           kind: "inkFailed",
-          message: saveMessage,
+          message: saveFailureMessage(error),
           retry: { kind: "action", request, origin },
         },
       });
@@ -1008,7 +1021,7 @@ export function createWritingController({
       publish({
         operation: {
           kind: "inkFailed",
-          message: saveMessage,
+          message: saveFailureMessage(error),
           retry: { kind: "inkOnly" },
         },
       });
@@ -1136,7 +1149,11 @@ export function createWritingController({
       if (operationSerial === ticket && !closed) {
         fence();
         publish({
-          operation: { kind: "adoptionFailed", receipt, message: saveMessage },
+          operation: {
+            kind: "adoptionFailed",
+            receipt,
+            message: saveFailureMessage(error),
+          },
         });
       }
       return { kind: "held" };
@@ -1194,7 +1211,7 @@ export function createWritingController({
           operation: {
             kind: "openingFailed",
             code: "storage-initialization-failed",
-            message: saveMessage,
+            message: saveFailureMessage(error),
           },
         });
     }
@@ -1228,7 +1245,11 @@ export function createWritingController({
       if (operationSerial === ticket && !closed) {
         fence();
         publish({
-          operation: { kind: "adminFailed", command, message: saveMessage },
+          operation: {
+            kind: "adminFailed",
+            command,
+            message: saveFailureMessage(error),
+          },
         });
       }
       return { kind: "held" };
@@ -1319,7 +1340,9 @@ export function createWritingController({
       } catch (error) {
         observeResourceFailure(error, resource);
         if (operationSerial === ticket && !closed)
-          publish({ operation: { ...operation, message: saveMessage } });
+          publish({
+            operation: { ...operation, message: saveFailureMessage(error) },
+          });
       }
       return;
     }
@@ -1355,7 +1378,9 @@ export function createWritingController({
     } catch (error) {
       observeResourceFailure(error, resource);
       if (operationSerial === ticket && !closed)
-        publish({ operation: { ...operation, message: saveMessage } });
+        publish({
+          operation: { ...operation, message: saveFailureMessage(error) },
+        });
     }
   }
 
@@ -1549,29 +1574,25 @@ export function createWritingController({
       fence();
       publish({
         operation:
-          operation.kind === "failed"
-            ? { ...operation, message: saveMessage }
-            : operation.kind === "inkFailed"
-              ? operation
-              : operation.kind === "openingFailed"
-                ? {
-                    kind: "openingFailed",
-                    code:
-                      error instanceof UnsupportedStoreFormatError
-                        ? "unsupported-store-format"
-                        : error instanceof StorageBusyError
-                          ? "storage-busy"
-                          : "storage-initialization-failed",
-                    message:
-                      error instanceof Error
-                        ? error.message
-                        : operation.message,
-                  }
-                : {
-                    kind: "inkFailed",
-                    message: saveMessage,
-                    retry: { kind: "inkOnly" },
-                  },
+          operation.kind === "failed" || operation.kind === "inkFailed"
+            ? { ...operation, message: saveFailureMessage(error) }
+            : operation.kind === "openingFailed"
+              ? {
+                  kind: "openingFailed",
+                  code:
+                    error instanceof UnsupportedStoreFormatError
+                      ? "unsupported-store-format"
+                      : error instanceof StorageBusyError
+                        ? "storage-busy"
+                        : "storage-initialization-failed",
+                  message:
+                    error instanceof Error ? error.message : operation.message,
+                }
+              : {
+                  kind: "inkFailed",
+                  message: saveFailureMessage(error),
+                  retry: { kind: "inkOnly" },
+                },
       });
     } finally {
       clearResolvedObligation(ticket);
@@ -1598,7 +1619,7 @@ export function createWritingController({
       publish({
         operation: {
           kind: "inkFailed",
-          message: saveMessage,
+          message: saveFailureMessage(error),
           retry: { kind: "inkOnly" },
         },
       });
@@ -1678,7 +1699,7 @@ export function createWritingController({
       publish({
         operation: {
           kind: "inkFailed",
-          message: saveMessage,
+          message: saveFailureMessage(error),
           retry: { kind: "inkOnly" },
         },
       });

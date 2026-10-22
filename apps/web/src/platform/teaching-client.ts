@@ -1,3 +1,4 @@
+import { StorageCapacityError } from "./storage-capacity.ts";
 import { browserConfiguration } from "./browser-configuration.ts";
 import { StorageBusyError } from "./storage-busy.ts";
 import { loadDevelopmentOpening } from "./development-opening.ts";
@@ -323,7 +324,9 @@ export function createBrowserTeachingClient() {
                 waiting.reject(
                   new InstalledResourceUnavailableError(result.value),
                 );
-              } else if (result.kind === "storageBusy")
+              } else if (result.kind === "storageFull")
+                waiting.reject(new StorageCapacityError());
+              else if (result.kind === "storageBusy")
                 waiting.reject(new StorageBusyError());
               else if (result.kind === "unsupportedStoreFormat")
                 waiting.reject(
