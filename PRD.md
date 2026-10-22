@@ -4,6 +4,14 @@
 
 This document, the [architecture](ARCHITECTURE.md), and its storage/stack/acceptance appendices implement the accepted [interview decisions](docs/design-interview.md) and [ADRs](docs/adr/0001-build-spa-before-expo.md). The interview and earlier architecture review remain historical evidence. Superseded proposals do not override the current contracts. Subsequent authorization covers engineering implementation, PR review and merge; content publication remains a separate pending release input.
 
+## Current delivery deferral
+
+On October 21, 2026, the user paused protected-backup security qualification to continue other application work. [Issue #22](https://github.com/hyetigran/read-at-three/issues/22) remains open, and its implementation is preserved on `codex/issue-22-protected-backup`. The production backup policy remains disabled. Backup and dependent restore flows must not be presented as available recovery actions while this work is deferred.
+
+Remaining work includes combined-workload qualification, reviewed finite resource limits, security fault checks, and final independent review and CI. Existing passing tests cover specific cases and do not establish production readiness. This deferral does not authorize weaker encryption, unencrypted exports, data deletion, or bypassing validation.
+
+Development continues on independent teaching, handwriting, and local-storage recovery work. The backup-dependent portions of [issue #23](https://github.com/hyetigran/read-at-three/issues/23) and [issue #24](https://github.com/hyetigran/read-at-three/issues/24) remain pending. Their completion and the complete SPA handoff must account for this open requirement. Resume backup qualification through issue #22 before enabling backup or restore or claiming those requirements complete.
+
 ## 1. Product goal and release scope
 
 Build a complete, production-ready reading application for a three-year-old beginner and their parent. Use **Teach Your Child to Read in 100 Easy Lessons** as the curriculum and the inspected **Reading.com** screens as the interface reference.
