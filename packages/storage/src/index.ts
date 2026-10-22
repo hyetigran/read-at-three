@@ -1,3 +1,4 @@
+export { createSqlExecutor, SqlConnectionRetiredError } from "./executor.ts";
 export { createTeachingApplication } from "./store.ts";
 export type { SqlExecutor, SqlValue } from "./executor.ts";
 

@@ -195,6 +195,7 @@ export type WorkerResponse = { id: WorkerRequestId } & (
       value: RecoveryResult<ProfileAdministrationReceipt>;
     }
   | { kind: "storageBusy" }
+  | { kind: "connectionLost" }
   | { kind: "failed"; message: string }
 );
 export function parseWorkerRequestId(value: unknown): WorkerRequestId {
@@ -474,6 +475,7 @@ export function parseResponse(input: unknown): WorkerResponse {
         ),
       };
     case "storageBusy":
+    case "connectionLost":
       return { id, kind: value.kind };
     case "failed":
       return { id, kind: value.kind, message: value.message };
