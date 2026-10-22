@@ -225,6 +225,7 @@ export const selectionValidationSchemas = {
           value: publicationCheckSchema,
         },
       },
+      storageFull: { properties: { id: string } },
       contentUnavailable: {
         properties: { id: string, value: installedResourceFailureSchema },
       },

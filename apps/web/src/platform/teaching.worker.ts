@@ -1,3 +1,7 @@
+import {
+  StorageCapacityError,
+  isStorageCapacityError,
+} from "./storage-capacity.ts";
 import { browserConfiguration } from "./browser-configuration.ts";
 import type { BrowserConfiguration } from "./browser-configuration.ts";
 import { createBrowserInstalledOptions } from "./installed-application.ts";
@@ -112,14 +116,23 @@ function bootstrap(input: Opening): Promise<OpenedStore> {
             const executor: SqlExecutor = {
               async execute(sql, parameters) {
                 const rows: unknown[][] = [];
-                database.exec({
-                  sql,
-                  bind: [...parameters],
-                  rowMode: "array",
-                  callback: (row) => {
-                    rows.push([...row]);
-                  },
-                });
+                try {
+                  database.exec({
+                    sql,
+                    bind: [...parameters],
+                    rowMode: "array",
+                    callback: (row) => {
+                      rows.push([...row]);
+                    },
+                  });
+                } catch (error) {
+                  if (
+                    error instanceof sqlite3.SQLite3Error &&
+                    (error.resultCode & 255) === sqlite3.capi.SQLITE_FULL
+                  )
+                    throw new StorageCapacityError();
+                  throw error;
+                }
                 return { rows };
               },
             };
@@ -430,7 +443,12 @@ self.addEventListener("message", (event: MessageEvent<unknown>) => {
             }),
           )
           .catch(() => {});
-      if (error instanceof InstalledContentUnavailableError)
+      if (isStorageCapacityError(error))
+        self.postMessage({
+          id: request.id,
+          kind: "storageFull",
+        } satisfies WorkerResponse);
+      else if (error instanceof InstalledContentUnavailableError)
         self.postMessage({
           id: request.id,
           kind: "contentUnavailable",

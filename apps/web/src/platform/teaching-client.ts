@@ -1,3 +1,4 @@
+import { StorageCapacityError } from "./storage-capacity.ts";
 import { browserConfiguration } from "./browser-configuration.ts";
 import { loadDevelopmentOpening } from "./development-opening.ts";
 import { registerOfflineShell } from "./controlled-shell.ts";
@@ -317,7 +318,9 @@ export function createBrowserTeachingClient() {
                 waiting.reject(
                   new InstalledResourceUnavailableError(result.value),
                 );
-              } else if (result.kind === "failed")
+              } else if (result.kind === "storageFull")
+                waiting.reject(new StorageCapacityError());
+              else if (result.kind === "failed")
                 waiting.reject(new Error(result.message));
               else waiting.resolve(result);
             } catch {

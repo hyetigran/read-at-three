@@ -1,4 +1,8 @@
 import {
+  StorageCapacityError,
+  isStorageCapacityError,
+} from "./storage-capacity.ts";
+import {
   InstalledResourceUnavailableError,
   canonical,
   prepareWritingControl,
@@ -167,6 +171,11 @@ type Capture = {
   pending: PendingInk | null;
 };
 const ids = () => crypto.randomUUID();
+function saveFailureMessage(error: unknown): string {
+  return isStorageCapacityError(error)
+    ? new StorageCapacityError().message
+    : saveMessage;
+}
 const saveMessage =
   "This save could not be confirmed. Keep this reading window open and retry the same action.";
 function writing(
@@ -793,7 +802,11 @@ export function createWritingController({
       if (operationSerial !== ticket) return;
       fence();
       publish({
-        operation: { kind: "failed", prepared, message: saveMessage },
+        operation: {
+          kind: "failed",
+          prepared,
+          message: saveFailureMessage(error),
+        },
       });
     }
   }
@@ -813,7 +826,7 @@ export function createWritingController({
       publish({
         operation: {
           kind: "inkFailed",
-          message: saveMessage,
+          message: saveFailureMessage(error),
           retry: { kind: "action", request, origin },
         },
       });
@@ -993,7 +1006,7 @@ export function createWritingController({
       publish({
         operation: {
           kind: "inkFailed",
-          message: saveMessage,
+          message: saveFailureMessage(error),
           retry: { kind: "inkOnly" },
         },
       });
@@ -1121,7 +1134,11 @@ export function createWritingController({
       if (operationSerial === ticket && !closed) {
         fence();
         publish({
-          operation: { kind: "adoptionFailed", receipt, message: saveMessage },
+          operation: {
+            kind: "adoptionFailed",
+            receipt,
+            message: saveFailureMessage(error),
+          },
         });
       }
       return { kind: "held" };
@@ -1175,7 +1192,12 @@ export function createWritingController({
     } catch (error) {
       observeResourceFailure(error, resource);
       if (operationSerial === ticket && !closed)
-        publish({ operation: { kind: "openingFailed", message: saveMessage } });
+        publish({
+          operation: {
+            kind: "openingFailed",
+            message: saveFailureMessage(error),
+          },
+        });
     }
   }
   async function saveAdministration(
@@ -1207,7 +1229,11 @@ export function createWritingController({
       if (operationSerial === ticket && !closed) {
         fence();
         publish({
-          operation: { kind: "adminFailed", command, message: saveMessage },
+          operation: {
+            kind: "adminFailed",
+            command,
+            message: saveFailureMessage(error),
+          },
         });
       }
       return { kind: "held" };
@@ -1298,7 +1324,9 @@ export function createWritingController({
       } catch (error) {
         observeResourceFailure(error, resource);
         if (operationSerial === ticket && !closed)
-          publish({ operation: { ...operation, message: saveMessage } });
+          publish({
+            operation: { ...operation, message: saveFailureMessage(error) },
+          });
       }
       return;
     }
@@ -1334,7 +1362,9 @@ export function createWritingController({
     } catch (error) {
       observeResourceFailure(error, resource);
       if (operationSerial === ticket && !closed)
-        publish({ operation: { ...operation, message: saveMessage } });
+        publish({
+          operation: { ...operation, message: saveFailureMessage(error) },
+        });
     }
   }
 
@@ -1528,7 +1558,7 @@ export function createWritingController({
       publish({
         operation:
           operation.kind === "failed"
-            ? { ...operation, message: saveMessage }
+            ? { ...operation, message: saveFailureMessage(error) }
             : operation.kind === "inkFailed"
               ? operation
               : operation.kind === "openingFailed"
@@ -1541,7 +1571,7 @@ export function createWritingController({
                   }
                 : {
                     kind: "inkFailed",
-                    message: saveMessage,
+                    message: saveFailureMessage(error),
                     retry: { kind: "inkOnly" },
                   },
       });
@@ -1570,7 +1600,7 @@ export function createWritingController({
       publish({
         operation: {
           kind: "inkFailed",
-          message: saveMessage,
+          message: saveFailureMessage(error),
           retry: { kind: "inkOnly" },
         },
       });
@@ -1650,7 +1680,7 @@ export function createWritingController({
       publish({
         operation: {
           kind: "inkFailed",
-          message: saveMessage,
+          message: saveFailureMessage(error),
           retry: { kind: "inkOnly" },
         },
       });
