@@ -13,7 +13,7 @@ import {
   parseDevelopmentPackage,
   prepareCommand,
 } from "../../packages/teaching/src/index.ts";
-import { hash, storageFixture } from "./support.ts";
+import { databaseSnapshot, hash, storageFixture } from "./support.ts";
 
 test("six normal obligations complete once; navigation and unfinished Replay preserve prior credit", async (t) => {
   const f = await storageFixture(t);
@@ -375,6 +375,8 @@ test("result-to-credit NO ACTION relationship is deferred until COMMIT", async (
     .get()?.sql;
   assert.equal(typeof ddl, "string");
   assert.match(String(ddl), /DEFERRABLE INITIALLY DEFERRED/);
+  const before = await databaseSnapshot(first.db);
+  const completed = await selectedProjection(first.app);
   first.db.exec("BEGIN");
   first.db.exec("DELETE FROM task_credit");
   assert.equal(
@@ -383,9 +385,15 @@ test("result-to-credit NO ACTION relationship is deferred until COMMIT", async (
   );
   assert.throws(() => first.db.exec("COMMIT"), /FOREIGN KEY constraint failed/);
   first.db.exec("ROLLBACK");
+  assert.deepEqual(await databaseSnapshot(first.db), before);
   assert.equal((await selectedProjection(first.app)).kind, "completed");
   assert.equal(
     first.db.prepare("SELECT count(*) AS n FROM task_credit").get()?.n,
     1,
   );
+  first.db.close();
+  const cold = await f.connectReady();
+  assert.deepEqual(await databaseSnapshot(cold.db), before);
+  assert.deepEqual(await selectedProjection(cold.app), completed);
+  assert.deepEqual(cold.db.prepare("PRAGMA foreign_key_check").all(), []);
 });

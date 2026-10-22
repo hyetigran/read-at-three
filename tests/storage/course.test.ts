@@ -652,6 +652,8 @@ test("normalized lesson support rejects a cross-owner edge using the actual SQLi
   db.prepare(
     "INSERT INTO profile(profile_id,generation,revision,undo_run_id,preferences_version,preferences) VALUES(?,0,0,NULL,1,?)",
   ).run("fixture.other.owner", canonical({ version: 1 }));
+  const before = await databaseSnapshot(db);
+  const projection = await selectedCourse(app);
   assert.throws(
     () =>
       db
@@ -672,6 +674,21 @@ test("normalized lesson support rejects a cross-owner edge using the actual SQLi
     /FOREIGN KEY/,
   );
   assert.equal(count(db, "lesson_credit_support"), 6);
+  assert.deepEqual(await databaseSnapshot(db), before);
+  db.close();
+  const cold = await f.connectReady();
+  assert.deepEqual(await databaseSnapshot(cold.db), before);
+  const opening = await cold.app.openRecovery({ kind: "cold" });
+  await cold.app.reconcileRecovery({
+    recoveryId: opening.recoveryId,
+    choice: { kind: "cold" },
+  });
+  const restored = await selectedCourse(cold.app);
+  if (projection.kind !== "ready" || restored.kind !== "ready")
+    throw new Error("Saved course must reopen after reconciliation");
+  assert.deepEqual(restored.course, projection.course);
+  assert.deepEqual(restored.witness, projection.witness);
+  assert.deepEqual(cold.db.prepare("PRAGMA foreign_key_check").all(), []);
 });
 
 test("actual offline Query reads publish profile Start and Resume receipts with the session revision witness", async (t) => {
