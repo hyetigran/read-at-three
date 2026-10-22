@@ -62,7 +62,7 @@ export function CacheCleanup({
     } catch {
       setMessage(
         remove
-          ? "Cleanup could not be confirmed. Your pending reading save and unsaved drawing are still waiting. Retry this same cleanup or return to reading."
+          ? "Cleanup could not be confirmed. Your pending reading save and any unsaved drawing are still waiting. Retry this same cleanup or return to reading."
           : "Unused downloads could not be checked. Retry when storage is available.",
       );
     } finally {

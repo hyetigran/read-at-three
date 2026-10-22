@@ -123,6 +123,9 @@ function ApplicationShell() {
   const cleanupCommand = useRef<
     import("@readatthree/teaching").StorageCleanupCommand | null
   >(null);
+  const cacheCleanupCommand = useRef<
+    import("@readatthree/teaching").CacheCleanupCommand | null
+  >(null);
   const installationCommand = useRef<
     import("@readatthree/teaching").InitialInstallCommand | null
   >(null);
@@ -185,7 +188,8 @@ function ApplicationShell() {
     (cleanupOpen ||
       operation.kind === "failed" ||
       operation.kind === "inkFailed" ||
-      cleanupCommand.current !== null);
+      cleanupCommand.current !== null ||
+      cacheCleanupCommand.current !== null);
   const busy =
     (cleanupOpen && cleanupAvailable) ||
     entering ||
@@ -1266,6 +1270,11 @@ function ApplicationShell() {
               client={client}
               selection={selection}
               retained={cleanupCommand}
+              cacheRetained={
+                browserConfiguration.kind === "installed"
+                  ? cacheCleanupCommand
+                  : undefined
+              }
               recoverConnection={() => controller.reopen()}
               onClose={() => setCleanupOpen(false)}
             />
