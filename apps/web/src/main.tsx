@@ -888,7 +888,7 @@ function ApplicationShell() {
   const recovery =
     committed.recovery ??
     (operation.kind === "openingFailed"
-      ? { code: "storage-initialization-failed", message: operation.message }
+      ? { code: operation.code, message: operation.message }
       : null);
   if (!supported) screen = <WindowRecovery busy={busy} />;
   else if (state.resourceBlock)

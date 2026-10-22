@@ -130,24 +130,32 @@ test("queued ownership restores committed writing after the previous owner relea
 test("an owner retained through the ownership deadline refuses without changing saved files", async ({
   context,
 }) => {
-  await seed(await context.newPage());
+  const expected = await seed(await context.newPage());
   const harness = await context.newPage();
   const lock = await holder(harness);
   const before = await savedFiles(harness);
   const reading = await context.newPage();
+  await probe(reading);
   const started = Date.now();
   await reading.goto(`${browserBaseURL}/teaching`);
   await expect.poll(() => ownership(harness)).toEqual({ held: 1, pending: 1 });
   await expect(
-    reading.getByRole("heading", { name: "Saved storage is unavailable" }),
+    reading.getByRole("heading", { name: "Storage is open in another window" }),
   ).toBeVisible();
   expect(Date.now() - started).toBeLessThan(15000);
+  await expect(
+    reading.getByText(
+      "Close the other reading window, then retry opening here. Your saved reading and writing are kept.",
+    ),
+  ).toBeVisible();
   await expect.poll(() => ownership(harness)).toEqual({ held: 1, pending: 0 });
   expect(await savedFiles(harness)).toEqual(before);
   await lock.evaluate((worker) => worker.postMessage("release"));
   await expect.poll(() => ownership(harness)).toEqual({ held: 0, pending: 0 });
   expect(await savedFiles(harness)).toEqual(before);
   await lock.evaluate((worker) => worker.terminate());
+  await reading.getByRole("button", { name: "Retry opening" }).click();
+  expect(await restored(reading)).toEqual(expected);
 });
 
 test("retiring a pending reading page cancels its lease and a genuine second tab stays excluded", async ({
@@ -172,7 +180,7 @@ test("retiring a pending reading page cancels its lease and a genuine second tab
   const second = await context.newPage();
   await second.goto(`${browserBaseURL}/teaching`);
   await expect(
-    second.getByRole("heading", { name: "Saved storage is unavailable" }),
+    second.getByRole("heading", { name: "Storage is open in another window" }),
   ).toBeVisible();
   expect(await ownership(harness)).toEqual({ held: 1, pending: 0 });
   await atWriting(reading, "m-model");
