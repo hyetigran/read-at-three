@@ -11,7 +11,10 @@ import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createTeachingApplication } from "../../packages/storage/src/index.ts";
+import {
+  createSqlExecutor,
+  createTeachingApplication,
+} from "../../packages/storage/src/index.ts";
 import type {
   SqlExecutor,
   SqlValue,
@@ -35,7 +38,9 @@ export type SqlHook = (
   work: () => Promise<{ rows: unknown[][] }>,
 ) => Promise<{ rows: unknown[][] }>;
 export function executorFor(db: DatabaseSync, hook?: SqlHook): SqlExecutor {
-  return {
+  return createSqlExecutor({
+    transactionState: () => (db.isTransaction ? "active" : "idle"),
+    close: () => db.close(),
     async execute(sql: string, parameters: readonly SqlValue[]) {
       const work = async () => {
         const statement = db.prepare(sql);
@@ -53,7 +58,7 @@ export function executorFor(db: DatabaseSync, hook?: SqlHook): SqlExecutor {
       };
       return hook ? hook(sql, work) : work();
     },
-  };
+  });
 }
 export function isReadOnlySqlAttempt(sql: string) {
   return /^\s*(?:select\b|PRAGMA\s+(?:foreign_keys(?:=ON)?|foreign_key_check|foreign_key_list\("[a-z_]+"\)|user_version|journal_mode|synchronous)\s*$)/i.test(

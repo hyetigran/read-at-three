@@ -80,7 +80,7 @@ export const foreignKeyPolicy: Readonly<Record<string, ForeignKeyRole>> = {
 };
 
 export async function verifyForeignKeyPolicy(
-  executor: SqlExecutor,
+  executor: Pick<SqlExecutor, "execute">,
   policy: Readonly<Record<string, ForeignKeyRole>> = foreignKeyPolicy,
   columns: readonly PackageColumn[] = classifiedPackageColumns(),
   paths: readonly OwnedPath[] = ownedPackagePaths,

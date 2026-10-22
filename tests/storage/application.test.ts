@@ -13,7 +13,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { createTeachingApplication } from "../../packages/storage/src/index.ts";
+import {
+  createSqlExecutor,
+  createTeachingApplication,
+} from "../../packages/storage/src/index.ts";
 import type {
   SqlExecutor,
   SqlValue,
@@ -98,7 +101,9 @@ async function fixture(t: { after(fn: () => Promise<void>): void }) {
     databases.push(db);
     db.exec("PRAGMA journal_mode=DELETE");
     db.exec("PRAGMA synchronous=FULL");
-    const executor: SqlExecutor = {
+    const executor: SqlExecutor = createSqlExecutor({
+      transactionState: () => (db.isTransaction ? "active" : "idle"),
+      close: () => db.close(),
       async execute(sql: string, parameters: readonly SqlValue[]) {
         const work = async () => {
           const stmt = db.prepare(sql);
@@ -116,7 +121,7 @@ async function fixture(t: { after(fn: () => Promise<void>): void }) {
         };
         return hook ? hook(sql, work) : work();
       },
-    };
+    });
     return {
       db,
       executor,

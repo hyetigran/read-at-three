@@ -1,3 +1,4 @@
+import { createSqlExecutor } from "../../packages/storage/src/index.ts";
 import { selectedProjection } from "./selected-support.ts";
 
 import assert from "node:assert/strict";
@@ -218,12 +219,14 @@ test("each failed V2 migration statement rolls back to exact V1 schema/data and 
     await seed({ db: first.db });
     const before = sourceState(first.db);
     const upgraded = sourceState(first.db, "toV7");
-    const executor: SqlExecutor = {
+    const executor: SqlExecutor = createSqlExecutor({
+      transactionState: () => (first.db.isTransaction ? "active" : "idle"),
+      close: () => first.db.close(),
       execute: async (sql, parameters) => {
         if (sql === failing) throw new Error("Injected V2 interruption");
         return first.executor.execute(sql, parameters);
       },
-    };
+    });
     await assert.rejects(
       initializeDatabase(executor, hash),
       /Injected V2 interruption/,
@@ -357,7 +360,9 @@ test("every V3 migration write and pre-COMMIT interruption rolls back genuine V2
           .all(),
       );
     let injected = false;
-    const executor: SqlExecutor = {
+    const executor: SqlExecutor = createSqlExecutor({
+      transactionState: () => (first.db.isTransaction ? "active" : "idle"),
+      close: () => first.db.close(),
       execute: async (sql, parameters) => {
         if (
           !injected &&
@@ -369,7 +374,7 @@ test("every V3 migration write and pre-COMMIT interruption rolls back genuine V2
         }
         return first.executor.execute(sql, parameters);
       },
-    };
+    });
     await assert.rejects(initializeDatabase(executor, hash), /Injected V3/);
     assert.ok(injected);
     assert.equal(
@@ -397,7 +402,9 @@ test("every V3 migration write and pre-COMMIT interruption rolls back genuine V2
     first = f.connect();
   await seed({ db: first.db, version: 2 });
   let lost = false;
-  const executor: SqlExecutor = {
+  const executor: SqlExecutor = createSqlExecutor({
+    transactionState: () => (first.db.isTransaction ? "active" : "idle"),
+    close: () => first.db.close(),
     execute: async (sql, parameters) => {
       const result = await first.executor.execute(sql, parameters);
       if (sql === "COMMIT" && !lost) {
@@ -406,7 +413,7 @@ test("every V3 migration write and pre-COMMIT interruption rolls back genuine V2
       }
       return result;
     },
-  };
+  });
   await assert.rejects(initializeDatabase(executor, hash), /Lost migration/);
   assert.equal(first.db.prepare("PRAGMA user_version").get()?.user_version, 3);
   await initializeDatabase(first.executor, hash);

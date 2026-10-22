@@ -5,6 +5,7 @@ import { initializeReadingSqlite } from "./sqlite-bootstrap.ts";
 import applicationPackage from "../../../../package.json";
 import {
   createTeachingApplication,
+  createSqlExecutor,
   DATABASE_VERSION,
 } from "@readatthree/storage";
 import type { SqlExecutor } from "@readatthree/storage";
@@ -25,7 +26,11 @@ import type {
   LessonFilesApplication,
 } from "@readatthree/teaching";
 import { hashText } from "./hash.ts";
-import { parseRequest, serializeParentMaterial } from "./protocol.ts";
+import {
+  parseRequest,
+  parseWorkerRequestId,
+  serializeParentMaterial,
+} from "./protocol.ts";
 import type {
   WorkerRequest,
   WorkerResponse,
@@ -37,6 +42,7 @@ type OpenedStore = Readonly<{
     LocalSupportApplication &
     PortableInstallationApplication &
     LessonFilesApplication;
+  connection: SqlExecutor;
   courseId: CourseId;
   support: LocalSupportMetadata;
 }>;
@@ -109,7 +115,28 @@ function bootstrap(input: Opening): Promise<OpenedStore> {
               initialCapacity: 6,
             });
             const database = new pool.OpfsSAHPoolDb("/reading.sqlite3");
-            const executor: SqlExecutor = {
+            const executor = createSqlExecutor({
+              transactionState() {
+                if (!database.pointer) return "unknown";
+                const autocommit = sqlite3.capi.sqlite3_get_autocommit(
+                  database.pointer,
+                );
+                return autocommit === 0
+                  ? "active"
+                  : autocommit === 1
+                    ? "idle"
+                    : "unknown";
+              },
+              close() {
+                try {
+                  database.close();
+                } finally {
+                  self.postMessage({
+                    id: parseWorkerRequestId("connection-retired"),
+                    kind: "connectionLost",
+                  } satisfies WorkerResponse);
+                }
+              },
               async execute(sql, parameters) {
                 const rows: unknown[][] = [];
                 database.exec({
@@ -122,8 +149,9 @@ function bootstrap(input: Opening): Promise<OpenedStore> {
                 });
                 return { rows };
               },
-            };
+            });
             resolve({
+              connection: executor,
               courseId:
                 selected.kind === "development"
                   ? selected.content.body.courseId
@@ -391,6 +419,13 @@ self.addEventListener("message", (event: MessageEvent<unknown>) => {
           throw new Error(String(exhaustive));
         }
       }
+      if ((await application)?.connection.retired) {
+        self.postMessage({
+          id: request.id,
+          kind: "connectionLost",
+        } satisfies WorkerResponse);
+        return;
+      }
       self.postMessage(response);
       if (
         request.kind !== "readDiagnostics" &&
@@ -410,6 +445,14 @@ self.addEventListener("message", (event: MessageEvent<unknown>) => {
           })
           .catch(() => {});
     } catch (error) {
+      const opened = await application?.catch(() => undefined);
+      if (opened?.connection.retired) {
+        self.postMessage({
+          id: request.id,
+          kind: "connectionLost",
+        } satisfies WorkerResponse);
+        return;
+      }
       if (
         application &&
         request.kind !== "readDiagnostics" &&
