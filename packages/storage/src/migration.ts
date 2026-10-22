@@ -12,22 +12,7 @@ export async function transaction<T>(
   work: () => Promise<T>,
   checkCurrent?: () => void,
 ): Promise<T> {
-  checkCurrent?.();
-  await executor.execute("BEGIN IMMEDIATE", []);
-  try {
-    checkCurrent?.();
-    const result = await work();
-    checkCurrent?.();
-    await executor.execute("COMMIT", []);
-    return result;
-  } catch (error) {
-    try {
-      await executor.execute("ROLLBACK", []);
-    } catch {
-      /* COMMIT may already have succeeded; preserve uncertain acknowledgement. */
-    }
-    throw error;
-  }
+  return executor.transaction(work, checkCurrent);
 }
 function firstValue(rows: unknown[][]): unknown {
   return rows[0]?.[0];
@@ -122,8 +107,12 @@ async function processDatabase(
 ): Promise<void> {
   const executor: SqlExecutor = checkCurrent
     ? {
+        get retired() {
+          return connection.retired;
+        },
+        transaction: (work, guard) => connection.transaction(work, guard),
         execute(sql, parameters) {
-          if (sql !== "ROLLBACK") checkCurrent();
+          checkCurrent();
           return connection.execute(sql, parameters);
         },
       }

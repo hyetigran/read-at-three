@@ -310,6 +310,10 @@ export function createBrowserTeachingClient() {
             if (worker !== connection) return;
             try {
               const result = parseResponse(event.data);
+              if (result.kind === "connectionLost") {
+                dispose();
+                return;
+              }
               const waiting = pending.get(result.id);
               if (!waiting) return;
               pending.delete(result.id);

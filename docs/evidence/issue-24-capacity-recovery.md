@@ -20,4 +20,4 @@ The page-limit mechanism qualifies real SQLite capacity refusal in the selected 
 
 ## Validation record
 
-The initial browser regression reached native `SQLITE_FULL` and failed because the existing view displayed only generic save guidance. The development and production browser scenarios passed, including the review regression for changing failure categories across Retry. Typechecking, whole-project formatting and boundary checks passed. The full Node regression run is still in progress.
+The initial browser regression reached native `SQLITE_FULL` and failed because the existing view displayed only generic save guidance. The development and production browser scenarios passed, including the review regression for changing failure categories across Retry. Typechecking, whole-project formatting and boundary checks passed. The full Node regression run passed all 740 tests before integrating transaction recovery from main. The combined branch requires its own integration checks and exact-head CI.

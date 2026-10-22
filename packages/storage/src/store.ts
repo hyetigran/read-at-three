@@ -197,6 +197,16 @@ export function createTeachingApplication(
   } = options;
   let readOnlyVersion: number | undefined;
   const executor: SqlExecutor = {
+    get retired() {
+      return connection.retired;
+    },
+    transaction(work, checkCurrent) {
+      if (readOnlyVersion !== undefined)
+        throw new Error(
+          "Read-only compatibility admission attempted a transaction",
+        );
+      return connection.transaction(work, checkCurrent);
+    },
     execute(sql, parameters) {
       if (
         readOnlyVersion !== undefined &&
