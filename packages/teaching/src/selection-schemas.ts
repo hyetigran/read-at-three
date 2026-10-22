@@ -273,6 +273,7 @@ export const selectionValidationSchemas = {
       teachingRecovery: { properties: { id: string, value: {} } },
       administrationRecovery: { properties: { id: string, value: {} } },
       reconciled: { properties: { id: string, value: {} } },
+      connectionLost: { properties: { id: string } },
       failed: { properties: { id: string, message: string } },
     },
   },
