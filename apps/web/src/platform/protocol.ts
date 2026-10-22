@@ -9,6 +9,9 @@ import {
   parseInstallationRead,
   parseInstallationCatalog,
   parseLessonFilesCommand,
+  parseCacheCleanupCommand,
+  parseCacheCleanupView,
+  parseCacheCleanupResult,
   parseLessonFilesReceipt,
   parseLessonFilesView,
   parseDiagnosticEvent,
@@ -69,6 +72,9 @@ import type {
   ParentMaterialRequest,
   ParentMaterialRead,
   LessonFilesCommand,
+  CacheCleanupCommand,
+  CacheCleanupView,
+  CacheCleanupResult,
   LessonFilesReceipt,
   LessonFilesView,
 } from "@readatthree/teaching";
@@ -137,6 +143,8 @@ export type WorkerRequest = { id: WorkerRequestId } & (
   | { kind: "openInstalledRecovery"; opening: SelectedRecoveryOpening }
   | { kind: "readDirectory" }
   | { kind: "installations" }
+  | { kind: "readCacheCleanup" }
+  | { kind: "cleanupCache"; command: CacheCleanupCommand }
   | { kind: "readLessonFiles" }
   | { kind: "changeLessonFiles"; command: LessonFilesCommand }
   | { kind: "initialInstall"; command: InitialInstallCommand }
@@ -163,6 +171,8 @@ export type WorkerResponse = { id: WorkerRequestId } & (
   | { kind: "directory" | "reconciled"; value: ProfileDirectory }
   | { kind: "installationCatalog"; value: InstallationCatalog }
   | { kind: "installationRead"; value: InstallationRead }
+  | { kind: "cacheCleanup"; value: CacheCleanupView }
+  | { kind: "cacheCleanupResult"; value: CacheCleanupResult }
   | { kind: "lessonFiles"; value: LessonFilesView }
   | { kind: "lessonFilesReceipt"; value: LessonFilesReceipt }
   | {
@@ -233,6 +243,12 @@ export function parseRequest(input: unknown): WorkerRequest {
         kind: value.kind,
         command: parseInitialInstallCommand(value.command),
       };
+    case "cleanupCache":
+      return {
+        id,
+        kind: value.kind,
+        command: parseCacheCleanupCommand(value.command),
+      };
     case "changeLessonFiles":
       return {
         id,
@@ -253,6 +269,7 @@ export function parseRequest(input: unknown): WorkerRequest {
         input: parseParentMaterialRequest(value.input),
       };
     case "installations":
+    case "readCacheCleanup":
     case "readLessonFiles":
     case "readDirectory":
     case "readDiagnostics":
@@ -345,6 +362,18 @@ export function parseResponse(input: unknown): WorkerResponse {
   const value = parseSelectedWorkerResponseWire(input);
   const id = parseWorkerRequestId(value.id);
   switch (value.kind) {
+    case "cacheCleanup":
+      return {
+        id,
+        kind: value.kind,
+        value: parseCacheCleanupView(value.value),
+      };
+    case "cacheCleanupResult":
+      return {
+        id,
+        kind: value.kind,
+        value: parseCacheCleanupResult(value.value),
+      };
     case "lessonFiles":
       return { id, kind: value.kind, value: parseLessonFilesView(value.value) };
     case "lessonFilesReceipt":

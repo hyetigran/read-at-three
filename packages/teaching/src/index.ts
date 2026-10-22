@@ -251,3 +251,5 @@ export {
 } from "./lesson-six-assets.ts";
 export { lessonSixPrintedBoards, printedRenderingProfile } from "./printed.ts";
 export { connectedRenderingProfile } from "./connected-pointing.ts";
+
+export * from "./cache-cleanup.ts";

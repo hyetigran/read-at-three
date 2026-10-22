@@ -100,6 +100,7 @@ import type {
   CommandResult,
   RecoveryResult,
   LessonFilesApplication,
+  CacheCleanupApplication,
 } from "../../teaching/src/index.ts";
 import {
   createInitialInstallation,
@@ -186,7 +187,8 @@ export function createTeachingApplication(
 ): SelectedApplication &
   LocalSupportApplication &
   PortableInstallationApplication &
-  LessonFilesApplication {
+  LessonFilesApplication &
+  CacheCleanupApplication {
   const {
     executor: connection,
     content: suppliedContent,
@@ -3385,6 +3387,16 @@ export function createTeachingApplication(
       })
     : undefined;
   return {
+    readCacheCleanup: async () => {
+      if (!packageCatalog)
+        throw new Error("Cache cleanup requires installed mode");
+      return packageCatalog.readCacheCleanup();
+    },
+    cleanupCache: async (command) => {
+      if (!packageCatalog)
+        throw new Error("Cache cleanup requires installed mode");
+      return packageCatalog.cleanupCache(command);
+    },
     readLessonFiles: async () => {
       if (!packageCatalog)
         throw new Error("Lesson-file updates require installed mode");

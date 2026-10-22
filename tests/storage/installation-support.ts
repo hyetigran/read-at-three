@@ -261,7 +261,6 @@ export async function installationFixture(
       const scoped =
         namespaces.get(scopeHash) ??
         new Map<string, { bytes: Uint8Array; mediaType: string }>();
-      namespaces.set(scopeHash, scoped);
       locks++;
       try {
         return await heldContent.run(new Set([...held, scopeHash]), () =>
@@ -311,6 +310,7 @@ export async function installationFixture(
                 writeFailure.path === path
               )
                 throw writeFailure.error;
+              namespaces.set(scopeHash, scoped);
               scoped.set(path, { bytes: Uint8Array.from(bytes), mediaType });
             },
           }),
@@ -524,6 +524,13 @@ export async function installationFixture(
       writeFailure = value;
     },
     anotherRelease,
+    publicationKey: key,
+    publicationFiles(requested: PublicationHash) {
+      const stored = distribution.get(requested);
+      const envelope = envelopes.get(requested);
+      if (!stored || !envelope) throw new Error("Missing fixture publication");
+      return new Map([...stored, ["_publication-envelope.json", envelope]]);
+    },
     acquisitionTargets,
     downloadTargets,
     connect,

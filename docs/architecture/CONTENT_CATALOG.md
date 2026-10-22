@@ -45,3 +45,11 @@ Future snapshot owners atomically capture a snapshot and its complete package se
 ## Verification boundaries
 
 Structural SQLite tests exercise real deployed DDL/FKs, omission controls, deferred insertion orders and collecting admission. Lifecycle tests call the actual application with signed synthetic six-lesson packages, real SQLite and controlled resource faults. Map-backed resources and simulated lifetimes establish portable behavior only. Production qualification must separately exercise the signed built SPA, real workers, CacheStorage, OPFS, Web Locks and whole-browser restart, including changed parent prompts and guides. None of these establishes React Native/Expo, physical-device, source-publication or store-release qualification.
+
+## Explicit recovery cache cleanup
+
+`readCacheCleanup` lists bounded, unrooted owned namespaces without reconciling offers, downloading, activating a fallback or changing personal state. Each target carries the exact content hash and intended collection revision. `cleanupCache` carries the installation identity and a frozen list of those targets; its Retry reuses that list.
+
+The durable identity of each cleanup is the installation, content hash and collection revision. A missing tombstone admits revision zero; a completed tombstone admits only its next revision; an interrupted tombstone resumes its existing revision. A matching completed revision reports completion without erasing again, including after the same immutable package has been downloaded again. A different revision reports `changed`; newly rooted content reports `retained`. Neither authorizes deletion. Results are per-target observations, not teaching receipts or claims that every currently cached copy was removed.
+
+The existing collector still owns deletion authority: validate the deployed schema and retained semantics, check every retention root, commit the tombstone, then erase under the exact namespace lock and private claim. An unsuccessful tombstone commit permits no deletion. Partial batches retain their original targets so Retry can skip completed revisions and resume interrupted ones. This action does not collect the application shell, change package activation, remove immutable verification metadata or alter teaching commands, progress or drawings.

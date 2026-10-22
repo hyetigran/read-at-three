@@ -6,6 +6,9 @@ import {
   parentMaterialRequestSchema,
   parentMaterialWireSchema,
   lessonFilesCommandSchema,
+  cacheCleanupCommandSchema,
+  cacheCleanupViewSchema,
+  cacheCleanupResultSchema,
   lessonFilesReceiptSchema,
   lessonFilesViewSchema,
 } from "./installation-schemas.ts";
@@ -168,6 +171,10 @@ export const selectionValidationSchemas = {
       },
       readDirectory: { properties: { id: string } },
       installations: { properties: { id: string } },
+      readCacheCleanup: { properties: { id: string } },
+      cleanupCache: {
+        properties: { id: string, command: cacheCleanupCommandSchema },
+      },
       readLessonFiles: { properties: { id: string } },
       changeLessonFiles: {
         properties: { id: string, command: lessonFilesCommandSchema },
@@ -214,6 +221,12 @@ export const selectionValidationSchemas = {
     mapping: {
       directory: { properties: { id: string, value: {} } },
       installationCatalog: { properties: { id: string, value: {} } },
+      cacheCleanup: {
+        properties: { id: string, value: cacheCleanupViewSchema },
+      },
+      cacheCleanupResult: {
+        properties: { id: string, value: cacheCleanupResultSchema },
+      },
       lessonFiles: { properties: { id: string, value: lessonFilesViewSchema } },
       lessonFilesReceipt: {
         properties: { id: string, value: lessonFilesReceiptSchema },

@@ -13,6 +13,7 @@ import {
   parseParentMaterialRequest,
   parsePreparationPackage,
   parseLessonFilesCommand,
+  parseCacheCleanupCommand,
   lessonFilesIdentity,
   assertLessonFilesEvidence,
 } from "@readatthree/teaching";
@@ -22,6 +23,7 @@ import type {
   InitialInstallCommand,
   ParentMaterialRequest,
   LessonFilesCommand,
+  CacheCleanupCommand,
 } from "@readatthree/teaching";
 import { hashText } from "./hash.ts";
 import { TeachingRecoveryError } from "@readatthree/react-integration";
@@ -157,6 +159,33 @@ export function createBrowserTeachingClient() {
     return response.value;
   }
   return {
+    async readCacheCleanup() {
+      const ticket = connectionRevision;
+      const response = await request({ id: id(), kind: "readCacheCleanup" });
+      if (response.kind !== "cacheCleanup" || ticket !== connectionRevision)
+        throw new Error("Cache cleanup view changed connections");
+      return response.value;
+    },
+    async cleanupCache(input: CacheCleanupCommand) {
+      const command = parseCacheCleanupCommand(input);
+      const ticket = connectionRevision;
+      const response = await request({
+        id: id(),
+        kind: "cleanupCache",
+        command,
+      });
+      if (
+        response.kind !== "cacheCleanupResult" ||
+        ticket !== connectionRevision ||
+        response.value.installationId !== command.installationId ||
+        canonical(response.value.results.map((result) => result.target)) !==
+          canonical(command.targets)
+      )
+        throw new Error(
+          "Cache cleanup result changed its targets or connection",
+        );
+      return response.value;
+    },
     async readLessonFiles() {
       const ticket = connectionRevision;
       const response = await request({ id: id(), kind: "readLessonFiles" });
@@ -521,6 +550,8 @@ export type InkLifecycleClient = Omit<
   | "readPreparation"
   | "installations"
   | "initialInstall"
+  | "readCacheCleanup"
+  | "cleanupCache"
   | "readLessonFiles"
   | "changeLessonFiles"
   | "parentMaterial"
