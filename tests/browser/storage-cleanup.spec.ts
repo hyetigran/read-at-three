@@ -15,12 +15,18 @@ import {
 } from "./writing-helpers.ts";
 import { reloadSavedTurn } from "./reload-saved-turn.ts";
 
-for (const cleanupCut of ["commit-before", "commit-after"] as const)
-  test(`parent cleanup ${cleanupCut} preserves pending ink through exact Retry and reload`, async ({
+for (const scenario of [
+  "commit-before",
+  "commit-after",
+  "failed-opening",
+] as const)
+  test(`parent cleanup ${scenario} preserves pending ink through exact Retry and reload`, async ({
     context,
     page,
   }) => {
     test.setTimeout(120000);
+    const cleanupCut =
+      scenario === "failed-opening" ? "commit-after" : scenario;
     await installTransactionDriver(context, page);
     await probe(page);
     await startWriting(page);
@@ -95,6 +101,24 @@ for (const cleanupCut of ["commit-before", "commit-after"] as const)
       await page.evaluate(
         "window.activeWritingWorker.dispatchEvent(new ErrorEvent('error', {message: 'Cleanup connection lost after commit'}))",
       );
+    if (scenario === "failed-opening") {
+      await page.evaluate(`new Promise(resolve => {
+        navigator.locks.request('read-at-three.sqlite.v1', async () => {
+          resolve();
+          await new Promise(release => { window.releaseCleanupLease = release; });
+        });
+      })`);
+      const retry = dialog.getByRole("button", {
+        name: "Retry same cleanup",
+        exact: true,
+      });
+      await retry.click();
+      await expect(retry).toBeEnabled();
+      await expect(
+        dialog.getByText(/Cleanup could not be confirmed/),
+      ).toBeVisible();
+      await page.evaluate("window.releaseCleanupLease()");
+    }
     await dialog
       .getByRole("button", { name: "Retry same cleanup", exact: true })
       .click();
@@ -104,11 +128,13 @@ for (const cleanupCut of ["commit-before", "commit-after"] as const)
     const attempts = (await requests(page)).filter(
       (request) => request.kind === "cleanupStorage",
     );
-    expect(attempts).toHaveLength(2);
-    expect(attempts.map((request) => request.command)).toEqual([
-      cleanup.command,
-      cleanup.command,
-    ]);
+    expect(attempts).toHaveLength(scenario === "failed-opening" ? 3 : 2);
+    expect(
+      attempts.every(
+        (request) =>
+          JSON.stringify(request.command) === JSON.stringify(cleanup.command),
+      ),
+    ).toBe(true);
     await expect(page.locator("canvas")).toHaveAttribute(
       "data-writable",
       "false",

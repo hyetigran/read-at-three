@@ -97,7 +97,9 @@ export function createBrowserTeachingClient() {
       finishObservation: () => void;
     }
   >();
+  let openingSucceeded = false;
   function dispose() {
+    openingSucceeded = false;
     connectionRevision++;
     connectionLifetime.abort();
     shellBridge?.close();
@@ -232,7 +234,7 @@ export function createBrowserTeachingClient() {
       publicationOperation("check", target),
     repairPublication: (target: PublicationSelection) =>
       publicationOperation("repair", target),
-    isConnected: () => worker !== undefined,
+    isConnected: () => openingSucceeded && worker !== undefined,
     connectionState: () => connectionState,
     subscribeConnection(listener: () => void) {
       connectionListeners.add(listener);
@@ -406,6 +408,7 @@ export function createBrowserTeachingClient() {
           kind: "unavailable",
           reason: "missing",
         };
+        openingSucceeded = true;
         return response.value;
       } finally {
         finishOpening();

@@ -20,7 +20,9 @@ the separate counter preserves that command's original identity and checks.
 An uncertain cleanup retains the same command for Retry. Local list and preview
 queries run offline. After connection loss, cleanup Retry uses the existing
 controller recovery path before submitting that same command; the dialog keeps
-teaching input and cues fenced until dismissal. Receipt pruning cannot
+teaching input and cues fenced until dismissal. A replacement worker is usable
+only after opening succeeds, so a failed ownership attempt remains reconnectable
+on the next Retry. Receipt pruning cannot
 reexecute an old revision. Reset and deletion remove cleanup state, receipts and
 removal markers with the owned graph.
 
