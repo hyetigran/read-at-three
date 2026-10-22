@@ -218,6 +218,9 @@ export const metadataTables = [
   "local_diagnostics",
   "lesson_files_command",
   "package_collection",
+  "removed_drawing",
+  "storage_cleanup_state",
+  "storage_cleanup_receipt",
 ];
 
 const identifier = (name: string) => {
@@ -230,9 +233,10 @@ export function retentionStatements(
   columns: readonly PackageColumn[],
   tables: readonly string[],
   paths: readonly OwnedPath[] = ownedPackagePaths,
+  metadata: readonly string[] = metadataTables,
 ): string[] {
   const classified = new Set([
-    ...metadataTables,
+    ...metadata,
     ...columns.map((column) => column.table),
     ...paths.flatMap((path) => [
       path.root,

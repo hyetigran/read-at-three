@@ -30,6 +30,7 @@ import type {
   PortableInstallationApplication,
   LessonFilesApplication,
   CacheCleanupApplication,
+  StorageCleanupApplication,
 } from "@readatthree/teaching";
 import { hashText } from "./hash.ts";
 import {
@@ -48,7 +49,8 @@ type OpenedStore = Readonly<{
     LocalSupportApplication &
     PortableInstallationApplication &
     LessonFilesApplication &
-    CacheCleanupApplication;
+    CacheCleanupApplication &
+    StorageCleanupApplication;
   connection: SqlExecutor;
   courseId: CourseId;
   support: LocalSupportMetadata;
@@ -290,6 +292,22 @@ self.addEventListener("message", (event: MessageEvent<unknown>) => {
             id: request.id,
             kind: "cacheCleanupResult",
             value: await app.cleanupCache(request.command),
+          };
+          break;
+        case "readStorageCleanup":
+          response = {
+            id: request.id,
+            kind: "storageCleanup",
+            value: await app.readStorageCleanup({
+              selection: request.selection,
+            }),
+          };
+          break;
+        case "cleanupStorage":
+          response = {
+            id: request.id,
+            kind: "storageCleanupReceipt",
+            value: await app.cleanupStorage(request.command),
           };
           break;
         case "readLessonFiles":
@@ -542,6 +560,7 @@ function diagnosticOperation(
     case "execute":
       return request.operation.kind === "ink" ? "ink" : "teaching";
     case "cleanupCache":
+    case "cleanupStorage":
     case "administer":
     case "recoverAdministration":
       return "administration";
@@ -554,6 +573,7 @@ function diagnosticOperation(
     case "repairPublication":
     case "installations":
     case "readCacheCleanup":
+    case "readStorageCleanup":
     case "readLessonFiles":
     case "parentMaterial":
     case "read":

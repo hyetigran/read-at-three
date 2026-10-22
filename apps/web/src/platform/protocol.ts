@@ -8,6 +8,9 @@ import {
   parseParentMaterialWire,
   parseInstallationRead,
   parseInstallationCatalog,
+  parseStorageCleanupCommand,
+  parseStorageCleanupView,
+  parseStorageCleanupReceipt,
   parseLessonFilesCommand,
   parseCacheCleanupCommand,
   parseCacheCleanupView,
@@ -71,6 +74,10 @@ import type {
   InstalledResourceFailure,
   ParentMaterialRequest,
   ParentMaterialRead,
+  StorageCleanupCommand,
+  StorageCleanupView,
+  StorageCleanupReceipt,
+  SelectedOwnerWitness,
   LessonFilesCommand,
   CacheCleanupCommand,
   CacheCleanupView,
@@ -155,6 +162,8 @@ export type WorkerRequest = { id: WorkerRequestId } & (
   | { kind: "parentMaterial"; input: ParentMaterialRequest }
   | { kind: "readDiagnostics" }
   | { kind: "recordDiagnostic"; event: DiagnosticEvent }
+  | { kind: "readStorageCleanup"; selection: SelectedOwnerWitness }
+  | { kind: "cleanupStorage"; command: StorageCleanupCommand }
   | { kind: "read"; input: Input<"readApplication"> }
   | { kind: "readWork"; input: Input<"readWork"> }
   | { kind: "readInk"; input: Input<"readInk"> }
@@ -173,6 +182,8 @@ export type WorkerResponse = { id: WorkerRequestId } & (
   | { kind: "installationRead"; value: InstallationRead }
   | { kind: "cacheCleanup"; value: CacheCleanupView }
   | { kind: "cacheCleanupResult"; value: CacheCleanupResult }
+  | { kind: "storageCleanup"; value: StorageCleanupView }
+  | { kind: "storageCleanupReceipt"; value: StorageCleanupReceipt }
   | { kind: "lessonFiles"; value: LessonFilesView }
   | { kind: "lessonFilesReceipt"; value: LessonFilesReceipt }
   | {
@@ -248,6 +259,18 @@ export function parseRequest(input: unknown): WorkerRequest {
         id,
         kind: value.kind,
         command: parseCacheCleanupCommand(value.command),
+      };
+    case "readStorageCleanup":
+      return {
+        id,
+        kind: value.kind,
+        selection: parseSelectedOwnerWitness(value.selection),
+      };
+    case "cleanupStorage":
+      return {
+        id,
+        kind: value.kind,
+        command: parseStorageCleanupCommand(value.command),
       };
     case "changeLessonFiles":
       return {
@@ -373,6 +396,18 @@ export function parseResponse(input: unknown): WorkerResponse {
         id,
         kind: value.kind,
         value: parseCacheCleanupResult(value.value),
+      };
+    case "storageCleanup":
+      return {
+        id,
+        kind: value.kind,
+        value: parseStorageCleanupView(value.value),
+      };
+    case "storageCleanupReceipt":
+      return {
+        id,
+        kind: value.kind,
+        value: parseStorageCleanupReceipt(value.value),
       };
     case "lessonFiles":
       return { id, kind: value.kind, value: parseLessonFilesView(value.value) };

@@ -610,6 +610,7 @@ const inkHistorySchema = {
 export const inkSnapshotSchema = {
   type: "object",
   properties: {
+    removed: { type: "boolean", enum: [true], nullable: true },
     token: documentTokenSchema,
     sourceRefs: refs,
     bounds: {

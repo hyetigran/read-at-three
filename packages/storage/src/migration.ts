@@ -1,9 +1,12 @@
 import type { HashFunction } from "../../teaching/src/index.ts";
 import type { SqlExecutor } from "./executor.ts";
 import { migrations } from "./generated-migration.ts";
-import { verifyForeignKeyPolicy } from "./foreign-key-policy.ts";
+import {
+  verifyForeignKeyPolicy,
+  foreignKeyPolicyForVersion,
+} from "./foreign-key-policy.ts";
 export { migrationStatements } from "./generated-migration.ts";
-export const DATABASE_VERSION = 14;
+export const DATABASE_VERSION = 15;
 export type MigrationDataHook = (
   version: number,
 ) => Promise<(() => Promise<void>) | undefined>;
@@ -271,7 +274,11 @@ async function processDatabase(
       })
     )
       throw new Error("Database schema contains unclassified objects");
-    if (appliedVersion >= 14) await verifyForeignKeyPolicy(executor);
+    if (appliedVersion >= 14)
+      await verifyForeignKeyPolicy(
+        executor,
+        foreignKeyPolicyForVersion(appliedVersion),
+      );
   }
   await verify(version);
   await admitReadOnly?.(version);

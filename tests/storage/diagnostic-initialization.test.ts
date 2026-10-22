@@ -60,7 +60,7 @@ for (const refusal of ["newer-version", "checksum-mismatch"] as const) {
     assert.equal(typeof location, "string");
     if (typeof location !== "string") throw new Error("Missing database file");
     const before = snapshot(first.db);
-    assert.equal(before.tables.length, 29);
+    assert.equal(before.tables.length, 32);
     const bytes = await readFile(location);
     first.db.close();
     const second = fixture.connect();

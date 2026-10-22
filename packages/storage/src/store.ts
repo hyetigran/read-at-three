@@ -101,6 +101,7 @@ import type {
   RecoveryResult,
   LessonFilesApplication,
   CacheCleanupApplication,
+  StorageCleanupApplication,
 } from "../../teaching/src/index.ts";
 import {
   createInitialInstallation,
@@ -123,6 +124,7 @@ import {
 } from "./acceptance-history.ts";
 import { createLessonProgress } from "./lesson-progress.ts";
 import { createProfileDirectory } from "./profile-directory.ts";
+import { createStorageCleanup } from "./storage-cleanup.ts";
 import { createInkRepository } from "./ink.ts";
 import { and, eq, asc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/sqlite-proxy";
@@ -188,7 +190,8 @@ export function createTeachingApplication(
   LocalSupportApplication &
   PortableInstallationApplication &
   LessonFilesApplication &
-  CacheCleanupApplication {
+  CacheCleanupApplication &
+  StorageCleanupApplication {
   const {
     executor: connection,
     content: suppliedContent,
@@ -510,6 +513,7 @@ export function createTeachingApplication(
           .all();
         for (const row of commands) await readInstallationEvidence(row, hash);
       }
+      if (version >= 15) await storageCleanup.validate();
       if (version >= 14) {
         await validateCatalogInventory({ db, executor, hash });
       }
@@ -1304,6 +1308,7 @@ export function createTeachingApplication(
       })
       .run();
   }
+  const storageCleanup = createStorageCleanup({ db, executor, hash });
   const ink = createInkRepository({
     executor,
     ids,
@@ -3582,6 +3587,23 @@ export function createTeachingApplication(
         queuedreadPracticeControls(input, lease),
       );
     },
+    readStorageCleanup: (input) =>
+      exclusive(async () => {
+        await validateScope();
+        await ensureInitialized();
+        return storageCleanup.read(await requireSelection(input.selection));
+      }),
+    cleanupStorage: (command) =>
+      exclusive(async () => {
+        await validateScope();
+        await ensureInitialized();
+        return guardedTransaction(undefined, async () =>
+          storageCleanup.execute(
+            command,
+            await requireSelection(command.selection),
+          ),
+        );
+      }),
     readInk: async (input) => {
       if (!installed) return queuedreadInk(input);
       return withFreshExact(input.token.packageHash, (_material, lease) =>
