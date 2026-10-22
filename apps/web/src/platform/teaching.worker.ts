@@ -1,3 +1,7 @@
+import {
+  StorageCapacityError,
+  isStorageCapacityError,
+} from "./storage-capacity.ts";
 import { browserConfiguration } from "./browser-configuration.ts";
 import { StorageBusyError } from "./storage-busy.ts";
 import type { BrowserConfiguration } from "./browser-configuration.ts";
@@ -133,14 +137,23 @@ function bootstrap(input: Opening): Promise<OpenedStore> {
               },
               async execute(sql, parameters) {
                 const rows: unknown[][] = [];
-                database.exec({
-                  sql,
-                  bind: [...parameters],
-                  rowMode: "array",
-                  callback: (row) => {
-                    rows.push([...row]);
-                  },
-                });
+                try {
+                  database.exec({
+                    sql,
+                    bind: [...parameters],
+                    rowMode: "array",
+                    callback: (row) => {
+                      rows.push([...row]);
+                    },
+                  });
+                } catch (error) {
+                  if (
+                    error instanceof sqlite3.SQLite3Error &&
+                    (error.resultCode & 255) === sqlite3.capi.SQLITE_FULL
+                  )
+                    throw new StorageCapacityError();
+                  throw error;
+                }
                 return { rows };
               },
             });
@@ -483,7 +496,12 @@ self.addEventListener("message", (event: MessageEvent<unknown>) => {
             }),
           )
           .catch(() => {});
-      if (error instanceof StorageBusyError)
+      if (isStorageCapacityError(error))
+        self.postMessage({
+          id: request.id,
+          kind: "storageFull",
+        } satisfies WorkerResponse);
+      else if (error instanceof StorageBusyError)
         self.postMessage({
           id: request.id,
           kind: "storageBusy",
