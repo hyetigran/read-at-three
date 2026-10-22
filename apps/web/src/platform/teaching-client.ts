@@ -231,6 +231,7 @@ export function createBrowserTeachingClient() {
       publicationOperation("check", target),
     repairPublication: (target: PublicationSelection) =>
       publicationOperation("repair", target),
+    isConnected: () => worker !== undefined,
     connectionState: () => connectionState,
     subscribeConnection(listener: () => void) {
       connectionListeners.add(listener);
@@ -559,6 +560,7 @@ export type InkLifecycleClient = Omit<
   | "repairPublication"
   | "readDiagnostics"
   | "recordDiagnostic"
+  | "isConnected"
   | "connectionState"
   | "subscribeConnection"
 >;

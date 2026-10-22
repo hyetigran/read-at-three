@@ -15,7 +15,11 @@ import { ParentGate } from "./ParentScreens.tsx";
 
 type Client = Pick<
   BrowserTeachingClient,
-  "readStorageCleanup" | "cleanupStorage" | "readWork" | "connectionTicket"
+  | "readStorageCleanup"
+  | "cleanupStorage"
+  | "readWork"
+  | "connectionTicket"
+  | "isConnected"
 >;
 function DrawingChoice({
   client,
@@ -40,6 +44,7 @@ function DrawingChoice({
       drawing.token,
     ],
     queryFn: () => client.readWork({ selection, runId: drawing.token.runId }),
+    networkMode: "always",
     retry: false,
   });
   const document = work.data?.value.documents.find(
@@ -77,11 +82,13 @@ export function StorageCleanup({
   client,
   selection,
   retained,
+  recoverConnection,
   onClose,
 }: {
   client: Client;
   selection: SelectedOwnerWitness;
   retained: { current: StorageCleanupCommand | null };
+  recoverConnection(): Promise<void>;
   onClose(): void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -95,6 +102,7 @@ export function StorageCleanup({
     queryKey: ["storage-cleanup", client.connectionTicket(), selection],
     queryFn: () => client.readStorageCleanup({ selection }),
     enabled: granted,
+    networkMode: "always",
     retry: false,
     staleTime: 0,
   });
@@ -118,6 +126,7 @@ export function StorageCleanup({
           hash: hashText,
         });
       }
+      if (!client.isConnected()) await recoverConnection();
       await client.cleanupStorage(retained.current);
       retained.current = null;
       setDone(true);

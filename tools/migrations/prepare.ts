@@ -11,6 +11,7 @@ import { DatabaseSync } from "node:sqlite";
 import { classifiedPackageColumns } from "../../packages/storage/src/package-references.ts";
 import {
   ownedPackagePaths,
+  metadataTables,
   retentionStatements,
 } from "../../packages/storage/src/retention-contract.ts";
 import {
@@ -827,7 +828,19 @@ try {
     },
     foreignKeyPolicyForVersion(14),
   );
-  catalogRetention = retentionStatements(classifiedPackageColumns(), tables);
+  catalogRetention = retentionStatements(
+    classifiedPackageColumns(),
+    tables,
+    ownedPackagePaths,
+    metadataTables.filter(
+      (table) =>
+        ![
+          "removed_drawing",
+          "storage_cleanup_state",
+          "storage_cleanup_receipt",
+        ].includes(table),
+    ),
+  );
   for (const statement of catalogRetention) catalogDatabase.exec(statement);
 } finally {
   catalogDatabase.close();

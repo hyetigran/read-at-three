@@ -182,7 +182,8 @@ function ApplicationShell() {
   const operation = state.operation;
   const cleanupAvailable =
     !!selection &&
-    (operation.kind === "failed" ||
+    (cleanupOpen ||
+      operation.kind === "failed" ||
       operation.kind === "inkFailed" ||
       cleanupCommand.current !== null);
   const busy =
@@ -207,10 +208,14 @@ function ApplicationShell() {
   }, []);
   useLayoutEffect(() => {
     controller.setSurface(
-      location.pathname === "/teaching" ? "teaching" : "other",
-      location.key + ":" + location.pathname + location.search,
+      location.pathname === "/teaching" && !cleanupOpen ? "teaching" : "other",
+      location.key +
+        ":" +
+        location.pathname +
+        location.search +
+        (cleanupOpen ? ":cleanup" : ""),
     );
-  }, [location.key, location.pathname]);
+  }, [location.key, location.pathname, cleanupOpen]);
   useLayoutEffect(() => {
     if (pendingEntry.current && pendingEntry.current.origin !== location.key) {
       pendingEntry.current = null;
@@ -1257,10 +1262,11 @@ function ApplicationShell() {
         <>
           {cleanupOpen ? (
             <StorageCleanup
-              key={canonical([selection, connection])}
+              key={canonical(selection)}
               client={client}
               selection={selection}
               retained={cleanupCommand}
+              recoverConnection={() => controller.reopen()}
               onClose={() => setCleanupOpen(false)}
             />
           ) : null}
