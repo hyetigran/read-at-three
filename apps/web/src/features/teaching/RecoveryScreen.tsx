@@ -12,6 +12,8 @@ type RecoveryFailure = Pick<
 
 function recoveryTitle(code: string) {
   switch (code) {
+    case "unsupported-store-format":
+      return "Update the app to open saved work";
     case "missing-package":
     case "content-missing":
       return "Teaching content is missing";

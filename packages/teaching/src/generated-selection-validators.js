@@ -16308,6 +16308,7 @@ const schema40 = {
     },
     reconciled: { properties: { id: { type: "string" }, value: {} } },
     storageBusy: { properties: { id: { type: "string" } } },
+    unsupportedStoreFormat: { properties: { id: { type: "string" } } },
     connectionLost: { properties: { id: { type: "string" } } },
     failed: {
       properties: { id: { type: "string" }, message: { type: "string" } },
@@ -50655,7 +50656,7 @@ function validate68(
         }
         var valid752 = _errs538 === errors;
         valid0 = valid752;
-      } else if (tag0 === "connectionLost") {
+      } else if (tag0 === "unsupportedStoreFormat") {
         const _errs540 = errors;
         let valid757 = false;
         valid757 = true;
@@ -50663,7 +50664,7 @@ function validate68(
           if (!(typeof data.id == "string")) {
             const err1189 = {
               instancePath: instancePath + "/id",
-              schemaPath: "/mapping/connectionLost/properties/id/type",
+              schemaPath: "/mapping/unsupportedStoreFormat/properties/id/type",
               keyword: "type",
               params: { type: "string", nullable: false },
               message: "must be string",
@@ -50678,7 +50679,7 @@ function validate68(
         } else {
           const err1190 = {
             instancePath,
-            schemaPath: "/mapping/connectionLost/properties/id",
+            schemaPath: "/mapping/unsupportedStoreFormat/properties/id",
             keyword: "properties",
             params: { error: "missing", missingProperty: "id" },
             message: "must have property 'id'",
@@ -50697,7 +50698,7 @@ function validate68(
                 instancePath +
                 "/" +
                 key177.replace(/~/g, "~0").replace(/\//g, "~1"),
-              schemaPath: "/mapping/connectionLost",
+              schemaPath: "/mapping/unsupportedStoreFormat",
               keyword: "properties",
               params: { error: "additional", additionalProperty: key177 },
               message: "must NOT have additional properties",
@@ -50713,7 +50714,7 @@ function validate68(
         if (!valid757) {
           const err1192 = {
             instancePath,
-            schemaPath: "/mapping/connectionLost/properties",
+            schemaPath: "/mapping/unsupportedStoreFormat/properties",
             keyword: "properties",
             params: { type: "object", nullable: false },
             message: "must be object",
@@ -50727,7 +50728,7 @@ function validate68(
         }
         var valid756 = _errs540 === errors;
         valid0 = valid756;
-      } else if (tag0 === "failed") {
+      } else if (tag0 === "connectionLost") {
         const _errs542 = errors;
         let valid761 = false;
         valid761 = true;
@@ -50735,7 +50736,7 @@ function validate68(
           if (!(typeof data.id == "string")) {
             const err1193 = {
               instancePath: instancePath + "/id",
-              schemaPath: "/mapping/failed/properties/id/type",
+              schemaPath: "/mapping/connectionLost/properties/id/type",
               keyword: "type",
               params: { type: "string", nullable: false },
               message: "must be string",
@@ -50750,7 +50751,7 @@ function validate68(
         } else {
           const err1194 = {
             instancePath,
-            schemaPath: "/mapping/failed/properties/id",
+            schemaPath: "/mapping/connectionLost/properties/id",
             keyword: "properties",
             params: { error: "missing", missingProperty: "id" },
             message: "must have property 'id'",
@@ -50762,14 +50763,17 @@ function validate68(
           }
           errors++;
         }
-        if (data.message !== undefined) {
-          if (!(typeof data.message == "string")) {
+        for (const key178 in data) {
+          if (key178 !== "kind" && key178 !== "id") {
             const err1195 = {
-              instancePath: instancePath + "/message",
-              schemaPath: "/mapping/failed/properties/message/type",
-              keyword: "type",
-              params: { type: "string", nullable: false },
-              message: "must be string",
+              instancePath:
+                instancePath +
+                "/" +
+                key178.replace(/~/g, "~0").replace(/\//g, "~1"),
+              schemaPath: "/mapping/connectionLost",
+              keyword: "properties",
+              params: { error: "additional", additionalProperty: key178 },
+              message: "must NOT have additional properties",
             };
             if (vErrors === null) {
               vErrors = [err1195];
@@ -50778,13 +50782,14 @@ function validate68(
             }
             errors++;
           }
-        } else {
+        }
+        if (!valid761) {
           const err1196 = {
             instancePath,
-            schemaPath: "/mapping/failed/properties/message",
+            schemaPath: "/mapping/connectionLost/properties",
             keyword: "properties",
-            params: { error: "missing", missingProperty: "message" },
-            message: "must have property 'message'",
+            params: { type: "object", nullable: false },
+            message: "must be object",
           };
           if (vErrors === null) {
             vErrors = [err1196];
@@ -50793,17 +50798,20 @@ function validate68(
           }
           errors++;
         }
-        for (const key178 in data) {
-          if (key178 !== "kind" && key178 !== "id" && key178 !== "message") {
+        var valid760 = _errs542 === errors;
+        valid0 = valid760;
+      } else if (tag0 === "failed") {
+        const _errs544 = errors;
+        let valid765 = false;
+        valid765 = true;
+        if (data.id !== undefined) {
+          if (!(typeof data.id == "string")) {
             const err1197 = {
-              instancePath:
-                instancePath +
-                "/" +
-                key178.replace(/~/g, "~0").replace(/\//g, "~1"),
-              schemaPath: "/mapping/failed",
-              keyword: "properties",
-              params: { error: "additional", additionalProperty: key178 },
-              message: "must NOT have additional properties",
+              instancePath: instancePath + "/id",
+              schemaPath: "/mapping/failed/properties/id/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
             };
             if (vErrors === null) {
               vErrors = [err1197];
@@ -50812,14 +50820,13 @@ function validate68(
             }
             errors++;
           }
-        }
-        if (!valid761) {
+        } else {
           const err1198 = {
             instancePath,
-            schemaPath: "/mapping/failed/properties",
+            schemaPath: "/mapping/failed/properties/id",
             keyword: "properties",
-            params: { type: "object", nullable: false },
-            message: "must be object",
+            params: { error: "missing", missingProperty: "id" },
+            message: "must have property 'id'",
           };
           if (vErrors === null) {
             vErrors = [err1198];
@@ -50828,10 +50835,76 @@ function validate68(
           }
           errors++;
         }
-        var valid760 = _errs542 === errors;
-        valid0 = valid760;
+        if (data.message !== undefined) {
+          if (!(typeof data.message == "string")) {
+            const err1199 = {
+              instancePath: instancePath + "/message",
+              schemaPath: "/mapping/failed/properties/message/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err1199];
+            } else {
+              vErrors.push(err1199);
+            }
+            errors++;
+          }
+        } else {
+          const err1200 = {
+            instancePath,
+            schemaPath: "/mapping/failed/properties/message",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "message" },
+            message: "must have property 'message'",
+          };
+          if (vErrors === null) {
+            vErrors = [err1200];
+          } else {
+            vErrors.push(err1200);
+          }
+          errors++;
+        }
+        for (const key179 in data) {
+          if (key179 !== "kind" && key179 !== "id" && key179 !== "message") {
+            const err1201 = {
+              instancePath:
+                instancePath +
+                "/" +
+                key179.replace(/~/g, "~0").replace(/\//g, "~1"),
+              schemaPath: "/mapping/failed",
+              keyword: "properties",
+              params: { error: "additional", additionalProperty: key179 },
+              message: "must NOT have additional properties",
+            };
+            if (vErrors === null) {
+              vErrors = [err1201];
+            } else {
+              vErrors.push(err1201);
+            }
+            errors++;
+          }
+        }
+        if (!valid765) {
+          const err1202 = {
+            instancePath,
+            schemaPath: "/mapping/failed/properties",
+            keyword: "properties",
+            params: { type: "object", nullable: false },
+            message: "must be object",
+          };
+          if (vErrors === null) {
+            vErrors = [err1202];
+          } else {
+            vErrors.push(err1202);
+          }
+          errors++;
+        }
+        var valid764 = _errs544 === errors;
+        valid0 = valid764;
       } else {
-        const err1199 = {
+        const err1203 = {
           instancePath: instancePath + "/kind",
           schemaPath: "/mapping",
           keyword: "discriminator",
@@ -50839,14 +50912,14 @@ function validate68(
           message: 'value of tag "kind" must be in mapping',
         };
         if (vErrors === null) {
-          vErrors = [err1199];
+          vErrors = [err1203];
         } else {
-          vErrors.push(err1199);
+          vErrors.push(err1203);
         }
         errors++;
       }
     } else {
-      const err1200 = {
+      const err1204 = {
         instancePath: instancePath + "/kind",
         schemaPath: "/discriminator",
         keyword: "discriminator",
@@ -50854,14 +50927,14 @@ function validate68(
         message: 'tag "kind" must be string',
       };
       if (vErrors === null) {
-        vErrors = [err1200];
+        vErrors = [err1204];
       } else {
-        vErrors.push(err1200);
+        vErrors.push(err1204);
       }
       errors++;
     }
   } else if (!valid0) {
-    const err1201 = {
+    const err1205 = {
       instancePath,
       schemaPath: "/discriminator",
       keyword: "discriminator",
@@ -50869,9 +50942,9 @@ function validate68(
       message: "must be object",
     };
     if (vErrors === null) {
-      vErrors = [err1201];
+      vErrors = [err1205];
     } else {
-      vErrors.push(err1201);
+      vErrors.push(err1205);
     }
     errors++;
   }
