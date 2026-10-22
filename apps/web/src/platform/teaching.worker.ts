@@ -3,6 +3,7 @@ import {
   isStorageCapacityError,
 } from "./storage-capacity.ts";
 import { browserConfiguration } from "./browser-configuration.ts";
+import { StorageBusyError } from "./storage-busy.ts";
 import type { BrowserConfiguration } from "./browser-configuration.ts";
 import { createBrowserInstalledOptions } from "./installed-application.ts";
 import { initializeReadingSqlite } from "./sqlite-bootstrap.ts";
@@ -67,12 +68,7 @@ function bootstrap(input: Opening): Promise<OpenedStore> {
   return new Promise((resolve, reject) => {
     const ownership = new AbortController();
     const ownershipDeadline = setTimeout(
-      () =>
-        ownership.abort(
-          new Error(
-            "Another tab has this child's local reading store open. Close it and retry.",
-          ),
-        ),
+      () => ownership.abort(new StorageBusyError()),
       10000,
     );
     navigator.locks
@@ -82,11 +78,7 @@ function bootstrap(input: Opening): Promise<OpenedStore> {
         async (lock) => {
           clearTimeout(ownershipDeadline);
           if (!lock) {
-            reject(
-              new Error(
-                "Another tab has this child's local reading store open. Close it and retry.",
-              ),
-            );
+            reject(new StorageBusyError());
             return;
           }
           try {
@@ -490,6 +482,11 @@ self.addEventListener("message", (event: MessageEvent<unknown>) => {
         self.postMessage({
           id: request.id,
           kind: "storageFull",
+        } satisfies WorkerResponse);
+      else if (error instanceof StorageBusyError)
+        self.postMessage({
+          id: request.id,
+          kind: "storageBusy",
         } satisfies WorkerResponse);
       else if (error instanceof InstalledContentUnavailableError)
         self.postMessage({

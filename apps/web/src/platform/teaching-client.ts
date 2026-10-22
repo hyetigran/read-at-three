@@ -1,5 +1,6 @@
 import { StorageCapacityError } from "./storage-capacity.ts";
 import { browserConfiguration } from "./browser-configuration.ts";
+import { StorageBusyError } from "./storage-busy.ts";
 import { loadDevelopmentOpening } from "./development-opening.ts";
 import { registerOfflineShell } from "./controlled-shell.ts";
 import { createPageShellBridge } from "./shell-page-bridge.ts";
@@ -324,6 +325,8 @@ export function createBrowserTeachingClient() {
                 );
               } else if (result.kind === "storageFull")
                 waiting.reject(new StorageCapacityError());
+              else if (result.kind === "storageBusy")
+                waiting.reject(new StorageBusyError());
               else if (result.kind === "failed")
                 waiting.reject(new Error(result.message));
               else waiting.resolve(result);

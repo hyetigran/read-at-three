@@ -67,6 +67,7 @@ import type {
   ReadEnvelope,
 } from "@readatthree/react-integration";
 import { hashText } from "./hash.ts";
+import { StorageBusyError } from "./storage-busy.ts";
 import { isTeachingViewport } from "./viewport.ts";
 
 export type ActionRequest =
@@ -78,7 +79,11 @@ type InkRetry =
   | { kind: "action"; request: ActionRequest; origin: Projection };
 export type Operation =
   | { kind: "opening" | "idle" }
-  | { kind: "openingFailed"; message: string }
+  | {
+      kind: "openingFailed";
+      code: "storage-busy" | "storage-initialization-failed";
+      message: string;
+    }
   | { kind: "preparing"; request: ActionRequest; origin: Projection }
   | { kind: "pending"; prepared: PreparedAction }
   | { kind: "failed"; prepared: PreparedAction; message: string }
@@ -757,6 +762,10 @@ export function createWritingController({
         publish({
           operation: {
             kind: "openingFailed",
+            code:
+              error instanceof StorageBusyError
+                ? "storage-busy"
+                : "storage-initialization-failed",
             message:
               error instanceof Error
                 ? error.message
@@ -1195,6 +1204,7 @@ export function createWritingController({
         publish({
           operation: {
             kind: "openingFailed",
+            code: "storage-initialization-failed",
             message: saveFailureMessage(error),
           },
         });
@@ -1403,6 +1413,7 @@ export function createWritingController({
               ? operation
               : (recoveryObligation ?? {
                   kind: "openingFailed",
+                  code: "storage-initialization-failed",
                   message: saveMessage,
                 });
     recoveryObligation = retained;
@@ -1562,6 +1573,10 @@ export function createWritingController({
             : operation.kind === "openingFailed"
               ? {
                   kind: "openingFailed",
+                  code:
+                    error instanceof StorageBusyError
+                      ? "storage-busy"
+                      : "storage-initialization-failed",
                   message:
                     error instanceof Error ? error.message : operation.message,
                 }
