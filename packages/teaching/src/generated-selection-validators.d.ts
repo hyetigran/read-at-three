@@ -1,5 +1,7 @@
 import type { ValidateFunction } from "ajv";
 import type {
+  RawStartFreshCommand,
+  RawStoreResetRecord,
   RawShellBridgeRequest,
   RawShellBridgeResponse,
   RawSelectedOwnerWitness,
@@ -20,6 +22,8 @@ import type {
   RawSelectedWorkerRequest,
   RawSelectedWorkerResponse,
 } from "./selection-schemas.ts";
+export declare const validateStartFreshCommand: ValidateFunction<RawStartFreshCommand>;
+export declare const validateStoreResetRecord: ValidateFunction<RawStoreResetRecord>;
 export declare const validateShellBridgeRequest: ValidateFunction<RawShellBridgeRequest>;
 export declare const validateShellBridgeResponse: ValidateFunction<RawShellBridgeResponse>;
 export declare const validateSelectedOwnerWitness: ValidateFunction<RawSelectedOwnerWitness>;

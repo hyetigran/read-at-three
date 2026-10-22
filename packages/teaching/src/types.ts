@@ -5,6 +5,7 @@ export type IdKind =
   | "session"
   | "run"
   | "node"
+  | "storeRecovery"
   | "command"
   | "advance"
   | "installation"

@@ -120,6 +120,8 @@ const profileDeclarations =
     )
     .join("\n");
 const selectionDomains = {
+  validateStartFreshCommand: "RawStartFreshCommand",
+  validateStoreResetRecord: "RawStoreResetRecord",
   validateShellBridgeRequest: "RawShellBridgeRequest",
   validateShellBridgeResponse: "RawShellBridgeResponse",
   validateSelectedOwnerWitness: "RawSelectedOwnerWitness",

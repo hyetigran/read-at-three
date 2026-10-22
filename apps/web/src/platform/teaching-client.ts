@@ -1,3 +1,7 @@
+import {
+  DamagedStoreError,
+  PendingStoreResetError,
+} from "./storage-integrity.ts";
 import { StorageCapacityError } from "./storage-capacity.ts";
 import { browserConfiguration } from "./browser-configuration.ts";
 import { StorageBusyError } from "./storage-busy.ts";
@@ -52,7 +56,7 @@ export function createBrowserTeachingClient() {
     kind: "unavailable",
     reason: "missing",
   };
-  let lossListener = () => {};
+  let lossListener: (reason?: Error) => void = () => {};
   const connectionListeners = new Set<() => void>();
   const observations = new Map<
     string,
@@ -95,7 +99,7 @@ export function createBrowserTeachingClient() {
       finishObservation: () => void;
     }
   >();
-  function dispose() {
+  function dispose(reason?: Error) {
     connectionRevision++;
     connectionLifetime.abort();
     shellBridge?.close();
@@ -106,13 +110,14 @@ export function createBrowserTeachingClient() {
     for (const entry of observations.values()) clearTimeout(entry.timer);
     observations.clear();
     publishConnection();
-    lossListener();
+    lossListener(reason);
     for (const request of pending.values()) {
       request.finishObservation();
       request.reject(
-        new Error(
-          "The local store connection closed. Retry to recover the same saved work.",
-        ),
+        reason ??
+          new Error(
+            "The local store connection closed. Retry to recover the same saved work.",
+          ),
       );
     }
     pending.clear();
@@ -273,7 +278,7 @@ export function createBrowserTeachingClient() {
         );
       return { ...response.value, document };
     },
-    onLoss(listener: () => void) {
+    onLoss(listener: (reason?: Error) => void) {
       lossListener = listener;
     },
     async connect(opening: SelectedRecoveryOpening) {
@@ -312,6 +317,10 @@ export function createBrowserTeachingClient() {
             if (worker !== connection) return;
             try {
               const result = parseResponse(event.data);
+              if (result.kind === "damagedStore") {
+                dispose(new DamagedStoreError());
+                return;
+              }
               if (result.kind === "connectionLost") {
                 dispose();
                 return;
@@ -328,6 +337,8 @@ export function createBrowserTeachingClient() {
                 waiting.reject(new StorageCapacityError());
               else if (result.kind === "storageBusy")
                 waiting.reject(new StorageBusyError());
+              else if (result.kind === "storeResetPending")
+                waiting.reject(new PendingStoreResetError());
               else if (result.kind === "unsupportedStoreFormat")
                 waiting.reject(
                   new UnsupportedStoreFormatError(

@@ -1,4 +1,8 @@
 import {
+  DamagedStoreError,
+  PendingStoreResetError,
+} from "./storage-integrity.ts";
+import {
   StorageCapacityError,
   isStorageCapacityError,
 } from "./storage-capacity.ts";
@@ -85,7 +89,9 @@ export type Operation =
       code:
         | "storage-busy"
         | "storage-initialization-failed"
-        | "unsupported-store-format";
+        | "unsupported-store-format"
+        | "damaged-store"
+        | "store-reset-pending";
       message: string;
     }
   | { kind: "preparing"; request: ActionRequest; origin: Projection }
@@ -344,7 +350,7 @@ export function createWritingController({
     if (wasFenced && !fenced) inputEligibleAt = performance.now();
     paint();
   }
-  client.onLoss(() => {
+  client.onLoss((reason) => {
     transportGeneration++;
     const wasConnected = connected;
     connected = false;
@@ -354,7 +360,7 @@ export function createWritingController({
       publish({
         operation: {
           kind: "inkFailed",
-          message: saveMessage,
+          message: reason?.message ?? saveMessage,
           retry: { kind: "inkOnly" },
         },
       });
@@ -767,11 +773,15 @@ export function createWritingController({
           operation: {
             kind: "openingFailed",
             code:
-              error instanceof UnsupportedStoreFormatError
-                ? "unsupported-store-format"
-                : error instanceof StorageBusyError
-                  ? "storage-busy"
-                  : "storage-initialization-failed",
+              error instanceof PendingStoreResetError
+                ? "store-reset-pending"
+                : error instanceof DamagedStoreError
+                  ? "damaged-store"
+                  : error instanceof UnsupportedStoreFormatError
+                    ? "unsupported-store-format"
+                    : error instanceof StorageBusyError
+                      ? "storage-busy"
+                      : "storage-initialization-failed",
             message:
               error instanceof Error
                 ? error.message
@@ -1580,11 +1590,15 @@ export function createWritingController({
               ? {
                   kind: "openingFailed",
                   code:
-                    error instanceof UnsupportedStoreFormatError
-                      ? "unsupported-store-format"
-                      : error instanceof StorageBusyError
-                        ? "storage-busy"
-                        : "storage-initialization-failed",
+                    error instanceof PendingStoreResetError
+                      ? "store-reset-pending"
+                      : error instanceof DamagedStoreError
+                        ? "damaged-store"
+                        : error instanceof UnsupportedStoreFormatError
+                          ? "unsupported-store-format"
+                          : error instanceof StorageBusyError
+                            ? "storage-busy"
+                            : "storage-initialization-failed",
                   message:
                     error instanceof Error ? error.message : operation.message,
                 }

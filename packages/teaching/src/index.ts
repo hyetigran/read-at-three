@@ -253,3 +253,5 @@ export { lessonSixPrintedBoards, printedRenderingProfile } from "./printed.ts";
 export { connectedRenderingProfile } from "./connected-pointing.ts";
 
 export { UnsupportedStoreFormatError } from "./store-recovery.ts";
+
+export * from "./store-reset.ts";

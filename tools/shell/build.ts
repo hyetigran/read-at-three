@@ -268,7 +268,7 @@ export async function buildSignedShell(
           formats: ["es"],
           fileName: () => "service-worker.js",
         },
-        rollupOptions: { output: { inlineDynamicImports: true } },
+        rollupOptions: { output: { inlineDynamicImports: true, minify: true } },
       },
     });
     await inspectCompilerFiles(workerCompilation, workerDirectory);

@@ -1,3 +1,8 @@
+import { assertStoreOpeningAllowed } from "./store-reset.ts";
+import {
+  DamagedStoreError,
+  PendingStoreResetError,
+} from "./storage-integrity.ts";
 import {
   StorageCapacityError,
   isStorageCapacityError,
@@ -53,6 +58,7 @@ type OpenedStore = Readonly<{
   support: LocalSupportMetadata;
 }>;
 let application: Promise<OpenedStore> | undefined;
+let damagedStore = false;
 
 type Opening =
   | Readonly<{
@@ -83,6 +89,7 @@ function bootstrap(input: Opening): Promise<OpenedStore> {
             return;
           }
           try {
+            await assertStoreOpeningAllowed();
             const selected =
               input.kind === "development"
                 ? {
@@ -111,7 +118,32 @@ function bootstrap(input: Opening): Promise<OpenedStore> {
               directory: ".read-at-three.sqlite",
               initialCapacity: 6,
             });
-            const database = new pool.OpfsSAHPoolDb("/reading.sqlite3");
+            function storageFailure(error: unknown): never {
+              if (error instanceof sqlite3.SQLite3Error) {
+                const code = error.resultCode & 255;
+                if (
+                  code === sqlite3.capi.SQLITE_CORRUPT ||
+                  code === sqlite3.capi.SQLITE_NOTADB
+                ) {
+                  damagedStore = true;
+                  self.postMessage({
+                    id: parseWorkerRequestId("store-damaged"),
+                    kind: "damagedStore",
+                  } satisfies WorkerResponse);
+                  throw new DamagedStoreError();
+                }
+                if (code === sqlite3.capi.SQLITE_FULL)
+                  throw new StorageCapacityError();
+              }
+              throw error;
+            }
+            const database = (() => {
+              try {
+                return new pool.OpfsSAHPoolDb("/reading.sqlite3");
+              } catch (error) {
+                return storageFailure(error);
+              }
+            })();
             const executor = createSqlExecutor({
               transactionState() {
                 if (!database.pointer) return "unknown";
@@ -128,13 +160,16 @@ function bootstrap(input: Opening): Promise<OpenedStore> {
                 try {
                   database.close();
                 } finally {
-                  self.postMessage({
-                    id: parseWorkerRequestId("connection-retired"),
-                    kind: "connectionLost",
-                  } satisfies WorkerResponse);
+                  if (!damagedStore)
+                    self.postMessage({
+                      id: parseWorkerRequestId("connection-retired"),
+                      kind: "connectionLost",
+                    } satisfies WorkerResponse);
                 }
               },
               async execute(sql, parameters) {
+                if (damagedStore && sql !== "ROLLBACK")
+                  throw new DamagedStoreError();
                 const rows: unknown[][] = [];
                 try {
                   database.exec({
@@ -146,12 +181,7 @@ function bootstrap(input: Opening): Promise<OpenedStore> {
                     },
                   });
                 } catch (error) {
-                  if (
-                    error instanceof sqlite3.SQLite3Error &&
-                    (error.resultCode & 255) === sqlite3.capi.SQLITE_FULL
-                  )
-                    throw new StorageCapacityError();
-                  throw error;
+                  storageFailure(error);
                 }
                 return { rows };
               },
@@ -208,6 +238,7 @@ self.addEventListener("message", (event: MessageEvent<unknown>) => {
   void (async () => {
     const started = performance.now();
     try {
+      if (damagedStore) throw new DamagedStoreError();
       if (
         request.kind === "openRecovery" ||
         request.kind === "openInstalledRecovery"
@@ -425,6 +456,7 @@ self.addEventListener("message", (event: MessageEvent<unknown>) => {
           throw new Error(String(exhaustive));
         }
       }
+      if (damagedStore) throw new DamagedStoreError();
       if ((await application)?.connection.retired) {
         self.postMessage({
           id: request.id,
@@ -451,6 +483,13 @@ self.addEventListener("message", (event: MessageEvent<unknown>) => {
           })
           .catch(() => {});
     } catch (error) {
+      if (damagedStore) {
+        self.postMessage({
+          id: request.id,
+          kind: "damagedStore",
+        } satisfies WorkerResponse);
+        return;
+      }
       const opened = await application?.catch(() => undefined);
       if (opened?.connection.retired) {
         self.postMessage({
@@ -479,7 +518,12 @@ self.addEventListener("message", (event: MessageEvent<unknown>) => {
             }),
           )
           .catch(() => {});
-      if (error instanceof UnsupportedStoreFormatError)
+      if (error instanceof PendingStoreResetError)
+        self.postMessage({
+          id: request.id,
+          kind: "storeResetPending",
+        } satisfies WorkerResponse);
+      else if (error instanceof UnsupportedStoreFormatError)
         self.postMessage({
           id: request.id,
           kind: "unsupportedStoreFormat",

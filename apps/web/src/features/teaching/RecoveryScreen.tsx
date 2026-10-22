@@ -12,6 +12,10 @@ type RecoveryFailure = Pick<
 
 function recoveryTitle(code: string) {
   switch (code) {
+    case "store-reset-pending":
+      return "Start fresh needs to finish";
+    case "damaged-store":
+      return "Saved storage needs repair";
     case "unsupported-store-format":
       return "Update the app to open saved work";
     case "missing-package":
@@ -70,11 +74,13 @@ export function RecoveryScreen({
   recovery,
   busy,
   onRetry,
+  onStartFresh,
   message = "Keep this reading window open and retry.",
 }: {
   recovery: RecoveryFailure | null;
   busy: boolean;
   onRetry: () => void;
+  onStartFresh?: (() => void) | undefined;
   message?: string | undefined;
 }) {
   const supportedWindow = useSyncExternalStore(
@@ -106,6 +112,11 @@ export function RecoveryScreen({
             >
               <AddedText>{busy ? "Opening…" : "Retry opening"}</AddedText>
             </Button>
+            {onStartFresh ? (
+              <Button disabled={busy} onClick={onStartFresh}>
+                <AddedText>Start fresh</AddedText>
+              </Button>
+            ) : null}
           </>
         ) : null}
       </RecoveryPanel>
