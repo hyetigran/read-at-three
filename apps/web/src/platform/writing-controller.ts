@@ -1557,23 +1557,19 @@ export function createWritingController({
       fence();
       publish({
         operation:
-          operation.kind === "failed"
+          operation.kind === "failed" || operation.kind === "inkFailed"
             ? { ...operation, message: saveFailureMessage(error) }
-            : operation.kind === "inkFailed"
-              ? operation
-              : operation.kind === "openingFailed"
-                ? {
-                    kind: "openingFailed",
-                    message:
-                      error instanceof Error
-                        ? error.message
-                        : operation.message,
-                  }
-                : {
-                    kind: "inkFailed",
-                    message: saveFailureMessage(error),
-                    retry: { kind: "inkOnly" },
-                  },
+            : operation.kind === "openingFailed"
+              ? {
+                  kind: "openingFailed",
+                  message:
+                    error instanceof Error ? error.message : operation.message,
+                }
+              : {
+                  kind: "inkFailed",
+                  message: saveFailureMessage(error),
+                  retry: { kind: "inkOnly" },
+                },
       });
     } finally {
       clearResolvedObligation(ticket);

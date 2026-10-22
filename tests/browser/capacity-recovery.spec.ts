@@ -54,10 +54,14 @@ test("actual SQLite capacity refusal retains ink and explains explicit recovery"
   await page.addInitScript(() => {
     const NativeWorker = window.Worker;
     let current: Worker;
+    let maskCapacity = false;
     const pending = new Map<string, (value: unknown) => void>();
     const events: unknown[] = [];
     Object.assign(window, {
       capacityEvents: () => structuredClone(events),
+      maskNextCapacityReply: () => {
+        maskCapacity = true;
+      },
       capacityControl: (control: string) =>
         new Promise((resolve) => {
           const id = crypto.randomUUID();
@@ -76,6 +80,20 @@ test("actual SQLite capacity refusal retains ink and explains explicit recovery"
         super(wrapper, options);
         current = this;
         this.addEventListener("message", (event) => {
+          if (maskCapacity && event.data?.kind === "storageFull") {
+            maskCapacity = false;
+            event.stopImmediatePropagation();
+            this.dispatchEvent(
+              new MessageEvent("message", {
+                data: {
+                  id: event.data.id,
+                  kind: "failed",
+                  message: "Synthetic generic response failure",
+                },
+              }),
+            );
+            return;
+          }
           const item = event.data?.__capacityEvidence;
           if (!item) return;
           event.stopImmediatePropagation();
@@ -124,6 +142,21 @@ test("actual SQLite capacity refusal retains ink and explains explicit recovery"
   await expect(
     page.getByRole("button", { name: "Continue", exact: true }),
   ).toBeDisabled();
+  await page.evaluate("window.maskNextCapacityReply()");
+  await writingAction(page, "Retry save");
+  await expect(
+    page.getByText(
+      "This save could not be confirmed. Keep this reading window open and retry the same action.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await writingAction(page, "Retry save");
+  await expect(
+    page.getByText(
+      "Storage is full. Keep this reading window open, free some device storage, then retry the same action. New work may still be unsaved.",
+      { exact: true },
+    ),
+  ).toBeVisible();
   const beforeRetry = await requests(page);
   const failed = beforeRetry
     .filter((item) => item.kind === "execute" && item.operation.kind === "ink")
