@@ -49,14 +49,16 @@ export type ParentScreensProps = {
   connectionTicket: () => number;
   isCurrent: (ticket: TaskPreviewTicket) => boolean;
 };
-function ParentGate({
+export function ParentGate({
   busy,
   initial,
+  prompt,
   onGrant,
   onReturn,
 }: {
   busy: boolean;
   initial: boolean;
+  prompt?: string;
   onGrant: () => void;
   onReturn: () => void;
 }) {
@@ -83,9 +85,10 @@ function ParentGate({
       </h2>
       <p>
         <AddedText>
-          {initial
-            ? "To set up reading together, type the word meadow."
-            : "To open parent settings, type the word meadow."}
+          {prompt ??
+            (initial
+              ? "To set up reading together, type the word meadow."
+              : "To open parent settings, type the word meadow.")}
         </AddedText>
       </p>
       <label htmlFor="parent-word">

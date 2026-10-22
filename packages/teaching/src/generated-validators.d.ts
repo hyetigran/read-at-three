@@ -1,5 +1,8 @@
 import type { ValidateFunction } from "ajv";
 import type {
+  StorageCleanupView,
+  StorageCleanupCommand,
+  StorageCleanupReceipt,
   PrintedPreviewTask,
   PracticeControlsBinding,
   PracticeControlsSummary,
@@ -23,6 +26,9 @@ import type {
   CommittedProjection,
   CommandResult,
 } from "./index.ts";
+export declare const validateStorageCleanupView: ValidateFunction<StorageCleanupView>;
+export declare const validateStorageCleanupCommand: ValidateFunction<StorageCleanupCommand>;
+export declare const validateStorageCleanupReceipt: ValidateFunction<StorageCleanupReceipt>;
 export declare const validatePrintedPreviewTask: ValidateFunction<PrintedPreviewTask>;
 export declare const validatePracticeControlsBinding: ValidateFunction<PracticeControlsBinding>;
 export declare const validatePracticeControlsSummary: ValidateFunction<PracticeControlsSummary>;

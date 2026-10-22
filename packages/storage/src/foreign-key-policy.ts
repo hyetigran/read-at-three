@@ -6,6 +6,11 @@ import type { OwnedPath } from "./retention-contract.ts";
 
 type ForeignKeyRole = "ownership" | "binding" | "metadata" | "pending";
 export const foreignKeyPolicy: Readonly<Record<string, ForeignKeyRole>> = {
+  "removed_drawing(document_id)->ink_document(document_id)": "binding",
+  "storage_cleanup_state(profile_id,generation)->profile(profile_id,generation)":
+    "binding",
+  "storage_cleanup_receipt(profile_id,generation)->profile(profile_id,generation)":
+    "binding",
   "advance_withdrawal(run_id,profile_id,generation)->task_run(run_id,profile_id,generation)":
     "ownership",
   "advance_withdrawal(advance_id,run_id)->task_advance(advance_id,run_id)":
@@ -78,6 +83,19 @@ export const foreignKeyPolicy: Readonly<Record<string, ForeignKeyRole>> = {
   "task_run(session_id,profile_id,generation,course_id,package_hash,lesson_id)->session(session_id,profile_id,generation,course_id,package_hash,lesson_id)":
     "binding",
 };
+
+export function foreignKeyPolicyForVersion(version: number) {
+  return version >= 15
+    ? foreignKeyPolicy
+    : Object.fromEntries(
+        Object.entries(foreignKeyPolicy).filter(
+          ([key]) =>
+            !key.startsWith("removed_drawing(") &&
+            !key.startsWith("storage_cleanup_receipt(") &&
+            !key.startsWith("storage_cleanup_state("),
+        ),
+      );
+}
 
 export async function verifyForeignKeyPolicy(
   executor: Pick<SqlExecutor, "execute">,

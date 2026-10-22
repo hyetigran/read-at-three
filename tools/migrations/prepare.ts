@@ -13,7 +13,10 @@ import {
   ownedPackagePaths,
   retentionStatements,
 } from "../../packages/storage/src/retention-contract.ts";
-import { verifyForeignKeyPolicy } from "../../packages/storage/src/foreign-key-policy.ts";
+import {
+  verifyForeignKeyPolicy,
+  foreignKeyPolicyForVersion,
+} from "../../packages/storage/src/foreign-key-policy.ts";
 
 // Drizzle cannot express deferred foreign keys. Keep these reviewed additions
 // beside the packaging step; the runtime still has exactly one migration ledger.
@@ -96,6 +99,9 @@ const {
   lessonFilesCommand,
   packageHold,
   packageCollection,
+  storageCleanupState,
+  removedDrawing,
+  storageCleanupReceipt,
   ...baseSchema
 } = schema;
 const latestSchema = {
@@ -807,17 +813,20 @@ try {
           "Retention path does not match a complete deployed composite foreign key",
         );
     }
-  await verifyForeignKeyPolicy({
-    async execute(query, parameters) {
-      const statement = catalogDatabase.prepare(query);
-      const fields = statement.columns();
-      return {
-        rows: statement
-          .all(...parameters)
-          .map((row) => fields.map((field) => row[field.name])),
-      };
+  await verifyForeignKeyPolicy(
+    {
+      async execute(query, parameters) {
+        const statement = catalogDatabase.prepare(query);
+        const fields = statement.columns();
+        return {
+          rows: statement
+            .all(...parameters)
+            .map((row) => fields.map((field) => row[field.name])),
+        };
+      },
     },
-  });
+    foreignKeyPolicyForVersion(14),
+  );
   catalogRetention = retentionStatements(classifiedPackageColumns(), tables);
   for (const statement of catalogRetention) catalogDatabase.exec(statement);
 } finally {
@@ -841,8 +850,31 @@ if (arguments_.includes("--check")) {
   if ((await readFile(catalogPath, "utf8")) !== catalogSql)
     throw new Error("Content catalog migration stale");
 } else await writeFile(catalogPath, catalogSql);
+const cleanupStatements = [
+  ...(await generateSQLiteMigration(
+    await generateSQLiteDrizzleJson({}),
+    await generateSQLiteDrizzleJson({
+      removedDrawing,
+      storageCleanupReceipt,
+      storageCleanupState,
+    }),
+  )),
+  "UPDATE installation SET database_version = 15",
+];
+const cleanupPath = resolve(
+  root,
+  "packages/storage/migrations/0014_storage_cleanup.sql",
+);
+const cleanupSql =
+  cleanupStatements
+    .map((statement) => statement.trim().replace(/;$/, ""))
+    .join(";\n--> statement-breakpoint\n") + ";\n";
+if (arguments_.includes("--check")) {
+  if ((await readFile(cleanupPath, "utf8")) !== cleanupSql)
+    throw new Error("Storage cleanup migration stale");
+} else await writeFile(cleanupPath, cleanupSql);
 const output = await format(
-  `export const migrationStatements = ${JSON.stringify(statements)} as const;\nexport const migrations = [{version:1, id:"issue-02-initial", statements:migrationStatements}, {version:2, id:"issue-03-sound-task-credits", statements:${JSON.stringify(upgrades)}}, {version:3,id:"issue-04-accepting-command",statements:${JSON.stringify(finalStatements)}}, {version:4,id:"issue-06-canonical-ink",statements:${JSON.stringify(writingStatements)}}, {version:5,id:"issue-07-ink-editing",statements:${JSON.stringify(editingStatements)}}, {version:6,id:"issue-08-lesson-support",statements:${JSON.stringify(lessonStatements)}}, {version:7,id:"issue-09-advance-withdrawal",statements:${JSON.stringify(reversibleStatements)}}, {version:8,id:"issue-10-child-profiles",statements:${JSON.stringify(profileStatements)}}, {version:9,id:"issue-11-profile-removal",statements:${JSON.stringify(removalStatements)}}, {version:10,id:"issue-12-content-capabilities",foreignKeys:"rebuild",statements:${JSON.stringify(packageStatements)}},{version:11,id:"issue-13-printed-boards",foreignKeys:"rebuild",statements:${JSON.stringify(boardPackageStatements)}},{version:12,id:"issue-15-connected-pointing",foreignKeys:"rebuild",statements:${JSON.stringify(pointingPackageStatements)}},{version:13,id:"issue-20-signed-installation",statements:${JSON.stringify(installationStatements)}},{version:14,id:"issue-21-content-catalog",statements:${JSON.stringify(catalogStatements)}}] as const;\n`,
+  `export const migrationStatements = ${JSON.stringify(statements)} as const;\nexport const migrations = [{version:1, id:"issue-02-initial", statements:migrationStatements}, {version:2, id:"issue-03-sound-task-credits", statements:${JSON.stringify(upgrades)}}, {version:3,id:"issue-04-accepting-command",statements:${JSON.stringify(finalStatements)}}, {version:4,id:"issue-06-canonical-ink",statements:${JSON.stringify(writingStatements)}}, {version:5,id:"issue-07-ink-editing",statements:${JSON.stringify(editingStatements)}}, {version:6,id:"issue-08-lesson-support",statements:${JSON.stringify(lessonStatements)}}, {version:7,id:"issue-09-advance-withdrawal",statements:${JSON.stringify(reversibleStatements)}}, {version:8,id:"issue-10-child-profiles",statements:${JSON.stringify(profileStatements)}}, {version:9,id:"issue-11-profile-removal",statements:${JSON.stringify(removalStatements)}}, {version:10,id:"issue-12-content-capabilities",foreignKeys:"rebuild",statements:${JSON.stringify(packageStatements)}},{version:11,id:"issue-13-printed-boards",foreignKeys:"rebuild",statements:${JSON.stringify(boardPackageStatements)}},{version:12,id:"issue-15-connected-pointing",foreignKeys:"rebuild",statements:${JSON.stringify(pointingPackageStatements)}},{version:13,id:"issue-20-signed-installation",statements:${JSON.stringify(installationStatements)}},{version:14,id:"issue-21-content-catalog",statements:${JSON.stringify(catalogStatements)}},{version:15,id:"issue-24-storage-cleanup",statements:${JSON.stringify(cleanupStatements)}}] as const;\n`,
   { parser: "typescript" },
 );
 const path = resolve(root, "packages/storage/src/generated-migration.ts");

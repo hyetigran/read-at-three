@@ -10,6 +10,8 @@ import {
   parseInitialInstallCommand,
   parseParentMaterialRequest,
   parsePreparationPackage,
+  parseStorageCleanupCommand,
+  storageCleanupReceipt,
   parseLessonFilesCommand,
   lessonFilesIdentity,
   assertLessonFilesEvidence,
@@ -19,6 +21,8 @@ import type {
   PublicationCheck,
   InitialInstallCommand,
   ParentMaterialRequest,
+  StorageCleanupCommand,
+  SelectedOwnerWitness,
   LessonFilesCommand,
 } from "@readatthree/teaching";
 import { hashText } from "./hash.ts";
@@ -155,6 +159,37 @@ export function createBrowserTeachingClient() {
     return response.value;
   }
   return {
+    async readStorageCleanup(input: { selection: SelectedOwnerWitness }) {
+      const ticket = connectionRevision;
+      const response = await request({
+        id: id(),
+        kind: "readStorageCleanup",
+        selection: input.selection,
+      });
+      if (
+        response.kind !== "storageCleanup" ||
+        ticket !== connectionRevision ||
+        canonical(response.value.selection) !== canonical(input.selection)
+      )
+        throw new Error("Cleanup view is no longer current");
+      return response.value;
+    },
+    async cleanupStorage(input: StorageCleanupCommand) {
+      const command = parseStorageCleanupCommand(input),
+        ticket = connectionRevision;
+      const response = await request({
+        id: id(),
+        kind: "cleanupStorage",
+        command,
+      });
+      if (
+        response.kind !== "storageCleanupReceipt" ||
+        ticket !== connectionRevision ||
+        canonical(response.value) !== canonical(storageCleanupReceipt(command))
+      )
+        throw new Error("Cleanup save could not be confirmed");
+      return response.value;
+    },
     async readLessonFiles() {
       const ticket = connectionRevision;
       const response = await request({ id: id(), kind: "readLessonFiles" });
@@ -515,6 +550,8 @@ export type InkLifecycleClient = Omit<
   | "readPreparation"
   | "installations"
   | "initialInstall"
+  | "readStorageCleanup"
+  | "cleanupStorage"
   | "readLessonFiles"
   | "changeLessonFiles"
   | "parentMaterial"

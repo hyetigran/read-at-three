@@ -32,6 +32,7 @@ export async function installTransactionDriver(
         return;
       }
       if(!ready){event.stopImmediatePropagation();queued.push(data);return;}
+      if(armed?.operation==='cleanup' && data?.kind==='cleanupStorage') target=data.command.commandId;
       if(armed && data?.kind==='execute' && data.operation.kind===armed.operation && (!armed.edit || data.operation.command.edit.kind===armed.edit)) target=data.operation.command.commandId;
     });
     let bootstrap;
@@ -43,6 +44,7 @@ export async function installTransactionDriver(
           database=this;
           const sql=typeof input==='string'?input:input.sql;
           if(target && /insert into "?command_receipt"?/i.test(sql) && input.bind?.includes(target)) activated=true;
+          if(target && armed?.operation==='cleanup' && /insert into "?storage_cleanup_receipt"?/i.test(sql) && input.bind?.includes(target)) activated=true;
           if(armed?.operation==='diagnostic' && /insert into "?local_diagnostics"?/i.test(sql)) { activated=true; target='diagnostic'; }
           if(activated) {
             events.push({boundary:sql==='COMMIT'||sql==='ROLLBACK'?sql:'statement',autocommit:api.capi.sqlite3_get_autocommit(this.pointer)});

@@ -1,4 +1,5 @@
 import { browserConfiguration } from "./platform/browser-configuration.ts";
+import { StorageCleanup } from "./features/parent/StorageCleanup.tsx";
 import { InstallationScreen } from "./features/installation/InstallationScreen.tsx";
 import {
   StrictMode,
@@ -118,6 +119,10 @@ function retainsCourseEntry(entry: PendingCourseEntry, operation: Operation) {
 function ApplicationShell() {
   const committed = useCommittedTeaching(controller.committed);
   const state = useSyncExternalStore(controller.subscribe, controller.getState);
+  const [cleanupOpen, setCleanupOpen] = useState(false);
+  const cleanupCommand = useRef<
+    import("@readatthree/teaching").StorageCleanupCommand | null
+  >(null);
   const installationCommand = useRef<
     import("@readatthree/teaching").InitialInstallCommand | null
   >(null);
@@ -175,7 +180,13 @@ function ApplicationShell() {
     (profile) => canonical(profile.edit.owner) === canonical(selection?.owner),
   );
   const operation = state.operation;
+  const cleanupAvailable =
+    !!selection &&
+    (operation.kind === "failed" ||
+      operation.kind === "inkFailed" ||
+      cleanupCommand.current !== null);
   const busy =
+    (cleanupOpen && cleanupAvailable) ||
     entering ||
     operation.kind === "opening" ||
     operation.kind === "pending" ||
@@ -1125,6 +1136,13 @@ function ApplicationShell() {
           writingController={controller}
           onAction={controller.act}
           onReview={controller.act}
+          recoveryActions={
+            cleanupAvailable ? (
+              <Button disabled={busy} onClick={() => setCleanupOpen(true)}>
+                <AddedText>Parent storage cleanup</AddedText>
+              </Button>
+            ) : null
+          }
           onRetry={() => void controller.retry()}
           onOpenRetry={() => void controller.reopen()}
           onLessonMenu={returnToMenu}
@@ -1234,6 +1252,19 @@ function ApplicationShell() {
             </AddedText>
           </Button>
         </aside>
+      ) : null}
+      {selection && cleanupAvailable ? (
+        <>
+          {cleanupOpen ? (
+            <StorageCleanup
+              key={canonical([selection, connection])}
+              client={client}
+              selection={selection}
+              retained={cleanupCommand}
+              onClose={() => setCleanupOpen(false)}
+            />
+          ) : null}
+        </>
       ) : null}
     </>
   );

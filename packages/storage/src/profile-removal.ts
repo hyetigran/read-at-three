@@ -89,7 +89,19 @@ export function createProfileRemoval({
       `UPDATE session SET return_session_id=NULL WHERE ${where}`,
       parameters,
     );
+    await executor.execute(
+      `DELETE FROM storage_cleanup_receipt WHERE ${where}`,
+      parameters,
+    );
+    await executor.execute(
+      `DELETE FROM storage_cleanup_state WHERE ${where}`,
+      parameters,
+    );
     const documentIds = `SELECT document_id FROM ink_document WHERE ${where}`;
+    await executor.execute(
+      `DELETE FROM removed_drawing WHERE document_id IN (${documentIds})`,
+      parameters,
+    );
     await executor.execute(
       `DELETE FROM ink_operation WHERE document_id IN (${documentIds})`,
       parameters,
