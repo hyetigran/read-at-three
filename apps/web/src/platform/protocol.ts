@@ -170,6 +170,7 @@ export type WorkerResponse = { id: WorkerRequestId } & (
       operation: "check" | "repair";
       value: PublicationCheck;
     }
+  | { kind: "storageFull" }
   | { kind: "contentUnavailable"; value: InstalledResourceFailure }
   | { kind: "parentMaterial"; value: MaterialWire }
   | {
@@ -359,6 +360,8 @@ export function parseResponse(input: unknown): WorkerResponse {
         operation: value.operation,
         value: parsePublicationCheck(value.value),
       };
+    case "storageFull":
+      return { id, kind: value.kind };
     case "contentUnavailable":
       return {
         id,
