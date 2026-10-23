@@ -408,7 +408,52 @@ export const lessonFilesViewSchema = {
 } satisfies SomeJTDSchemaType;
 export type RawLessonFilesView = JTDDataType<typeof lessonFilesViewSchema>;
 
+const cacheCleanupTargetSchema = {
+  properties: { packageHash: string, collectionRevision: string },
+} satisfies SomeJTDSchemaType;
+export const cacheCleanupViewSchema = {
+  properties: {
+    installationId: string,
+    targets: { elements: cacheCleanupTargetSchema },
+  },
+} satisfies SomeJTDSchemaType;
+export const cacheCleanupCommandSchema = {
+  properties: {
+    ...cacheCleanupViewSchema.properties,
+    version: { type: "uint8" },
+  },
+} satisfies SomeJTDSchemaType;
+const cacheCleanupOutcomes: ("collected" | "retained" | "changed")[] = [
+  "collected",
+  "retained",
+  "changed",
+];
+export const cacheCleanupResultSchema = {
+  properties: {
+    version: { type: "uint8" },
+    installationId: string,
+    results: {
+      elements: {
+        properties: {
+          target: cacheCleanupTargetSchema,
+          outcome: { enum: cacheCleanupOutcomes },
+        },
+      },
+    },
+  },
+} satisfies SomeJTDSchemaType;
+export type RawCacheCleanupView = JTDDataType<typeof cacheCleanupViewSchema>;
+export type RawCacheCleanupCommand = JTDDataType<
+  typeof cacheCleanupCommandSchema
+>;
+export type RawCacheCleanupResult = JTDDataType<
+  typeof cacheCleanupResultSchema
+>;
+
 export const installationValidationSchemas = {
+  validateCacheCleanupView: cacheCleanupViewSchema,
+  validateCacheCleanupCommand: cacheCleanupCommandSchema,
+  validateCacheCleanupResult: cacheCleanupResultSchema,
   validatePublicationSelection: publicationSelectionSchema,
   validatePublicationCheck: publicationCheckSchema,
   validateInstalledResourceFailure: installedResourceFailureSchema,

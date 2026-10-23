@@ -1,5 +1,8 @@
 import {
   canonical,
+  parseCacheCleanupCommand,
+  parseCacheCleanupView,
+  parseCacheCleanupResult,
   createInstallationMaterials,
   increment,
   lessonFilesIdentity,
@@ -17,6 +20,7 @@ import {
 } from "../../teaching/src/index.ts";
 import type {
   AcquisitionObservation,
+  CacheCleanupCommand,
   ActivationWitness,
   DownloadReference,
   HashFunction,
@@ -980,7 +984,37 @@ export function createPackageCatalog({
       };
     });
   }
+  async function readCacheCleanup() {
+    await exclusive(initialize);
+    const installationId = await exclusive(installation);
+    return parseCacheCleanupView({
+      installationId,
+      targets: await collection.readTargets(),
+    });
+  }
+  async function cleanupCache(input: CacheCleanupCommand) {
+    const command = parseCacheCleanupCommand(input);
+    await exclusive(initialize);
+    if (command.installationId !== (await exclusive(installation)))
+      throw new Error("Cache cleanup installation changed");
+    const results = [];
+    for (const target of command.targets) {
+      const outcome = await collection.collect(
+        target.packageHash,
+        target.collectionRevision,
+      );
+      if (outcome === "collected") bytes.delete(target.packageHash);
+      results.push({ target, outcome });
+    }
+    return parseCacheCleanupResult({
+      version: 1,
+      installationId: command.installationId,
+      results,
+    });
+  }
   return {
+    readCacheCleanup,
+    cleanupCache,
     readLessonFiles,
     changeLessonFiles,
     prepareAdmission,

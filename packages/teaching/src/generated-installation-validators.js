@@ -1,12 +1,974 @@
 "use strict";
-export const validatePublicationSelection = validate57;
+export const validateCacheCleanupView = validate57;
 const schema29 = {
+  properties: {
+    installationId: { type: "string" },
+    targets: {
+      elements: {
+        properties: {
+          packageHash: { type: "string" },
+          collectionRevision: { type: "string" },
+        },
+      },
+    },
+  },
+};
+function validate57(
+  data,
+  { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
+) {
+  let vErrors = null;
+  let errors = 0;
+  let valid0 = false;
+  if (data && typeof data == "object" && !Array.isArray(data)) {
+    valid0 = true;
+    if (data.installationId !== undefined) {
+      if (!(typeof data.installationId == "string")) {
+        const err0 = {
+          instancePath: instancePath + "/installationId",
+          schemaPath: "/properties/installationId/type",
+          keyword: "type",
+          params: { type: "string", nullable: false },
+          message: "must be string",
+        };
+        if (vErrors === null) {
+          vErrors = [err0];
+        } else {
+          vErrors.push(err0);
+        }
+        errors++;
+      }
+    } else {
+      const err1 = {
+        instancePath,
+        schemaPath: "/properties/installationId",
+        keyword: "properties",
+        params: { error: "missing", missingProperty: "installationId" },
+        message: "must have property 'installationId'",
+      };
+      if (vErrors === null) {
+        vErrors = [err1];
+      } else {
+        vErrors.push(err1);
+      }
+      errors++;
+    }
+    if (data.targets !== undefined) {
+      let data1 = data.targets;
+      let valid2 = false;
+      if (!valid2) {
+        if (Array.isArray(data1)) {
+          let valid4 = true;
+          const len0 = data1.length;
+          for (let i0 = 0; i0 < len0; i0++) {
+            let data2 = data1[i0];
+            const _errs2 = errors;
+            let valid5 = false;
+            if (data2 && typeof data2 == "object" && !Array.isArray(data2)) {
+              valid5 = true;
+              if (data2.packageHash !== undefined) {
+                if (!(typeof data2.packageHash == "string")) {
+                  const err2 = {
+                    instancePath:
+                      instancePath + "/targets/" + i0 + "/packageHash",
+                    schemaPath:
+                      "/properties/targets/elements/properties/packageHash/type",
+                    keyword: "type",
+                    params: { type: "string", nullable: false },
+                    message: "must be string",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err2];
+                  } else {
+                    vErrors.push(err2);
+                  }
+                  errors++;
+                }
+              } else {
+                const err3 = {
+                  instancePath: instancePath + "/targets/" + i0,
+                  schemaPath:
+                    "/properties/targets/elements/properties/packageHash",
+                  keyword: "properties",
+                  params: { error: "missing", missingProperty: "packageHash" },
+                  message: "must have property 'packageHash'",
+                };
+                if (vErrors === null) {
+                  vErrors = [err3];
+                } else {
+                  vErrors.push(err3);
+                }
+                errors++;
+              }
+              if (data2.collectionRevision !== undefined) {
+                if (!(typeof data2.collectionRevision == "string")) {
+                  const err4 = {
+                    instancePath:
+                      instancePath + "/targets/" + i0 + "/collectionRevision",
+                    schemaPath:
+                      "/properties/targets/elements/properties/collectionRevision/type",
+                    keyword: "type",
+                    params: { type: "string", nullable: false },
+                    message: "must be string",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err4];
+                  } else {
+                    vErrors.push(err4);
+                  }
+                  errors++;
+                }
+              } else {
+                const err5 = {
+                  instancePath: instancePath + "/targets/" + i0,
+                  schemaPath:
+                    "/properties/targets/elements/properties/collectionRevision",
+                  keyword: "properties",
+                  params: {
+                    error: "missing",
+                    missingProperty: "collectionRevision",
+                  },
+                  message: "must have property 'collectionRevision'",
+                };
+                if (vErrors === null) {
+                  vErrors = [err5];
+                } else {
+                  vErrors.push(err5);
+                }
+                errors++;
+              }
+              for (const key0 in data2) {
+                if (key0 !== "packageHash" && key0 !== "collectionRevision") {
+                  const err6 = {
+                    instancePath:
+                      instancePath +
+                      "/targets/" +
+                      i0 +
+                      "/" +
+                      key0.replace(/~/g, "~0").replace(/\//g, "~1"),
+                    schemaPath: "/properties/targets/elements",
+                    keyword: "properties",
+                    params: { error: "additional", additionalProperty: key0 },
+                    message: "must NOT have additional properties",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err6];
+                  } else {
+                    vErrors.push(err6);
+                  }
+                  errors++;
+                }
+              }
+            }
+            if (!valid5) {
+              const err7 = {
+                instancePath: instancePath + "/targets/" + i0,
+                schemaPath: "/properties/targets/elements/properties",
+                keyword: "properties",
+                params: { type: "object", nullable: false },
+                message: "must be object",
+              };
+              if (vErrors === null) {
+                vErrors = [err7];
+              } else {
+                vErrors.push(err7);
+              }
+              errors++;
+            }
+            var valid3 = _errs2 === errors;
+            if (!valid3) {
+              valid4 = false;
+            }
+          }
+          valid2 = valid4;
+        } else {
+          const err8 = {
+            instancePath: instancePath + "/targets",
+            schemaPath: "/properties/targets/elements",
+            keyword: "elements",
+            params: { type: "array", nullable: false },
+            message: "must be array",
+          };
+          if (vErrors === null) {
+            vErrors = [err8];
+          } else {
+            vErrors.push(err8);
+          }
+          errors++;
+        }
+      }
+    } else {
+      const err9 = {
+        instancePath,
+        schemaPath: "/properties/targets",
+        keyword: "properties",
+        params: { error: "missing", missingProperty: "targets" },
+        message: "must have property 'targets'",
+      };
+      if (vErrors === null) {
+        vErrors = [err9];
+      } else {
+        vErrors.push(err9);
+      }
+      errors++;
+    }
+    for (const key1 in data) {
+      if (key1 !== "installationId" && key1 !== "targets") {
+        const err10 = {
+          instancePath:
+            instancePath + "/" + key1.replace(/~/g, "~0").replace(/\//g, "~1"),
+          schemaPath: "",
+          keyword: "properties",
+          params: { error: "additional", additionalProperty: key1 },
+          message: "must NOT have additional properties",
+        };
+        if (vErrors === null) {
+          vErrors = [err10];
+        } else {
+          vErrors.push(err10);
+        }
+        errors++;
+      }
+    }
+  }
+  if (!valid0) {
+    const err11 = {
+      instancePath,
+      schemaPath: "/properties",
+      keyword: "properties",
+      params: { type: "object", nullable: false },
+      message: "must be object",
+    };
+    if (vErrors === null) {
+      vErrors = [err11];
+    } else {
+      vErrors.push(err11);
+    }
+    errors++;
+  }
+  validate57.errors = vErrors;
+  return errors === 0;
+}
+export const validateCacheCleanupCommand = validate58;
+const schema30 = {
+  properties: {
+    installationId: { type: "string" },
+    targets: {
+      elements: {
+        properties: {
+          packageHash: { type: "string" },
+          collectionRevision: { type: "string" },
+        },
+      },
+    },
+    version: { type: "uint8" },
+  },
+};
+function validate58(
+  data,
+  { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
+) {
+  let vErrors = null;
+  let errors = 0;
+  let valid0 = false;
+  if (data && typeof data == "object" && !Array.isArray(data)) {
+    valid0 = true;
+    if (data.installationId !== undefined) {
+      if (!(typeof data.installationId == "string")) {
+        const err0 = {
+          instancePath: instancePath + "/installationId",
+          schemaPath: "/properties/installationId/type",
+          keyword: "type",
+          params: { type: "string", nullable: false },
+          message: "must be string",
+        };
+        if (vErrors === null) {
+          vErrors = [err0];
+        } else {
+          vErrors.push(err0);
+        }
+        errors++;
+      }
+    } else {
+      const err1 = {
+        instancePath,
+        schemaPath: "/properties/installationId",
+        keyword: "properties",
+        params: { error: "missing", missingProperty: "installationId" },
+        message: "must have property 'installationId'",
+      };
+      if (vErrors === null) {
+        vErrors = [err1];
+      } else {
+        vErrors.push(err1);
+      }
+      errors++;
+    }
+    if (data.targets !== undefined) {
+      let data1 = data.targets;
+      let valid2 = false;
+      if (!valid2) {
+        if (Array.isArray(data1)) {
+          let valid4 = true;
+          const len0 = data1.length;
+          for (let i0 = 0; i0 < len0; i0++) {
+            let data2 = data1[i0];
+            const _errs2 = errors;
+            let valid5 = false;
+            if (data2 && typeof data2 == "object" && !Array.isArray(data2)) {
+              valid5 = true;
+              if (data2.packageHash !== undefined) {
+                if (!(typeof data2.packageHash == "string")) {
+                  const err2 = {
+                    instancePath:
+                      instancePath + "/targets/" + i0 + "/packageHash",
+                    schemaPath:
+                      "/properties/targets/elements/properties/packageHash/type",
+                    keyword: "type",
+                    params: { type: "string", nullable: false },
+                    message: "must be string",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err2];
+                  } else {
+                    vErrors.push(err2);
+                  }
+                  errors++;
+                }
+              } else {
+                const err3 = {
+                  instancePath: instancePath + "/targets/" + i0,
+                  schemaPath:
+                    "/properties/targets/elements/properties/packageHash",
+                  keyword: "properties",
+                  params: { error: "missing", missingProperty: "packageHash" },
+                  message: "must have property 'packageHash'",
+                };
+                if (vErrors === null) {
+                  vErrors = [err3];
+                } else {
+                  vErrors.push(err3);
+                }
+                errors++;
+              }
+              if (data2.collectionRevision !== undefined) {
+                if (!(typeof data2.collectionRevision == "string")) {
+                  const err4 = {
+                    instancePath:
+                      instancePath + "/targets/" + i0 + "/collectionRevision",
+                    schemaPath:
+                      "/properties/targets/elements/properties/collectionRevision/type",
+                    keyword: "type",
+                    params: { type: "string", nullable: false },
+                    message: "must be string",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err4];
+                  } else {
+                    vErrors.push(err4);
+                  }
+                  errors++;
+                }
+              } else {
+                const err5 = {
+                  instancePath: instancePath + "/targets/" + i0,
+                  schemaPath:
+                    "/properties/targets/elements/properties/collectionRevision",
+                  keyword: "properties",
+                  params: {
+                    error: "missing",
+                    missingProperty: "collectionRevision",
+                  },
+                  message: "must have property 'collectionRevision'",
+                };
+                if (vErrors === null) {
+                  vErrors = [err5];
+                } else {
+                  vErrors.push(err5);
+                }
+                errors++;
+              }
+              for (const key0 in data2) {
+                if (key0 !== "packageHash" && key0 !== "collectionRevision") {
+                  const err6 = {
+                    instancePath:
+                      instancePath +
+                      "/targets/" +
+                      i0 +
+                      "/" +
+                      key0.replace(/~/g, "~0").replace(/\//g, "~1"),
+                    schemaPath: "/properties/targets/elements",
+                    keyword: "properties",
+                    params: { error: "additional", additionalProperty: key0 },
+                    message: "must NOT have additional properties",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err6];
+                  } else {
+                    vErrors.push(err6);
+                  }
+                  errors++;
+                }
+              }
+            }
+            if (!valid5) {
+              const err7 = {
+                instancePath: instancePath + "/targets/" + i0,
+                schemaPath: "/properties/targets/elements/properties",
+                keyword: "properties",
+                params: { type: "object", nullable: false },
+                message: "must be object",
+              };
+              if (vErrors === null) {
+                vErrors = [err7];
+              } else {
+                vErrors.push(err7);
+              }
+              errors++;
+            }
+            var valid3 = _errs2 === errors;
+            if (!valid3) {
+              valid4 = false;
+            }
+          }
+          valid2 = valid4;
+        } else {
+          const err8 = {
+            instancePath: instancePath + "/targets",
+            schemaPath: "/properties/targets/elements",
+            keyword: "elements",
+            params: { type: "array", nullable: false },
+            message: "must be array",
+          };
+          if (vErrors === null) {
+            vErrors = [err8];
+          } else {
+            vErrors.push(err8);
+          }
+          errors++;
+        }
+      }
+    } else {
+      const err9 = {
+        instancePath,
+        schemaPath: "/properties/targets",
+        keyword: "properties",
+        params: { error: "missing", missingProperty: "targets" },
+        message: "must have property 'targets'",
+      };
+      if (vErrors === null) {
+        vErrors = [err9];
+      } else {
+        vErrors.push(err9);
+      }
+      errors++;
+    }
+    if (data.version !== undefined) {
+      let data5 = data.version;
+      if (!(
+        typeof data5 == "number" &&
+        isFinite(data5) &&
+        !(data5 % 1) &&
+        data5 >= 0 &&
+        data5 <= 255
+      )) {
+        const err10 = {
+          instancePath: instancePath + "/version",
+          schemaPath: "/properties/version/type",
+          keyword: "type",
+          params: { type: "uint8", nullable: false },
+          message: "must be uint8",
+        };
+        if (vErrors === null) {
+          vErrors = [err10];
+        } else {
+          vErrors.push(err10);
+        }
+        errors++;
+      }
+    } else {
+      const err11 = {
+        instancePath,
+        schemaPath: "/properties/version",
+        keyword: "properties",
+        params: { error: "missing", missingProperty: "version" },
+        message: "must have property 'version'",
+      };
+      if (vErrors === null) {
+        vErrors = [err11];
+      } else {
+        vErrors.push(err11);
+      }
+      errors++;
+    }
+    for (const key1 in data) {
+      if (
+        key1 !== "installationId" &&
+        key1 !== "targets" &&
+        key1 !== "version"
+      ) {
+        const err12 = {
+          instancePath:
+            instancePath + "/" + key1.replace(/~/g, "~0").replace(/\//g, "~1"),
+          schemaPath: "",
+          keyword: "properties",
+          params: { error: "additional", additionalProperty: key1 },
+          message: "must NOT have additional properties",
+        };
+        if (vErrors === null) {
+          vErrors = [err12];
+        } else {
+          vErrors.push(err12);
+        }
+        errors++;
+      }
+    }
+  }
+  if (!valid0) {
+    const err13 = {
+      instancePath,
+      schemaPath: "/properties",
+      keyword: "properties",
+      params: { type: "object", nullable: false },
+      message: "must be object",
+    };
+    if (vErrors === null) {
+      vErrors = [err13];
+    } else {
+      vErrors.push(err13);
+    }
+    errors++;
+  }
+  validate58.errors = vErrors;
+  return errors === 0;
+}
+export const validateCacheCleanupResult = validate59;
+const schema31 = {
+  properties: {
+    version: { type: "uint8" },
+    installationId: { type: "string" },
+    results: {
+      elements: {
+        properties: {
+          target: {
+            properties: {
+              packageHash: { type: "string" },
+              collectionRevision: { type: "string" },
+            },
+          },
+          outcome: { enum: ["collected", "retained", "changed"] },
+        },
+      },
+    },
+  },
+};
+function validate59(
+  data,
+  { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
+) {
+  let vErrors = null;
+  let errors = 0;
+  let valid0 = false;
+  if (data && typeof data == "object" && !Array.isArray(data)) {
+    valid0 = true;
+    if (data.version !== undefined) {
+      let data0 = data.version;
+      if (!(
+        typeof data0 == "number" &&
+        isFinite(data0) &&
+        !(data0 % 1) &&
+        data0 >= 0 &&
+        data0 <= 255
+      )) {
+        const err0 = {
+          instancePath: instancePath + "/version",
+          schemaPath: "/properties/version/type",
+          keyword: "type",
+          params: { type: "uint8", nullable: false },
+          message: "must be uint8",
+        };
+        if (vErrors === null) {
+          vErrors = [err0];
+        } else {
+          vErrors.push(err0);
+        }
+        errors++;
+      }
+    } else {
+      const err1 = {
+        instancePath,
+        schemaPath: "/properties/version",
+        keyword: "properties",
+        params: { error: "missing", missingProperty: "version" },
+        message: "must have property 'version'",
+      };
+      if (vErrors === null) {
+        vErrors = [err1];
+      } else {
+        vErrors.push(err1);
+      }
+      errors++;
+    }
+    if (data.installationId !== undefined) {
+      if (!(typeof data.installationId == "string")) {
+        const err2 = {
+          instancePath: instancePath + "/installationId",
+          schemaPath: "/properties/installationId/type",
+          keyword: "type",
+          params: { type: "string", nullable: false },
+          message: "must be string",
+        };
+        if (vErrors === null) {
+          vErrors = [err2];
+        } else {
+          vErrors.push(err2);
+        }
+        errors++;
+      }
+    } else {
+      const err3 = {
+        instancePath,
+        schemaPath: "/properties/installationId",
+        keyword: "properties",
+        params: { error: "missing", missingProperty: "installationId" },
+        message: "must have property 'installationId'",
+      };
+      if (vErrors === null) {
+        vErrors = [err3];
+      } else {
+        vErrors.push(err3);
+      }
+      errors++;
+    }
+    if (data.results !== undefined) {
+      let data2 = data.results;
+      let valid2 = false;
+      if (!valid2) {
+        if (Array.isArray(data2)) {
+          let valid4 = true;
+          const len0 = data2.length;
+          for (let i0 = 0; i0 < len0; i0++) {
+            let data3 = data2[i0];
+            const _errs3 = errors;
+            let valid5 = false;
+            if (data3 && typeof data3 == "object" && !Array.isArray(data3)) {
+              valid5 = true;
+              if (data3.target !== undefined) {
+                let data4 = data3.target;
+                let valid7 = false;
+                if (
+                  data4 &&
+                  typeof data4 == "object" &&
+                  !Array.isArray(data4)
+                ) {
+                  valid7 = true;
+                  if (data4.packageHash !== undefined) {
+                    if (!(typeof data4.packageHash == "string")) {
+                      const err4 = {
+                        instancePath:
+                          instancePath +
+                          "/results/" +
+                          i0 +
+                          "/target/packageHash",
+                        schemaPath:
+                          "/properties/results/elements/properties/target/properties/packageHash/type",
+                        keyword: "type",
+                        params: { type: "string", nullable: false },
+                        message: "must be string",
+                      };
+                      if (vErrors === null) {
+                        vErrors = [err4];
+                      } else {
+                        vErrors.push(err4);
+                      }
+                      errors++;
+                    }
+                  } else {
+                    const err5 = {
+                      instancePath: instancePath + "/results/" + i0 + "/target",
+                      schemaPath:
+                        "/properties/results/elements/properties/target/properties/packageHash",
+                      keyword: "properties",
+                      params: {
+                        error: "missing",
+                        missingProperty: "packageHash",
+                      },
+                      message: "must have property 'packageHash'",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err5];
+                    } else {
+                      vErrors.push(err5);
+                    }
+                    errors++;
+                  }
+                  if (data4.collectionRevision !== undefined) {
+                    if (!(typeof data4.collectionRevision == "string")) {
+                      const err6 = {
+                        instancePath:
+                          instancePath +
+                          "/results/" +
+                          i0 +
+                          "/target/collectionRevision",
+                        schemaPath:
+                          "/properties/results/elements/properties/target/properties/collectionRevision/type",
+                        keyword: "type",
+                        params: { type: "string", nullable: false },
+                        message: "must be string",
+                      };
+                      if (vErrors === null) {
+                        vErrors = [err6];
+                      } else {
+                        vErrors.push(err6);
+                      }
+                      errors++;
+                    }
+                  } else {
+                    const err7 = {
+                      instancePath: instancePath + "/results/" + i0 + "/target",
+                      schemaPath:
+                        "/properties/results/elements/properties/target/properties/collectionRevision",
+                      keyword: "properties",
+                      params: {
+                        error: "missing",
+                        missingProperty: "collectionRevision",
+                      },
+                      message: "must have property 'collectionRevision'",
+                    };
+                    if (vErrors === null) {
+                      vErrors = [err7];
+                    } else {
+                      vErrors.push(err7);
+                    }
+                    errors++;
+                  }
+                  for (const key0 in data4) {
+                    if (
+                      key0 !== "packageHash" &&
+                      key0 !== "collectionRevision"
+                    ) {
+                      const err8 = {
+                        instancePath:
+                          instancePath +
+                          "/results/" +
+                          i0 +
+                          "/target/" +
+                          key0.replace(/~/g, "~0").replace(/\//g, "~1"),
+                        schemaPath:
+                          "/properties/results/elements/properties/target",
+                        keyword: "properties",
+                        params: {
+                          error: "additional",
+                          additionalProperty: key0,
+                        },
+                        message: "must NOT have additional properties",
+                      };
+                      if (vErrors === null) {
+                        vErrors = [err8];
+                      } else {
+                        vErrors.push(err8);
+                      }
+                      errors++;
+                    }
+                  }
+                }
+                if (!valid7) {
+                  const err9 = {
+                    instancePath: instancePath + "/results/" + i0 + "/target",
+                    schemaPath:
+                      "/properties/results/elements/properties/target/properties",
+                    keyword: "properties",
+                    params: { type: "object", nullable: false },
+                    message: "must be object",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err9];
+                  } else {
+                    vErrors.push(err9);
+                  }
+                  errors++;
+                }
+              } else {
+                const err10 = {
+                  instancePath: instancePath + "/results/" + i0,
+                  schemaPath: "/properties/results/elements/properties/target",
+                  keyword: "properties",
+                  params: { error: "missing", missingProperty: "target" },
+                  message: "must have property 'target'",
+                };
+                if (vErrors === null) {
+                  vErrors = [err10];
+                } else {
+                  vErrors.push(err10);
+                }
+                errors++;
+              }
+              if (data3.outcome !== undefined) {
+                let data7 = data3.outcome;
+                if (!(
+                  typeof data7 == "string" &&
+                  (data7 === "collected" ||
+                    data7 === "retained" ||
+                    data7 === "changed")
+                )) {
+                  const err11 = {
+                    instancePath: instancePath + "/results/" + i0 + "/outcome",
+                    schemaPath:
+                      "/properties/results/elements/properties/outcome/enum",
+                    keyword: "enum",
+                    params: {
+                      allowedValues:
+                        schema31.properties.results.elements.properties.outcome
+                          .enum,
+                    },
+                    message: "must be equal to one of the allowed values",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err11];
+                  } else {
+                    vErrors.push(err11);
+                  }
+                  errors++;
+                }
+              } else {
+                const err12 = {
+                  instancePath: instancePath + "/results/" + i0,
+                  schemaPath: "/properties/results/elements/properties/outcome",
+                  keyword: "properties",
+                  params: { error: "missing", missingProperty: "outcome" },
+                  message: "must have property 'outcome'",
+                };
+                if (vErrors === null) {
+                  vErrors = [err12];
+                } else {
+                  vErrors.push(err12);
+                }
+                errors++;
+              }
+              for (const key1 in data3) {
+                if (key1 !== "target" && key1 !== "outcome") {
+                  const err13 = {
+                    instancePath:
+                      instancePath +
+                      "/results/" +
+                      i0 +
+                      "/" +
+                      key1.replace(/~/g, "~0").replace(/\//g, "~1"),
+                    schemaPath: "/properties/results/elements",
+                    keyword: "properties",
+                    params: { error: "additional", additionalProperty: key1 },
+                    message: "must NOT have additional properties",
+                  };
+                  if (vErrors === null) {
+                    vErrors = [err13];
+                  } else {
+                    vErrors.push(err13);
+                  }
+                  errors++;
+                }
+              }
+            }
+            if (!valid5) {
+              const err14 = {
+                instancePath: instancePath + "/results/" + i0,
+                schemaPath: "/properties/results/elements/properties",
+                keyword: "properties",
+                params: { type: "object", nullable: false },
+                message: "must be object",
+              };
+              if (vErrors === null) {
+                vErrors = [err14];
+              } else {
+                vErrors.push(err14);
+              }
+              errors++;
+            }
+            var valid3 = _errs3 === errors;
+            if (!valid3) {
+              valid4 = false;
+            }
+          }
+          valid2 = valid4;
+        } else {
+          const err15 = {
+            instancePath: instancePath + "/results",
+            schemaPath: "/properties/results/elements",
+            keyword: "elements",
+            params: { type: "array", nullable: false },
+            message: "must be array",
+          };
+          if (vErrors === null) {
+            vErrors = [err15];
+          } else {
+            vErrors.push(err15);
+          }
+          errors++;
+        }
+      }
+    } else {
+      const err16 = {
+        instancePath,
+        schemaPath: "/properties/results",
+        keyword: "properties",
+        params: { error: "missing", missingProperty: "results" },
+        message: "must have property 'results'",
+      };
+      if (vErrors === null) {
+        vErrors = [err16];
+      } else {
+        vErrors.push(err16);
+      }
+      errors++;
+    }
+    for (const key2 in data) {
+      if (
+        key2 !== "version" &&
+        key2 !== "installationId" &&
+        key2 !== "results"
+      ) {
+        const err17 = {
+          instancePath:
+            instancePath + "/" + key2.replace(/~/g, "~0").replace(/\//g, "~1"),
+          schemaPath: "",
+          keyword: "properties",
+          params: { error: "additional", additionalProperty: key2 },
+          message: "must NOT have additional properties",
+        };
+        if (vErrors === null) {
+          vErrors = [err17];
+        } else {
+          vErrors.push(err17);
+        }
+        errors++;
+      }
+    }
+  }
+  if (!valid0) {
+    const err18 = {
+      instancePath,
+      schemaPath: "/properties",
+      keyword: "properties",
+      params: { type: "object", nullable: false },
+      message: "must be object",
+    };
+    if (vErrors === null) {
+      vErrors = [err18];
+    } else {
+      vErrors.push(err18);
+    }
+    errors++;
+  }
+  validate59.errors = vErrors;
+  return errors === 0;
+}
+export const validatePublicationSelection = validate60;
+const schema32 = {
   properties: {
     installationId: { type: "string" },
     packageHash: { type: "string" },
   },
 };
-function validate57(
+function validate60(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -111,11 +1073,11 @@ function validate57(
     }
     errors++;
   }
-  validate57.errors = vErrors;
+  validate60.errors = vErrors;
   return errors === 0;
 }
-export const validatePublicationCheck = validate58;
-const schema30 = {
+export const validatePublicationCheck = validate61;
+const schema33 = {
   discriminator: "kind",
   mapping: {
     verified: {
@@ -243,7 +1205,7 @@ const schema30 = {
     },
   },
 };
-function validate58(
+function validate61(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -712,7 +1674,7 @@ function validate58(
                               keyword: "enum",
                               params: {
                                 allowedValues:
-                                  schema30.mapping.unavailable.properties.reason
+                                  schema33.mapping.unavailable.properties.reason
                                     .mapping.content.properties.failure.mapping
                                     .corrupt.properties.reason.enum,
                               },
@@ -810,7 +1772,7 @@ function validate58(
                               keyword: "enum",
                               params: {
                                 allowedValues:
-                                  schema30.mapping.unavailable.properties.reason
+                                  schema33.mapping.unavailable.properties.reason
                                     .mapping.content.properties.failure.mapping
                                     .unavailable.properties.reason.enum,
                               },
@@ -1125,7 +2087,7 @@ function validate58(
                               keyword: "enum",
                               params: {
                                 allowedValues:
-                                  schema30.mapping.unavailable.properties.reason
+                                  schema33.mapping.unavailable.properties.reason
                                     .mapping.shell.properties.failure.mapping
                                     .corrupt.properties.reason.enum,
                               },
@@ -1224,7 +2186,7 @@ function validate58(
                               keyword: "enum",
                               params: {
                                 allowedValues:
-                                  schema30.mapping.unavailable.properties.reason
+                                  schema33.mapping.unavailable.properties.reason
                                     .mapping.shell.properties.failure.mapping
                                     .unavailable.properties.reason.enum,
                               },
@@ -2017,11 +2979,11 @@ function validate58(
     }
     errors++;
   }
-  validate58.errors = vErrors;
+  validate61.errors = vErrors;
   return errors === 0;
 }
-export const validateInstalledResourceFailure = validate59;
-const schema31 = {
+export const validateInstalledResourceFailure = validate62;
+const schema34 = {
   properties: {
     packageHash: { type: "string" },
     reason: {
@@ -2109,7 +3071,7 @@ const schema31 = {
     },
   },
 };
-function validate59(
+function validate62(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -2295,7 +3257,7 @@ function validate59(
                           keyword: "enum",
                           params: {
                             allowedValues:
-                              schema31.properties.reason.mapping.content
+                              schema34.properties.reason.mapping.content
                                 .properties.failure.mapping.corrupt.properties
                                 .reason.enum,
                           },
@@ -2388,7 +3350,7 @@ function validate59(
                           keyword: "enum",
                           params: {
                             allowedValues:
-                              schema31.properties.reason.mapping.content
+                              schema34.properties.reason.mapping.content
                                 .properties.failure.mapping.unavailable
                                 .properties.reason.enum,
                           },
@@ -2684,7 +3646,7 @@ function validate59(
                           keyword: "enum",
                           params: {
                             allowedValues:
-                              schema31.properties.reason.mapping.shell
+                              schema34.properties.reason.mapping.shell
                                 .properties.failure.mapping.corrupt.properties
                                 .reason.enum,
                           },
@@ -2778,7 +3740,7 @@ function validate59(
                           keyword: "enum",
                           params: {
                             allowedValues:
-                              schema31.properties.reason.mapping.shell
+                              schema34.properties.reason.mapping.shell
                                 .properties.failure.mapping.unavailable
                                 .properties.reason.enum,
                           },
@@ -3172,11 +4134,11 @@ function validate59(
     }
     errors++;
   }
-  validate59.errors = vErrors;
+  validate62.errors = vErrors;
   return errors === 0;
 }
-export const validateParentMaterialWire = validate60;
-const schema32 = {
+export const validateParentMaterialWire = validate63;
+const schema35 = {
   discriminator: "kind",
   mapping: {
     unavailable: {
@@ -3757,7 +4719,7 @@ const schema32 = {
   },
 };
 const func0 = Object.prototype.hasOwnProperty;
-function validate60(
+function validate63(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -3833,7 +4795,7 @@ function validate60(
               keyword: "enum",
               params: {
                 allowedValues:
-                  schema32.mapping.unavailable.properties.reason.enum,
+                  schema35.mapping.unavailable.properties.reason.enum,
               },
               message: "must be equal to one of the allowed values",
             };
@@ -4553,7 +5515,7 @@ function validate60(
                                     keyword: "enum",
                                     params: {
                                       allowedValues:
-                                        schema32.mapping.preparation.properties
+                                        schema35.mapping.preparation.properties
                                           .document.properties.body.properties
                                           .title.properties.marks.elements
                                           .properties.kind.enum,
@@ -4896,7 +5858,7 @@ function validate60(
                           keyword: "enum",
                           params: {
                             allowedValues:
-                              schema32.mapping.preparation.properties.document
+                              schema35.mapping.preparation.properties.document
                                 .properties.body.properties.provenance
                                 .properties.kind.enum,
                           },
@@ -5723,7 +6685,7 @@ function validate60(
                               for (const key7 in data30) {
                                 if (
                                   !func0.call(
-                                    schema32.mapping.preparation.properties
+                                    schema35.mapping.preparation.properties
                                       .document.properties.body.properties
                                       .provenance.properties.sources.elements
                                       .properties,
@@ -6541,7 +7503,7 @@ function validate60(
                                               keyword: "enum",
                                               params: {
                                                 allowedValues:
-                                                  schema32.mapping.preparation
+                                                  schema35.mapping.preparation
                                                     .properties.document
                                                     .properties.body.properties
                                                     .sections.elements
@@ -7000,7 +7962,7 @@ function validate60(
                                               keyword: "enum",
                                               params: {
                                                 allowedValues:
-                                                  schema32.mapping.preparation
+                                                  schema35.mapping.preparation
                                                     .properties.document
                                                     .properties.body.properties
                                                     .sections.elements
@@ -7782,7 +8744,7 @@ function validate60(
                                                             keyword: "enum",
                                                             params: {
                                                               allowedValues:
-                                                                schema32.mapping
+                                                                schema35.mapping
                                                                   .preparation
                                                                   .properties
                                                                   .document
@@ -9330,7 +10292,7 @@ function validate60(
                                                                     "enum",
                                                                   params: {
                                                                     allowedValues:
-                                                                      schema32
+                                                                      schema35
                                                                         .mapping
                                                                         .preparation
                                                                         .properties
@@ -10733,7 +11695,7 @@ function validate60(
                                                             keyword: "enum",
                                                             params: {
                                                               allowedValues:
-                                                                schema32.mapping
+                                                                schema35.mapping
                                                                   .preparation
                                                                   .properties
                                                                   .document
@@ -12109,7 +13071,7 @@ function validate60(
                                                                     "enum",
                                                                   params: {
                                                                     allowedValues:
-                                                                      schema32
+                                                                      schema35
                                                                         .mapping
                                                                         .preparation
                                                                         .properties
@@ -13926,7 +14888,7 @@ function validate60(
                                                                                         params:
                                                                                           {
                                                                                             allowedValues:
-                                                                                              schema32
+                                                                                              schema35
                                                                                                 .mapping
                                                                                                 .preparation
                                                                                                 .properties
@@ -14685,7 +15647,7 @@ function validate60(
                                                                     "enum",
                                                                   params: {
                                                                     allowedValues:
-                                                                      schema32
+                                                                      schema35
                                                                         .mapping
                                                                         .preparation
                                                                         .properties
@@ -15916,7 +16878,7 @@ function validate60(
                                                             keyword: "enum",
                                                             params: {
                                                               allowedValues:
-                                                                schema32.mapping
+                                                                schema35.mapping
                                                                   .preparation
                                                                   .properties
                                                                   .document
@@ -17087,7 +18049,7 @@ function validate60(
                                                             keyword: "enum",
                                                             params: {
                                                               allowedValues:
-                                                                schema32.mapping
+                                                                schema35.mapping
                                                                   .preparation
                                                                   .properties
                                                                   .document
@@ -18374,7 +19336,7 @@ function validate60(
                                                             keyword: "enum",
                                                             params: {
                                                               allowedValues:
-                                                                schema32.mapping
+                                                                schema35.mapping
                                                                   .preparation
                                                                   .properties
                                                                   .document
@@ -19750,7 +20712,7 @@ function validate60(
                                 keyword: "enum",
                                 params: {
                                   allowedValues:
-                                    schema32.mapping.preparation.properties
+                                    schema35.mapping.preparation.properties
                                       .document.properties.body.properties
                                       .assets.elements.properties.mediaType
                                       .enum,
@@ -20327,11 +21289,11 @@ function validate60(
     }
     errors++;
   }
-  validate60.errors = vErrors;
+  validate63.errors = vErrors;
   return errors === 0;
 }
-export const validateActivationWitness = validate61;
-const schema33 = {
+export const validateActivationWitness = validate64;
+const schema36 = {
   discriminator: "kind",
   mapping: {
     absent: { properties: {} },
@@ -20344,7 +21306,7 @@ const schema33 = {
     },
   },
 };
-function validate61(
+function validate64(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -20598,11 +21560,11 @@ function validate61(
     }
     errors++;
   }
-  validate61.errors = vErrors;
+  validate64.errors = vErrors;
   return errors === 0;
 }
-export const validateInstallationRead = validate62;
-const schema34 = {
+export const validateInstallationRead = validate65;
+const schema37 = {
   properties: {
     command: {
       properties: {
@@ -20698,7 +21660,7 @@ const schema34 = {
     },
   },
 };
-function validate62(
+function validate65(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -20758,7 +21720,7 @@ function validate62(
               schemaPath: "/properties/command/properties/kind/enum",
               keyword: "enum",
               params: {
-                allowedValues: schema34.properties.command.properties.kind.enum,
+                allowedValues: schema37.properties.command.properties.kind.enum,
               },
               message: "must be equal to one of the allowed values",
             };
@@ -20864,7 +21826,7 @@ function validate62(
                   keyword: "enum",
                   params: {
                     allowedValues:
-                      schema34.properties.command.properties.source.properties
+                      schema37.properties.command.properties.source.properties
                         .mode.enum,
                   },
                   message: "must be equal to one of the allowed values",
@@ -22370,7 +23332,7 @@ function validate62(
                   keyword: "enum",
                   params: {
                     allowedValues:
-                      schema34.properties.fact.mapping.rejected.properties
+                      schema37.properties.fact.mapping.rejected.properties
                         .reason.enum,
                   },
                   message: "must be equal to one of the allowed values",
@@ -22660,7 +23622,7 @@ function validate62(
                   keyword: "enum",
                   params: {
                     allowedValues:
-                      schema34.properties.availability.mapping.stale.properties
+                      schema37.properties.availability.mapping.stale.properties
                         .last.enum,
                   },
                   message: "must be equal to one of the allowed values",
@@ -22819,11 +23781,11 @@ function validate62(
     }
     errors++;
   }
-  validate62.errors = vErrors;
+  validate65.errors = vErrors;
   return errors === 0;
 }
-export const validateInstallationCatalog = validate63;
-const schema35 = {
+export const validateInstallationCatalog = validate66;
+const schema38 = {
   properties: {
     installationId: { type: "string" },
     courses: {
@@ -22950,7 +23912,7 @@ const schema35 = {
     },
   },
 };
-function validate63(
+function validate66(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -23512,7 +24474,7 @@ function validate63(
                         keyword: "enum",
                         params: {
                           allowedValues:
-                            schema35.properties.commands.elements.properties
+                            schema38.properties.commands.elements.properties
                               .command.properties.kind.enum,
                         },
                         message: "must be equal to one of the allowed values",
@@ -23649,7 +24611,7 @@ function validate63(
                             keyword: "enum",
                             params: {
                               allowedValues:
-                                schema35.properties.commands.elements.properties
+                                schema38.properties.commands.elements.properties
                                   .command.properties.source.properties.mode
                                   .enum,
                             },
@@ -25484,7 +26446,7 @@ function validate63(
                             keyword: "enum",
                             params: {
                               allowedValues:
-                                schema35.properties.commands.elements.properties
+                                schema38.properties.commands.elements.properties
                                   .fact.mapping.rejected.properties.reason.enum,
                             },
                             message:
@@ -25828,7 +26790,7 @@ function validate63(
                             keyword: "enum",
                             params: {
                               allowedValues:
-                                schema35.properties.commands.elements.properties
+                                schema38.properties.commands.elements.properties
                                   .availability.mapping.stale.properties.last
                                   .enum,
                             },
@@ -26095,11 +27057,11 @@ function validate63(
     }
     errors++;
   }
-  validate63.errors = vErrors;
+  validate66.errors = vErrors;
   return errors === 0;
 }
-export const validateInitialInstallCommand = validate64;
-const schema36 = {
+export const validateInitialInstallCommand = validate67;
+const schema39 = {
   properties: {
     version: { type: "uint8" },
     kind: { enum: ["initialInstall"] },
@@ -26128,7 +27090,7 @@ const schema36 = {
     },
   },
 };
-function validate64(
+function validate67(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -26182,7 +27144,7 @@ function validate64(
           instancePath: instancePath + "/kind",
           schemaPath: "/properties/kind/enum",
           keyword: "enum",
-          params: { allowedValues: schema36.properties.kind.enum },
+          params: { allowedValues: schema39.properties.kind.enum },
           message: "must be equal to one of the allowed values",
         };
         if (vErrors === null) {
@@ -26285,7 +27247,7 @@ function validate64(
               schemaPath: "/properties/source/properties/mode/enum",
               keyword: "enum",
               params: {
-                allowedValues: schema36.properties.source.properties.mode.enum,
+                allowedValues: schema39.properties.source.properties.mode.enum,
               },
               message: "must be equal to one of the allowed values",
             };
@@ -26830,11 +27792,11 @@ function validate64(
     }
     errors++;
   }
-  validate64.errors = vErrors;
+  validate67.errors = vErrors;
   return errors === 0;
 }
-export const validateInstallationFact = validate65;
-const schema37 = {
+export const validateInstallationFact = validate68;
+const schema40 = {
   discriminator: "kind",
   mapping: {
     accepted: {
@@ -26885,7 +27847,7 @@ const schema37 = {
     },
   },
 };
-function validate65(
+function validate68(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -27768,7 +28730,7 @@ function validate65(
               schemaPath: "/mapping/rejected/properties/reason/enum",
               keyword: "enum",
               params: {
-                allowedValues: schema37.mapping.rejected.properties.reason.enum,
+                allowedValues: schema40.mapping.rejected.properties.reason.enum,
               },
               message: "must be equal to one of the allowed values",
             };
@@ -27884,17 +28846,17 @@ function validate65(
     }
     errors++;
   }
-  validate65.errors = vErrors;
+  validate68.errors = vErrors;
   return errors === 0;
 }
-export const validateParentMaterialRequest = validate66;
-const schema38 = {
+export const validateParentMaterialRequest = validate69;
+const schema41 = {
   properties: {
     kind: { enum: ["preparation", "firstTaskPreview"] },
     packageHash: { type: "string" },
   },
 };
-function validate66(
+function validate69(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -27913,7 +28875,7 @@ function validate66(
           instancePath: instancePath + "/kind",
           schemaPath: "/properties/kind/enum",
           keyword: "enum",
-          params: { allowedValues: schema38.properties.kind.enum },
+          params: { allowedValues: schema41.properties.kind.enum },
           message: "must be equal to one of the allowed values",
         };
         if (vErrors === null) {
@@ -28003,11 +28965,11 @@ function validate66(
     }
     errors++;
   }
-  validate66.errors = vErrors;
+  validate69.errors = vErrors;
   return errors === 0;
 }
-export const validateLessonFilesCommand = validate67;
-const schema39 = {
+export const validateLessonFilesCommand = validate70;
+const schema42 = {
   properties: {
     version: { type: "uint8" },
     family: { enum: ["lesson-files"] },
@@ -28075,7 +29037,7 @@ const schema39 = {
     },
   },
 };
-function validate67(
+function validate70(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -28129,7 +29091,7 @@ function validate67(
           instancePath: instancePath + "/family",
           schemaPath: "/properties/family/enum",
           keyword: "enum",
-          params: { allowedValues: schema39.properties.family.enum },
+          params: { allowedValues: schema42.properties.family.enum },
           message: "must be equal to one of the allowed values",
         };
         if (vErrors === null) {
@@ -28634,7 +29596,7 @@ function validate67(
                       keyword: "enum",
                       params: {
                         allowedValues:
-                          schema39.properties.action.mapping.download.properties
+                          schema42.properties.action.mapping.download.properties
                             .target.properties.mode.enum,
                       },
                       message: "must be equal to one of the allowed values",
@@ -28887,7 +29849,7 @@ function validate67(
                       keyword: "enum",
                       params: {
                         allowedValues:
-                          schema39.properties.action.mapping.use.properties
+                          schema42.properties.action.mapping.use.properties
                             .target.properties.mode.enum,
                       },
                       message: "must be equal to one of the allowed values",
@@ -29498,11 +30460,11 @@ function validate67(
     }
     errors++;
   }
-  validate67.errors = vErrors;
+  validate70.errors = vErrors;
   return errors === 0;
 }
-export const validateLessonFilesReceipt = validate68;
-const schema40 = {
+export const validateLessonFilesReceipt = validate71;
+const schema43 = {
   discriminator: "kind",
   mapping: {
     accepted: {
@@ -29581,7 +30543,7 @@ const schema40 = {
     },
   },
 };
-function validate68(
+function validate71(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -29748,7 +30710,7 @@ function validate68(
               schemaPath: "/mapping/accepted/properties/family/enum",
               keyword: "enum",
               params: {
-                allowedValues: schema40.mapping.accepted.properties.family.enum,
+                allowedValues: schema43.mapping.accepted.properties.family.enum,
               },
               message: "must be equal to one of the allowed values",
             };
@@ -29894,7 +30856,7 @@ function validate68(
                   keyword: "enum",
                   params: {
                     allowedValues:
-                      schema40.mapping.accepted.properties.target.properties
+                      schema43.mapping.accepted.properties.target.properties
                         .mode.enum,
                   },
                   message: "must be equal to one of the allowed values",
@@ -30166,7 +31128,7 @@ function validate68(
               schemaPath: "/mapping/ready/properties/family/enum",
               keyword: "enum",
               params: {
-                allowedValues: schema40.mapping.ready.properties.family.enum,
+                allowedValues: schema43.mapping.ready.properties.family.enum,
               },
               message: "must be equal to one of the allowed values",
             };
@@ -30312,7 +31274,7 @@ function validate68(
                   keyword: "enum",
                   params: {
                     allowedValues:
-                      schema40.mapping.ready.properties.target.properties.mode
+                      schema43.mapping.ready.properties.target.properties.mode
                         .enum,
                   },
                   message: "must be equal to one of the allowed values",
@@ -30616,7 +31578,7 @@ function validate68(
               keyword: "enum",
               params: {
                 allowedValues:
-                  schema40.mapping.activated.properties.family.enum,
+                  schema43.mapping.activated.properties.family.enum,
               },
               message: "must be equal to one of the allowed values",
             };
@@ -30895,7 +31857,7 @@ function validate68(
               keyword: "enum",
               params: {
                 allowedValues:
-                  schema40.mapping.cancelled.properties.family.enum,
+                  schema43.mapping.cancelled.properties.family.enum,
               },
               message: "must be equal to one of the allowed values",
             };
@@ -31268,7 +32230,7 @@ function validate68(
               schemaPath: "/mapping/rejected/properties/family/enum",
               keyword: "enum",
               params: {
-                allowedValues: schema40.mapping.rejected.properties.family.enum,
+                allowedValues: schema43.mapping.rejected.properties.family.enum,
               },
               message: "must be equal to one of the allowed values",
             };
@@ -31308,7 +32270,7 @@ function validate68(
               schemaPath: "/mapping/rejected/properties/reason/enum",
               keyword: "enum",
               params: {
-                allowedValues: schema40.mapping.rejected.properties.reason.enum,
+                allowedValues: schema43.mapping.rejected.properties.reason.enum,
               },
               message: "must be equal to one of the allowed values",
             };
@@ -31424,11 +32386,11 @@ function validate68(
     }
     errors++;
   }
-  validate68.errors = vErrors;
+  validate71.errors = vErrors;
   return errors === 0;
 }
-export const validateLessonFilesView = validate69;
-const schema41 = {
+export const validateLessonFilesView = validate72;
+const schema44 = {
   properties: {
     activation: {
       discriminator: "kind",
@@ -31670,7 +32632,7 @@ const schema41 = {
     },
   },
 };
-function validate69(
+function validate72(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -32139,7 +33101,7 @@ function validate69(
                       keyword: "enum",
                       params: {
                         allowedValues:
-                          schema41.properties.offer.mapping.available.properties
+                          schema44.properties.offer.mapping.available.properties
                             .target.properties.mode.enum,
                       },
                       message: "must be equal to one of the allowed values",
@@ -32392,7 +33354,7 @@ function validate69(
                       keyword: "enum",
                       params: {
                         allowedValues:
-                          schema41.properties.offer.mapping.ready.properties
+                          schema44.properties.offer.mapping.ready.properties
                             .target.properties.mode.enum,
                       },
                       message: "must be equal to one of the allowed values",
@@ -32863,7 +33825,7 @@ function validate69(
                         keyword: "enum",
                         params: {
                           allowedValues:
-                            schema41.properties.commands.elements.properties
+                            schema44.properties.commands.elements.properties
                               .command.properties.family.enum,
                         },
                         message: "must be equal to one of the allowed values",
@@ -33526,7 +34488,7 @@ function validate69(
                                     keyword: "enum",
                                     params: {
                                       allowedValues:
-                                        schema41.properties.commands.elements
+                                        schema44.properties.commands.elements
                                           .properties.command.properties.action
                                           .mapping.download.properties.target
                                           .properties.mode.enum,
@@ -33858,7 +34820,7 @@ function validate69(
                                     keyword: "enum",
                                     params: {
                                       allowedValues:
-                                        schema41.properties.commands.elements
+                                        schema44.properties.commands.elements
                                           .properties.command.properties.action
                                           .mapping.use.properties.target
                                           .properties.mode.enum,
@@ -34885,7 +35847,7 @@ function validate69(
                             keyword: "enum",
                             params: {
                               allowedValues:
-                                schema41.properties.commands.elements.properties
+                                schema44.properties.commands.elements.properties
                                   .receipt.mapping.accepted.properties.family
                                   .enum,
                             },
@@ -35077,7 +36039,7 @@ function validate69(
                                 keyword: "enum",
                                 params: {
                                   allowedValues:
-                                    schema41.properties.commands.elements
+                                    schema44.properties.commands.elements
                                       .properties.receipt.mapping.accepted
                                       .properties.target.properties.mode.enum,
                                 },
@@ -35432,7 +36394,7 @@ function validate69(
                             keyword: "enum",
                             params: {
                               allowedValues:
-                                schema41.properties.commands.elements.properties
+                                schema44.properties.commands.elements.properties
                                   .receipt.mapping.ready.properties.family.enum,
                             },
                             message:
@@ -35623,7 +36585,7 @@ function validate69(
                                 keyword: "enum",
                                 params: {
                                   allowedValues:
-                                    schema41.properties.commands.elements
+                                    schema44.properties.commands.elements
                                       .properties.receipt.mapping.ready
                                       .properties.target.properties.mode.enum,
                                 },
@@ -36020,7 +36982,7 @@ function validate69(
                             keyword: "enum",
                             params: {
                               allowedValues:
-                                schema41.properties.commands.elements.properties
+                                schema44.properties.commands.elements.properties
                                   .receipt.mapping.activated.properties.family
                                   .enum,
                             },
@@ -36381,7 +37343,7 @@ function validate69(
                             keyword: "enum",
                             params: {
                               allowedValues:
-                                schema41.properties.commands.elements.properties
+                                schema44.properties.commands.elements.properties
                                   .receipt.mapping.cancelled.properties.family
                                   .enum,
                             },
@@ -36873,7 +37835,7 @@ function validate69(
                             keyword: "enum",
                             params: {
                               allowedValues:
-                                schema41.properties.commands.elements.properties
+                                schema44.properties.commands.elements.properties
                                   .receipt.mapping.rejected.properties.family
                                   .enum,
                             },
@@ -36927,7 +37889,7 @@ function validate69(
                             keyword: "enum",
                             params: {
                               allowedValues:
-                                schema41.properties.commands.elements.properties
+                                schema44.properties.commands.elements.properties
                                   .receipt.mapping.rejected.properties.reason
                                   .enum,
                             },
@@ -37231,7 +38193,7 @@ function validate69(
                             keyword: "enum",
                             params: {
                               allowedValues:
-                                schema41.properties.commands.elements.properties
+                                schema44.properties.commands.elements.properties
                                   .observation.mapping.retryable.properties
                                   .reason.enum,
                             },
@@ -37526,7 +38488,7 @@ function validate69(
                     keyword: "enum",
                     params: {
                       allowedValues:
-                        schema41.properties.packages.elements.properties.role
+                        schema44.properties.packages.elements.properties.role
                           .enum,
                     },
                     message: "must be equal to one of the allowed values",
@@ -37570,7 +38532,7 @@ function validate69(
                     keyword: "enum",
                     params: {
                       allowedValues:
-                        schema41.properties.packages.elements.properties.bytes
+                        schema44.properties.packages.elements.properties.bytes
                           .enum,
                     },
                     message: "must be equal to one of the allowed values",
@@ -37715,6 +38677,6 @@ function validate69(
     }
     errors++;
   }
-  validate69.errors = vErrors;
+  validate72.errors = vErrors;
   return errors === 0;
 }

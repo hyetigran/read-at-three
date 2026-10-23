@@ -13,6 +13,9 @@ import type {
   RawLessonFilesCommand,
   RawLessonFilesReceipt,
   RawLessonFilesView,
+  RawCacheCleanupView,
+  RawCacheCleanupCommand,
+  RawCacheCleanupResult,
 } from "./installation-schemas.ts";
 export declare const validatePublicationSelection: ValidateFunction<RawPublicationSelection>;
 export declare const validatePublicationCheck: ValidateFunction<RawPublicationCheck>;
@@ -27,3 +30,6 @@ export declare const validateInstallationCatalog: ValidateFunction<RawInstallati
 export declare const validateLessonFilesCommand: ValidateFunction<RawLessonFilesCommand>;
 export declare const validateLessonFilesReceipt: ValidateFunction<RawLessonFilesReceipt>;
 export declare const validateLessonFilesView: ValidateFunction<RawLessonFilesView>;
+export declare const validateCacheCleanupView: ValidateFunction<RawCacheCleanupView>;
+export declare const validateCacheCleanupCommand: ValidateFunction<RawCacheCleanupCommand>;
+export declare const validateCacheCleanupResult: ValidateFunction<RawCacheCleanupResult>;

@@ -30,6 +30,7 @@ import type {
   InkChunk,
   PortableInstallationApplication,
   LessonFilesApplication,
+  CacheCleanupApplication,
   StorageCleanupApplication,
 } from "@readatthree/teaching";
 import { hashText } from "./hash.ts";
@@ -49,6 +50,7 @@ type OpenedStore = Readonly<{
     LocalSupportApplication &
     PortableInstallationApplication &
     LessonFilesApplication &
+    CacheCleanupApplication &
     StorageCleanupApplication;
   connection: SqlExecutor;
   courseId: CourseId;
@@ -277,6 +279,20 @@ self.addEventListener("message", (event: MessageEvent<unknown>) => {
             id: request.id,
             kind: "installationCatalog",
             value: await app.installations(),
+          };
+          break;
+        case "readCacheCleanup":
+          response = {
+            id: request.id,
+            kind: "cacheCleanup",
+            value: await app.readCacheCleanup(),
+          };
+          break;
+        case "cleanupCache":
+          response = {
+            id: request.id,
+            kind: "cacheCleanupResult",
+            value: await app.cleanupCache(request.command),
           };
           break;
         case "readStorageCleanup":
@@ -549,6 +565,7 @@ function diagnosticOperation(
       return "startup";
     case "execute":
       return request.operation.kind === "ink" ? "ink" : "teaching";
+    case "cleanupCache":
     case "cleanupStorage":
     case "administer":
     case "recoverAdministration":
@@ -561,6 +578,7 @@ function diagnosticOperation(
     case "checkPublication":
     case "repairPublication":
     case "installations":
+    case "readCacheCleanup":
     case "readStorageCleanup":
     case "readLessonFiles":
     case "parentMaterial":

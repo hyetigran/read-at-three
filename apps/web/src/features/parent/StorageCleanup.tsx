@@ -4,6 +4,7 @@ import { canonical, prepareStorageCleanup } from "@readatthree/teaching";
 import type {
   SelectedOwnerWitness,
   StorageCleanupCommand,
+  CacheCleanupCommand,
   StorageCleanupDrawing,
 } from "@readatthree/teaching";
 import type { BrowserTeachingClient } from "../../platform/teaching-client.ts";
@@ -11,6 +12,7 @@ import { hashText } from "../../platform/hash.ts";
 import { Button } from "../../components/ui/button.tsx";
 import { AddedText, CopyText } from "../teaching/CopyText.tsx";
 import { Drawing } from "../course/CourseScreens.tsx";
+import { CacheCleanup } from "./CacheCleanup.tsx";
 import { ParentGate } from "./ParentScreens.tsx";
 
 type Client = Pick<
@@ -20,6 +22,8 @@ type Client = Pick<
   | "readWork"
   | "connectionTicket"
   | "isConnected"
+  | "readCacheCleanup"
+  | "cleanupCache"
 >;
 function DrawingChoice({
   client,
@@ -82,19 +86,22 @@ export function StorageCleanup({
   client,
   selection,
   retained,
+  cacheRetained,
   recoverConnection,
   onClose,
 }: {
   client: Client;
   selection: SelectedOwnerWitness;
   retained: { current: StorageCleanupCommand | null };
+  cacheRetained: { current: CacheCleanupCommand | null } | undefined;
   recoverConnection(): Promise<void>;
   onClose(): void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const flight = useRef(false);
   const [granted, setGranted] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [action, setAction] = useState<"drawings" | "downloads" | null>(null);
+  const busy = action !== null;
   const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set());
   const [message, setMessage] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -113,7 +120,7 @@ export function StorageCleanup({
   async function remove() {
     if (flight.current || (!view.data && !retained.current) || done) return;
     flight.current = true;
-    setBusy(true);
+    setAction("drawings");
     try {
       if (!retained.current) {
         if (!view.data) return;
@@ -139,14 +146,14 @@ export function StorageCleanup({
       );
     } finally {
       flight.current = false;
-      setBusy(false);
+      setAction(null);
     }
   }
   return (
     <dialog
       ref={dialog}
       className="storage-cleanup-dialog"
-      aria-label="Remove older drawings"
+      aria-label="Manage saved files"
       onCancel={(event) => {
         event.preventDefault();
         if (!flight.current) onClose();
@@ -156,15 +163,32 @@ export function StorageCleanup({
         <ParentGate
           busy={false}
           initial={false}
-          prompt="To manage older saved drawings, type the word meadow."
+          prompt="To manage saved files, type the word meadow."
           onGrant={() => setGranted(true)}
           onReturn={onClose}
         />
       ) : (
         <section>
           <h2>
-            <AddedText>Remove older drawings</AddedText>
+            <AddedText>Manage saved files</AddedText>
           </h2>
+          {cacheRetained ? (
+            <CacheCleanup
+              client={client}
+              retained={cacheRetained}
+              busy={busy}
+              onBusyChange={(value) => {
+                flight.current = value;
+                setAction(value ? "downloads" : null);
+              }}
+              ensureConnection={async () => {
+                if (!client.isConnected()) await recoverConnection();
+              }}
+            />
+          ) : null}
+          <h3>
+            <AddedText>Older drawings</AddedText>
+          </h3>
           <p>
             <AddedText>
               Choose older drawings to remove permanently. Completion credit and
@@ -236,7 +260,7 @@ export function StorageCleanup({
               onClick={() => void remove()}
             >
               <AddedText>
-                {busy
+                {action === "drawings"
                   ? "Removing…"
                   : retained.current
                     ? "Retry same cleanup"

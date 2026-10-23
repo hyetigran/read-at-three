@@ -248,6 +248,9 @@ const installationDomains = {
   validateLessonFilesCommand: "RawLessonFilesCommand",
   validateLessonFilesReceipt: "RawLessonFilesReceipt",
   validateLessonFilesView: "RawLessonFilesView",
+  validateCacheCleanupView: "RawCacheCleanupView",
+  validateCacheCleanupCommand: "RawCacheCleanupCommand",
+  validateCacheCleanupResult: "RawCacheCleanupResult",
 } satisfies Record<keyof typeof installationValidationSchemas, string>;
 const installationDeclarations =
   'import type { ValidateFunction } from "ajv";\n' +

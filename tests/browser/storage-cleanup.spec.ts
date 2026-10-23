@@ -67,7 +67,7 @@ for (const scenario of [
     await page
       .getByRole("button", { name: "Parent storage cleanup", exact: true })
       .click();
-    const dialog = page.getByRole("dialog", { name: "Remove older drawings" });
+    const dialog = page.getByRole("dialog", { name: "Manage saved files" });
     await expect(dialog.getByRole("checkbox")).toHaveCount(0);
     await dialog.getByLabel("Type the word").fill("meadow");
     await dialog
