@@ -23,6 +23,9 @@ if (arguments_.some((argument) => argument !== "--check")) {
 const check = arguments_.includes("--check");
 const directory = resolve(import.meta.dirname, "../../packages/teaching/src");
 const domains = {
+  validateStorageCleanupView: "StorageCleanupView",
+  validateStorageCleanupCommand: "StorageCleanupCommand",
+  validateStorageCleanupReceipt: "StorageCleanupReceipt",
   validatePrintedPreviewTask: "PrintedPreviewTask",
   validatePracticeControlsBinding: "PracticeControlsBinding",
   validatePracticeControlsSummary: "PracticeControlsSummary",
@@ -247,6 +250,9 @@ const installationDomains = {
   validateLessonFilesCommand: "RawLessonFilesCommand",
   validateLessonFilesReceipt: "RawLessonFilesReceipt",
   validateLessonFilesView: "RawLessonFilesView",
+  validateCacheCleanupView: "RawCacheCleanupView",
+  validateCacheCleanupCommand: "RawCacheCleanupCommand",
+  validateCacheCleanupResult: "RawCacheCleanupResult",
 } satisfies Record<keyof typeof installationValidationSchemas, string>;
 const installationDeclarations =
   'import type { ValidateFunction } from "ajv";\n' +

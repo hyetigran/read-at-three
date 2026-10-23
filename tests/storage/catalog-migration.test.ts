@@ -47,12 +47,15 @@ for (const fault of [
     }
     first.db.exec("DROP VIEW package_retention");
     for (const table of [
+      "removed_drawing",
+      "storage_cleanup_receipt",
+      "storage_cleanup_state",
       "lesson_files_command",
       "package_hold",
       "package_collection",
     ])
       first.db.exec(`DROP TABLE ${table}`);
-    first.db.exec("DELETE FROM schema_migration WHERE version=14");
+    first.db.exec("DELETE FROM schema_migration WHERE version>=14");
     first.db.exec("UPDATE installation SET database_version=13");
     first.db.exec("PRAGMA user_version=13");
     first.db.exec("COMMIT");
@@ -133,7 +136,7 @@ for (const fault of [
     assert.deepEqual(catalog.commands[0]?.command, command);
     assert.equal(
       retry.db.prepare("PRAGMA user_version").get()?.user_version,
-      14,
+      15,
     );
     assert.equal(
       retry.db

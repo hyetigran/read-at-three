@@ -1,5 +1,6 @@
 import { StartFresh } from "./features/parent/StartFresh.tsx";
 import { browserConfiguration } from "./platform/browser-configuration.ts";
+import { StorageCleanup } from "./features/parent/StorageCleanup.tsx";
 import { InstallationScreen } from "./features/installation/InstallationScreen.tsx";
 import {
   StrictMode,
@@ -123,6 +124,13 @@ function ApplicationShell() {
   >(null);
   const committed = useCommittedTeaching(controller.committed);
   const state = useSyncExternalStore(controller.subscribe, controller.getState);
+  const [cleanupOpen, setCleanupOpen] = useState(false);
+  const cleanupCommand = useRef<
+    import("@readatthree/teaching").StorageCleanupCommand | null
+  >(null);
+  const cacheCleanupCommand = useRef<
+    import("@readatthree/teaching").CacheCleanupCommand | null
+  >(null);
   const installationCommand = useRef<
     import("@readatthree/teaching").InitialInstallCommand | null
   >(null);
@@ -180,7 +188,15 @@ function ApplicationShell() {
     (profile) => canonical(profile.edit.owner) === canonical(selection?.owner),
   );
   const operation = state.operation;
+  const cleanupAvailable =
+    !!selection &&
+    (cleanupOpen ||
+      operation.kind === "failed" ||
+      operation.kind === "inkFailed" ||
+      cleanupCommand.current !== null ||
+      cacheCleanupCommand.current !== null);
   const busy =
+    (cleanupOpen && cleanupAvailable) ||
     entering ||
     operation.kind === "opening" ||
     operation.kind === "pending" ||
@@ -201,10 +217,14 @@ function ApplicationShell() {
   }, []);
   useLayoutEffect(() => {
     controller.setSurface(
-      location.pathname === "/teaching" ? "teaching" : "other",
-      location.key + ":" + location.pathname + location.search,
+      location.pathname === "/teaching" && !cleanupOpen ? "teaching" : "other",
+      location.key +
+        ":" +
+        location.pathname +
+        location.search +
+        (cleanupOpen ? ":cleanup" : ""),
     );
-  }, [location.key, location.pathname]);
+  }, [location.key, location.pathname, cleanupOpen]);
   useLayoutEffect(() => {
     if (pendingEntry.current && pendingEntry.current.origin !== location.key) {
       pendingEntry.current = null;
@@ -1154,8 +1174,19 @@ function ApplicationShell() {
           writingController={controller}
           onAction={controller.act}
           onReview={controller.act}
-          onStartFresh={
-            state.storeDamaged ? () => setFreshOpen(true) : undefined
+          recoveryActions={
+            <>
+              {state.storeDamaged ? (
+                <Button disabled={busy} onClick={() => setFreshOpen(true)}>
+                  <AddedText>Start fresh</AddedText>
+                </Button>
+              ) : null}
+              {cleanupAvailable ? (
+                <Button disabled={busy} onClick={() => setCleanupOpen(true)}>
+                  <AddedText>Parent storage cleanup</AddedText>
+                </Button>
+              ) : null}
+            </>
           }
           onRetry={() => void controller.retry()}
           onOpenRetry={() => void controller.reopen()}
@@ -1278,6 +1309,25 @@ function ApplicationShell() {
             </Button>
           ) : null}
         </aside>
+      ) : null}
+      {selection && cleanupAvailable ? (
+        <>
+          {cleanupOpen ? (
+            <StorageCleanup
+              key={canonical(selection)}
+              client={client}
+              selection={selection}
+              retained={cleanupCommand}
+              cacheRetained={
+                browserConfiguration.kind === "installed"
+                  ? cacheCleanupCommand
+                  : undefined
+              }
+              recoverConnection={() => controller.reopen()}
+              onClose={() => setCleanupOpen(false)}
+            />
+          ) : null}
+        </>
       ) : null}
     </>
   );

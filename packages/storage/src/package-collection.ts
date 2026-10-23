@@ -3,6 +3,7 @@ import type { drizzle } from "drizzle-orm/sqlite-proxy";
 import {
   increment,
   parseCounter,
+  parseHash,
   parsePublicationHash,
   publicationCatalogLimits,
 } from "../../teaching/src/index.ts";
@@ -10,6 +11,8 @@ import type {
   HashFunction,
   InstalledApplicationOptions,
   PackageHash,
+  Counter,
+  CacheCleanupTarget,
 } from "../../teaching/src/index.ts";
 import { issueCollectionClaim } from "./collection-claims.ts";
 import type { SqlExecutor } from "./executor.ts";
@@ -51,7 +54,10 @@ export function createPackageCollection({
     await validateRetained();
     current();
   }
-  async function collect(key: PackageHash): Promise<"retained" | "collected"> {
+  async function collect(
+    key: PackageHash,
+    requestedRevision?: Counter,
+  ): Promise<"retained" | "collected" | "changed"> {
     return options.resources.exclusive({
       mode: options.mode,
       hash: parsePublicationHash(key),
@@ -73,6 +79,19 @@ export function createPackageCollection({
                     .where(eq(schema.packageCollection.packageHash, key))
                     .all()
                 )[0];
+                if (requestedRevision !== undefined) {
+                  if (previous?.revision === requestedRevision)
+                    return previous.state === "complete"
+                      ? "complete"
+                      : previous.revision;
+                  if (
+                    previous?.state === "collecting" ||
+                    (previous
+                      ? increment(previous.revision)
+                      : parseCounter("0")) !== requestedRevision
+                  )
+                    return "changed";
+                }
                 if (previous?.state === "collecting") return previous.revision;
                 const revision = previous
                   ? increment(previous.revision)
@@ -91,6 +110,8 @@ export function createPackageCollection({
             );
           });
           if (revision === null) return "retained";
+          if (revision === "complete") return "collected";
+          if (revision === "changed") return "changed";
           async function validate() {
             current();
             if (!held) throw new Error("Collection hash lock was released");
@@ -165,5 +186,33 @@ export function createPackageCollection({
       throw new Error("Owned namespace inventory exceeds its bounded contract");
     return keys.map((key) => parsePublicationHash(key)).sort();
   }
-  return { collect, inventory };
+  async function readTargets(): Promise<readonly CacheCleanupTarget[]> {
+    const keys = await inventory();
+    return exclusive(async () => {
+      await verify();
+      const targets: CacheCleanupTarget[] = [];
+      for (const raw of keys) {
+        const key = parseHash({ kind: "package", value: raw });
+        if (await rooted(key)) continue;
+        const previous = (
+          await db
+            .select()
+            .from(schema.packageCollection)
+            .where(eq(schema.packageCollection.packageHash, key))
+            .all()
+        )[0];
+        targets.push({
+          packageHash: key,
+          collectionRevision:
+            previous?.state === "collecting"
+              ? previous.revision
+              : previous
+                ? increment(previous.revision)
+                : parseCounter("0"),
+        });
+      }
+      return targets;
+    });
+  }
+  return { collect, inventory, readTargets };
 }
