@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { parseHash, resolveAvatar } from "@readatthree/teaching";
 import { migrations } from "../../packages/storage/src/generated-migration.ts";
-import { storageFixture } from "./support.ts";
+import { databaseSnapshot, storageFixture } from "./support.ts";
 import { hash } from "./support.ts";
 
 const preparationHash = parseHash({
@@ -350,6 +350,7 @@ test("V9 selection and administration tables enforce deferred ownership, support
   const fixture = await storageFixture(t);
   const { app, db } = fixture.connect();
   const before = await app.readDirectory();
+  const original = await databaseSnapshot(db);
   const originalSelection = db
     .prepare("SELECT * FROM installation_profile_state")
     .all();
@@ -467,4 +468,10 @@ test("V9 selection and administration tables enforce deferred ownership, support
       .get()?.count,
     0,
   );
+  assert.deepEqual(await databaseSnapshot(db), original);
+  db.close();
+  const cold = fixture.connect();
+  assert.deepEqual(await cold.app.readDirectory(), before);
+  assert.deepEqual(await databaseSnapshot(cold.db), original);
+  assert.deepEqual(cold.db.prepare("PRAGMA foreign_key_check").all(), []);
 });
