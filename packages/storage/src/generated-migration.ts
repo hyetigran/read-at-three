@@ -251,4 +251,15 @@ export const migrations = [
       "UPDATE installation SET database_version = 14",
     ],
   },
+  {
+    version: 15,
+    id: "issue-24-storage-cleanup",
+    statements: [
+      "CREATE TABLE `removed_drawing` (\n\t`document_id` text PRIMARY KEY NOT NULL,\n\tFOREIGN KEY (`document_id`) REFERENCES `ink_document`(`document_id`) ON UPDATE no action ON DELETE no action\n);\n",
+      'CREATE TABLE `storage_cleanup_receipt` (\n\t`profile_id` text NOT NULL,\n\t`generation` integer NOT NULL,\n\t`command_id` text NOT NULL,\n\t`resulting_revision` integer NOT NULL,\n\t`command` text NOT NULL,\n\t`result` text NOT NULL,\n\tPRIMARY KEY(`profile_id`, `generation`, `command_id`),\n\tFOREIGN KEY (`profile_id`,`generation`) REFERENCES `profile`(`profile_id`,`generation`) ON UPDATE no action ON DELETE no action,\n\tCONSTRAINT "generation_nonnegative" CHECK(typeof(generation)=\'integer\' AND generation>=0),\n\tCONSTRAINT "resulting_revision_nonnegative" CHECK(typeof(resulting_revision)=\'integer\' AND resulting_revision>=0),\n\tCONSTRAINT "cleanup_evidence" CHECK(json_valid(command) AND json_valid(result))\n);\n',
+      "CREATE INDEX `cleanup_receipt_revision` ON `storage_cleanup_receipt` (`profile_id`,`generation`,`resulting_revision`);",
+      "CREATE TABLE `storage_cleanup_state` (\n\t`profile_id` text NOT NULL,\n\t`generation` integer NOT NULL,\n\t`revision` integer NOT NULL,\n\tPRIMARY KEY(`profile_id`, `generation`),\n\tFOREIGN KEY (`profile_id`,`generation`) REFERENCES `profile`(`profile_id`,`generation`) ON UPDATE no action ON DELETE no action,\n\tCONSTRAINT \"generation_nonnegative\" CHECK(typeof(generation)='integer' AND generation>=0),\n\tCONSTRAINT \"revision_nonnegative\" CHECK(typeof(revision)='integer' AND revision>=0)\n);\n",
+      "UPDATE installation SET database_version = 15",
+    ],
+  },
 ] as const;

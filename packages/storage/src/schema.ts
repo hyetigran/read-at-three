@@ -951,6 +951,59 @@ export const taskResult = sqliteTable(
 const documentId = identity("document");
 const strokeId = identity("stroke");
 const targetId = identity("target");
+export const removedDrawing = sqliteTable(
+  "removed_drawing",
+  { documentId: documentId("document_id").primaryKey() },
+  (t) => [
+    foreignKey({
+      columns: [t.documentId],
+      foreignColumns: [inkDocument.documentId],
+    }),
+  ],
+);
+export const storageCleanupState = sqliteTable(
+  "storage_cleanup_state",
+  {
+    profileId: profileId("profile_id").notNull(),
+    generation: counter("generation").notNull(),
+    revision: counter("revision").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.profileId, t.generation] }),
+    foreignKey({
+      columns: [t.profileId, t.generation],
+      foreignColumns: [profile.id, profile.generation],
+    }),
+    nonnegative("generation"),
+    nonnegative("revision"),
+  ],
+);
+export const storageCleanupReceipt = sqliteTable(
+  "storage_cleanup_receipt",
+  {
+    profileId: profileId("profile_id").notNull(),
+    generation: counter("generation").notNull(),
+    commandId: commandId("command_id").notNull(),
+    resultingRevision: counter("resulting_revision").notNull(),
+    command: text("command").notNull(),
+    result: text("result").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.profileId, t.generation, t.commandId] }),
+    foreignKey({
+      columns: [t.profileId, t.generation],
+      foreignColumns: [profile.id, profile.generation],
+    }),
+    nonnegative("generation"),
+    nonnegative("resulting_revision"),
+    check("cleanup_evidence", sql`json_valid(command) AND json_valid(result)`),
+    index("cleanup_receipt_revision").on(
+      t.profileId,
+      t.generation,
+      t.resultingRevision,
+    ),
+  ],
+);
 export const inkDocument = sqliteTable(
   "ink_document",
   {

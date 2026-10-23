@@ -603,12 +603,18 @@ export function Unavailable({
     </main>
   );
 }
-function Drawing({
+export function Drawing({
   document,
 }: {
   document: HistoricalWork["documents"][number];
 }) {
   const snapshot = document.snapshot;
+  if (snapshot.removed)
+    return (
+      <AddedText>
+        Drawing removed by a parent. Completion is still saved.
+      </AddedText>
+    );
   const visible = new Set(
     snapshot.histories.flatMap((history) =>
       visibleInkStrokes({ history, strokes: snapshot.strokes }),

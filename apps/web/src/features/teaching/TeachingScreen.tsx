@@ -36,6 +36,7 @@ type TeachingScreenProps = {
     input: Readonly<{ action: ReviewSelectionAction; choice: ReviewChoice }>,
   ) => void;
   onRetry: () => void;
+  recoveryActions?: import("react").ReactNode;
   onOpenRetry: () => void;
   onLessonMenu?: () => void;
   lessonNumber?: number;
@@ -157,7 +158,11 @@ function SaveStatus({
   busy,
   saveError,
   onRetry,
-}: Pick<TeachingScreenProps, "busy" | "saveError" | "onRetry">) {
+  recoveryActions,
+}: Pick<
+  TeachingScreenProps,
+  "busy" | "saveError" | "onRetry" | "recoveryActions"
+>) {
   return (
     <footer className="teaching-save-area" aria-live="polite">
       {saveError ? (
@@ -172,12 +177,15 @@ function SaveStatus({
           >
             <AddedText>{busy ? "Retrying…" : "Retry save"}</AddedText>
           </Button>
+          {recoveryActions}
         </div>
       ) : busy ? (
         <p className="teaching-saving">
           <AddedText>Saving…</AddedText>
         </p>
-      ) : null}
+      ) : (
+        recoveryActions
+      )}
     </footer>
   );
 }
@@ -954,6 +962,7 @@ export function TeachingScreen({
   onReview,
   onRetry,
   onOpenRetry,
+  recoveryActions,
   onLessonMenu,
   lessonNumber = 1,
   inputSuspended = false,
@@ -974,7 +983,12 @@ export function TeachingScreen({
     onAction(action);
   }
   const saveStatus = (
-    <SaveStatus busy={busy} saveError={saveError} onRetry={onRetry} />
+    <SaveStatus
+      busy={busy}
+      saveError={saveError}
+      onRetry={onRetry}
+      recoveryActions={recoveryActions}
+    />
   );
   if (!supportedWindow) return <WindowRecovery busy={busy} />;
   if (projection.kind === "recovery")

@@ -168,6 +168,8 @@ export const selectionValidationSchemas = {
       },
       readDirectory: { properties: { id: string } },
       installations: { properties: { id: string } },
+      readStorageCleanup: { properties: { id: string, selection } },
+      cleanupStorage: { properties: { id: string, command: {} } },
       readLessonFiles: { properties: { id: string } },
       changeLessonFiles: {
         properties: { id: string, command: lessonFilesCommandSchema },
@@ -214,6 +216,8 @@ export const selectionValidationSchemas = {
     mapping: {
       directory: { properties: { id: string, value: {} } },
       installationCatalog: { properties: { id: string, value: {} } },
+      storageCleanup: { properties: { id: string, value: {} } },
+      storageCleanupReceipt: { properties: { id: string, value: {} } },
       lessonFiles: { properties: { id: string, value: lessonFilesViewSchema } },
       lessonFilesReceipt: {
         properties: { id: string, value: lessonFilesReceiptSchema },

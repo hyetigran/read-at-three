@@ -71,6 +71,7 @@ export type InkHistory = Readonly<{
   operations: readonly InkOperation[];
 }>;
 export type InkSnapshot = Readonly<{
+  removed?: true;
   token: DocumentToken;
   sourceRefs: readonly string[];
   bounds: InkBounds;
@@ -363,6 +364,15 @@ export function parseInkOperation(input: unknown): InkOperation {
 export function parseInkSnapshot(input: unknown): InkSnapshot {
   if (!validateInkSnapshot(input)) throw new Error("Invalid ink snapshot");
   parseDocumentToken(input.token);
+  if (
+    input.removed &&
+    (input.writable ||
+      input.strokes.length ||
+      input.histories.some(
+        (history) => history.baseline.length || history.operations.length,
+      ))
+  )
+    throw new Error("Removed drawing contains editable work");
   parseCounter(input.nextStrokeOrder);
   for (const stroke of input.strokes) parseCounter(stroke.strokeOrder);
   for (const history of input.histories) {

@@ -1646,7 +1646,54 @@ function withDefinitions(root: object) {
   references(transformed);
   return { ...transformed, $defs: Object.fromEntries(retained) };
 }
+const cleanupOwner = record({ profileId: id, generation: counter });
+const cleanupProfile = record({ owner: cleanupOwner, revision: counter });
+const cleanupDrawings = list(documentTokenSchema, 32, 1);
 export const validatorSchemas = {
+  validateStorageCleanupView: withDefinitions(
+    record({
+      selection: record({
+        installationId: id,
+        revision: counter,
+        owner: cleanupOwner,
+      }),
+      scope: cleanupProfile,
+      drawings: list(
+        record({
+          token: documentTokenSchema,
+          pointBytes: {
+            type: "integer",
+            minimum: 0,
+            maximum: Number.MAX_SAFE_INTEGER,
+          },
+        }),
+        32,
+      ),
+    }),
+  ),
+  validateStorageCleanupCommand: withDefinitions(
+    record({
+      version: { const: 1 },
+      commandId: id,
+      payloadHash: hashSchema,
+      selection: record({
+        installationId: id,
+        revision: counter,
+        owner: cleanupOwner,
+      }),
+      expectedScope: cleanupProfile,
+      drawings: cleanupDrawings,
+    }),
+  ),
+  validateStorageCleanupReceipt: withDefinitions(
+    record({
+      kind: { const: "cleanupCommitted" },
+      commandId: id,
+      payloadHash: hashSchema,
+      scope: cleanupProfile,
+      drawings: cleanupDrawings,
+    }),
+  ),
   validatePrintedPreviewTask: withDefinitions({
     oneOf: [
       record({ kind: { const: "printedGraphV1" }, task: graphTask }),

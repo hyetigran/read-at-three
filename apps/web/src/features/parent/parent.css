@@ -471,3 +471,28 @@
   max-width: none;
   margin: 0;
 }
+
+.storage-cleanup-dialog {
+  max-width: min(52rem, 90vw);
+  max-height: 90vh;
+  overflow: auto;
+  border: 3px solid #142b52;
+  border-radius: 1rem;
+  padding: 1.5rem;
+}
+.storage-cleanup-dialog::backdrop {
+  background: rgb(20 43 82 / 55%);
+}
+.cleanup-drawing {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid #142b52;
+  margin-block: 1rem;
+}
+.cleanup-drawing svg {
+  grid-column: 1 / -1;
+  width: 100%;
+  max-height: 12rem;
+}

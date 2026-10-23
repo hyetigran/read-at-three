@@ -52,6 +52,25 @@ const layers: readonly InkLayer[] = ["model", "tracing", "independent"];
 export type InkRunContext = Omit<StoredSession, "runStatus"> & {
   runStatus: StoredSession["runStatus"] | "abandoned";
 };
+export function inkDocumentToken(
+  row: typeof schema.inkDocument.$inferSelect,
+): DocumentToken {
+  return {
+    documentId: row.documentId,
+    runId: row.runId,
+    profileId: row.profileId,
+    generation: row.generation,
+    courseId: row.courseId,
+    packageHash: row.packageHash,
+    lessonId: row.lessonId,
+    taskId: row.taskId,
+    targetId: row.targetId,
+    revision: row.revision,
+    phase: row.phase,
+    inputEpoch: row.inputEpoch,
+  };
+}
+
 export function createInkRepository({
   executor,
   ids,
@@ -70,22 +89,7 @@ export function createInkRepository({
     return executor.execute(sql, sqlValues(parameters));
   });
   type DocumentRow = typeof schema.inkDocument.$inferSelect;
-  function token(row: DocumentRow): DocumentToken {
-    return {
-      documentId: row.documentId,
-      runId: row.runId,
-      profileId: row.profileId,
-      generation: row.generation,
-      courseId: row.courseId,
-      packageHash: row.packageHash,
-      lessonId: row.lessonId,
-      taskId: row.taskId,
-      targetId: row.targetId,
-      revision: row.revision,
-      phase: row.phase,
-      inputEpoch: row.inputEpoch,
-    };
-  }
+  const token = inkDocumentToken;
   async function document(id: DocumentToken["documentId"]) {
     const row = (
       await db
@@ -225,6 +229,20 @@ export function createInkRepository({
       }).phase !== row.phase
     )
       throw new Error("Ink source binding invalid");
+    const schemaVersion = Number(
+      (await executor.execute("PRAGMA user_version", [])).rows[0]?.[0],
+    );
+    const removed =
+      schemaVersion >= 15 &&
+      (
+        await db
+          .select()
+          .from(schema.removedDrawing)
+          .where(eq(schema.removedDrawing.documentId, row.documentId))
+          .all()
+      ).length !== 0;
+    if (removed && binding.session.runStatus === "inProgress")
+      throw new Error("Current drawing cannot be removed");
     const bounds = { width: row.logicalWidth, height: row.logicalHeight };
     const strokeRows = await db
       .select()
@@ -325,12 +343,14 @@ export function createInkRepository({
     }
     assertInkReferences({ histories, strokes });
     const value = {
+      ...(removed ? { removed: true as const } : {}),
       token: token(row),
       sourceRefs: target.sourceRefs,
       bounds,
       guides: target.guides,
       boardY: target.boardY,
       writable:
+        !removed &&
         binding.session.status === "active" &&
         binding.session.runStatus === "inProgress" &&
         writingPermission({
