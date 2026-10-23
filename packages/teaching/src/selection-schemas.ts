@@ -1,4 +1,8 @@
 import {
+  startFreshCommandSchema,
+  storeResetRecordSchema,
+} from "./store-reset-schemas.ts";
+import {
   publicationSelectionSchema,
   publicationCheckSchema,
   installedResourceFailureSchema,
@@ -130,6 +134,8 @@ const shellBridgeResponse = {
   },
 } satisfies SomeJTDSchemaType;
 export const selectionValidationSchemas = {
+  validateStartFreshCommand: startFreshCommandSchema,
+  validateStoreResetRecord: storeResetRecordSchema,
   validateShellBridgeRequest: shellBridgeRequest,
   validateShellBridgeResponse: shellBridgeResponse,
   validateSelectedOwnerWitness: selection,
@@ -292,6 +298,8 @@ export const selectionValidationSchemas = {
       administrationRecovery: { properties: { id: string, value: {} } },
       reconciled: { properties: { id: string, value: {} } },
       storageBusy: { properties: { id: string } },
+      storeResetPending: { properties: { id: string } },
+      damagedStore: { properties: { id: string } },
       unsupportedStoreFormat: { properties: { id: string } },
       connectionLost: { properties: { id: string } },
       failed: { properties: { id: string, message: string } },
@@ -405,3 +413,6 @@ export type RawSelectedWorkerResponse = JTDDataType<
 
 export type RawShellBridgeRequest = JTDDataType<typeof shellBridgeRequest>;
 export type RawShellBridgeResponse = JTDDataType<typeof shellBridgeResponse>;
+
+export type RawStartFreshCommand = JTDDataType<typeof startFreshCommandSchema>;
+export type RawStoreResetRecord = JTDDataType<typeof storeResetRecordSchema>;

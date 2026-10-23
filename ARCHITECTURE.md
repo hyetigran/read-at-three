@@ -464,7 +464,7 @@ Browser quota, permission, eviction, and origin changes still constrain persiste
 
 At startup, open/migrate storage, validate personal records, load the session's pinned package, rebuild documents, and then project the resume screen. Do not start old timers automatically.
 
-If a save fails, retain the in-memory document and show an app-origin parent error with Retry. Pause advancement and further unsaved changes until storage recovers. Never replace corrupted or unreadable personal data with a fresh empty database without an explicit recovery action.
+If a save fails, retain the in-memory document and show an app-origin parent error with Retry. Pause advancement and further unsaved changes until storage recovers. Never replace corrupted or unreadable personal data with a fresh empty database without an explicit recovery action. The browser implementation and retry contract are specified in [Explicit personal-store reset](docs/architecture/STORE_RESET.md).
 
 A migration runs transactionally where possible and has preconditions, fixtures, and rollback/recovery behavior. Keep content release migration distinct from database migration. Irreversible storage changes constrain application rollback; a release cannot promise that an older binary reads a newer incompatible schema.
 

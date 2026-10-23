@@ -1,3 +1,4 @@
+import { StartFresh } from "./features/parent/StartFresh.tsx";
 import { browserConfiguration } from "./platform/browser-configuration.ts";
 import { StorageCleanup } from "./features/parent/StorageCleanup.tsx";
 import { InstallationScreen } from "./features/installation/InstallationScreen.tsx";
@@ -117,6 +118,10 @@ function retainsCourseEntry(entry: PendingCourseEntry, operation: Operation) {
   );
 }
 function ApplicationShell() {
+  const [freshOpen, setFreshOpen] = useState(false);
+  const freshCommand = useRef<
+    import("@readatthree/teaching").StartFreshCommand | null
+  >(null);
   const committed = useCommittedTeaching(controller.committed);
   const state = useSyncExternalStore(controller.subscribe, controller.getState);
   const [cleanupOpen, setCleanupOpen] = useState(false);
@@ -964,7 +969,16 @@ function ApplicationShell() {
           )}
       </main>
     );
-  else if (browserConfiguration.kind === "installed" && !read)
+  else if (
+    browserConfiguration.kind === "installed" &&
+    !read &&
+    (!recovery ||
+      ![
+        "damaged-store",
+        "store-reset-pending",
+        "unsupported-store-format",
+      ].includes(recovery.code))
+  )
     screen = (
       <InstallationScreen
         client={client}
@@ -973,6 +987,11 @@ function ApplicationShell() {
         opening={operation.kind === "opening"}
         onOpen={() => void controller.reopen()}
         onReconnect={() => void reconnectAndRecover()}
+        onStartFresh={
+          recovery?.code === "storage-initialization-failed"
+            ? () => setFreshOpen(true)
+            : undefined
+        }
       />
     );
   else if (committedSwitch)
@@ -1013,6 +1032,16 @@ function ApplicationShell() {
         busy={busy}
         message={committed.read.error?.message}
         onRetry={() => void controller.reopen()}
+        onStartFresh={
+          recovery &&
+          [
+            "damaged-store",
+            "storage-initialization-failed",
+            "store-reset-pending",
+          ].includes(recovery.code)
+            ? () => setFreshOpen(true)
+            : undefined
+        }
       />
     );
   else if (
@@ -1146,11 +1175,18 @@ function ApplicationShell() {
           onAction={controller.act}
           onReview={controller.act}
           recoveryActions={
-            cleanupAvailable ? (
-              <Button disabled={busy} onClick={() => setCleanupOpen(true)}>
-                <AddedText>Parent storage cleanup</AddedText>
-              </Button>
-            ) : null
+            <>
+              {state.storeDamaged ? (
+                <Button disabled={busy} onClick={() => setFreshOpen(true)}>
+                  <AddedText>Start fresh</AddedText>
+                </Button>
+              ) : null}
+              {cleanupAvailable ? (
+                <Button disabled={busy} onClick={() => setCleanupOpen(true)}>
+                  <AddedText>Parent storage cleanup</AddedText>
+                </Button>
+              ) : null}
+            </>
           }
           onRetry={() => void controller.retry()}
           onOpenRetry={() => void controller.reopen()}
@@ -1195,6 +1231,13 @@ function ApplicationShell() {
   return (
     <>
       {screen}
+      {freshOpen ? (
+        <StartFresh
+          retained={freshCommand}
+          disconnect={() => client.close()}
+          onClose={() => setFreshOpen(false)}
+        />
+      ) : null}
       {connectionObservation.slow > 0 ? (
         <aside
           className="course-navigation-status"
@@ -1260,6 +1303,11 @@ function ApplicationShell() {
                 : "Retry save"}
             </AddedText>
           </Button>
+          {state.storeDamaged ? (
+            <Button disabled={busy} onClick={() => setFreshOpen(true)}>
+              <AddedText>Start fresh</AddedText>
+            </Button>
+          ) : null}
         </aside>
       ) : null}
       {selection && cleanupAvailable ? (

@@ -1,6 +1,1006 @@
 "use strict";
-export const validateShellBridgeRequest = validate57;
+export const validateStartFreshCommand = validate57;
 const schema29 = {
+  properties: {
+    version: { type: "uint8" },
+    recoveryId: { type: "string" },
+    commandId: { type: "string" },
+    expectedRevision: { type: "string" },
+  },
+};
+function validate57(
+  data,
+  { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
+) {
+  let vErrors = null;
+  let errors = 0;
+  let valid0 = false;
+  if (data && typeof data == "object" && !Array.isArray(data)) {
+    valid0 = true;
+    if (data.version !== undefined) {
+      let data0 = data.version;
+      if (!(
+        typeof data0 == "number" &&
+        isFinite(data0) &&
+        !(data0 % 1) &&
+        data0 >= 0 &&
+        data0 <= 255
+      )) {
+        const err0 = {
+          instancePath: instancePath + "/version",
+          schemaPath: "/properties/version/type",
+          keyword: "type",
+          params: { type: "uint8", nullable: false },
+          message: "must be uint8",
+        };
+        if (vErrors === null) {
+          vErrors = [err0];
+        } else {
+          vErrors.push(err0);
+        }
+        errors++;
+      }
+    } else {
+      const err1 = {
+        instancePath,
+        schemaPath: "/properties/version",
+        keyword: "properties",
+        params: { error: "missing", missingProperty: "version" },
+        message: "must have property 'version'",
+      };
+      if (vErrors === null) {
+        vErrors = [err1];
+      } else {
+        vErrors.push(err1);
+      }
+      errors++;
+    }
+    if (data.recoveryId !== undefined) {
+      if (!(typeof data.recoveryId == "string")) {
+        const err2 = {
+          instancePath: instancePath + "/recoveryId",
+          schemaPath: "/properties/recoveryId/type",
+          keyword: "type",
+          params: { type: "string", nullable: false },
+          message: "must be string",
+        };
+        if (vErrors === null) {
+          vErrors = [err2];
+        } else {
+          vErrors.push(err2);
+        }
+        errors++;
+      }
+    } else {
+      const err3 = {
+        instancePath,
+        schemaPath: "/properties/recoveryId",
+        keyword: "properties",
+        params: { error: "missing", missingProperty: "recoveryId" },
+        message: "must have property 'recoveryId'",
+      };
+      if (vErrors === null) {
+        vErrors = [err3];
+      } else {
+        vErrors.push(err3);
+      }
+      errors++;
+    }
+    if (data.commandId !== undefined) {
+      if (!(typeof data.commandId == "string")) {
+        const err4 = {
+          instancePath: instancePath + "/commandId",
+          schemaPath: "/properties/commandId/type",
+          keyword: "type",
+          params: { type: "string", nullable: false },
+          message: "must be string",
+        };
+        if (vErrors === null) {
+          vErrors = [err4];
+        } else {
+          vErrors.push(err4);
+        }
+        errors++;
+      }
+    } else {
+      const err5 = {
+        instancePath,
+        schemaPath: "/properties/commandId",
+        keyword: "properties",
+        params: { error: "missing", missingProperty: "commandId" },
+        message: "must have property 'commandId'",
+      };
+      if (vErrors === null) {
+        vErrors = [err5];
+      } else {
+        vErrors.push(err5);
+      }
+      errors++;
+    }
+    if (data.expectedRevision !== undefined) {
+      if (!(typeof data.expectedRevision == "string")) {
+        const err6 = {
+          instancePath: instancePath + "/expectedRevision",
+          schemaPath: "/properties/expectedRevision/type",
+          keyword: "type",
+          params: { type: "string", nullable: false },
+          message: "must be string",
+        };
+        if (vErrors === null) {
+          vErrors = [err6];
+        } else {
+          vErrors.push(err6);
+        }
+        errors++;
+      }
+    } else {
+      const err7 = {
+        instancePath,
+        schemaPath: "/properties/expectedRevision",
+        keyword: "properties",
+        params: { error: "missing", missingProperty: "expectedRevision" },
+        message: "must have property 'expectedRevision'",
+      };
+      if (vErrors === null) {
+        vErrors = [err7];
+      } else {
+        vErrors.push(err7);
+      }
+      errors++;
+    }
+    for (const key0 in data) {
+      if (
+        key0 !== "version" &&
+        key0 !== "recoveryId" &&
+        key0 !== "commandId" &&
+        key0 !== "expectedRevision"
+      ) {
+        const err8 = {
+          instancePath:
+            instancePath + "/" + key0.replace(/~/g, "~0").replace(/\//g, "~1"),
+          schemaPath: "",
+          keyword: "properties",
+          params: { error: "additional", additionalProperty: key0 },
+          message: "must NOT have additional properties",
+        };
+        if (vErrors === null) {
+          vErrors = [err8];
+        } else {
+          vErrors.push(err8);
+        }
+        errors++;
+      }
+    }
+  }
+  if (!valid0) {
+    const err9 = {
+      instancePath,
+      schemaPath: "/properties",
+      keyword: "properties",
+      params: { type: "object", nullable: false },
+      message: "must be object",
+    };
+    if (vErrors === null) {
+      vErrors = [err9];
+    } else {
+      vErrors.push(err9);
+    }
+    errors++;
+  }
+  validate57.errors = vErrors;
+  return errors === 0;
+}
+export const validateStoreResetRecord = validate58;
+const schema30 = {
+  discriminator: "phase",
+  mapping: {
+    ready: {
+      properties: {
+        version: { type: "uint8" },
+        recoveryId: { type: "string" },
+        revision: { type: "string" },
+        lastCommand: {
+          properties: {
+            version: { type: "uint8" },
+            recoveryId: { type: "string" },
+            commandId: { type: "string" },
+            expectedRevision: { type: "string" },
+          },
+          nullable: true,
+        },
+      },
+    },
+    resetting: {
+      properties: {
+        version: { type: "uint8" },
+        recoveryId: { type: "string" },
+        revision: { type: "string" },
+        command: {
+          properties: {
+            version: { type: "uint8" },
+            recoveryId: { type: "string" },
+            commandId: { type: "string" },
+            expectedRevision: { type: "string" },
+          },
+        },
+      },
+    },
+  },
+};
+function validate58(
+  data,
+  { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
+) {
+  let vErrors = null;
+  let errors = 0;
+  let valid0 = false;
+  if (data && typeof data == "object" && !Array.isArray(data)) {
+    const tag0 = data.phase;
+    if (tag0 === undefined) {
+      const err0 = {
+        instancePath,
+        schemaPath: "/discriminator",
+        keyword: "discriminator",
+        params: { error: "tag", tag: "phase", tagValue: tag0 },
+        message: 'tag "phase" must be string',
+      };
+      if (vErrors === null) {
+        vErrors = [err0];
+      } else {
+        vErrors.push(err0);
+      }
+      errors++;
+    } else if (typeof tag0 == "string") {
+      if (tag0 === "ready") {
+        const _errs0 = errors;
+        let valid2 = false;
+        valid2 = true;
+        if (data.version !== undefined) {
+          let data0 = data.version;
+          if (!(
+            typeof data0 == "number" &&
+            isFinite(data0) &&
+            !(data0 % 1) &&
+            data0 >= 0 &&
+            data0 <= 255
+          )) {
+            const err1 = {
+              instancePath: instancePath + "/version",
+              schemaPath: "/mapping/ready/properties/version/type",
+              keyword: "type",
+              params: { type: "uint8", nullable: false },
+              message: "must be uint8",
+            };
+            if (vErrors === null) {
+              vErrors = [err1];
+            } else {
+              vErrors.push(err1);
+            }
+            errors++;
+          }
+        } else {
+          const err2 = {
+            instancePath,
+            schemaPath: "/mapping/ready/properties/version",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "version" },
+            message: "must have property 'version'",
+          };
+          if (vErrors === null) {
+            vErrors = [err2];
+          } else {
+            vErrors.push(err2);
+          }
+          errors++;
+        }
+        if (data.recoveryId !== undefined) {
+          if (!(typeof data.recoveryId == "string")) {
+            const err3 = {
+              instancePath: instancePath + "/recoveryId",
+              schemaPath: "/mapping/ready/properties/recoveryId/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err3];
+            } else {
+              vErrors.push(err3);
+            }
+            errors++;
+          }
+        } else {
+          const err4 = {
+            instancePath,
+            schemaPath: "/mapping/ready/properties/recoveryId",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "recoveryId" },
+            message: "must have property 'recoveryId'",
+          };
+          if (vErrors === null) {
+            vErrors = [err4];
+          } else {
+            vErrors.push(err4);
+          }
+          errors++;
+        }
+        if (data.revision !== undefined) {
+          if (!(typeof data.revision == "string")) {
+            const err5 = {
+              instancePath: instancePath + "/revision",
+              schemaPath: "/mapping/ready/properties/revision/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err5];
+            } else {
+              vErrors.push(err5);
+            }
+            errors++;
+          }
+        } else {
+          const err6 = {
+            instancePath,
+            schemaPath: "/mapping/ready/properties/revision",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "revision" },
+            message: "must have property 'revision'",
+          };
+          if (vErrors === null) {
+            vErrors = [err6];
+          } else {
+            vErrors.push(err6);
+          }
+          errors++;
+        }
+        if (data.lastCommand !== undefined) {
+          let data3 = data.lastCommand;
+          let valid4 = data3 === null;
+          if (!valid4 && typeof data3 == "object" && !Array.isArray(data3)) {
+            valid4 = true;
+            if (data3.version !== undefined) {
+              let data4 = data3.version;
+              if (!(
+                typeof data4 == "number" &&
+                isFinite(data4) &&
+                !(data4 % 1) &&
+                data4 >= 0 &&
+                data4 <= 255
+              )) {
+                const err7 = {
+                  instancePath: instancePath + "/lastCommand/version",
+                  schemaPath:
+                    "/mapping/ready/properties/lastCommand/properties/version/type",
+                  keyword: "type",
+                  params: { type: "uint8", nullable: false },
+                  message: "must be uint8",
+                };
+                if (vErrors === null) {
+                  vErrors = [err7];
+                } else {
+                  vErrors.push(err7);
+                }
+                errors++;
+              }
+            } else {
+              const err8 = {
+                instancePath: instancePath + "/lastCommand",
+                schemaPath:
+                  "/mapping/ready/properties/lastCommand/properties/version",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "version" },
+                message: "must have property 'version'",
+              };
+              if (vErrors === null) {
+                vErrors = [err8];
+              } else {
+                vErrors.push(err8);
+              }
+              errors++;
+            }
+            if (data3.recoveryId !== undefined) {
+              if (!(typeof data3.recoveryId == "string")) {
+                const err9 = {
+                  instancePath: instancePath + "/lastCommand/recoveryId",
+                  schemaPath:
+                    "/mapping/ready/properties/lastCommand/properties/recoveryId/type",
+                  keyword: "type",
+                  params: { type: "string", nullable: false },
+                  message: "must be string",
+                };
+                if (vErrors === null) {
+                  vErrors = [err9];
+                } else {
+                  vErrors.push(err9);
+                }
+                errors++;
+              }
+            } else {
+              const err10 = {
+                instancePath: instancePath + "/lastCommand",
+                schemaPath:
+                  "/mapping/ready/properties/lastCommand/properties/recoveryId",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "recoveryId" },
+                message: "must have property 'recoveryId'",
+              };
+              if (vErrors === null) {
+                vErrors = [err10];
+              } else {
+                vErrors.push(err10);
+              }
+              errors++;
+            }
+            if (data3.commandId !== undefined) {
+              if (!(typeof data3.commandId == "string")) {
+                const err11 = {
+                  instancePath: instancePath + "/lastCommand/commandId",
+                  schemaPath:
+                    "/mapping/ready/properties/lastCommand/properties/commandId/type",
+                  keyword: "type",
+                  params: { type: "string", nullable: false },
+                  message: "must be string",
+                };
+                if (vErrors === null) {
+                  vErrors = [err11];
+                } else {
+                  vErrors.push(err11);
+                }
+                errors++;
+              }
+            } else {
+              const err12 = {
+                instancePath: instancePath + "/lastCommand",
+                schemaPath:
+                  "/mapping/ready/properties/lastCommand/properties/commandId",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "commandId" },
+                message: "must have property 'commandId'",
+              };
+              if (vErrors === null) {
+                vErrors = [err12];
+              } else {
+                vErrors.push(err12);
+              }
+              errors++;
+            }
+            if (data3.expectedRevision !== undefined) {
+              if (!(typeof data3.expectedRevision == "string")) {
+                const err13 = {
+                  instancePath: instancePath + "/lastCommand/expectedRevision",
+                  schemaPath:
+                    "/mapping/ready/properties/lastCommand/properties/expectedRevision/type",
+                  keyword: "type",
+                  params: { type: "string", nullable: false },
+                  message: "must be string",
+                };
+                if (vErrors === null) {
+                  vErrors = [err13];
+                } else {
+                  vErrors.push(err13);
+                }
+                errors++;
+              }
+            } else {
+              const err14 = {
+                instancePath: instancePath + "/lastCommand",
+                schemaPath:
+                  "/mapping/ready/properties/lastCommand/properties/expectedRevision",
+                keyword: "properties",
+                params: {
+                  error: "missing",
+                  missingProperty: "expectedRevision",
+                },
+                message: "must have property 'expectedRevision'",
+              };
+              if (vErrors === null) {
+                vErrors = [err14];
+              } else {
+                vErrors.push(err14);
+              }
+              errors++;
+            }
+            for (const key0 in data3) {
+              if (
+                key0 !== "version" &&
+                key0 !== "recoveryId" &&
+                key0 !== "commandId" &&
+                key0 !== "expectedRevision"
+              ) {
+                const err15 = {
+                  instancePath:
+                    instancePath +
+                    "/lastCommand/" +
+                    key0.replace(/~/g, "~0").replace(/\//g, "~1"),
+                  schemaPath: "/mapping/ready/properties/lastCommand",
+                  keyword: "properties",
+                  params: { error: "additional", additionalProperty: key0 },
+                  message: "must NOT have additional properties",
+                };
+                if (vErrors === null) {
+                  vErrors = [err15];
+                } else {
+                  vErrors.push(err15);
+                }
+                errors++;
+              }
+            }
+          }
+          if (!valid4) {
+            const err16 = {
+              instancePath: instancePath + "/lastCommand",
+              schemaPath: "/mapping/ready/properties/lastCommand/properties",
+              keyword: "properties",
+              params: { type: "object", nullable: true },
+              message: "must be object or null",
+            };
+            if (vErrors === null) {
+              vErrors = [err16];
+            } else {
+              vErrors.push(err16);
+            }
+            errors++;
+          }
+        } else {
+          const err17 = {
+            instancePath,
+            schemaPath: "/mapping/ready/properties/lastCommand",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "lastCommand" },
+            message: "must have property 'lastCommand'",
+          };
+          if (vErrors === null) {
+            vErrors = [err17];
+          } else {
+            vErrors.push(err17);
+          }
+          errors++;
+        }
+        for (const key1 in data) {
+          if (
+            key1 !== "phase" &&
+            key1 !== "version" &&
+            key1 !== "recoveryId" &&
+            key1 !== "revision" &&
+            key1 !== "lastCommand"
+          ) {
+            const err18 = {
+              instancePath:
+                instancePath +
+                "/" +
+                key1.replace(/~/g, "~0").replace(/\//g, "~1"),
+              schemaPath: "/mapping/ready",
+              keyword: "properties",
+              params: { error: "additional", additionalProperty: key1 },
+              message: "must NOT have additional properties",
+            };
+            if (vErrors === null) {
+              vErrors = [err18];
+            } else {
+              vErrors.push(err18);
+            }
+            errors++;
+          }
+        }
+        if (!valid2) {
+          const err19 = {
+            instancePath,
+            schemaPath: "/mapping/ready/properties",
+            keyword: "properties",
+            params: { type: "object", nullable: false },
+            message: "must be object",
+          };
+          if (vErrors === null) {
+            vErrors = [err19];
+          } else {
+            vErrors.push(err19);
+          }
+          errors++;
+        }
+        var valid1 = _errs0 === errors;
+        valid0 = valid1;
+      } else if (tag0 === "resetting") {
+        const _errs10 = errors;
+        let valid9 = false;
+        valid9 = true;
+        if (data.version !== undefined) {
+          let data8 = data.version;
+          if (!(
+            typeof data8 == "number" &&
+            isFinite(data8) &&
+            !(data8 % 1) &&
+            data8 >= 0 &&
+            data8 <= 255
+          )) {
+            const err20 = {
+              instancePath: instancePath + "/version",
+              schemaPath: "/mapping/resetting/properties/version/type",
+              keyword: "type",
+              params: { type: "uint8", nullable: false },
+              message: "must be uint8",
+            };
+            if (vErrors === null) {
+              vErrors = [err20];
+            } else {
+              vErrors.push(err20);
+            }
+            errors++;
+          }
+        } else {
+          const err21 = {
+            instancePath,
+            schemaPath: "/mapping/resetting/properties/version",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "version" },
+            message: "must have property 'version'",
+          };
+          if (vErrors === null) {
+            vErrors = [err21];
+          } else {
+            vErrors.push(err21);
+          }
+          errors++;
+        }
+        if (data.recoveryId !== undefined) {
+          if (!(typeof data.recoveryId == "string")) {
+            const err22 = {
+              instancePath: instancePath + "/recoveryId",
+              schemaPath: "/mapping/resetting/properties/recoveryId/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err22];
+            } else {
+              vErrors.push(err22);
+            }
+            errors++;
+          }
+        } else {
+          const err23 = {
+            instancePath,
+            schemaPath: "/mapping/resetting/properties/recoveryId",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "recoveryId" },
+            message: "must have property 'recoveryId'",
+          };
+          if (vErrors === null) {
+            vErrors = [err23];
+          } else {
+            vErrors.push(err23);
+          }
+          errors++;
+        }
+        if (data.revision !== undefined) {
+          if (!(typeof data.revision == "string")) {
+            const err24 = {
+              instancePath: instancePath + "/revision",
+              schemaPath: "/mapping/resetting/properties/revision/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err24];
+            } else {
+              vErrors.push(err24);
+            }
+            errors++;
+          }
+        } else {
+          const err25 = {
+            instancePath,
+            schemaPath: "/mapping/resetting/properties/revision",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "revision" },
+            message: "must have property 'revision'",
+          };
+          if (vErrors === null) {
+            vErrors = [err25];
+          } else {
+            vErrors.push(err25);
+          }
+          errors++;
+        }
+        if (data.command !== undefined) {
+          let data11 = data.command;
+          let valid11 = false;
+          if (data11 && typeof data11 == "object" && !Array.isArray(data11)) {
+            valid11 = true;
+            if (data11.version !== undefined) {
+              let data12 = data11.version;
+              if (!(
+                typeof data12 == "number" &&
+                isFinite(data12) &&
+                !(data12 % 1) &&
+                data12 >= 0 &&
+                data12 <= 255
+              )) {
+                const err26 = {
+                  instancePath: instancePath + "/command/version",
+                  schemaPath:
+                    "/mapping/resetting/properties/command/properties/version/type",
+                  keyword: "type",
+                  params: { type: "uint8", nullable: false },
+                  message: "must be uint8",
+                };
+                if (vErrors === null) {
+                  vErrors = [err26];
+                } else {
+                  vErrors.push(err26);
+                }
+                errors++;
+              }
+            } else {
+              const err27 = {
+                instancePath: instancePath + "/command",
+                schemaPath:
+                  "/mapping/resetting/properties/command/properties/version",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "version" },
+                message: "must have property 'version'",
+              };
+              if (vErrors === null) {
+                vErrors = [err27];
+              } else {
+                vErrors.push(err27);
+              }
+              errors++;
+            }
+            if (data11.recoveryId !== undefined) {
+              if (!(typeof data11.recoveryId == "string")) {
+                const err28 = {
+                  instancePath: instancePath + "/command/recoveryId",
+                  schemaPath:
+                    "/mapping/resetting/properties/command/properties/recoveryId/type",
+                  keyword: "type",
+                  params: { type: "string", nullable: false },
+                  message: "must be string",
+                };
+                if (vErrors === null) {
+                  vErrors = [err28];
+                } else {
+                  vErrors.push(err28);
+                }
+                errors++;
+              }
+            } else {
+              const err29 = {
+                instancePath: instancePath + "/command",
+                schemaPath:
+                  "/mapping/resetting/properties/command/properties/recoveryId",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "recoveryId" },
+                message: "must have property 'recoveryId'",
+              };
+              if (vErrors === null) {
+                vErrors = [err29];
+              } else {
+                vErrors.push(err29);
+              }
+              errors++;
+            }
+            if (data11.commandId !== undefined) {
+              if (!(typeof data11.commandId == "string")) {
+                const err30 = {
+                  instancePath: instancePath + "/command/commandId",
+                  schemaPath:
+                    "/mapping/resetting/properties/command/properties/commandId/type",
+                  keyword: "type",
+                  params: { type: "string", nullable: false },
+                  message: "must be string",
+                };
+                if (vErrors === null) {
+                  vErrors = [err30];
+                } else {
+                  vErrors.push(err30);
+                }
+                errors++;
+              }
+            } else {
+              const err31 = {
+                instancePath: instancePath + "/command",
+                schemaPath:
+                  "/mapping/resetting/properties/command/properties/commandId",
+                keyword: "properties",
+                params: { error: "missing", missingProperty: "commandId" },
+                message: "must have property 'commandId'",
+              };
+              if (vErrors === null) {
+                vErrors = [err31];
+              } else {
+                vErrors.push(err31);
+              }
+              errors++;
+            }
+            if (data11.expectedRevision !== undefined) {
+              if (!(typeof data11.expectedRevision == "string")) {
+                const err32 = {
+                  instancePath: instancePath + "/command/expectedRevision",
+                  schemaPath:
+                    "/mapping/resetting/properties/command/properties/expectedRevision/type",
+                  keyword: "type",
+                  params: { type: "string", nullable: false },
+                  message: "must be string",
+                };
+                if (vErrors === null) {
+                  vErrors = [err32];
+                } else {
+                  vErrors.push(err32);
+                }
+                errors++;
+              }
+            } else {
+              const err33 = {
+                instancePath: instancePath + "/command",
+                schemaPath:
+                  "/mapping/resetting/properties/command/properties/expectedRevision",
+                keyword: "properties",
+                params: {
+                  error: "missing",
+                  missingProperty: "expectedRevision",
+                },
+                message: "must have property 'expectedRevision'",
+              };
+              if (vErrors === null) {
+                vErrors = [err33];
+              } else {
+                vErrors.push(err33);
+              }
+              errors++;
+            }
+            for (const key2 in data11) {
+              if (
+                key2 !== "version" &&
+                key2 !== "recoveryId" &&
+                key2 !== "commandId" &&
+                key2 !== "expectedRevision"
+              ) {
+                const err34 = {
+                  instancePath:
+                    instancePath +
+                    "/command/" +
+                    key2.replace(/~/g, "~0").replace(/\//g, "~1"),
+                  schemaPath: "/mapping/resetting/properties/command",
+                  keyword: "properties",
+                  params: { error: "additional", additionalProperty: key2 },
+                  message: "must NOT have additional properties",
+                };
+                if (vErrors === null) {
+                  vErrors = [err34];
+                } else {
+                  vErrors.push(err34);
+                }
+                errors++;
+              }
+            }
+          }
+          if (!valid11) {
+            const err35 = {
+              instancePath: instancePath + "/command",
+              schemaPath: "/mapping/resetting/properties/command/properties",
+              keyword: "properties",
+              params: { type: "object", nullable: false },
+              message: "must be object",
+            };
+            if (vErrors === null) {
+              vErrors = [err35];
+            } else {
+              vErrors.push(err35);
+            }
+            errors++;
+          }
+        } else {
+          const err36 = {
+            instancePath,
+            schemaPath: "/mapping/resetting/properties/command",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "command" },
+            message: "must have property 'command'",
+          };
+          if (vErrors === null) {
+            vErrors = [err36];
+          } else {
+            vErrors.push(err36);
+          }
+          errors++;
+        }
+        for (const key3 in data) {
+          if (
+            key3 !== "phase" &&
+            key3 !== "version" &&
+            key3 !== "recoveryId" &&
+            key3 !== "revision" &&
+            key3 !== "command"
+          ) {
+            const err37 = {
+              instancePath:
+                instancePath +
+                "/" +
+                key3.replace(/~/g, "~0").replace(/\//g, "~1"),
+              schemaPath: "/mapping/resetting",
+              keyword: "properties",
+              params: { error: "additional", additionalProperty: key3 },
+              message: "must NOT have additional properties",
+            };
+            if (vErrors === null) {
+              vErrors = [err37];
+            } else {
+              vErrors.push(err37);
+            }
+            errors++;
+          }
+        }
+        if (!valid9) {
+          const err38 = {
+            instancePath,
+            schemaPath: "/mapping/resetting/properties",
+            keyword: "properties",
+            params: { type: "object", nullable: false },
+            message: "must be object",
+          };
+          if (vErrors === null) {
+            vErrors = [err38];
+          } else {
+            vErrors.push(err38);
+          }
+          errors++;
+        }
+        var valid8 = _errs10 === errors;
+        valid0 = valid8;
+      } else {
+        const err39 = {
+          instancePath: instancePath + "/phase",
+          schemaPath: "/mapping",
+          keyword: "discriminator",
+          params: { error: "mapping", tag: "phase", tagValue: tag0 },
+          message: 'value of tag "phase" must be in mapping',
+        };
+        if (vErrors === null) {
+          vErrors = [err39];
+        } else {
+          vErrors.push(err39);
+        }
+        errors++;
+      }
+    } else {
+      const err40 = {
+        instancePath: instancePath + "/phase",
+        schemaPath: "/discriminator",
+        keyword: "discriminator",
+        params: { error: "tag", tag: "phase", tagValue: tag0 },
+        message: 'tag "phase" must be string',
+      };
+      if (vErrors === null) {
+        vErrors = [err40];
+      } else {
+        vErrors.push(err40);
+      }
+      errors++;
+    }
+  } else if (!valid0) {
+    const err41 = {
+      instancePath,
+      schemaPath: "/discriminator",
+      keyword: "discriminator",
+      params: { type: "object", nullable: false },
+      message: "must be object",
+    };
+    if (vErrors === null) {
+      vErrors = [err41];
+    } else {
+      vErrors.push(err41);
+    }
+    errors++;
+  }
+  validate58.errors = vErrors;
+  return errors === 0;
+}
+export const validateShellBridgeRequest = validate59;
+const schema31 = {
   discriminator: "kind",
   mapping: {
     prepare: { properties: { requestId: { type: "string" } } },
@@ -13,7 +1013,7 @@ const schema29 = {
     },
   },
 };
-function validate57(
+function validate59(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -293,11 +1293,11 @@ function validate57(
     }
     errors++;
   }
-  validate57.errors = vErrors;
+  validate59.errors = vErrors;
   return errors === 0;
 }
-export const validateShellBridgeResponse = validate58;
-const schema30 = {
+export const validateShellBridgeResponse = validate60;
+const schema32 = {
   discriminator: "kind",
   mapping: {
     prepared: {
@@ -351,7 +1351,7 @@ const schema30 = {
     invalidated: { properties: { epoch: { type: "string" } } },
   },
 };
-function validate58(
+function validate60(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -836,7 +1836,7 @@ function validate58(
                       keyword: "enum",
                       params: {
                         allowedValues:
-                          schema30.mapping.refused.properties.failure.mapping
+                          schema32.mapping.refused.properties.failure.mapping
                             .corrupt.properties.reason.enum,
                       },
                       message: "must be equal to one of the allowed values",
@@ -926,7 +1926,7 @@ function validate58(
                       keyword: "enum",
                       params: {
                         allowedValues:
-                          schema30.mapping.refused.properties.failure.mapping
+                          schema32.mapping.refused.properties.failure.mapping
                             .unavailable.properties.reason.enum,
                       },
                       message: "must be equal to one of the allowed values",
@@ -1207,11 +2207,11 @@ function validate58(
     }
     errors++;
   }
-  validate58.errors = vErrors;
+  validate60.errors = vErrors;
   return errors === 0;
 }
-export const validateSelectedOwnerWitness = validate59;
-const schema31 = {
+export const validateSelectedOwnerWitness = validate61;
+const schema33 = {
   properties: {
     installationId: { type: "string" },
     revision: { type: "string" },
@@ -1223,7 +2223,7 @@ const schema31 = {
     },
   },
 };
-function validate59(
+function validate61(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -1450,11 +2450,11 @@ function validate59(
     }
     errors++;
   }
-  validate59.errors = vErrors;
+  validate61.errors = vErrors;
   return errors === 0;
 }
-export const validateSelectedOperation = validate60;
-const schema32 = {
+export const validateSelectedOperation = validate62;
+const schema34 = {
   discriminator: "kind",
   mapping: {
     teaching: {
@@ -1493,7 +2493,7 @@ const schema32 = {
     },
   },
 };
-function validate60(
+function validate62(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -2148,11 +3148,11 @@ function validate60(
     }
     errors++;
   }
-  validate60.errors = vErrors;
+  validate62.errors = vErrors;
   return errors === 0;
 }
-export const validateSelectedReadTarget = validate61;
-const schema33 = {
+export const validateSelectedReadTarget = validate63;
+const schema35 = {
   properties: {
     selection: {
       properties: {
@@ -2175,7 +3175,7 @@ const schema33 = {
     },
   },
 };
-function validate61(
+function validate63(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -2625,11 +3625,11 @@ function validate61(
     }
     errors++;
   }
-  validate61.errors = vErrors;
+  validate63.errors = vErrors;
   return errors === 0;
 }
-export const validateSelectedWorkInput = validate62;
-const schema34 = {
+export const validateSelectedWorkInput = validate64;
+const schema36 = {
   properties: {
     selection: {
       properties: {
@@ -2646,7 +3646,7 @@ const schema34 = {
     runId: { type: "string" },
   },
 };
-function validate62(
+function validate64(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -2965,11 +3965,11 @@ function validate62(
     }
     errors++;
   }
-  validate62.errors = vErrors;
+  validate64.errors = vErrors;
   return errors === 0;
 }
-export const validateSelectedInkInput = validate63;
-const schema35 = {
+export const validateSelectedInkInput = validate65;
+const schema37 = {
   properties: {
     selection: {
       properties: {
@@ -2986,7 +3986,7 @@ const schema35 = {
     token: {},
   },
 };
-function validate63(
+function validate65(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -3274,11 +4274,11 @@ function validate63(
     }
     errors++;
   }
-  validate63.errors = vErrors;
+  validate65.errors = vErrors;
   return errors === 0;
 }
-export const validateSelectedControlsInput = validate64;
-const schema36 = {
+export const validateSelectedControlsInput = validate66;
+const schema38 = {
   properties: {
     selection: {
       properties: {
@@ -3295,7 +4295,7 @@ const schema36 = {
     binding: {},
   },
 };
-function validate64(
+function validate66(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -3583,11 +4583,11 @@ function validate64(
     }
     errors++;
   }
-  validate64.errors = vErrors;
+  validate66.errors = vErrors;
   return errors === 0;
 }
-export const validateDepartureWitness = validate65;
-const schema37 = {
+export const validateDepartureWitness = validate67;
+const schema39 = {
   properties: {
     courses: {
       elements: {
@@ -3614,7 +4614,7 @@ const schema37 = {
     },
   },
 };
-function validate65(
+function validate67(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -4231,11 +5231,11 @@ function validate65(
     }
     errors++;
   }
-  validate65.errors = vErrors;
+  validate67.errors = vErrors;
   return errors === 0;
 }
-export const validateProfileAdministrationResult = validate66;
-const schema38 = {
+export const validateProfileAdministrationResult = validate68;
+const schema40 = {
   discriminator: "kind",
   mapping: {
     profileCommitted: { properties: {}, additionalProperties: true },
@@ -4244,7 +5244,7 @@ const schema38 = {
     },
   },
 };
-function validate66(
+function validate68(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -4420,11 +5420,11 @@ function validate66(
     }
     errors++;
   }
-  validate66.errors = vErrors;
+  validate68.errors = vErrors;
   return errors === 0;
 }
-export const validateSelectedWorkerRequest = validate67;
-const schema39 = {
+export const validateSelectedWorkerRequest = validate69;
+const schema41 = {
   discriminator: "kind",
   mapping: {
     openInstalledRecovery: {
@@ -4925,7 +5925,7 @@ const schema39 = {
     },
   },
 };
-function validate67(
+function validate69(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -5094,7 +6094,7 @@ function validate67(
                       keyword: "enum",
                       params: {
                         allowedValues:
-                          schema39.mapping.openRecovery.properties.preparation
+                          schema41.mapping.openRecovery.properties.preparation
                             .mapping.unavailable.properties.reason.enum,
                       },
                       message: "must be equal to one of the allowed values",
@@ -6480,7 +7480,7 @@ function validate67(
                   keyword: "enum",
                   params: {
                     allowedValues:
-                      schema39.mapping.changeLessonFiles.properties.command
+                      schema41.mapping.changeLessonFiles.properties.command
                         .properties.family.enum,
                   },
                   message: "must be equal to one of the allowed values",
@@ -7043,7 +8043,7 @@ function validate67(
                               keyword: "enum",
                               params: {
                                 allowedValues:
-                                  schema39.mapping.changeLessonFiles.properties
+                                  schema41.mapping.changeLessonFiles.properties
                                     .command.properties.action.mapping.download
                                     .properties.target.properties.mode.enum,
                               },
@@ -7325,7 +8325,7 @@ function validate67(
                               keyword: "enum",
                               params: {
                                 allowedValues:
-                                  schema39.mapping.changeLessonFiles.properties
+                                  schema41.mapping.changeLessonFiles.properties
                                     .command.properties.action.mapping.use
                                     .properties.target.properties.mode.enum,
                               },
@@ -8531,7 +9531,7 @@ function validate67(
                   keyword: "enum",
                   params: {
                     allowedValues:
-                      schema39.mapping.initialInstall.properties.command
+                      schema41.mapping.initialInstall.properties.command
                         .properties.kind.enum,
                   },
                   message: "must be equal to one of the allowed values",
@@ -8647,7 +9647,7 @@ function validate67(
                       keyword: "enum",
                       params: {
                         allowedValues:
-                          schema39.mapping.initialInstall.properties.command
+                          schema41.mapping.initialInstall.properties.command
                             .properties.source.properties.mode.enum,
                       },
                       message: "must be equal to one of the allowed values",
@@ -9355,7 +10355,7 @@ function validate67(
                   keyword: "enum",
                   params: {
                     allowedValues:
-                      schema39.mapping.parentMaterial.properties.input
+                      schema41.mapping.parentMaterial.properties.input
                         .properties.kind.enum,
                   },
                   message: "must be equal to one of the allowed values",
@@ -9636,7 +10636,7 @@ function validate67(
                   keyword: "enum",
                   params: {
                     allowedValues:
-                      schema39.mapping.recordDiagnostic.properties.event
+                      schema41.mapping.recordDiagnostic.properties.event
                         .properties.category.enum,
                   },
                   message: "must be equal to one of the allowed values",
@@ -9682,7 +10682,7 @@ function validate67(
                   keyword: "enum",
                   params: {
                     allowedValues:
-                      schema39.mapping.recordDiagnostic.properties.event
+                      schema41.mapping.recordDiagnostic.properties.event
                         .properties.operation.enum,
                   },
                   message: "must be equal to one of the allowed values",
@@ -14999,11 +15999,11 @@ function validate67(
     }
     errors++;
   }
-  validate67.errors = vErrors;
+  validate69.errors = vErrors;
   return errors === 0;
 }
-export const validateSelectedWorkerResponse = validate68;
-const schema40 = {
+export const validateSelectedWorkerResponse = validate70;
+const schema42 = {
   discriminator: "kind",
   mapping: {
     directory: { properties: { id: { type: "string" }, value: {} } },
@@ -16308,6 +17308,8 @@ const schema40 = {
     },
     reconciled: { properties: { id: { type: "string" }, value: {} } },
     storageBusy: { properties: { id: { type: "string" } } },
+    storeResetPending: { properties: { id: { type: "string" } } },
+    damagedStore: { properties: { id: { type: "string" } } },
     unsupportedStoreFormat: { properties: { id: { type: "string" } } },
     connectionLost: { properties: { id: { type: "string" } } },
     failed: {
@@ -16316,7 +17318,7 @@ const schema40 = {
   },
 };
 const func0 = Object.prototype.hasOwnProperty;
-function validate68(
+function validate70(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -17142,7 +18144,7 @@ function validate68(
                             keyword: "enum",
                             params: {
                               allowedValues:
-                                schema40.mapping.cacheCleanupResult.properties
+                                schema42.mapping.cacheCleanupResult.properties
                                   .value.properties.results.elements.properties
                                   .outcome.enum,
                             },
@@ -18044,7 +19046,7 @@ function validate68(
                               keyword: "enum",
                               params: {
                                 allowedValues:
-                                  schema40.mapping.lessonFiles.properties.value
+                                  schema42.mapping.lessonFiles.properties.value
                                     .properties.offer.mapping.available
                                     .properties.target.properties.mode.enum,
                               },
@@ -18320,7 +19322,7 @@ function validate68(
                               keyword: "enum",
                               params: {
                                 allowedValues:
-                                  schema40.mapping.lessonFiles.properties.value
+                                  schema42.mapping.lessonFiles.properties.value
                                     .properties.offer.mapping.ready.properties
                                     .target.properties.mode.enum,
                               },
@@ -18843,7 +19845,7 @@ function validate68(
                                 keyword: "enum",
                                 params: {
                                   allowedValues:
-                                    schema40.mapping.lessonFiles.properties
+                                    schema42.mapping.lessonFiles.properties
                                       .value.properties.commands.elements
                                       .properties.command.properties.family
                                       .enum,
@@ -19588,7 +20590,7 @@ function validate68(
                                             keyword: "enum",
                                             params: {
                                               allowedValues:
-                                                schema40.mapping.lessonFiles
+                                                schema42.mapping.lessonFiles
                                                   .properties.value.properties
                                                   .commands.elements.properties
                                                   .command.properties.action
@@ -19952,7 +20954,7 @@ function validate68(
                                             keyword: "enum",
                                             params: {
                                               allowedValues:
-                                                schema40.mapping.lessonFiles
+                                                schema42.mapping.lessonFiles
                                                   .properties.value.properties
                                                   .commands.elements.properties
                                                   .command.properties.action
@@ -21089,7 +22091,7 @@ function validate68(
                                     keyword: "enum",
                                     params: {
                                       allowedValues:
-                                        schema40.mapping.lessonFiles.properties
+                                        schema42.mapping.lessonFiles.properties
                                           .value.properties.commands.elements
                                           .properties.receipt.mapping.accepted
                                           .properties.family.enum,
@@ -21303,7 +22305,7 @@ function validate68(
                                         keyword: "enum",
                                         params: {
                                           allowedValues:
-                                            schema40.mapping.lessonFiles
+                                            schema42.mapping.lessonFiles
                                               .properties.value.properties
                                               .commands.elements.properties
                                               .receipt.mapping.accepted
@@ -21687,7 +22689,7 @@ function validate68(
                                     keyword: "enum",
                                     params: {
                                       allowedValues:
-                                        schema40.mapping.lessonFiles.properties
+                                        schema42.mapping.lessonFiles.properties
                                           .value.properties.commands.elements
                                           .properties.receipt.mapping.ready
                                           .properties.family.enum,
@@ -21901,7 +22903,7 @@ function validate68(
                                         keyword: "enum",
                                         params: {
                                           allowedValues:
-                                            schema40.mapping.lessonFiles
+                                            schema42.mapping.lessonFiles
                                               .properties.value.properties
                                               .commands.elements.properties
                                               .receipt.mapping.ready.properties
@@ -22329,7 +23331,7 @@ function validate68(
                                     keyword: "enum",
                                     params: {
                                       allowedValues:
-                                        schema40.mapping.lessonFiles.properties
+                                        schema42.mapping.lessonFiles.properties
                                           .value.properties.commands.elements
                                           .properties.receipt.mapping.activated
                                           .properties.family.enum,
@@ -22727,7 +23729,7 @@ function validate68(
                                     keyword: "enum",
                                     params: {
                                       allowedValues:
-                                        schema40.mapping.lessonFiles.properties
+                                        schema42.mapping.lessonFiles.properties
                                           .value.properties.commands.elements
                                           .properties.receipt.mapping.cancelled
                                           .properties.family.enum,
@@ -23269,7 +24271,7 @@ function validate68(
                                     keyword: "enum",
                                     params: {
                                       allowedValues:
-                                        schema40.mapping.lessonFiles.properties
+                                        schema42.mapping.lessonFiles.properties
                                           .value.properties.commands.elements
                                           .properties.receipt.mapping.rejected
                                           .properties.family.enum,
@@ -23327,7 +24329,7 @@ function validate68(
                                     keyword: "enum",
                                     params: {
                                       allowedValues:
-                                        schema40.mapping.lessonFiles.properties
+                                        schema42.mapping.lessonFiles.properties
                                           .value.properties.commands.elements
                                           .properties.receipt.mapping.rejected
                                           .properties.reason.enum,
@@ -23678,7 +24680,7 @@ function validate68(
                                     keyword: "enum",
                                     params: {
                                       allowedValues:
-                                        schema40.mapping.lessonFiles.properties
+                                        schema42.mapping.lessonFiles.properties
                                           .value.properties.commands.elements
                                           .properties.observation.mapping
                                           .retryable.properties.reason.enum,
@@ -24015,7 +25017,7 @@ function validate68(
                             keyword: "enum",
                             params: {
                               allowedValues:
-                                schema40.mapping.lessonFiles.properties.value
+                                schema42.mapping.lessonFiles.properties.value
                                   .properties.packages.elements.properties.role
                                   .enum,
                             },
@@ -24063,7 +25065,7 @@ function validate68(
                             keyword: "enum",
                             params: {
                               allowedValues:
-                                schema40.mapping.lessonFiles.properties.value
+                                schema42.mapping.lessonFiles.properties.value
                                   .properties.packages.elements.properties.bytes
                                   .enum,
                             },
@@ -24496,7 +25498,7 @@ function validate68(
                       keyword: "enum",
                       params: {
                         allowedValues:
-                          schema40.mapping.lessonFilesReceipt.properties.value
+                          schema42.mapping.lessonFilesReceipt.properties.value
                             .mapping.accepted.properties.family.enum,
                       },
                       message: "must be equal to one of the allowed values",
@@ -24656,7 +25658,7 @@ function validate68(
                           keyword: "enum",
                           params: {
                             allowedValues:
-                              schema40.mapping.lessonFilesReceipt.properties
+                              schema42.mapping.lessonFilesReceipt.properties
                                 .value.mapping.accepted.properties.target
                                 .properties.mode.enum,
                           },
@@ -24958,7 +25960,7 @@ function validate68(
                       keyword: "enum",
                       params: {
                         allowedValues:
-                          schema40.mapping.lessonFilesReceipt.properties.value
+                          schema42.mapping.lessonFilesReceipt.properties.value
                             .mapping.ready.properties.family.enum,
                       },
                       message: "must be equal to one of the allowed values",
@@ -25118,7 +26120,7 @@ function validate68(
                           keyword: "enum",
                           params: {
                             allowedValues:
-                              schema40.mapping.lessonFilesReceipt.properties
+                              schema42.mapping.lessonFilesReceipt.properties
                                 .value.mapping.ready.properties.target
                                 .properties.mode.enum,
                           },
@@ -25457,7 +26459,7 @@ function validate68(
                       keyword: "enum",
                       params: {
                         allowedValues:
-                          schema40.mapping.lessonFilesReceipt.properties.value
+                          schema42.mapping.lessonFilesReceipt.properties.value
                             .mapping.activated.properties.family.enum,
                       },
                       message: "must be equal to one of the allowed values",
@@ -25769,7 +26771,7 @@ function validate68(
                       keyword: "enum",
                       params: {
                         allowedValues:
-                          schema40.mapping.lessonFilesReceipt.properties.value
+                          schema42.mapping.lessonFilesReceipt.properties.value
                             .mapping.cancelled.properties.family.enum,
                       },
                       message: "must be equal to one of the allowed values",
@@ -26189,7 +27191,7 @@ function validate68(
                       keyword: "enum",
                       params: {
                         allowedValues:
-                          schema40.mapping.lessonFilesReceipt.properties.value
+                          schema42.mapping.lessonFilesReceipt.properties.value
                             .mapping.rejected.properties.family.enum,
                       },
                       message: "must be equal to one of the allowed values",
@@ -26233,7 +27235,7 @@ function validate68(
                       keyword: "enum",
                       params: {
                         allowedValues:
-                          schema40.mapping.lessonFilesReceipt.properties.value
+                          schema42.mapping.lessonFilesReceipt.properties.value
                             .mapping.rejected.properties.reason.enum,
                       },
                       message: "must be equal to one of the allowed values",
@@ -26458,7 +27460,7 @@ function validate68(
               keyword: "enum",
               params: {
                 allowedValues:
-                  schema40.mapping.publicationCheck.properties.operation.enum,
+                  schema42.mapping.publicationCheck.properties.operation.enum,
               },
               message: "must be equal to one of the allowed values",
             };
@@ -27020,7 +28022,7 @@ function validate68(
                                       keyword: "enum",
                                       params: {
                                         allowedValues:
-                                          schema40.mapping.publicationCheck
+                                          schema42.mapping.publicationCheck
                                             .properties.value.mapping
                                             .unavailable.properties.reason
                                             .mapping.content.properties.failure
@@ -27127,7 +28129,7 @@ function validate68(
                                       keyword: "enum",
                                       params: {
                                         allowedValues:
-                                          schema40.mapping.publicationCheck
+                                          schema42.mapping.publicationCheck
                                             .properties.value.mapping
                                             .unavailable.properties.reason
                                             .mapping.content.properties.failure
@@ -27479,7 +28481,7 @@ function validate68(
                                       keyword: "enum",
                                       params: {
                                         allowedValues:
-                                          schema40.mapping.publicationCheck
+                                          schema42.mapping.publicationCheck
                                             .properties.value.mapping
                                             .unavailable.properties.reason
                                             .mapping.shell.properties.failure
@@ -27587,7 +28589,7 @@ function validate68(
                                       keyword: "enum",
                                       params: {
                                         allowedValues:
-                                          schema40.mapping.publicationCheck
+                                          schema42.mapping.publicationCheck
                                             .properties.value.mapping
                                             .unavailable.properties.reason
                                             .mapping.shell.properties.failure
@@ -28846,7 +29848,7 @@ function validate68(
                                   keyword: "enum",
                                   params: {
                                     allowedValues:
-                                      schema40.mapping.contentUnavailable
+                                      schema42.mapping.contentUnavailable
                                         .properties.value.properties.reason
                                         .mapping.content.properties.failure
                                         .mapping.corrupt.properties.reason.enum,
@@ -28951,7 +29953,7 @@ function validate68(
                                   keyword: "enum",
                                   params: {
                                     allowedValues:
-                                      schema40.mapping.contentUnavailable
+                                      schema42.mapping.contentUnavailable
                                         .properties.value.properties.reason
                                         .mapping.content.properties.failure
                                         .mapping.unavailable.properties.reason
@@ -29296,7 +30298,7 @@ function validate68(
                                   keyword: "enum",
                                   params: {
                                     allowedValues:
-                                      schema40.mapping.contentUnavailable
+                                      schema42.mapping.contentUnavailable
                                         .properties.value.properties.reason
                                         .mapping.shell.properties.failure
                                         .mapping.corrupt.properties.reason.enum,
@@ -29402,7 +30404,7 @@ function validate68(
                                   keyword: "enum",
                                   params: {
                                     allowedValues:
-                                      schema40.mapping.contentUnavailable
+                                      schema42.mapping.contentUnavailable
                                         .properties.value.properties.reason
                                         .mapping.shell.properties.failure
                                         .mapping.unavailable.properties.reason
@@ -30088,7 +31090,7 @@ function validate68(
                       keyword: "enum",
                       params: {
                         allowedValues:
-                          schema40.mapping.parentMaterial.properties.value
+                          schema42.mapping.parentMaterial.properties.value
                             .mapping.unavailable.properties.reason.enum,
                       },
                       message: "must be equal to one of the allowed values",
@@ -30892,7 +31894,7 @@ function validate68(
                                             keyword: "enum",
                                             params: {
                                               allowedValues:
-                                                schema40.mapping.parentMaterial
+                                                schema42.mapping.parentMaterial
                                                   .properties.value.mapping
                                                   .preparation.properties
                                                   .document.properties.body
@@ -31267,7 +32269,7 @@ function validate68(
                                   keyword: "enum",
                                   params: {
                                     allowedValues:
-                                      schema40.mapping.parentMaterial.properties
+                                      schema42.mapping.parentMaterial.properties
                                         .value.mapping.preparation.properties
                                         .document.properties.body.properties
                                         .provenance.properties.kind.enum,
@@ -32172,7 +33174,7 @@ function validate68(
                                       for (const key95 in data239) {
                                         if (
                                           !func0.call(
-                                            schema40.mapping.parentMaterial
+                                            schema42.mapping.parentMaterial
                                               .properties.value.mapping
                                               .preparation.properties.document
                                               .properties.body.properties
@@ -33054,7 +34056,7 @@ function validate68(
                                                       keyword: "enum",
                                                       params: {
                                                         allowedValues:
-                                                          schema40.mapping
+                                                          schema42.mapping
                                                             .parentMaterial
                                                             .properties.value
                                                             .mapping.preparation
@@ -33546,7 +34548,7 @@ function validate68(
                                                       keyword: "enum",
                                                       params: {
                                                         allowedValues:
-                                                          schema40.mapping
+                                                          schema42.mapping
                                                             .parentMaterial
                                                             .properties.value
                                                             .mapping.preparation
@@ -34526,7 +35528,7 @@ function validate68(
                                                                         "enum",
                                                                       params: {
                                                                         allowedValues:
-                                                                          schema40
+                                                                          schema42
                                                                             .mapping
                                                                             .parentMaterial
                                                                             .properties
@@ -36328,7 +37330,7 @@ function validate68(
                                                                             params:
                                                                               {
                                                                                 allowedValues:
-                                                                                  schema40
+                                                                                  schema42
                                                                                     .mapping
                                                                                     .parentMaterial
                                                                                     .properties
@@ -38011,7 +39013,7 @@ function validate68(
                                                                         "enum",
                                                                       params: {
                                                                         allowedValues:
-                                                                          schema40
+                                                                          schema42
                                                                             .mapping
                                                                             .parentMaterial
                                                                             .properties
@@ -39629,7 +40631,7 @@ function validate68(
                                                                             params:
                                                                               {
                                                                                 allowedValues:
-                                                                                  schema40
+                                                                                  schema42
                                                                                     .mapping
                                                                                     .parentMaterial
                                                                                     .properties
@@ -41540,7 +42542,7 @@ function validate68(
                                                                                                 params:
                                                                                                   {
                                                                                                     allowedValues:
-                                                                                                      schema40
+                                                                                                      schema42
                                                                                                         .mapping
                                                                                                         .parentMaterial
                                                                                                         .properties
@@ -42311,7 +43313,7 @@ function validate68(
                                                                             params:
                                                                               {
                                                                                 allowedValues:
-                                                                                  schema40
+                                                                                  schema42
                                                                                     .mapping
                                                                                     .parentMaterial
                                                                                     .properties
@@ -43803,7 +44805,7 @@ function validate68(
                                                                         "enum",
                                                                       params: {
                                                                         allowedValues:
-                                                                          schema40
+                                                                          schema42
                                                                             .mapping
                                                                             .parentMaterial
                                                                             .properties
@@ -45252,7 +46254,7 @@ function validate68(
                                                                         "enum",
                                                                       params: {
                                                                         allowedValues:
-                                                                          schema40
+                                                                          schema42
                                                                             .mapping
                                                                             .parentMaterial
                                                                             .properties
@@ -46837,7 +47839,7 @@ function validate68(
                                                                         "enum",
                                                                       params: {
                                                                         allowedValues:
-                                                                          schema40
+                                                                          schema42
                                                                             .mapping
                                                                             .parentMaterial
                                                                             .properties
@@ -48431,7 +49433,7 @@ function validate68(
                                         keyword: "enum",
                                         params: {
                                           allowedValues:
-                                            schema40.mapping.parentMaterial
+                                            schema42.mapping.parentMaterial
                                               .properties.value.mapping
                                               .preparation.properties.document
                                               .properties.body.properties.assets
@@ -49175,7 +50177,7 @@ function validate68(
                   keyword: "enum",
                   params: {
                     allowedValues:
-                      schema40.mapping.diagnostics.properties.value.properties
+                      schema42.mapping.diagnostics.properties.value.properties
                         .persistence.enum,
                   },
                   message: "must be equal to one of the allowed values",
@@ -50656,7 +51658,7 @@ function validate68(
         }
         var valid752 = _errs538 === errors;
         valid0 = valid752;
-      } else if (tag0 === "unsupportedStoreFormat") {
+      } else if (tag0 === "storeResetPending") {
         const _errs540 = errors;
         let valid757 = false;
         valid757 = true;
@@ -50664,7 +51666,7 @@ function validate68(
           if (!(typeof data.id == "string")) {
             const err1189 = {
               instancePath: instancePath + "/id",
-              schemaPath: "/mapping/unsupportedStoreFormat/properties/id/type",
+              schemaPath: "/mapping/storeResetPending/properties/id/type",
               keyword: "type",
               params: { type: "string", nullable: false },
               message: "must be string",
@@ -50679,7 +51681,7 @@ function validate68(
         } else {
           const err1190 = {
             instancePath,
-            schemaPath: "/mapping/unsupportedStoreFormat/properties/id",
+            schemaPath: "/mapping/storeResetPending/properties/id",
             keyword: "properties",
             params: { error: "missing", missingProperty: "id" },
             message: "must have property 'id'",
@@ -50698,7 +51700,7 @@ function validate68(
                 instancePath +
                 "/" +
                 key177.replace(/~/g, "~0").replace(/\//g, "~1"),
-              schemaPath: "/mapping/unsupportedStoreFormat",
+              schemaPath: "/mapping/storeResetPending",
               keyword: "properties",
               params: { error: "additional", additionalProperty: key177 },
               message: "must NOT have additional properties",
@@ -50714,7 +51716,7 @@ function validate68(
         if (!valid757) {
           const err1192 = {
             instancePath,
-            schemaPath: "/mapping/unsupportedStoreFormat/properties",
+            schemaPath: "/mapping/storeResetPending/properties",
             keyword: "properties",
             params: { type: "object", nullable: false },
             message: "must be object",
@@ -50728,7 +51730,7 @@ function validate68(
         }
         var valid756 = _errs540 === errors;
         valid0 = valid756;
-      } else if (tag0 === "connectionLost") {
+      } else if (tag0 === "damagedStore") {
         const _errs542 = errors;
         let valid761 = false;
         valid761 = true;
@@ -50736,7 +51738,7 @@ function validate68(
           if (!(typeof data.id == "string")) {
             const err1193 = {
               instancePath: instancePath + "/id",
-              schemaPath: "/mapping/connectionLost/properties/id/type",
+              schemaPath: "/mapping/damagedStore/properties/id/type",
               keyword: "type",
               params: { type: "string", nullable: false },
               message: "must be string",
@@ -50751,7 +51753,7 @@ function validate68(
         } else {
           const err1194 = {
             instancePath,
-            schemaPath: "/mapping/connectionLost/properties/id",
+            schemaPath: "/mapping/damagedStore/properties/id",
             keyword: "properties",
             params: { error: "missing", missingProperty: "id" },
             message: "must have property 'id'",
@@ -50770,7 +51772,7 @@ function validate68(
                 instancePath +
                 "/" +
                 key178.replace(/~/g, "~0").replace(/\//g, "~1"),
-              schemaPath: "/mapping/connectionLost",
+              schemaPath: "/mapping/damagedStore",
               keyword: "properties",
               params: { error: "additional", additionalProperty: key178 },
               message: "must NOT have additional properties",
@@ -50786,7 +51788,7 @@ function validate68(
         if (!valid761) {
           const err1196 = {
             instancePath,
-            schemaPath: "/mapping/connectionLost/properties",
+            schemaPath: "/mapping/damagedStore/properties",
             keyword: "properties",
             params: { type: "object", nullable: false },
             message: "must be object",
@@ -50800,7 +51802,7 @@ function validate68(
         }
         var valid760 = _errs542 === errors;
         valid0 = valid760;
-      } else if (tag0 === "failed") {
+      } else if (tag0 === "unsupportedStoreFormat") {
         const _errs544 = errors;
         let valid765 = false;
         valid765 = true;
@@ -50808,7 +51810,7 @@ function validate68(
           if (!(typeof data.id == "string")) {
             const err1197 = {
               instancePath: instancePath + "/id",
-              schemaPath: "/mapping/failed/properties/id/type",
+              schemaPath: "/mapping/unsupportedStoreFormat/properties/id/type",
               keyword: "type",
               params: { type: "string", nullable: false },
               message: "must be string",
@@ -50823,7 +51825,7 @@ function validate68(
         } else {
           const err1198 = {
             instancePath,
-            schemaPath: "/mapping/failed/properties/id",
+            schemaPath: "/mapping/unsupportedStoreFormat/properties/id",
             keyword: "properties",
             params: { error: "missing", missingProperty: "id" },
             message: "must have property 'id'",
@@ -50835,14 +51837,17 @@ function validate68(
           }
           errors++;
         }
-        if (data.message !== undefined) {
-          if (!(typeof data.message == "string")) {
+        for (const key179 in data) {
+          if (key179 !== "kind" && key179 !== "id") {
             const err1199 = {
-              instancePath: instancePath + "/message",
-              schemaPath: "/mapping/failed/properties/message/type",
-              keyword: "type",
-              params: { type: "string", nullable: false },
-              message: "must be string",
+              instancePath:
+                instancePath +
+                "/" +
+                key179.replace(/~/g, "~0").replace(/\//g, "~1"),
+              schemaPath: "/mapping/unsupportedStoreFormat",
+              keyword: "properties",
+              params: { error: "additional", additionalProperty: key179 },
+              message: "must NOT have additional properties",
             };
             if (vErrors === null) {
               vErrors = [err1199];
@@ -50851,13 +51856,14 @@ function validate68(
             }
             errors++;
           }
-        } else {
+        }
+        if (!valid765) {
           const err1200 = {
             instancePath,
-            schemaPath: "/mapping/failed/properties/message",
+            schemaPath: "/mapping/unsupportedStoreFormat/properties",
             keyword: "properties",
-            params: { error: "missing", missingProperty: "message" },
-            message: "must have property 'message'",
+            params: { type: "object", nullable: false },
+            message: "must be object",
           };
           if (vErrors === null) {
             vErrors = [err1200];
@@ -50866,17 +51872,20 @@ function validate68(
           }
           errors++;
         }
-        for (const key179 in data) {
-          if (key179 !== "kind" && key179 !== "id" && key179 !== "message") {
+        var valid764 = _errs544 === errors;
+        valid0 = valid764;
+      } else if (tag0 === "connectionLost") {
+        const _errs546 = errors;
+        let valid769 = false;
+        valid769 = true;
+        if (data.id !== undefined) {
+          if (!(typeof data.id == "string")) {
             const err1201 = {
-              instancePath:
-                instancePath +
-                "/" +
-                key179.replace(/~/g, "~0").replace(/\//g, "~1"),
-              schemaPath: "/mapping/failed",
-              keyword: "properties",
-              params: { error: "additional", additionalProperty: key179 },
-              message: "must NOT have additional properties",
+              instancePath: instancePath + "/id",
+              schemaPath: "/mapping/connectionLost/properties/id/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
             };
             if (vErrors === null) {
               vErrors = [err1201];
@@ -50885,14 +51894,13 @@ function validate68(
             }
             errors++;
           }
-        }
-        if (!valid765) {
+        } else {
           const err1202 = {
             instancePath,
-            schemaPath: "/mapping/failed/properties",
+            schemaPath: "/mapping/connectionLost/properties/id",
             keyword: "properties",
-            params: { type: "object", nullable: false },
-            message: "must be object",
+            params: { error: "missing", missingProperty: "id" },
+            message: "must have property 'id'",
           };
           if (vErrors === null) {
             vErrors = [err1202];
@@ -50901,10 +51909,148 @@ function validate68(
           }
           errors++;
         }
-        var valid764 = _errs544 === errors;
-        valid0 = valid764;
+        for (const key180 in data) {
+          if (key180 !== "kind" && key180 !== "id") {
+            const err1203 = {
+              instancePath:
+                instancePath +
+                "/" +
+                key180.replace(/~/g, "~0").replace(/\//g, "~1"),
+              schemaPath: "/mapping/connectionLost",
+              keyword: "properties",
+              params: { error: "additional", additionalProperty: key180 },
+              message: "must NOT have additional properties",
+            };
+            if (vErrors === null) {
+              vErrors = [err1203];
+            } else {
+              vErrors.push(err1203);
+            }
+            errors++;
+          }
+        }
+        if (!valid769) {
+          const err1204 = {
+            instancePath,
+            schemaPath: "/mapping/connectionLost/properties",
+            keyword: "properties",
+            params: { type: "object", nullable: false },
+            message: "must be object",
+          };
+          if (vErrors === null) {
+            vErrors = [err1204];
+          } else {
+            vErrors.push(err1204);
+          }
+          errors++;
+        }
+        var valid768 = _errs546 === errors;
+        valid0 = valid768;
+      } else if (tag0 === "failed") {
+        const _errs548 = errors;
+        let valid773 = false;
+        valid773 = true;
+        if (data.id !== undefined) {
+          if (!(typeof data.id == "string")) {
+            const err1205 = {
+              instancePath: instancePath + "/id",
+              schemaPath: "/mapping/failed/properties/id/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err1205];
+            } else {
+              vErrors.push(err1205);
+            }
+            errors++;
+          }
+        } else {
+          const err1206 = {
+            instancePath,
+            schemaPath: "/mapping/failed/properties/id",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "id" },
+            message: "must have property 'id'",
+          };
+          if (vErrors === null) {
+            vErrors = [err1206];
+          } else {
+            vErrors.push(err1206);
+          }
+          errors++;
+        }
+        if (data.message !== undefined) {
+          if (!(typeof data.message == "string")) {
+            const err1207 = {
+              instancePath: instancePath + "/message",
+              schemaPath: "/mapping/failed/properties/message/type",
+              keyword: "type",
+              params: { type: "string", nullable: false },
+              message: "must be string",
+            };
+            if (vErrors === null) {
+              vErrors = [err1207];
+            } else {
+              vErrors.push(err1207);
+            }
+            errors++;
+          }
+        } else {
+          const err1208 = {
+            instancePath,
+            schemaPath: "/mapping/failed/properties/message",
+            keyword: "properties",
+            params: { error: "missing", missingProperty: "message" },
+            message: "must have property 'message'",
+          };
+          if (vErrors === null) {
+            vErrors = [err1208];
+          } else {
+            vErrors.push(err1208);
+          }
+          errors++;
+        }
+        for (const key181 in data) {
+          if (key181 !== "kind" && key181 !== "id" && key181 !== "message") {
+            const err1209 = {
+              instancePath:
+                instancePath +
+                "/" +
+                key181.replace(/~/g, "~0").replace(/\//g, "~1"),
+              schemaPath: "/mapping/failed",
+              keyword: "properties",
+              params: { error: "additional", additionalProperty: key181 },
+              message: "must NOT have additional properties",
+            };
+            if (vErrors === null) {
+              vErrors = [err1209];
+            } else {
+              vErrors.push(err1209);
+            }
+            errors++;
+          }
+        }
+        if (!valid773) {
+          const err1210 = {
+            instancePath,
+            schemaPath: "/mapping/failed/properties",
+            keyword: "properties",
+            params: { type: "object", nullable: false },
+            message: "must be object",
+          };
+          if (vErrors === null) {
+            vErrors = [err1210];
+          } else {
+            vErrors.push(err1210);
+          }
+          errors++;
+        }
+        var valid772 = _errs548 === errors;
+        valid0 = valid772;
       } else {
-        const err1203 = {
+        const err1211 = {
           instancePath: instancePath + "/kind",
           schemaPath: "/mapping",
           keyword: "discriminator",
@@ -50912,14 +52058,14 @@ function validate68(
           message: 'value of tag "kind" must be in mapping',
         };
         if (vErrors === null) {
-          vErrors = [err1203];
+          vErrors = [err1211];
         } else {
-          vErrors.push(err1203);
+          vErrors.push(err1211);
         }
         errors++;
       }
     } else {
-      const err1204 = {
+      const err1212 = {
         instancePath: instancePath + "/kind",
         schemaPath: "/discriminator",
         keyword: "discriminator",
@@ -50927,14 +52073,14 @@ function validate68(
         message: 'tag "kind" must be string',
       };
       if (vErrors === null) {
-        vErrors = [err1204];
+        vErrors = [err1212];
       } else {
-        vErrors.push(err1204);
+        vErrors.push(err1212);
       }
       errors++;
     }
   } else if (!valid0) {
-    const err1205 = {
+    const err1213 = {
       instancePath,
       schemaPath: "/discriminator",
       keyword: "discriminator",
@@ -50942,18 +52088,18 @@ function validate68(
       message: "must be object",
     };
     if (vErrors === null) {
-      vErrors = [err1205];
+      vErrors = [err1213];
     } else {
-      vErrors.push(err1205);
+      vErrors.push(err1213);
     }
     errors++;
   }
-  validate68.errors = vErrors;
+  validate70.errors = vErrors;
   return errors === 0;
 }
-export const validateCurrentApplicationRead = validate69;
-const schema41 = { properties: { directory: {}, application: {} } };
-function validate69(
+export const validateCurrentApplicationRead = validate71;
+const schema43 = { properties: { directory: {}, application: {} } };
+function validate71(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -50996,11 +52142,11 @@ function validate69(
     }
     errors++;
   }
-  validate69.errors = vErrors;
+  validate71.errors = vErrors;
   return errors === 0;
 }
-export const validateCurrentResult = validate70;
-const schema42 = {
+export const validateCurrentResult = validate72;
+const schema44 = {
   properties: {
     selection: {
       properties: {
@@ -51017,7 +52163,7 @@ const schema42 = {
     value: {},
   },
 };
-function validate70(
+function validate72(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -51305,11 +52451,11 @@ function validate70(
     }
     errors++;
   }
-  validate70.errors = vErrors;
+  validate72.errors = vErrors;
   return errors === 0;
 }
-export const validateExecutionResult = validate71;
-const schema43 = {
+export const validateExecutionResult = validate73;
+const schema45 = {
   discriminator: "kind",
   mapping: {
     teaching: {
@@ -51348,7 +52494,7 @@ const schema43 = {
     },
   },
 };
-function validate71(
+function validate73(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -52003,11 +53149,11 @@ function validate71(
     }
     errors++;
   }
-  validate71.errors = vErrors;
+  validate73.errors = vErrors;
   return errors === 0;
 }
-export const validateSelectedRecoveryOpening = validate72;
-const schema44 = {
+export const validateSelectedRecoveryOpening = validate74;
+const schema46 = {
   discriminator: "kind",
   mapping: {
     cold: { properties: {} },
@@ -52032,7 +53178,7 @@ const schema44 = {
     },
   },
 };
-function validate72(
+function validate74(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -52504,11 +53650,11 @@ function validate72(
     }
     errors++;
   }
-  validate72.errors = vErrors;
+  validate74.errors = vErrors;
   return errors === 0;
 }
-export const validateSelectedRecoveryInventory = validate73;
-const schema45 = {
+export const validateSelectedRecoveryInventory = validate75;
+const schema47 = {
   properties: {
     kind: { enum: ["closed"] },
     recoveryId: { type: "string" },
@@ -52516,7 +53662,7 @@ const schema45 = {
     directory: {},
   },
 };
-function validate73(
+function validate75(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -52532,7 +53678,7 @@ function validate73(
           instancePath: instancePath + "/kind",
           schemaPath: "/properties/kind/enum",
           keyword: "enum",
-          params: { allowedValues: schema45.properties.kind.enum },
+          params: { allowedValues: schema47.properties.kind.enum },
           message: "must be equal to one of the allowed values",
         };
         if (vErrors === null) {
@@ -52627,11 +53773,11 @@ function validate73(
     }
     errors++;
   }
-  validate73.errors = vErrors;
+  validate75.errors = vErrors;
   return errors === 0;
 }
-export const validateRecoveryResult = validate74;
-const schema46 = {
+export const validateRecoveryResult = validate76;
+const schema48 = {
   discriminator: "resolution",
   mapping: {
     applied: {
@@ -52711,7 +53857,7 @@ const schema46 = {
     },
   },
 };
-function validate74(
+function validate76(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -54060,11 +55206,11 @@ function validate74(
     }
     errors++;
   }
-  validate74.errors = vErrors;
+  validate76.errors = vErrors;
   return errors === 0;
 }
-export const validateInkResult = validate75;
-const schema47 = {
+export const validateInkResult = validate77;
+const schema49 = {
   discriminator: "kind",
   mapping: {
     inkCommitted: { properties: { commandId: { type: "string" }, token: {} } },
@@ -54073,7 +55219,7 @@ const schema47 = {
     },
   },
 };
-function validate75(
+function validate77(
   data,
   { instancePath = "", parentData, parentDataProperty, rootData = data } = {},
 ) {
@@ -54317,6 +55463,6 @@ function validate75(
     }
     errors++;
   }
-  validate75.errors = vErrors;
+  validate77.errors = vErrors;
   return errors === 0;
 }

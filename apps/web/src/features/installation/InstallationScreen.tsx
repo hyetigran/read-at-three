@@ -13,6 +13,7 @@ export function InstallationScreen({
   opening,
   onOpen,
   onReconnect,
+  onStartFresh,
   retained,
 }: Readonly<{
   client: BrowserTeachingClient;
@@ -20,6 +21,7 @@ export function InstallationScreen({
   opening: boolean;
   onOpen: () => void;
   onReconnect: () => void;
+  onStartFresh?: (() => void) | undefined;
   retained: { current: InitialInstallCommand | null };
 }>) {
   const attempt = useRef(0);
@@ -123,6 +125,11 @@ export function InstallationScreen({
               The saved installation could not be read. Your work is kept.
             </AddedText>
           </p>
+        ) : null}
+        {catalog.isError && onStartFresh ? (
+          <Button disabled={opening || submitting} onClick={onStartFresh}>
+            <AddedText>Start fresh</AddedText>
+          </Button>
         ) : null}
         {message ? (
           <p role="alert">

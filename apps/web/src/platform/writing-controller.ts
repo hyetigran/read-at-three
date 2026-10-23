@@ -1,4 +1,8 @@
 import {
+  DamagedStoreError,
+  PendingStoreResetError,
+} from "./storage-integrity.ts";
+import {
   StorageCapacityError,
   isStorageCapacityError,
 } from "./storage-capacity.ts";
@@ -85,7 +89,9 @@ export type Operation =
       code:
         | "storage-busy"
         | "storage-initialization-failed"
-        | "unsupported-store-format";
+        | "unsupported-store-format"
+        | "damaged-store"
+        | "store-reset-pending";
       message: string;
     }
   | { kind: "preparing"; request: ActionRequest; origin: Projection }
@@ -128,6 +134,7 @@ export type AdministrationOutcome =
   | Readonly<{ kind: "held" }>
   | CommandRejection;
 export type ControllerState = Readonly<{
+  storeDamaged: boolean;
   resourceBlock: InstalledResourceFailure | null;
   operation: Operation;
   correctionPreview: PrintedNode | ControlTurnNode | null;
@@ -180,7 +187,18 @@ type Capture = {
   pending: PendingInk | null;
 };
 const ids = () => crypto.randomUUID();
+function openingFailureCode(
+  error: unknown,
+): Extract<Operation, { kind: "openingFailed" }>["code"] {
+  if (error instanceof PendingStoreResetError) return "store-reset-pending";
+  if (error instanceof DamagedStoreError) return "damaged-store";
+  if (error instanceof UnsupportedStoreFormatError)
+    return "unsupported-store-format";
+  if (error instanceof StorageBusyError) return "storage-busy";
+  return "storage-initialization-failed";
+}
 function saveFailureMessage(error: unknown): string {
+  if (error instanceof DamagedStoreError) return error.message;
   return isStorageCapacityError(error)
     ? new StorageCapacityError().message
     : saveMessage;
@@ -203,6 +221,7 @@ export function createWritingController({
   createTeaching: (stageRestore: RestoreTeaching) => CommittedTeachingExecution;
 }>) {
   let state: ControllerState = {
+    storeDamaged: false,
     resourceBlock: null,
     operation: { kind: "opening" },
     correctionPreview: null,
@@ -336,6 +355,8 @@ export function createWritingController({
     );
   }
   function reopenInput() {
+    if (state.storeDamaged && connected && state.operation.kind === "idle")
+      publish({ storeDamaged: false });
     const wasFenced = fenced;
     const suspended = inputIsSuspended();
     fenced = suspended || state.operation.kind !== "idle" || !connected;
@@ -344,7 +365,8 @@ export function createWritingController({
     if (wasFenced && !fenced) inputEligibleAt = performance.now();
     paint();
   }
-  client.onLoss(() => {
+  client.onLoss((reason) => {
+    if (reason instanceof DamagedStoreError) publish({ storeDamaged: true });
     transportGeneration++;
     const wasConnected = connected;
     connected = false;
@@ -354,7 +376,7 @@ export function createWritingController({
       publish({
         operation: {
           kind: "inkFailed",
-          message: saveMessage,
+          message: reason?.message ?? saveMessage,
           retry: { kind: "inkOnly" },
         },
       });
@@ -766,12 +788,7 @@ export function createWritingController({
         publish({
           operation: {
             kind: "openingFailed",
-            code:
-              error instanceof UnsupportedStoreFormatError
-                ? "unsupported-store-format"
-                : error instanceof StorageBusyError
-                  ? "storage-busy"
-                  : "storage-initialization-failed",
+            code: openingFailureCode(error),
             message:
               error instanceof Error
                 ? error.message
@@ -1579,12 +1596,7 @@ export function createWritingController({
             : operation.kind === "openingFailed"
               ? {
                   kind: "openingFailed",
-                  code:
-                    error instanceof UnsupportedStoreFormatError
-                      ? "unsupported-store-format"
-                      : error instanceof StorageBusyError
-                        ? "storage-busy"
-                        : "storage-initialization-failed",
+                  code: openingFailureCode(error),
                   message:
                     error instanceof Error ? error.message : operation.message,
                 }
